@@ -1,0 +1,63 @@
+<!--
+title: Music and sound effects
+group: Guides
+order: 95
+summary: Songs that fit the mood and stay pleasant to hear for an hour: instruments, keys and tempos by mood, even loudness, and sound effects by event.
+-->
+<h1>Music and sound effects</h1>
+<p>A player hears the same song for minutes and the same sound effect hundreds of times. Make both pleasant first, exciting second.
+How to use the sound and music editors is on <a href="help:sprites-sound">Sprites, animation and sound</a>.</p>
+
+<h2>Instruments</h2>
+<p>There are two families. The <strong>chip sounds</strong> (lead, pluck, flute, bell and the like) are tiny retro waveforms: great for a retro game,
+but harsh and whistly as a melody. The <strong>General MIDI</strong> instruments (their names start with <code>gm_</code>) are real recorded instruments:
+pianos, guitars, strings, brass, pads, a drum kit. Use them unless you want the retro sound on purpose.</p>
+
+<h2>A song for each mood</h2>
+<table>
+<tr><th>Where</th><th>Scale</th><th>Tempo</th><th>A band that works (melody, harmony, bass)</th></tr>
+<tr><td>Title screen</td><td>minor or dorian</td><td>85 to 100</td><td>vibraphone, warm pad, fretless bass</td></tr>
+<tr><td>Menus, shop</td><td>dorian or major</td><td>80 to 95</td><td>electric piano, choir pad, acoustic bass</td></tr>
+<tr><td>A calm level</td><td>lydian or major</td><td>95 to 110</td><td>marimba or kalimba, nylon guitar, finger bass</td></tr>
+<tr><td>An action level</td><td>minor or dorian</td><td>110 to 130</td><td>guitar, sax or steel drums; electric piano or plucked strings; pick or slap bass</td></tr>
+<tr><td>Dark places, caves, space</td><td>phrygian</td><td>80 to 95</td><td>cello or koto, a bowed pad, double bass</td></tr>
+<tr><td>Boss</td><td>harmonic minor</td><td>140 to 160</td><td>brass section, tremolo strings, synth bass</td></tr>
+<tr><td>Victory (short, no loop)</td><td>major</td><td>120 to 140</td><td>trumpet, strings, acoustic bass</td></tr>
+<tr><td>Game over (short, slow)</td><td>minor</td><td>60 to 75</td><td>cello, choir, double bass</td></tr>
+</table>
+<p>Give each level its own band and key, so places feel different.</p>
+
+<h2>Keeping it pleasant</h2>
+<ul>
+<li><strong>Keep the melody in the middle.</strong> Between C4 and C6. Above C6 most instruments turn thin and shrill; above C7 they pierce.</li>
+<li><strong>Accompany below the tune.</strong> Chords and arpeggios an octave under the melody, the bass between C1 and C3.</li>
+<li><strong>Land on the chords.</strong> On the strong beats (1 and 3) let the melody play a note of the chord under it; move between them mostly by step.</li>
+<li><strong>Stay in one range.</strong> A tune you can hum stays within about an octave and a half and has few big jumps.</li>
+<li><strong>Repeat a little.</strong> A phrase that comes back is what makes a tune stick. Two to four chords that return work well.</li>
+<li><strong>Even loudness.</strong> Every song about as loud as the others, so moving between screens never jumps in volume.</li>
+</ul>
+
+<h2>Sound effects</h2>
+<p>Short (under half a second), one clear idea each, and different for each kind of event so the player hears what happened.</p>
+<table>
+<tr><th>Event</th><th>What it sounds like</th></tr>
+<tr><td>Shooting</td><td>a quick drop in pitch, square or noise, one or two steps</td></tr>
+<tr><td>Getting hurt</td><td>a burst of noise with a low falling tone, louder than the shots</td></tr>
+<tr><td>An enemy defeated</td><td>noise fading out with a low drop</td></tr>
+<tr><td>Pickup, coin</td><td>two rising notes, bright</td></tr>
+<tr><td>Jump</td><td>a short rising slide</td></tr>
+<tr><td>Level up, unlock</td><td>a rising arpeggio</td></tr>
+<tr><td>Menu move, OK, back</td><td>very short quiet ticks; OK rises, back falls</td></tr>
+<tr><td>Warning, a boss coming</td><td>repeated low notes</td></tr>
+</table>
+<p>The sounds you hear most (shots, footsteps) should be the quietest: they repeat hundreds of times.</p>
+
+<h2>On the handheld</h2>
+<p>A four-track General MIDI song takes about a tenth of the handheld's processor time on its own thread. That is fine, but do not play many
+General MIDI sound effects at once; chip sounds are cheaper for effects.</p>
+
+<h2>With an agent</h2>
+<p>An AI agent connected to GameStudio follows this page with its tools: <code>instruments</code> lists what exists; <code>song_write</code> writes a song
+(from a short description of key, tempo, band and chords, or note by note); <code>song_check</code> reads the notes like a musician (key, chords,
+whether the melody sits on them, clashing notes, shrill or muddy ranges) and measures the sound (loudness, clipping, brightness);
+<code>sound_write</code> and <code>sound_check</code> do the same for effects.</p>

@@ -532,6 +532,7 @@ input, textarea, select, [contenteditable="true"], .cm-editor, #output, .output,
 .help-article h1 { font-size: 24px; margin: 18px 0 8px; }
 .help-article h2 { font-size: 17px; margin: 26px 0 6px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
 .help-article p, .help-article li { max-width: 780px; }
+.help-article li { white-space: normal; overflow: visible; cursor: auto; padding: 2px 0; border-radius: 0; } /* the global li style is for the side lists */
 .help-article a { color: #7fb0ff; }
 .help-article code, .help-article kbd { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; background: var(--panel-2); border-radius: 3px; padding: 0 4px; }
 .help-article kbd { border: 1px solid var(--border); }

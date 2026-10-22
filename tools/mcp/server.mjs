@@ -11,7 +11,8 @@ import * as T from "./tools.mjs";
 const server = new McpServer({ name: "gamestudio", version: "1.0.0" }, {
   instructions: "GameStudio makes small 2D Lua games for a handheld (games are folders in carts/; the engine API is gs.*). Prefer these tools over reading big files: " +
     "api and help for the engine, overview to see a game, check after editing Lua, run to see it (a screenshot), inspect to look inside, sprite_view/sprite_write for art, room_view/room_write for levels, " +
-    "song_check/song_write and sound_check/sound_write for sound (the checks read the notes with music theory and measure the rendered audio), push to send a game to the handheld.",
+    "song_check/song_write and sound_check/sound_write for sound (the checks read the notes with music theory and measure the rendered audio), push to send a game to the handheld. " +
+    "Before drawing, designing levels or composing, read the craft guide with help: help('art') (with help('sizes')), help('levels'), help('music').",
 });
 
 // every tool answers with text, plus pictures when there are any; mistakes come back as readable errors, not crashes
@@ -67,7 +68,8 @@ tool("song_check", "Listen to a song", "Reads a song like a musician (key, chord
 tool("song_write", "Write a song", "Writes music/<name>.json and checks it. spec is either a finished tracker song ({ format: 'tracker', ... }) or options for the generator: " +
   "{ seed, root (0=C..11=B), scale ('major'|'minor'|'dorian'|'phrygian'|'lydian'|'harm'), tempo, oct (melody octave, 4 = middle; 5+ gets shrill), inst: [melody, harmony, bass, drums] (instrument names; 'gm_drum_kit' for drums), " +
   "harmony ('pad'|'arp8'|'arp16'), bass ('half'|'eighth'|'pump'|'gallop'|'groove'), drums ('none'|'soft'|'four'|'drive'|'break'|'boss'), rhythms: [0-5 melody rhythm ids], rest (0-1), calm (true = notes ring), " +
-  "reverb (0-100), vol: [4 track volumes -3..3], level (whole-song steps), sections: [{ prog: [scale degrees, one a bar, 0 = home chord], oct?, drums?, bass?, reg? }], order: [section indexes], loop (default true) }.",
+  "reverb (0-100), vol: [4 track volumes -3..3], level (whole-song steps), sections: [{ prog: [scale degrees, one a bar, 0 = home chord; 4 bars a section], oct?, drums?, bass?, reg? }], order: [section indexes], loop (default true) }. " +
+  "In a tracker song the gm_drum_kit notes are C3 kick, D3 snare, F#3 closed hat, A#3 open hat, C#4 crash, A3 and D4 toms. Read help('music') first.",
   { game, name: z.string(), spec: z.record(z.string(), z.any()) }, T.song_write);
 tool("sound_check", "Listen to a sound effect", "Renders a sound effect and reports its notes, length, loudness and brightness.",
   { game, name: z.string() }, T.sound_check);
@@ -87,5 +89,22 @@ tool("room_write", "Build or change a room", "Creates or edits rooms/<name>.lua 
   }, T.room_write);
 tool("push", "Send to the handheld", "Packs a game and sends it to the handheld with scripts/push.sh (needs scripts/device.env and an open device connection).",
   { game }, T.push);
+
+// Prompts: a task to start from, with the matching guide included, for any MCP client (Claude Code's skills point to the same guides).
+function prompt(name, title, description, args, guides, task) {
+  server.registerPrompt(name, { title, description, argsSchema: args }, (a) => {
+    const text = guides.map((g) => T.help({ topic: g }).text).join("\n\n");
+    return { messages: [{ role: "user", content: { type: "text", text: `${task(a)}\n\nWork with the gamestudio tools and follow this guide:\n\n${text}` } }] };
+  });
+}
+prompt("draw-art", "Draw sprites or tiles", "Draw art for a game, readable on the handheld, fitted to the kind of game.",
+  { game, what: z.string().describe("What to draw, e.g. 'a hero with idle and walk', 'a cave tileset', 'three enemies for a shooter'") },
+  ["art", "sizes"], (a) => `Draw ${a.what} for the game ${a.game}. First call overview to see its console, sizes and style; draw with sprite_write and look at each result; finish by running the game.`);
+prompt("design-level", "Design a level", "Design or improve a room, fitted to the kind of game and to the hero's abilities.",
+  { game, room: z.string().describe("The room's name"), idea: z.string().optional().describe("What the level should be, e.g. 'a first platformer level teaching the double jump'") },
+  ["levels"], (a) => `Design the room ${a.room} for the game ${a.game}${a.idea ? `: ${a.idea}` : ""}. Read the hero's entity file for its numbers first; build with room_write, look with room_view, play the route with run.`);
+prompt("compose-music", "Compose music", "Write a song or sound effects that fit a mood and stay pleasant to hear.",
+  { game, what: z.string().describe("e.g. 'a calm first level song', 'the boss theme', 'jump and coin sounds'") },
+  ["music"], (a) => `Write ${a.what} for the game ${a.game}. Call overview to hear what the game already has; write with song_write or sound_write and act on what the check reports.`);
 
 await server.connect(new StdioServerTransport());

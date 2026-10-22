@@ -18,8 +18,11 @@ It reuses, never copies: `studio/src/*-core.js` (lint, project scan, songs and s
 | `room_view`, `room_write` | A room drawn at its real size (tiles, things as their sprites, paths, one screen dashed) with counts; build or change a room: size, layers written as text maps or painted, things added or removed, paths |
 | `push` | `scripts/push.sh` for a game |
 
-The project's skills (`.claude/skills/`: `pixel-art`, `room-design`, `game-music`) tell an agent how to use these tools well for the kind of
-game being made; `test/skills.test.mjs` checks that every tool, file and instrument they name exists.
+The craft (art, levels, music by kind of game) lives once, in the Help pages `docs/help/93-art.html`, `94-levels.html`, `95-music.html`, so
+people read it in the studio and every agent reads it through `help`. The server's three prompts (`draw-art`, `design-level`,
+`compose-music`) start a task with the matching guide attached, for any MCP client; Claude Code's skills in `.claude/skills/` are short
+pointers to the same guides (they only add automatic triggering). `test/skills.test.mjs` checks that the guides and skills name real tools,
+pages and instruments.
 
 Keep the tool count small and the answers short: every description costs the agent context. New tool: a function in `tools.mjs`, a `tool(...)`
 line in `server.mjs` (zod shape, one-paragraph description), and a call in `test/server.test.mjs` (`npm test`; the writing test works on a

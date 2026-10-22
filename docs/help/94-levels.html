@@ -1,0 +1,60 @@
+<!--
+title: Designing levels
+group: Guides
+order: 94
+summary: Rooms that are fun and fair: jump distances from your hero's numbers, pacing, landmarks, and layouts for each kind of game.
+-->
+<h1>Designing levels</h1>
+<p>A level is a room: <code>rooms/&lt;name&gt;.lua</code>, made in the room editor or written by hand (see <a href="help:rooms">Big levels</a>).
+This page is about making it good to play.</p>
+
+<h2>Start from your hero</h2>
+<p>A level is built around what the hero can do. Open its entity file and note how fast it walks and how it jumps. For a platformer hero with
+<code>speed</code>, <code>jump</code> (the upward speed) and <code>gravity</code>, all in pixels a second:</p>
+<ul>
+<li>How high it jumps: <code>jump &times; jump &divide; (2 &times; gravity)</code></li>
+<li>How long it is in the air: <code>2 &times; jump &divide; gravity</code></li>
+<li>How far it gets in one jump: <code>speed &times;</code> the time in the air</li>
+</ul>
+<p>The hero of <a href="help:platformer">the platformer tutorial</a> (speed 110, jump 300, gravity 800) jumps 56 pixels high (three and a half tiles),
+stays in the air three quarters of a second and gets 82 pixels across (five tiles). Make ordinary gaps and steps <strong>at most 70%</strong> of that:
+the full distance is for a deliberate challenge, never over a pit early in the game.</p>
+
+<h2>Sizes to work with</h2>
+<ul>
+<li>One screen is 20&times;15 tiles of 16 pixels on Dot (20&times;11 on Dash). The room editor shows one screen as a dashed box.</li>
+<li>A lively screen has 10 to 40 things in it. The handheld allows 512 alive at once, but crowds cost time each frame (see <a href="help:limits">the handheld's limits</a>).</li>
+<li>Two or three tile layers are plenty: a background (depth 100 or more), the solid ground (around 50), and a few decorations in front (around 10; keep them sparse, they can hide things).</li>
+</ul>
+
+<h2>What makes a level good</h2>
+<ul>
+<li><strong>Teach, test, twist.</strong> Show a new idea where it is safe (a gap over solid ground), test it (the same gap over a pit), then twist it
+(a moving platform over the pit). One new idea at a time.</li>
+<li><strong>Show the way.</strong> The way on should be visible or hinted from where the player stands: an opening, a line of coins, something interesting.</li>
+<li><strong>Rest after effort.</strong> A quiet stretch after a hard one. Let difficulty go up and down, and end on the hardest part followed by a reward.</li>
+<li><strong>Fair surprises.</strong> Enemies come into view with time to react, not right on top of the hero at the edge of the screen. Dangers look dangerous (red, spiky) and show themselves before they matter.</li>
+<li><strong>Landmarks.</strong> In a big room, something distinctive every couple of screens tells the player where they are.</li>
+</ul>
+
+<h2>For each kind of game</h2>
+<ul>
+<li><strong>Platformer.</strong> Long and low: several screens wide, one or two high. The solid layer is what the hero stands on. Ground at least two tiles thick at the bottom.
+Moving platforms and patrolling enemies follow paths drawn in the room editor (<code>self:follow_path("lift", 40)</code>). A checkpoint every two or three screens. Coins in arcs that show where to jump.</li>
+<li><strong>Top-down adventure.</strong> Rooms of one to four screens joined by doors or open edges. Walls one or two tiles thick, corridors at least three tiles wide so the hero can dodge. A different floor for each area. Keep enemies away from doorways.</li>
+<li><strong>Lots of enemies (survivors).</strong> An open arena a few screens across, with a few obstacles that make the player steer, not walls that trap them. Enemies arrive from off screen in code; the room only holds obstacles, pickups and decoration.</li>
+<li><strong>Shoot-'em-up.</strong> A long strip the camera scrolls along; enemy waves enter from the edges along paths. Keep the player's lane clear of scenery.</li>
+<li><strong>Puzzle.</strong> One screen, the board in the middle on the grid, with room for the score and the next piece. The camera does not move.</li>
+</ul>
+
+<h2>Before you call it done</h2>
+<ul>
+<li>Play the whole route, including the jumps you think are easy.</li>
+<li>No thing sits outside the room, and every thing in the room has its entity file.</li>
+<li>The Handheld tab shows the busiest moments well inside the limits.</li>
+</ul>
+
+<h2>With an agent</h2>
+<p>An AI agent connected to GameStudio follows this page with its tools: <code>overview</code> for the entities and tilesets, <code>room_write</code> to build a room
+(a layer can be written as a text map of characters, one per tile), <code>room_view</code> to see it as a picture with counts per screen, <code>run</code> with button presses
+to play a stretch, and <code>check</code> and <code>inspect</code> for errors and costs.</p>

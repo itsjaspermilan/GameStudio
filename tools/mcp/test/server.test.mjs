@@ -25,6 +25,11 @@ test("the GameStudio MCP server answers", { skip, timeout: 120000 }, async () =>
     assert.equal(run.content[1].type, "image");
     assert.equal(Buffer.from(run.content[1].data, "base64").readUInt32BE(0), 0x89504e47, "a PNG");
     assert.match((await call("song_check", { game: "void-swarm", name: "msc_s1" })).content[0].text, /key E dorian[\s\S]*loudness/);
+    // prompts start a task with the matching guide included
+    assert.deepEqual((await client.listPrompts()).prompts.map((p) => p.name).sort(), ["compose-music", "design-level", "draw-art"]);
+    const pr = await client.getPrompt({ name: "design-level", arguments: { game: "breakout", room: "level1", idea: "a first level" } });
+    assert.match(pr.messages[0].content.text, /Design the room level1 for the game breakout: a first level[\s\S]*# Designing levels[\s\S]*Teach, test, twist/);
+    assert.match((await call("help", { topic: "music" })).content[0].text, /# Music and sound effects/);
     const bad = await client.callTool({ name: "overview", arguments: { game: "no-such-game" } });
     assert.ok(bad.isError && /no game called/.test(bad.content[0].text));
   } finally { await client.close(); }
