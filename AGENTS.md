@@ -19,7 +19,7 @@ GBA-like limits). This file is the map; each folder has its own `AGENTS.md` with
 | `docs/` | `lua-engine-design.md` (why the engine and studio look the way they do) and `help/` (the in-app Help pages, tested) | `studio/AGENTS.md` |
 | `README.md` | User-facing docs: games, console limits, the low-level runtime calls, sound system, tests, licences | |
 
-There is a git repository: one branch, `main`, whose history starts with the Lua engine (the old card engine is gone, history included); nothing is pushed to the remote yet. `build/` and `build-aarch64/` are build outputs (gitignored); don't read them. Open work is in `TODO.md`.
+There is a git repository: one branch, `main`, whose history starts with the Lua engine (the old card engine is gone, history included); it tracks `origin/main` on GitHub. `build/` and `build-aarch64/` are build outputs (gitignored); don't read them. Open work is in `TODO.md`.
 
 ## Commands (all from the repo root unless noted)
 

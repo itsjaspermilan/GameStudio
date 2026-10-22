@@ -5,7 +5,7 @@ Open items, newest thinking first. Cross things out (or delete them) when they a
 ## Lua engine and studio (design in `docs/lua-engine-design.md`)
 
 Housekeeping
-- [ ] Nothing is pushed. `main` is one fresh commit (the old history was dropped on 2026-10-22); the remote `git@github.com:itsjaspermilan/GameStudio.git` is still empty, so `git push -u origin main` is all it takes.
+- [x] `main` (one fresh commit) is pushed to `git@github.com:itsjaspermilan/GameStudio.git`.
 - [ ] Void Swarm is on the device with timing on (`GS_PERF=1`, 150 s limit): push it again without `GS_PERF` for normal play. Its art was redrawn at native size (pilots with an 8-frame idle/walk set, the five big enemies at 32x32) and the cover regenerated; see it on the device.
 - [ ] Void Swarm was only measured on the device in short early sectors. Play a late sector (7+, past 5 minutes) with `GS_PERF=1` and read `last-run-void-swarm.log`.
 
