@@ -42,6 +42,11 @@
 }
 :root { --checker-a: #2c2c2e; --checker-b: #242426; }
 :root[data-scheme=light] { --checker-a: #ffffff; --checker-b: #e5e5ea; }
+/* the code editor's syntax colours (lua-highlight.js) */
+:root { --hl-keyword: #c678dd; --hl-atom: #d19a66; --hl-self: #e06c75; --hl-function: #61afef; --hl-field: #e5c07b; --hl-library: #56b6c2; --hl-class: #e5c07b;
+  --hl-number: #d19a66; --hl-string: #98c379; --hl-comment: #7f848e; --hl-doc: #8fa1b3; --hl-operator: #56b6c2; --hl-punctuation: #9aa0ab; }
+:root[data-scheme=light] { --hl-keyword: #a626a4; --hl-atom: #986801; --hl-self: #e45649; --hl-function: #4078f2; --hl-field: #b25a00; --hl-library: #0184bc; --hl-class: #c18401;
+  --hl-number: #986801; --hl-string: #50a14f; --hl-comment: #8e9099; --hl-doc: #6b7a8f; --hl-operator: #0184bc; --hl-punctuation: #6e7177; }
 :root { --syn-comment: #7f848e; --syn-string: #98c379; --syn-number: #d19a66; --syn-keyword: #c678dd; --syn-sig: #e5c07b; }
 :root[data-scheme=light] { --syn-comment: #6e7781; --syn-string: #116329; --syn-number: #0550ae; --syn-keyword: #a626a4; --syn-sig: #8250df; }
 * { box-sizing: border-box; }
@@ -261,11 +266,24 @@ dialog.modal { width: 540px; }
 .size-roles button .sr-note { color: var(--muted); font-size: 12px; }
 /* ---------- room editor ---------- */
 /* the layout editor: tools in a row over the canvas, the left column is the chosen tool's palette */
-.se.re { grid-template-columns: 230px 1fr 240px; }
-/* the left column: what is in the layout on top (it scrolls on its own when long), the chosen tool's palette below */
+.se.re { grid-template-columns: 230px 1fr 260px; }
+/* the left column: two tabs, what is in the layout and the layout's own details; the right column is the tool's panel */
 .re-left { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
-.re-outline-wrap { flex: 0 1 auto; max-height: 48%; overflow: auto; padding: 0 10px 8px; border-bottom: 1px solid var(--border); }
-.re-palette { flex: 1 1 auto; min-height: 120px; overflow: auto; padding: 0 10px 10px; }
+.re-lefttabs { display: flex; gap: 2px; padding: 6px 8px 0; border-bottom: 1px solid var(--border); flex: none; }
+.re-lefttabs button { flex: 1; padding: 4px 6px; font-size: 12px; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; background: transparent; color: var(--muted); margin-bottom: -1px; }
+.re-lefttabs button.on { background: var(--panel-2); border-color: var(--border); color: var(--text); }
+.re-outline-wrap, .re-details { flex: 1 1 auto; overflow: auto; padding: 4px 10px 10px; }
+.re-details .re-colors { grid-template-columns: repeat(8, 1fr); }
+.re-code { width: 100%; }
+.re-astext-row { margin-top: 18px; }
+.re-nothing { margin: 14px 4px; }
+.re-toolrow { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); background: var(--panel-2); flex: none; min-width: 0; }
+.re-toolrow .re-tools { border-bottom: none; background: transparent; flex: 1 1 auto; min-width: 0; }
+.re-view { display: inline-flex; align-items: center; gap: 2px; padding-right: 8px; flex: none; font-size: 12px; color: var(--muted); }
+.re-view button { padding: 2px 8px; font-size: 12px; background: transparent; border-color: transparent; }
+.re-view button:hover { background: var(--hover); }
+.re-view label { display: inline-flex; align-items: center; gap: 3px; margin: 0 0 0 6px; cursor: pointer; }
+.re-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
 .re-og { margin: 8px 0 2px; font-size: 11px; color: var(--muted); }
 .re-orow { display: flex; align-items: center; gap: 6px; padding: 2px 4px 2px 6px; border-radius: 4px; cursor: pointer; font-size: 12px; min-width: 0; }
 .re-orow:hover { background: var(--hover); }
@@ -280,7 +298,7 @@ dialog.modal { width: 540px; }
 .re-search { width: 100%; margin: 2px 0 6px; }
 .re-libhead { margin: 8px 0 4px; font-size: 11px; color: var(--muted); }
 .re-libnote { opacity: .8; }
-.re-tools { display: flex; gap: 2px; padding: 5px 8px; border-bottom: 1px solid var(--border); background: var(--panel-2); overflow-x: auto; flex: none; }
+.re-tools { display: flex; gap: 2px; padding: 5px 8px; overflow-x: auto; flex: none; }
 .re-tools button { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 12px; background: transparent; border-color: transparent; white-space: nowrap; }
 .re-tools button:hover { background: var(--hover); }
 .re-tools button.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }

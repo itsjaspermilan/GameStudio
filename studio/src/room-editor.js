@@ -29,11 +29,76 @@ export const PLACE = "application/x-gs-place";
 export function createRoomEditor(root, hooks = {}) {
   root.innerHTML = `
     <div class="se-left re-left">
-      <section class="re-outline-wrap">
-        <h3>In this layout</h3>
-        <div class="re-outline"></div>
+      <div class="re-lefttabs" role="tablist"><button data-side="list" class="on">In this layout</button><button data-side="details">Layout</button></div>
+      <section class="re-outline-wrap"><div class="re-outline"></div></section>
+      <section class="re-details" hidden>
+        <h3>Size</h3>
+        <label class="se-field" title="Menus and screens that do not scroll are one screen"><input type="radio" name="re-sizekind" class="re-one" value="one"> <span class="re-one-label">One screen</span></label>
+        <label class="se-field" title="A level bigger than the screen: the camera follows the player inside it"><input type="radio" name="re-sizekind" class="re-big" value="big"> Bigger: it scrolls</label>
+        <div class="se-row se-fields re-bigsize">
+          <label>W <input type="number" class="re-w" min="16" max="8192" step="16"></label>
+          <label>H <input type="number" class="re-h" min="16" max="8192" step="16"></label>
+        </div>
+        <p class="se-hint re-sizehint"></p>
+        <h3>Background</h3>
+        <div class="re-colors re-bg-colors" title="The colour behind everything, where no tile is"></div>
+        <div class="re-code-row">
+          <h3>Runs the code of</h3>
+          <select class="re-code" title="Ten levels can share one set of rules: each level's layout runs the same scene's code"></select>
+        </div>
+        <p class="re-astext-row"><button class="link re-astext" data-act="text">Edit as text…</button></p>
       </section>
-      <section class="re-palette">
+    </div>
+    <div class="se-center">
+      <div class="re-toolrow"><div class="re-tools" role="toolbar"></div>
+        <span class="re-view" title="How the layout is shown here (not part of the layout)">
+          <button data-act="undo" title="Undo (Cmd/Ctrl+Z)">↶</button><button data-act="redo" title="Redo (Shift+Cmd/Ctrl+Z)">↷</button>
+          <span class="re-sep"></span>
+          <button data-act="zoomout" title="Smaller">&minus;</button><button data-act="fit" title="As big as fits">Fit</button><button data-act="zoomin" title="Bigger">+</button>
+          <span class="re-sep"></span>
+          <label title="Show the grid"><input type="checkbox" class="re-grid" checked> Grid</label>
+          <label title="Things you place or move land on the grid (half a tile)"><input type="checkbox" class="re-snap" checked> Snap</label>
+        </span>
+      </div>
+      <div class="se-canvaswrap re-wrap"><canvas class="se-canvas re-canvas"></canvas></div>
+      <div class="se-status re-status"></div>
+    </div>
+    <div class="se-right">
+      <div class="re-nothing se-hint">Select something in the layout, or in the list on the left, to see and change it here.</div>
+      <div class="re-selected">
+        <h3>Selected</h3>
+        <div class="re-selinfo"></div>
+        <label class="se-field" title="With a name, the scene's code can use it as self.<name>. Renaming it here renames it in the code too, when you save.">Name <input class="re-name" spellcheck="false" placeholder="no name"></label>
+        <p class="se-hint re-name-hint"></p>
+        <div class="re-sel-entity">
+          <label class="se-field">Values <input class="re-props" spellcheck="false" placeholder="{ hp = 3 }" title="Starting values for this one only, as a Lua table"></label>
+        </div>
+        <div class="re-sel-text">
+          <label class="se-field">Text <input class="re-text" spellcheck="false"></label>
+          <div class="se-row se-fields">
+            <label title="How big: the built-in font is 8 pixels a letter at size 1">Size <select class="re-size"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+            <label title="Where the text sits against its point">Align <select class="re-align"><option value="left">left</option><option value="center">centre</option><option value="right">right</option></select></label>
+          </div>
+          <label class="se-field" title="Built in: 8 x 8 letters in any colour of the palette. A sprite: its frames are the letters, from the space on in ASCII order (! &quot; # ... 0-9 ... A-Z), in the sprite's own colours.">Font <select class="re-font"></select></label>
+          <div class="re-colors re-text-colors" title="The text's colour, from the console's palette (the built-in font only)"></div>
+        </div>
+        <div class="re-sel-panel">
+          <div class="se-row se-fields">
+            <label>X <input type="number" class="re-bx" step="1"></label><label>Y <input type="number" class="re-by" step="1"></label>
+            <label>W <input type="number" class="re-bw" min="1" step="1"></label><label>H <input type="number" class="re-bh" min="1" step="1"></label>
+          </div>
+          <p class="se-hint re-panel-info"></p>
+        </div>
+        <div class="re-sel-picture">
+          <label class="se-field">Sprite <select class="re-sprite"></select></label>
+          <div class="se-row se-fields">
+            <label>Frame <input type="number" class="re-frame" min="0" step="1"></label>
+            <label>Scale <input type="number" class="re-scale" min="0.25" max="16" step="0.25"></label>
+          </div>
+        </div>
+        <label class="se-field re-screen-row" title="Stays put when the camera scrolls (a score, a hint). Otherwise it is part of the world."><input type="checkbox" class="re-screen"> Fixed on the screen</label>
+        <div class="se-row"><button data-act="delsel">Delete</button></div>
+      </div>
       <div class="re-panel re-tiles-panel">
         <h3>Paint tiles</h3>
         <div class="se-row"><select class="re-newlayer-ts" title="The tileset the new layer uses"></select><button data-act="addlayer" title="A new tile layer">+ Layer</button></div>
@@ -71,71 +136,13 @@ export function createRoomEditor(root, hooks = {}) {
         <label class="se-field"><input type="checkbox" class="re-loop"> Goes round (loop)</label>
         <p class="se-hint">Click to add points to the chosen path (in the list above). An entity walks one with <code>self:follow_path("name", speed)</code>.</p>
       </div>
-      </section>
-    </div>
-    <div class="se-center">
-      <div class="re-tools" role="toolbar"></div>
-      <div class="se-canvaswrap re-wrap"><canvas class="se-canvas re-canvas"></canvas></div>
-      <div class="se-status re-status"></div>
-    </div>
-    <div class="se-right">
-      <div class="re-selected">
-        <h3>Selected</h3>
-        <div class="re-selinfo"></div>
-        <label class="se-field" title="With a name, the scene's code can use it as self.<name>. Renaming it here renames it in the code too, when you save.">Name <input class="re-name" spellcheck="false" placeholder="no name"></label>
-        <p class="se-hint re-name-hint"></p>
-        <div class="re-sel-entity">
-          <label class="se-field">Values <input class="re-props" spellcheck="false" placeholder="{ hp = 3 }" title="Starting values for this one only, as a Lua table"></label>
-        </div>
-        <div class="re-sel-text">
-          <label class="se-field">Text <input class="re-text" spellcheck="false"></label>
-          <div class="se-row se-fields">
-            <label title="How big: the built-in font is 8 pixels a letter at size 1">Size <select class="re-size"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
-            <label title="Where the text sits against its point">Align <select class="re-align"><option value="left">left</option><option value="center">centre</option><option value="right">right</option></select></label>
-          </div>
-          <label class="se-field" title="Built in: 8 x 8 letters in any colour of the palette. A sprite: its frames are the letters, from the space on in ASCII order (! &quot; # ... 0-9 ... A-Z), in the sprite's own colours.">Font <select class="re-font"></select></label>
-          <div class="re-colors re-text-colors" title="The text's colour, from the console's palette (the built-in font only)"></div>
-        </div>
-        <div class="re-sel-panel">
-          <div class="se-row se-fields">
-            <label>X <input type="number" class="re-bx" step="1"></label><label>Y <input type="number" class="re-by" step="1"></label>
-            <label>W <input type="number" class="re-bw" min="1" step="1"></label><label>H <input type="number" class="re-bh" min="1" step="1"></label>
-          </div>
-          <p class="se-hint re-panel-info"></p>
-        </div>
-        <div class="re-sel-picture">
-          <label class="se-field">Sprite <select class="re-sprite"></select></label>
-          <div class="se-row se-fields">
-            <label>Frame <input type="number" class="re-frame" min="0" step="1"></label>
-            <label>Scale <input type="number" class="re-scale" min="0.25" max="16" step="0.25"></label>
-          </div>
-        </div>
-        <label class="se-field re-screen-row" title="Stays put when the camera scrolls (a score, a hint). Otherwise it is part of the world."><input type="checkbox" class="re-screen"> Fixed on the screen</label>
-        <div class="se-row"><button data-act="delsel">Delete</button></div>
-      </div>
-      <h3 class="re-size-title">Size</h3>
-      <div class="se-row se-fields">
-        <label>W <input type="number" class="re-w" min="16" max="8192" step="16"></label>
-        <label>H <input type="number" class="re-h" min="16" max="8192" step="16"></label>
-      </div>
-      <p class="se-hint re-sizehint"></p>
-      <label class="se-field">Background <input type="color" class="re-bg"></label>
-      <div class="re-code-row">
-        <label class="se-field" title="Ten levels can share one set of rules: each level's layout runs the same scene's code">Code <select class="re-code"></select></label>
-      </div>
-      <h3>View</h3>
-      <div class="se-row"><button data-act="zoomout">&minus;</button><button data-act="fit">Fit</button><button data-act="zoomin">+</button></div>
-      <label class="se-field"><input type="checkbox" class="re-snap" checked> Snap to the grid</label>
-      <label class="se-field"><input type="checkbox" class="re-grid" checked> Show the grid</label>
-      <div class="se-row"><button data-act="undo">Undo</button><button data-act="redo">Redo</button></div>
-      <h3>As text</h3>
-      <div class="se-row"><button data-act="text" class="re-astext">Edit as text</button></div>
     </div>`;
   const $ = (sel) => root.querySelector(sel);
   const canvas = $(".re-canvas"), ctx = canvas.getContext("2d"), wrap = $(".re-wrap");
   let room = null, name = "", kind = "room", dirty = false, tool = "select", zoom = 2;
   let layerIx = 0, tile = 0, entName = "", spriteName = "", sel = null, pathName = "", pointIx = -1;
   let hover = null; // { kind, i } under the pointer
+  let side = "list", bigSize = false; // the left side's tab; "Bigger" chosen while the size still is one screen
   let panelTs = "", panelTile = 0; // what a new panel is made of: a tileset and the top-left tile of a 3x3 block
   let renames = []; // [old, new] in order since the last save
   const tilesets = {}, looks = {}, pics = {};
@@ -224,7 +231,7 @@ export function createRoomEditor(root, hooks = {}) {
     const cw = Math.round(room.width * zoom), ch = Math.round(room.height * zoom);
     if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; canvas.style.width = cw + "px"; canvas.style.height = ch + "px"; }
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = room.background || "#000000"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = room.background == null ? "#000000" : colorOf(room.background); ctx.fillRect(0, 0, canvas.width, canvas.height);
     // layers back to front: a bigger depth is further back, as in the game
     const order = room.layers.map((l, i) => i).sort((a, b) => (room.layers[b].depth ?? 100) - (room.layers[a].depth ?? 100));
     for (const i of order) {
@@ -346,7 +353,8 @@ export function createRoomEditor(root, hooks = {}) {
 
   function renderSide() {
     root.querySelectorAll(".re-tools button").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
-    $(".re-tiles-panel").hidden = tool !== "tiles"; $(".re-add-panel").hidden = !["select", "entities", "pictures"].includes(tool);
+    $(".re-tiles-panel").hidden = tool !== "tiles"; $(".re-add-panel").hidden = !["entities", "pictures"].includes(tool);
+    $(".re-nothing").hidden = !(tool === "select" && !selected());
     // the pointer says what a click will do: move something, select, or place
     canvas.style.cursor = tool === "select" ? (hover ? "move" : "default") : "crosshair"; $(".re-paths-panel").hidden = tool !== "paths";
     $(".re-texts-panel").hidden = tool !== "texts"; $(".re-panels-panel").hidden = tool !== "panels";
@@ -358,7 +366,7 @@ export function createRoomEditor(root, hooks = {}) {
     $("[data-act=addlayer]").disabled = !names.length;
     drawTilePalette();
     // things to place
-    if (["select", "entities", "pictures"].includes(tool)) {
+    if (["entities", "pictures"].includes(tool)) {
       const q = $(".re-search").value.trim().toLowerCase(), match = (n) => !q || n.toLowerCase().includes(q);
       pickList($(".re-entlist"), "entity", (hooks.getEntities ? hooks.getEntities() : []).filter(match), tool === "entities" ? entName : "", q ? "No entity matches." : "No entities in this game yet.", (n) => { entName = n; tool = "entities"; });
       pickList($(".re-spritelist"), "sprite", (hooks.getSprites ? hooks.getSprites() : []).filter(match), tool === "pictures" ? spriteName : "", q ? "No sprite matches." : "No sprites in this game yet.", (n) => { spriteName = n; tool = "pictures"; });
@@ -367,12 +375,18 @@ export function createRoomEditor(root, hooks = {}) {
     const cur = room.paths[pathName];
     $(".re-loop").checked = !!(cur && cur.loop); $(".re-loop").disabled = !cur;
     // size, background, code
-    $(".re-size-title").textContent = kind === "layout" ? "Layout size" : "Room size";
+    // the left side: what is in the layout, or the layout's own details
+    root.querySelectorAll(".re-lefttabs button").forEach((b) => b.classList.toggle("on", b.dataset.side === side));
+    $(".re-outline-wrap").hidden = side !== "list"; $(".re-details").hidden = side !== "details";
+    // size: one screen (the console's) unless the level scrolls
+    const scr = hooks.getScreen ? hooks.getScreen() : { width: 320, height: 240 };
+    const one = room.width === scr.width && room.height === scr.height && !bigSize;
+    $(".re-one").checked = one; $(".re-big").checked = !one; $(".re-bigsize").hidden = one;
+    $(".re-one-label").textContent = `One screen (${scr.width} × ${scr.height}, the console's)`;
     if (document.activeElement !== $(".re-w")) $(".re-w").value = room.width;
     if (document.activeElement !== $(".re-h")) $(".re-h").value = room.height;
-    $(".re-bg").value = /^#[0-9a-fA-F]{6}$/.test(room.background || "") ? room.background : "#000000";
-    const scr = hooks.getScreen ? hooks.getScreen() : { width: 320, height: 240 };
-    $(".re-sizehint").textContent = `${(room.width / scr.width).toFixed(1)} × ${(room.height / scr.height).toFixed(1)} screens. The camera never shows outside it; the dashed box is one screen.`;
+    $(".re-sizehint").textContent = one ? "The camera stays put. Right for menus and single-screen games." : `${(room.width / scr.width).toFixed(1)} × ${(room.height / scr.height).toFixed(1)} screens. The camera never shows outside it; the dashed box in the layout is one screen.`;
+    swatches($(".re-bg-colors"), room.background ?? (pal().fixed ? 0 : "#000000"), (v) => { room.background = v; });
     $(".re-code-row").hidden = kind !== "layout";
     if (kind === "layout") {
       const codeSel = $(".re-code"), scenes = (hooks.getScenes ? hooks.getScenes() : []).filter((n) => n !== name);
@@ -808,7 +822,9 @@ export function createRoomEditor(root, hooks = {}) {
   root.addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (b && acts[b.dataset.act]) acts[b.dataset.act](); });
   $(".re-loop").onchange = () => commit(() => { if (room.paths[pathName]) room.paths[pathName].loop = $(".re-loop").checked; });
   $(".re-grid").onchange = () => render();
-  $(".re-bg").onchange = () => commit(() => { room.background = $(".re-bg").value; });
+  root.querySelectorAll(".re-lefttabs button").forEach((b) => { b.onclick = () => { side = b.dataset.side; renderSide(); }; });
+  $(".re-one").onchange = () => { bigSize = false; const scr = hooks.getScreen ? hooks.getScreen() : { width: 320, height: 240 }; $(".re-w").value = scr.width; $(".re-h").value = scr.height; resize(); };
+  $(".re-big").onchange = () => { bigSize = true; const scr = hooks.getScreen ? hooks.getScreen() : { width: 320, height: 240 }; if (room.width === scr.width && room.height === scr.height) { $(".re-w").value = scr.width * 2; $(".re-h").value = scr.height; resize(); } else renderSide(); };
   $(".re-code").onchange = () => commit(() => { if ($(".re-code").value) room.code = $(".re-code").value; else delete room.code; });
   // the size: every layer grows or shrinks with it, so painting reaches the new edge
   const resize = () => commit(() => {
@@ -858,7 +874,8 @@ export function createRoomEditor(root, hooks = {}) {
   return {
     // kind: "layout" (a scene's) or "room"
     async load(n, def, k = "room") {
-      name = n; kind = k; room = R.normalizeRoom(def); dirty = false; history.undoStack = []; history.redoStack = []; renames = [];
+      const scr = hooks.getScreen ? hooks.getScreen() : { width: 320, height: 240 };
+      name = n; kind = k; room = R.normalizeRoom(def && def.width == null ? { ...def, width: scr.width, height: scr.height } : def); bigSize = false; dirty = false; history.undoStack = []; history.redoStack = []; renames = [];
       layerIx = 0; tile = 0; sel = null; pathName = Object.keys(room.paths)[0] || ""; pointIx = -1;
       if (!entName) entName = (hooks.getEntities ? hooks.getEntities() : [])[0] || "";
       if (!spriteName) spriteName = (hooks.getSprites ? hooks.getSprites() : [])[0] || "";

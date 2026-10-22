@@ -4,10 +4,7 @@ import { basicSetup, EditorView } from "codemirror";
 import { EditorState, Compartment } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { indentWithTab } from "@codemirror/commands";
-import { StreamLanguage } from "@codemirror/language";
-import { lua } from "@codemirror/legacy-modes/mode/lua";
-import { oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
-import { syntaxHighlighting } from "@codemirror/language";
+import { luaLanguage, luaHighlight } from "./lua-highlight.js";
 import { lookChoice, setLook, scheme, onLookChange } from "./theme.js";
 import { setupWindowChrome } from "./window-chrome.js";
 import { luaIntel } from "./lua-editor.js";
@@ -52,7 +49,7 @@ const state = {
   file: null,         // the file open in the code editor
   name: null,         // the resource open in the editor of `view` (not for code)
   dirty: false,       // the code editor has unsaved changes
-  collapsed: {},      // resource tree groups and folders ("entities/enemies") the user collapsed
+  collapsed: {},      // resource tree groups the user folded (true), and folders ("entities/enemies") the user opened (false)
   scenePart: {},      // which half of each scene ("layout" or "code") its tab opens on
   newFolders: {},     // folders made in the tree that have no file yet: { group key: [paths] }, forgotten when the game closes
 };
@@ -98,7 +95,7 @@ const codeLook = (s) => [
     ".cm-tooltip-autocomplete > ul > li[aria-selected]": { backgroundColor: "var(--accent)", color: "var(--accent-text)" },
     ".cm-panels": { backgroundColor: "var(--panel)", color: "var(--text)" },
   }, { dark: s === "dark" }),
-  s === "dark" ? syntaxHighlighting(oneDarkHighlightStyle) : [],
+  luaHighlight, // its colours follow the look by themselves (CSS variables)
 ];
 // Canvas editors and both code panes follow a change of look at once.
 onLookChange((s) => {
@@ -116,7 +113,7 @@ function makeEditor() {
         basicSetup,
         EditorView.lineWrapping, // long lines wrap at the window's edge instead of scrolling sideways
         keymap.of([indentWithTab]),
-        StreamLanguage.define(lua),
+        luaLanguage,
         editorTheme.of(codeLook(scheme())),
         ...luaIntel({
           getApi: () => luaApi, getIndex: () => luaIndex, getFile: () => (state.view === "code" ? state.file : null),
@@ -858,9 +855,12 @@ function renderTree() {
 
 const folderListId = (g, path) => `tree-${g.key}` + (path ? "--" + path.replace(/\//g, "--") : "");
 
+const holdsOpen = (g, node) => node.items.some((n) => isOpen(g, n)) || node.folders.some((f) => holdsOpen(g, f));
+
 function renderFolder(ul, g, node) {
   for (const f of node.folders) {
-    const key = `${g.key}/${f.path}`, open = !state.collapsed[key];
+    // folders start folded (false = opened by the user), except one holding what is open, until it is folded by hand
+    const key = `${g.key}/${f.path}`, open = state.collapsed[key] === false || (state.collapsed[key] === undefined && holdsOpen(g, f));
     const li = document.createElement("li"); li.className = "tree-folder";
     const row = document.createElement("div"); row.className = "tree-item folder-row"; row.title = `${f.path}/: drag files here to move them into this folder`;
     const caret = document.createElement("span"); caret.className = "caret"; caret.textContent = open ? "▼" : "▶";
@@ -1603,7 +1603,7 @@ function makeSplitEditor() {
     state: EditorState.create({
       doc: "",
       extensions: [
-        basicSetup, EditorView.lineWrapping, keymap.of([indentWithTab]), StreamLanguage.define(lua), split.theme.of(codeLook(scheme())),
+        basicSetup, EditorView.lineWrapping, keymap.of([indentWithTab]), luaLanguage, split.theme.of(codeLook(scheme())),
         ...luaIntel({ getApi: () => luaApi, getIndex: () => luaIndex, getFile: () => split.file, get server() { return null; },
           openResource: (g, name) => openers[group(g).kind](group(g), name), openHelp: (page, anchor) => help.open(page, anchor) }),
         EditorView.updateListener.of((u) => { if (u.docChanged && !split.loading) { split.dirty = true; $("split-dirty").textContent = "●"; } }),
