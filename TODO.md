@@ -12,6 +12,8 @@ Housekeeping
 
 Games
 - [x] Panel Pop and Doc Capsule are modules (`lib/`) and scenes; the generators write `lib/art.lua`. Seeded bot games give the same results as before.
+- [x] Panel Pop on its own (Doc Capsule removed): a scene with a layout for every screen (`versus` runs `play`'s code), a light 16-bit look (pastel tile skies, window panels from a tileset, sprite fonts, outlines in each colour's own dark shade, a logo of letter panels) and General MIDI songs.
+- [ ] Panel Pop's new look and songs on the device: the fonts and the sky layer, the see-through board wells, and the General MIDI music while panels pop.
 - [x] `gs.legacy` and plain `main.lua` carts are removed (the button test, pad setup and the art tools' picture carts are framework carts now).
 
 Studio

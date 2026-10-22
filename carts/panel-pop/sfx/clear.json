@@ -3,20 +3,20 @@
  "loop": null,
  "tracks": [
   {
-   "instrument": "pulse",
+   "instrument": "bell",
    "steps": [
     [
-     55,
+     67,
      3,
      0
     ],
     [
-     59,
+     71,
      3,
      0
     ],
     [
-     64,
+     74,
      4,
      5
     ]

@@ -1,17 +1,18 @@
-// Generates the art and sound of carts/panel-pop: sprites, backgrounds, sound effects and songs, and lib/art.lua (the sizes of every sprite). The game's rules
-// are hand-written Lua in carts/panel-pop/lib/ and are NOT touched here, nor are game.lua, scenes/ and meta/.
+// Generates the art and sound of carts/panel-pop: sprites, fonts, the two tilesets (backgrounds and window panels), sound effects and songs,
+// and lib/art.lua (the sizes of every sprite). The game's rules and screens are hand-written Lua and layouts in carts/panel-pop (lib/,
+// scenes/) and are NOT touched here, nor are game.lua and meta/.
 // usage: node scripts/make-panel-pop.mjs
-import { mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { png } from "./png.mjs";
-import { Canvas, strip, PAL, R } from "./lib/canvas.mjs";
-import { PANELS, GARBAGE, CHARS, PILLS, VIRUSES, BIG_VIRUSES, DOC, ICONS, bgTile, PANEL_STATES, GARBAGE_PIECES } from "./panel-pop/art.mjs";
+import { Canvas, strip } from "./lib/canvas.mjs";
+import { PANELS, GARBAGE, CHARS, CHAR_IDS, LOGOS, LOGO_LETTERS, CURSOR, SPARK, ICONS, FONTS, PANEL_STATES, GARBAGE_PIECES, SKY_LOOKS, skyTileset, UI_BLOCKS, uiTileset } from "./panel-pop/art.mjs";
 import { SFX, allMusic } from "./panel-pop/audio.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = join(root, "carts", "panel-pop");
-for (const d of ["sprites", "tilesets", "sfx", "music", "scripts"]) mkdirSync(join(dir, d), { recursive: true });
+for (const d of ["sprites", "tilesets", "sfx", "music"]) mkdirSync(join(dir, d), { recursive: true });
 for (const sub of ["sprites", "tilesets", "sfx", "music"]) for (const f of readdirSync(join(dir, sub))) rmSync(join(dir, sub, f));
 
 const json = (path, v) => writeFileSync(join(dir, path), JSON.stringify(v, null, 1) + "\n");
@@ -28,33 +29,36 @@ function sprite(name, def, extra = {}) {
 }
 // the cast first: the cart art (scripts/make-cart-art.mjs) puts a project's first sprites on the box
 const charSprite = (c) => sprite("spr_char_" + c.id, c, { animations: { idle: { from: 0, to: 1, fps: 2, loop: true } } });
-charSprite(CHARS[0]);
-sprite("spr_doc", DOC);
-for (const c of CHARS.slice(1)) charSprite(c);
-sprite("spr_bigvirus", BIG_VIRUSES);
+for (const c of CHARS) charSprite(c);
 sprite("spr_panels", PANELS);
 sprite("spr_garbage", GARBAGE);
-sprite("spr_pills", PILLS);
-sprite("spr_viruses", VIRUSES);
+sprite("spr_logo", LOGOS);
+sprite("spr_cursor", CURSOR);
+sprite("spr_spark", SPARK);
 for (const i of ICONS) sprite("spr_ico_" + i.id, i);
+// fonts are drawn from their top-left corner, like the built-in one
+for (const f of FONTS) sprite(f.id, f, { origin: [0, 0] });
 
 const tilesets = [];
-const HUES = [R.blue, R.purple, R.teal, R.green, R.red, R.orange, R.yellow, R.blue];
-HUES.forEach((h, i) => {
-  const c = bgTile(h, i), name = "ts_bg" + i;
+function tileset(name, c, tile) {
   writeFileSync(join(dir, "tilesets", name + ".png"), png(c.w, c.h, c.rgba()));
-  json(`tilesets/${name}.json`, { image: `tilesets/${name}.png`, tile_w: 16, tile_h: 16 });
+  json(`tilesets/${name}.json`, { image: `tilesets/${name}.png`, tile_w: tile, tile_h: tile });
   tilesets.push(name);
-});
+}
+tileset("ts_sky", skyTileset(), 16);
+tileset("ts_ui", uiTileset(), 8);
 
 for (const [n, d] of Object.entries(SFX)) json(`sfx/${n}.json`, d);
 const music = allMusic();
 for (const [n, d] of Object.entries(music)) json(`music/${n}.json`, d);
 
-const lua = ["-- Written by scripts/make-panel-pop.mjs: frame counts and sizes of every sprite, and the palette.", "local M = {}", "M.ART = {"];
+const lua = ["-- Written by scripts/make-panel-pop.mjs: sprite sizes and where things are in the tilesets.", "local M = {}", "M.ART = {"];
 for (const [k, v] of Object.entries(art)) lua.push(`  ${k} = { f = ${v.f}, w = ${v.w}, h = ${v.h} },`);
-lua.push("}", "M.PAL = {" + PAL.map((h) => `{${parseInt(h.slice(1, 3), 16)}, ${parseInt(h.slice(3, 5), 16)}, ${parseInt(h.slice(5, 7), 16)}}`).join(", ") + "}",
-  `M.PANEL_STATES = ${PANEL_STATES}`, `M.GARBAGE_PIECES = ${GARBAGE_PIECES}`, "M.CHAR_IDS = {" + CHARS.map((c) => `"${c.id}"`).join(", ") + "}", "M.BG_COUNT = " + HUES.length,
+lua.push("}",
+  `M.PANEL_STATES = ${PANEL_STATES}`, `M.GARBAGE_PIECES = ${GARBAGE_PIECES}`, "M.CHAR_IDS = {" + CHAR_IDS.map((c) => `"${c}"`).join(", ") + "}", "M.CHAR_SPRITES = {" + CHAR_IDS.map((c) => `"spr_char_${c}"`).join(", ") + "}",
+  `M.LOGO_LETTERS = "${LOGO_LETTERS}"`,
+  "-- ts_sky: backgrounds of 4x4 tiles, four across", "M.SKIES = {" + SKY_LOOKS.map((l) => `"${l.name}"`).join(", ") + "}",
+  "-- ts_ui: 3x3 blocks of 8x8 tiles for panels, four across", "M.UI = {" + UI_BLOCKS.map((b, i) => `${b.name} = ${Math.floor(i / 4) * 36 + (i % 4) * 3}`).join(", ") + "}",
   "M.SFX_NAMES = {" + Object.keys(SFX).map((n) => `"${n}"`).join(", ") + "}", "M.MUSIC_NAMES = {" + Object.keys(music).map((n) => `"${n}"`).join(", ") + "}", "return M", "");
 writeFileSync(join(dir, "lib", "art.lua"), lua.join("\n"));
 

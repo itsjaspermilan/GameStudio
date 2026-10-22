@@ -3,25 +3,25 @@
  "loop": null,
  "tracks": [
   {
-   "instrument": "square",
+   "instrument": "bell",
    "steps": [
     [
-     53,
-     4,
+     74,
+     3,
      0
     ],
     [
-     60,
-     3,
+     81,
+     2,
      5
     ]
    ]
   },
   {
-   "instrument": "bell",
+   "instrument": "sine",
    "steps": [
     [
-     65,
+     62,
      3,
      5
     ],

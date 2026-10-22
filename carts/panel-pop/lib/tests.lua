@@ -3,10 +3,8 @@
 --   GS_GENPUZ=1 ... build/gs carts/panel-pop > puzzles.txt    (prints PUZZLES for puzdata.lua; every layout is proved solvable with the real board)
 local PL = require "lib.pl"
 local PLAI = require "lib.plai"
-local DM = require "lib.dm"
 local PG = require "lib.game"
 local PUZZLES = require "lib.puzzles"
-local DMAI = DM.AI
 local art = require "lib.art"
 local MUSIC_NAMES, SFX_NAMES = art.MUSIC_NAMES, art.SFX_NAMES
 local data = require "lib.data"
@@ -265,44 +263,6 @@ local function t_vs_ai()
   print(string.format("  CPU thinking time per frame (two players): average %.3f ms, worst %.2f ms", total / frames * 1000, worst * 1000))
   print(string.format("  vs test: %d frames, scores %d / %d, best chain %d / %d, lost %s / %s", frames, a.score, b.score, a.best_chain, b.best_chain, tostring(a.lost), tostring(b.lost)))
 end
-local function t_dm()
-  for seed = 1, 4 do
-    math.randomseed(seed)
-    local d = DM.new({ level = seed * 2, speed = 3 })
-    local ai = DMAI.new({ gap = 2, err = 0.02, think = 2, look = true })
-    local start = d.vleft
-    local frames, worst = 0, 0
-    while not d.won and not d.lost and frames < 90000 do
-      local t0 = gs.clock()
-      local inp = DMAI.input(d, ai)
-      worst = math.max(worst, gs.clock() - t0)
-      DM.update(d, inp); d.ev = {}; frames = frames + 1
-    end
-    print(string.format("  capsule CPU worst thinking time: %.2f ms", worst * 1000))
-    check("virus bottle " .. seed .. " has viruses", start == 4 * (seed * 2 + 1), start)
-    check("the CPU clears viruses in bottle " .. seed, d.vleft < start, d.vleft .. "/" .. start)
-    print(string.format("  dm test seed %d: %d viruses -> %d left, won %s lost %s, %d frames, score %d", seed, start, d.vleft, tostring(d.won), tostring(d.lost), frames, d.score))
-  end
-end
-local function t_dm_rules()
-  -- four in a row clears, three does not
-  math.randomseed(3)
-  local d = DM.new({ level = 0, speed = 1, viruses = 0 })
-  d.vleft = 1
-  d.g[16][1] = { t = "v", c = 1, ori = "s" }
-  for c = 2, 4 do d.g[16][c] = { t = "p", c = 1, ori = "s" } end
-  d.nextp = { 2, 3 }
-  d.phase = "fall"; d.pt = 0
-  for _ = 1, 200 do DM.update(d, nil) end
-  check("four of a colour clear the virus", d.vleft == 0 and d.won, d.vleft)
-  local e = DM.new({ level = 0, speed = 1, viruses = 0 })
-  e.vleft = 1
-  e.g[16][1] = { t = "v", c = 1, ori = "s" }
-  for c = 2, 3 do e.g[16][c] = { t = "p", c = 1, ori = "s" } end
-  e.phase = "fall"; e.pt = 0
-  for _ = 1, 100 do DM.update(e, nil) end
-  check("three do not", e.vleft == 1 and not e.won)
-end
 local function t_stages()
   for i = 1, STAGE_COUNT do
     local def = STAGE_DEF(i)
@@ -331,7 +291,7 @@ end
 
 function T.selftest()
   if os.getenv("GS_GENPUZ") then generate(); gs.quit(); return end
-  local tests = { t_sounds, t_swap_clears, t_gravity_chain, t_garbage, t_garbage_falls, t_rising, t_no_initial_match, t_vs_ai, t_dm_rules, t_dm, t_puzzles, t_stages }
+  local tests = { t_sounds, t_swap_clears, t_gravity_chain, t_garbage, t_garbage_falls, t_rising, t_no_initial_match, t_vs_ai, t_puzzles, t_stages }
   for i, t in ipairs(tests) do
     local ok, err = pcall(t)
     if not ok then fails = fails + 1; print("ERROR in test " .. i .. ": " .. tostring(err)) end
@@ -341,34 +301,4 @@ function T.selftest()
   gs.quit()
 end
 
--- GS_DMDEBUG=1: plays one bottle with the CPU and prints it, to see how it plays
-function T.dmdebug()
-  math.randomseed(tonumber(os.getenv("GS_SEED") or "3"))
-  local d = DM.new({ level = tonumber(os.getenv("GS_LEVEL") or "6"), speed = 3 })
-  local ai = DMAI.new({ gap = 2, err = 0.02, think = 2, look = os.getenv("GS_LOOK") ~= nil })
-  local frames, mism = 0, 0
-  local last_target
-  local function dump(tag)
-    print(tag .. " frame " .. frames .. " viruses " .. d.vleft)
-    for r = 1, DM.H do
-      local line = ""
-      for c = 1, DM.W do
-        local x = d.g[r][c]
-        line = line .. (x and (x.t == "v" and ("V" .. x.c) or ("p" .. x.c)) or "..") .. " "
-      end
-      print(line)
-    end
-  end
-  local locks = 0
-  while not d.won and not d.lost and frames < 20000 do
-    local before = d.pill and { dir = d.pill.dir, c = d.pill.c } or nil
-    if ai.target then last_target = ai.target end
-    DM.update(d, DMAI.input(d, ai))
-    for _, e in ipairs(d.ev) do if e.t == "lock" then locks = locks + 1; if locks <= 3 then dump("after lock " .. locks .. " (target dir " .. tostring(last_target and last_target.dir) .. " col " .. tostring(last_target and last_target.col) .. ")") end end end
-    d.ev = {}
-    frames = frames + 1
-  end
-  dump("end won=" .. tostring(d.won) .. " lost=" .. tostring(d.lost))
-  gs.quit()
-end
 return T

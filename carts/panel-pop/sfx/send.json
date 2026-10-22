@@ -3,27 +3,27 @@
  "loop": null,
  "tracks": [
   {
-   "instrument": "saw",
+   "instrument": "tri",
    "steps": [
     [
-     48,
+     55,
      4,
      1
     ],
     [
-     60,
+     67,
      4,
      5
     ]
    ]
   },
   {
-   "instrument": "square",
+   "instrument": "noise",
    "steps": [
     [
-     36,
-     3,
-     0
+     40,
+     2,
+     5
     ],
     [
      36,

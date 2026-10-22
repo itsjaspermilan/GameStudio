@@ -3,10 +3,10 @@
  "loop": null,
  "tracks": [
   {
-   "instrument": "square",
+   "instrument": "sine",
    "steps": [
     [
-     64,
+     76,
      2,
      5
     ]

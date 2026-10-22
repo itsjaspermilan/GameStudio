@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_cursor.png",
+ "frames": 2,
+ "origin": [
+  20,
+  12
+ ],
+ "mask": null,
+ "fps": 0
+}

@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_font_y.png",
+ "frames": 59,
+ "origin": [
+  0,
+  0
+ ],
+ "mask": null,
+ "fps": 0
+}

@@ -49,11 +49,14 @@ echo "$out" | grep -q 'CUSTOM CONSOLE Tiny 240x160' || { echo "$out"; echo "FAIL
 plain="$(mktemp -d)"; printf 'function draw() end\n' > "$plain/main.lua"
 out="$(run ./build/gs "$plain")"; rm -rf "$plain"
 echo "$out" | grep -q 'needs a game.lua' || { echo "$out"; echo "FAIL: a plain main.lua game was not refused clearly"; status=1; }
-# Panel Pop's menus lead into both games (seen in the stats line the screens print with GS_STATS).
-out="$(GS_STATS=1 GS_KEYGAP=20 GS_KEYS=start,a,a,a,a FRAMES=700 run ./build/gs carts/panel-pop)"
+# Panel Pop's menus lead into a game on one board and a Vs game (seen in the stats line the play scene prints with GS_STATS), and every other
+# screen opens and closes without an error.
+out="$(GS_STATS=1 GS_BOT_LUA=tests/keys-bot.lua GS_KEYS='start,wait*30,a,wait*30,a,a,wait*30' FRAMES=700 run ./build/gs carts/panel-pop)"
 echo "$out" | grep -q 'stats play/endless' || { echo "$out" | tail -3; echo "FAIL: panel-pop menus did not start Endless"; status=1; }
-out="$(GS_STATS=1 GS_KEYGAP=20 GS_KEYS=start,down,a,a,a,a FRAMES=700 run ./build/gs carts/panel-pop)"
-echo "$out" | grep -q 'stats play/dm' || { echo "$out" | tail -3; echo "FAIL: panel-pop menus did not start Doc Capsule"; status=1; }
+out="$(GS_STATS=1 GS_BOT_LUA=tests/keys-bot.lua GS_KEYS='start,wait*30,down,down,a,wait*30,right,a,a,wait*30' FRAMES=700 run ./build/gs carts/panel-pop)"
+echo "$out" | grep -q 'stats play/vs' || { echo "$out" | tail -3; echo "FAIL: panel-pop menus did not start Vs CPU"; status=1; }
+out="$(GS_BOT_LUA=tests/keys-bot.lua GS_KEYS='start,wait*30,up,up,a,wait*30,a,a,b,wait*30,up,a,wait*30,b,wait*30,up,a,wait*30,right,down,b,wait*30,up,a,wait*30,down,down,a,a,wait*300,start,down,a,wait*20,down,a,wait*30' FRAMES=1200 run ./build/gs carts/panel-pop)"
+echo "$out" | grep -qi 'error' && { echo "$out"; echo "FAIL: panel-pop menus printed an error"; status=1; }
 
 # Void Swarm (written with entities and scenes, a good stress test of the framework) plays itself (GS_BOT) through a sector, fast-forwarded,
 # and prints one result line; any Lua error fails it. Then a different pilot and sector with the boss close, and the text audit of all its screens.
@@ -69,7 +72,7 @@ echo "$out" | grep -q 'TEXT AUDIT DONE, overflows: 0' || { echo "$out" | tail -5
 out="$(GS_CREDITS=5000 GS_BOT_LUA=tests/keys-bot.lua GS_KEYS='a,wait*30,down,a,wait*30,down,a,a,left,a,b,wait*30,down,a,wait*30,a,a,down,a,b,wait*30,up,up,up,a,wait*30,a,wait*60,start,wait*5,down,a,wait*30,a' GS_FF=4 FRAMES=900 run ./build/gs carts/void-swarm)"
 echo "$out" | grep -qi 'error' && { echo "$out"; echo "FAIL: void-swarm menus printed an error"; status=1; }
 
-# Panel Pop & Doc Capsule test themselves (scripts/tests.lua): board rules, chains, garbage, both CPU players, every puzzle and stage.
+# Panel Pop tests itself (lib/tests.lua): board rules, chains, garbage, the CPU player, every puzzle and stage.
 out="$(GS_SELFTEST=1 run ./build/gs carts/panel-pop)"; echo "$out" | tail -3
 echo "$out" | grep -q 'PANEL POP TEST PASS' || { echo "$out"; echo "FAIL: panel-pop self-test"; status=1; }
 

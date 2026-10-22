@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_logo.png",
+ "frames": 6,
+ "origin": [
+  16,
+  16
+ ],
+ "mask": null,
+ "fps": 0
+}

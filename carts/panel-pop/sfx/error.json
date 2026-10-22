@@ -3,11 +3,11 @@
  "loop": null,
  "tracks": [
   {
-   "instrument": "saw",
+   "instrument": "tri",
    "steps": [
     [
-     30,
-     5,
+     40,
+     4,
      0
     ],
     [
@@ -16,8 +16,8 @@
      0
     ],
     [
-     30,
-     5,
+     40,
+     4,
      0
     ]
    ]

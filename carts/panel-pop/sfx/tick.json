@@ -3,11 +3,11 @@
  "loop": null,
  "tracks": [
   {
-   "instrument": "square",
+   "instrument": "bell",
    "steps": [
     [
-     60,
-     4,
+     72,
+     3,
      5
     ]
    ]

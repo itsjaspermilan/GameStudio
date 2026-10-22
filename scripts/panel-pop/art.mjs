@@ -1,249 +1,331 @@
-// Pixel art for Panel Pop & Doc Capsule, drawn in code (see scripts/lib/canvas.mjs for the canvas). Every sprite is { w, h, frames, draw(canvas, frame) }.
-import { Canvas, R, K, W } from "../lib/canvas.mjs";
+// Pixel art for Panel Pop, drawn in code (see scripts/lib/canvas.mjs for the canvas). Every sprite is { w, h, frames, draw(canvas, frame) }.
+// The look is a bright 16-bit one: light pastel backgrounds, white windows, glossy panels, and outlines in each thing's own darkest shade
+// rather than black (only the font's shadow and the eyes use the darkest navy).
+import { Canvas, R, W } from "../lib/canvas.mjs";
+
+const NAVY = R.blue[0];
+
+// ---------------------------------------------------------------- the font: 5x7 letters in 8x8 frames, " " to "Z" (frame 0 is the space)
+// Each letter has a one pixel shadow down and to the right. Four inks: dark and coral for the white windows, white and gold for colour and
+// the dark board wells.
+const GLYPHS = {
+  "!": ["..#..", "..#..", "..#..", "..#..", "..#..", ".....", "..#.."],
+  '"': [".#.#.", ".#.#.", ".....", ".....", ".....", ".....", "....."],
+  "#": [".#.#.", "#####", ".#.#.", ".#.#.", ".#.#.", "#####", ".#.#."],
+  "%": ["##..#", "##..#", "...#.", "..#..", ".#...", "#..##", "#..##"],
+  "&": [".##..", "#..#.", "#.#..", ".#...", "#.#.#", "#..#.", ".##.#"],
+  "'": ["..#..", "..#..", ".....", ".....", ".....", ".....", "....."],
+  "(": ["...#.", "..#..", ".#...", ".#...", ".#...", "..#..", "...#."],
+  ")": [".#...", "..#..", "...#.", "...#.", "...#.", "..#..", ".#..."],
+  "*": [".....", "#.#.#", ".###.", "#####", ".###.", "#.#.#", "....."],
+  "+": [".....", "..#..", "..#..", "#####", "..#..", "..#..", "....."],
+  ",": [".....", ".....", ".....", ".....", "..##.", "..#..", ".#..."],
+  "-": [".....", ".....", ".....", "#####", ".....", ".....", "....."],
+  ".": [".....", ".....", ".....", ".....", ".....", ".##..", ".##.."],
+  "/": ["....#", "...#.", "...#.", "..#..", ".#...", ".#...", "#...."],
+  0: [".###.", "#...#", "#..##", "#.#.#", "##..#", "#...#", ".###."],
+  1: ["..#..", ".##..", "..#..", "..#..", "..#..", "..#..", ".###."],
+  2: [".###.", "#...#", "....#", "..##.", ".#...", "#....", "#####"],
+  3: [".###.", "#...#", "....#", "..##.", "....#", "#...#", ".###."],
+  4: ["...#.", "..##.", ".#.#.", "#..#.", "#####", "...#.", "...#."],
+  5: ["#####", "#....", "####.", "....#", "....#", "#...#", ".###."],
+  6: ["..##.", ".#...", "#....", "####.", "#...#", "#...#", ".###."],
+  7: ["#####", "....#", "...#.", "..#..", ".#...", ".#...", ".#..."],
+  8: [".###.", "#...#", "#...#", ".###.", "#...#", "#...#", ".###."],
+  9: [".###.", "#...#", "#...#", ".####", "....#", "...#.", ".##.."],
+  ":": [".....", ".##..", ".##..", ".....", ".##..", ".##..", "....."],
+  ";": [".....", ".##..", ".##..", ".....", ".##..", ".#...", "#...."],
+  "<": ["...#.", "..#..", ".#...", "#....", ".#...", "..#..", "...#."],
+  "=": [".....", ".....", "#####", ".....", "#####", ".....", "....."],
+  ">": [".#...", "..#..", "...#.", "....#", "...#.", "..#..", ".#..."],
+  "?": [".###.", "#...#", "....#", "..##.", "..#..", ".....", "..#.."],
+  "@": [".###.", "#...#", "#.###", "#.#.#", "#.###", "#....", ".###."],
+  A: [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
+  B: ["####.", "#...#", "#...#", "####.", "#...#", "#...#", "####."],
+  C: [".###.", "#...#", "#....", "#....", "#....", "#...#", ".###."],
+  D: ["###..", "#..#.", "#...#", "#...#", "#...#", "#..#.", "###.."],
+  E: ["#####", "#....", "#....", "####.", "#....", "#....", "#####"],
+  F: ["#####", "#....", "#....", "####.", "#....", "#....", "#...."],
+  G: [".###.", "#...#", "#....", "#.###", "#...#", "#...#", ".####"],
+  H: ["#...#", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
+  I: [".###.", "..#..", "..#..", "..#..", "..#..", "..#..", ".###."],
+  J: ["..###", "...#.", "...#.", "...#.", "...#.", "#..#.", ".##.."],
+  K: ["#...#", "#..#.", "#.#..", "##...", "#.#..", "#..#.", "#...#"],
+  L: ["#....", "#....", "#....", "#....", "#....", "#....", "#####"],
+  M: ["#...#", "##.##", "#.#.#", "#.#.#", "#...#", "#...#", "#...#"],
+  N: ["#...#", "#...#", "##..#", "#.#.#", "#..##", "#...#", "#...#"],
+  O: [".###.", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
+  P: ["####.", "#...#", "#...#", "####.", "#....", "#....", "#...."],
+  Q: [".###.", "#...#", "#...#", "#...#", "#.#.#", "#..#.", ".##.#"],
+  R: ["####.", "#...#", "#...#", "####.", "#.#..", "#..#.", "#...#"],
+  S: [".###.", "#...#", "#....", ".###.", "....#", "#...#", ".###."],
+  T: ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."],
+  U: ["#...#", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
+  V: ["#...#", "#...#", "#...#", "#...#", "#...#", ".#.#.", "..#.."],
+  W: ["#...#", "#...#", "#...#", "#.#.#", "#.#.#", "##.##", "#...#"],
+  X: ["#...#", "#...#", ".#.#.", "..#..", ".#.#.", "#...#", "#...#"],
+  Y: ["#...#", "#...#", ".#.#.", "..#..", "..#..", "..#..", "..#.."],
+  Z: ["#####", "....#", "...#.", "..#..", ".#...", "#....", "#####"],
+};
+const FONT_FIRST = 32, FONT_LAST = 90; // " " to "Z": the game writes in capitals
+function fontSprite(ink, shadow) {
+  return {
+    w: 8, h: 8, frames: FONT_LAST - FONT_FIRST + 1,
+    draw(c, f) {
+      const g = GLYPHS[String.fromCharCode(FONT_FIRST + f)];
+      if (!g) return;
+      c.ascii(g, { "#": shadow }, 2, 1);
+      c.ascii(g, { "#": ink }, 1, 0);
+    },
+  };
+}
+export const FONTS = [
+  { id: "spr_font", ...fontSprite(NAVY, R.blue[3]) },
+  { id: "spr_font_w", ...fontSprite(W, NAVY) },
+  { id: "spr_font_r", ...fontSprite(R.red[2], R.red[3]) },
+  { id: "spr_font_y", ...fontSprite(R.yellow[2], NAVY) },
+];
 
 // ---------------------------------------------------------------- panels (16x16)
 // frames per colour: 0 normal, 1 squashed (just landed), 2 flash, 3 happy face (being cleared), 4 dim (still rising in), 5 dead (game over)
 export const PANEL_STATES = 6;
-const sym = {
-  heart: ["..###..###..", ".##########.", ".##########.", ".##########.", "..########..", "...######...", "....####....", ".....##....."],
-  star: ["....####....", "....####....", "############", ".##########.", "..########..", "..########..", ".####..####.", ".###....###."],
-  diamond: ["....####....", "...######...", "..########..", ".##########.", ".##########.", "..########..", "...######...", "....####...."],
-  tri: ["############", ".##########.", "..########..", "...######...", "....####....", ".....##....."],
-  gem: ["..########..", ".##########.", "############", "############", "############", "############", ".##########.", "..########.."],
+function disc(n, r, cx, cy) { const m = []; for (let y = 0; y < n; y++) { let s = ""; for (let x = 0; x < n; x++) s += Math.hypot(x + 0.5 - cx, y + 0.5 - cy) <= r ? "#" : "."; m.push(s); } return m; }
+function moon() {
+  const a = disc(10, 4.9, 5, 5), b = disc(10, 4.1, 7.2, 3.6);
+  return a.map((row, y) => [...row].map((ch, x) => (ch === "#" && b[y][x] !== "#" ? "#" : ".")).join(""));
+}
+const SYM = {
+  heart: [".##....##.", "####..####", "##########", "##########", "##########", ".########.", "..######..", "...####...", "....##...."],
+  star: ["....##....", "....##....", "...####...", "##########", ".########.", "..######..", "..######..", ".###..###.", ".##....##."],
+  circle: disc(9, 4.4, 4.5, 4.5),
+  diamond: ["....##....", "...####...", "..######..", ".########.", "##########", ".########.", "..######..", "...####...", "....##...."],
+  tri: ["....##....", "....##....", "...####...", "...####...", "..######..", "..######..", ".########.", ".########.", "##########"],
+  moon: moon(),
 };
-function circle() { const m = []; for (let y = 0; y < 9; y++) { let r = ""; for (let x = 0; x < 9; x++) r += Math.hypot(x - 4, y - 4) <= 4.3 ? "#" : "."; m.push(r); } return m; }
-sym.circle = circle();
 export const PANEL_COLORS = [
-  { id: "heart", ramp: R.red, sym: sym.heart }, { id: "star", ramp: R.yellow, sym: sym.star }, { id: "circle", ramp: R.green, sym: sym.circle },
-  { id: "diamond", ramp: R.teal, sym: sym.diamond }, { id: "tri", ramp: R.blue, sym: sym.tri }, { id: "gem", ramp: R.purple, sym: sym.gem },
+  { id: "heart", ramp: R.red, sym: SYM.heart }, { id: "star", ramp: R.yellow, sym: SYM.star }, { id: "circle", ramp: R.green, sym: SYM.circle },
+  { id: "diamond", ramp: R.teal, sym: SYM.diamond }, { id: "tri", ramp: R.blue, sym: SYM.tri }, { id: "moon", ramp: R.purple, sym: SYM.moon },
 ];
 
-function roundBox(c, x0, y0, w, h, edge, fill, hi, sh) {
+// A rounded, bevelled block: outline, a light rim top and left, a shaded rim bottom and right, and a soft shine in the top-left corner.
+function block(c, x0, y0, w, h, { edge, fill, hi, sh, shine }) {
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    if ((x === 0 || x === w - 1) && (y === 0 || y === h - 1)) continue;
+    const cx = x < 2 ? 2 - x : x > w - 3 ? x - (w - 3) : 0, cy = y < 2 ? 2 - y : y > h - 3 ? y - (h - 3) : 0;
+    if (cx + cy > 2) continue; // rounded corners
     let v = fill;
-    if (x === 0 || x === w - 1 || y === 0 || y === h - 1) v = edge;
-    else if (y === 1 && x > 1 && x < w - 2) v = hi;
-    else if (x === 1 && y > 1 && y < h - 2) v = hi;
-    else if (y === h - 2 && x > 1) v = sh;
-    else if (x === w - 2 && y > 1) v = sh;
+    if (x === 0 || y === 0 || x === w - 1 || y === h - 1 || cx + cy === 2) v = edge;
+    else if (y === 1 || x === 1) v = hi;
+    else if (y === h - 2 || x === w - 2) v = sh;
     c.px(x0 + x, y0 + y, v);
   }
+  if (shine !== undefined) { c.rect(x0 + 2, y0 + 2, 3, 1, shine); c.px(x0 + 2, y0 + 3, shine); }
 }
-function face(c, ox, oy, ramp) {
-  c.rect(ox + 4, oy + 5, 2, 3, ramp[0]); c.rect(ox + 10, oy + 5, 2, 3, ramp[0]);
-  c.px(ox + 5, oy + 10, ramp[0]); c.px(ox + 10, oy + 10, ramp[0]); c.rect(ox + 6, oy + 11, 4, 1, ramp[0]);
+// shadeRows: how many bottom rows take the shade; corner: also shade the bottom-right quarter (a curved gloss on small symbols)
+function symbol(c, m, x0, y0, fill, rim, shade, shadeRows = 2, corner = true) {
+  const w = m[0].length, on = (x, y) => y >= 0 && y < m.length && x >= 0 && x < w && m[y][x] === "#";
+  // a rim around the shape and a shadow under it, so a white symbol reads on any colour
+  for (let y = -1; y <= m.length + 1; y++) for (let x = -1; x <= w; x++) {
+    if (on(x, y)) continue;
+    if (on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1) || on(x, y - 2)) c.px(x0 + x, y0 + y, rim);
+  }
+  for (let y = 0; y < m.length; y++) for (let x = 0; x < w; x++) if (on(x, y)) c.px(x0 + x, y0 + y, y >= m.length - shadeRows || (corner && x > w / 2 && y > m.length / 2) ? shade : fill);
 }
 function drawPanel(c, p, state) {
-  const ramp = state === 5 ? R.grey : p.ramp;
-  let h = 16, oy = 0, edge = ramp[0], fill = ramp[2], hi = ramp[3], sh = ramp[1], sc = W, ss = ramp[1];
+  const [dk, md, lt, wh] = state === 5 ? [R.grey[1], R.grey[2], R.grey[2], W] : p.ramp;
+  let h = 16, oy = 0;
+  let look = { edge: dk, fill: lt, hi: wh, sh: md, shine: W }, sf = W, sr = md, ss = wh;
   if (state === 1) { h = 14; oy = 2; }
-  if (state === 2) { fill = W; hi = W; sh = ramp[3]; sc = ramp[2]; ss = ramp[3]; }
-  if (state === 4) { fill = ramp[1]; hi = ramp[1]; sh = ramp[0]; sc = ramp[2]; ss = ramp[0]; edge = ramp[0]; }
-  if (state === 5) { fill = R.grey[1]; hi = R.grey[2]; sh = R.grey[0]; edge = R.grey[0]; sc = R.grey[2]; ss = R.grey[0]; }
-  roundBox(c, 0, oy, 16, h, edge, fill, hi, sh);
-  if (state === 3) { face(c, 0, oy, ramp); return; }
-  if (state === 5) { c.line(4, 4, 11, 11, R.grey[3]); c.line(11, 4, 4, 11, R.grey[3]); return; }
-  const m = p.sym, mw = m[0].length, ox = Math.floor((16 - mw) / 2), sy = oy + Math.floor((h - m.length) / 2);
-  c.ascii(m, { "#": ss }, ox + 1, sy + 1);
-  c.ascii(m, { "#": sc }, ox, sy);
+  if (state === 2) { look = { edge: lt, fill: W, hi: W, sh: wh, shine: W }; sf = lt; sr = wh; ss = lt; }
+  if (state === 4) { look = { edge: dk, fill: md, hi: md, sh: dk }; sf = lt; sr = dk; ss = lt; }
+  if (state === 5) { look = { edge: R.grey[1], fill: R.grey[2], hi: R.grey[3], sh: R.grey[1] }; sf = R.grey[3]; sr = R.grey[1]; ss = R.grey[3]; }
+  block(c, 0, oy, 16, h, look);
+  if (state === 3) { // eyes shut tight and a big smile
+    c.line(3, oy + 6, 5, oy + 4, dk); c.line(5, oy + 4, 7, oy + 6, dk); c.line(9, oy + 6, 11, oy + 4, dk); c.line(11, oy + 4, 13, oy + 6, dk);
+    c.rect(5, oy + 9, 6, 1, dk); c.rect(6, oy + 10, 4, 2, dk); c.rect(7, oy + 11, 2, 1, R.red[2]);
+    return;
+  }
+  const m = p.sym, mw = m[0].length;
+  symbol(c, m, Math.floor((16 - mw) / 2), oy + Math.floor((h - m.length) / 2) - (h < 16 ? 0 : 0), sf, sr, ss);
 }
-export const PANELS = {
-  w: 16, h: 16, frames: PANEL_COLORS.length * PANEL_STATES,
-  draw(c, f) { drawPanel(c, PANEL_COLORS[Math.floor(f / PANEL_STATES)], f % PANEL_STATES); },
-};
+export const PANELS = { w: 16, h: 16, frames: PANEL_COLORS.length * PANEL_STATES, draw(c, f) { drawPanel(c, PANEL_COLORS[Math.floor(f / PANEL_STATES)], f % PANEL_STATES); } };
 
 // ---------------------------------------------------------------- garbage blocks (16x16 pieces)
-// 0..8: top-left, top, top-right, left, middle, right, bottom-left, bottom, bottom-right; 9..11: one-row left, middle, right; 12 sleepy face, 13 face while it dissolves
-// frames 14..27 are the same pieces in steel (chain garbage)
+// 0..8: top-left, top, top-right, left, middle, right, bottom-left, bottom, bottom-right; 9..11: one-row left, middle, right; 12 sleepy face,
+// 13 the face while it dissolves. Frames 14..27 are the same pieces in steel (chain garbage).
 export const GARBAGE_PIECES = 14;
-function piece(c, t, l, b, r, ramp) {
+function piece(c, t, l, b, r, ramp, accent) {
   const [dk, md, lt, wh] = ramp;
-  c.rect(0, 0, 16, 16, md);
-  for (let i = 0; i < 16; i += 4) for (let j = 0; j < 16; j++) { const x = (i + j) % 16; if (x % 8 === 0) c.px(x, j, lt); }
-  if (t) c.rect(0, 0, 16, 1, dk); else c.rect(0, 0, 16, 1, md);
-  if (b) c.rect(0, 15, 16, 1, dk);
-  if (l) c.rect(0, 0, 1, 16, dk);
-  if (r) c.rect(15, 0, 1, 16, dk);
-  if (t) c.rect(l ? 1 : 0, 1, r ? 14 : 16, 1, wh);
-  if (l) c.rect(1, t ? 2 : 0, 1, 16, wh);
-  if (b) c.rect(l ? 1 : 0, 14, r ? 14 : 16, 1, dk === ramp[0] ? ramp[0] : dk);
-  if (r) c.rect(14, 1, 1, 14, ramp[0]);
+  c.rect(0, 0, 16, 16, lt);
+  // a quilted pattern: soft diagonal stitches
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) if ((x + y) % 8 === 0 || (x - y + 16) % 8 === 0) c.px(x, y, accent);
+  if (t) { c.rect(0, 0, 16, 1, dk); c.rect(0, 1, 16, 1, wh); }
+  if (b) { c.rect(0, 15, 16, 1, dk); c.rect(0, 14, 16, 1, md); }
+  if (l) { c.rect(0, 0, 1, 16, dk); c.rect(1, t ? 1 : 0, 1, 16 - (t ? 1 : 0) - (b ? 1 : 0), wh); }
+  if (r) { c.rect(15, 0, 1, 16, dk); c.rect(14, t ? 1 : 0, 1, 16 - (t ? 1 : 0) - (b ? 1 : 0), md); }
   const cut = (x, y) => c.px(x, y, -1);
-  if (t && l) cut(0, 0); if (t && r) cut(15, 0); if (b && l) cut(0, 15); if (b && r) cut(15, 15);
+  if (t && l) { cut(0, 0); c.px(1, 1, dk); } if (t && r) { cut(15, 0); c.px(14, 1, dk); }
+  if (b && l) { cut(0, 15); c.px(1, 14, dk); } if (b && r) { cut(15, 15); c.px(14, 14, dk); }
 }
 function drawGarbage(c, f) {
   const steel = f >= GARBAGE_PIECES; if (steel) f -= GARBAGE_PIECES;
-  const ramp = steel ? [K, R.grey[2], R.grey[1], W] : [R.purple[0], R.purple[1], R.purple[2], R.purple[3]];
+  const ramp = steel ? [R.grey[1], R.grey[2], R.blue[3], W] : R.purple, accent = steel ? R.grey[3] : R.purple[3];
   const e = [[1, 1, 0, 0], [1, 0, 0, 0], [1, 0, 0, 1], [0, 1, 0, 0], [0, 0, 0, 0], [0, 0, 0, 1], [0, 1, 1, 0], [0, 0, 1, 0], [0, 0, 1, 1], [1, 1, 1, 0], [1, 0, 1, 0], [1, 0, 1, 1]];
-  if (f < 12) { const [t, l, b, r] = e[f]; piece(c, t, l, b, r, ramp); return; }
-  const ink = steel ? K : R.purple[0];
-  if (f === 12) { c.rect(4, 6, 3, 2, ink); c.rect(9, 6, 3, 2, ink); c.rect(6, 10, 4, 1, ink); }
-  else { c.rect(4, 5, 3, 3, ink); c.rect(9, 5, 3, 3, ink); c.px(5, 6, W); c.px(10, 6, W); c.rect(6, 10, 4, 2, ink); c.rect(7, 11, 2, 1, R.red[2]); }
+  if (f < 12) { const [t, l, b, r] = e[f]; piece(c, t, l, b, r, ramp, accent); return; }
+  const ink = ramp[0];
+  if (f === 12) { c.rect(3, 7, 4, 1, ink); c.rect(9, 7, 4, 1, ink); c.px(3, 6, ink); c.px(12, 6, ink); c.rect(7, 10, 2, 1, ink); c.rect(2, 9, 2, 1, R.red[3]); c.rect(12, 9, 2, 1, R.red[3]); }
+  else { c.rect(4, 4, 3, 4, ink); c.rect(9, 4, 3, 4, ink); c.px(4, 4, W); c.px(9, 4, W); c.rect(6, 10, 4, 3, ink); c.rect(7, 11, 2, 2, R.red[2]); }
 }
 export const GARBAGE = { w: 16, h: 16, frames: GARBAGE_PIECES * 2, draw: drawGarbage };
 
 // ---------------------------------------------------------------- characters (32x32): 0 idle, 1 blink, 2 happy, 3 dizzy
+// Round critters lit from the top left, outlined in their own darkest shade, with feet, little arms and big glossy eyes.
 const CHAR_DEFS = [
-  { id: "pip", name: "PIP", ramp: R.yellow, belly: R.orange[3], feat: "tuft", cheek: R.red[7] },
-  { id: "bloop", name: "BLOOP", ramp: R.green, belly: R.green[3], feat: "leaf", cheek: R.yellow[3] },
-  { id: "fuzz", name: "FUZZ", ramp: R.orange, belly: R.orange[3], feat: "ears", cheek: R.red[7] },
-  { id: "kit", name: "KIT", ramp: R.blue, belly: R.blue[3], feat: "cat", cheek: R.purple[3] },
-  { id: "spike", name: "SPIKE", ramp: R.purple, belly: R.purple[3], feat: "spikes", cheek: R.red[7] },
-  { id: "puff", name: "PUFF", ramp: [R.grey[2], R.grey[2], R.grey[3], W], belly: W, feat: "cloud", cheek: R.red[7] },
-  { id: "ember", name: "EMBER", ramp: R.red, belly: R.orange[3], feat: "flame", cheek: R.yellow[3] },
-  { id: "frost", name: "FROST", ramp: R.teal, belly: R.teal[3], feat: "ice", cheek: R.blue[3] },
-  { id: "shade", name: "SHADE", ramp: [K, R.grey[0], R.grey[1], R.purple[1]], belly: R.purple[0], feat: "ghost", cheek: R.purple[2] },
+  { id: "pip", ramp: R.yellow, belly: R.yellow[3], feat: "tuft", cheek: R.red[3], foot: R.orange[2] },
+  { id: "bloop", ramp: R.green, belly: R.green[3], feat: "leaf", cheek: R.red[3], foot: R.green[1] },
+  { id: "fuzz", ramp: R.orange, belly: R.orange[3], feat: "ears", cheek: R.red[3], foot: R.orange[1] },
+  { id: "kit", ramp: R.blue, belly: R.blue[3], feat: "cat", cheek: R.purple[3], foot: R.blue[1] },
+  { id: "spike", ramp: R.purple, belly: R.purple[3], feat: "spikes", cheek: R.red[3], foot: R.purple[1] },
+  { id: "puff", ramp: [R.grey[2], R.blue[3], W, W], belly: W, feat: "cloud", cheek: R.red[3], foot: R.blue[3] },
+  { id: "ember", ramp: R.red, belly: R.orange[3], feat: "flame", cheek: R.yellow[3], foot: R.red[1] },
+  { id: "frost", ramp: R.teal, belly: R.teal[3], feat: "ice", cheek: R.blue[3], foot: R.teal[1] },
+  { id: "shade", ramp: [R.purple[0], R.purple[1], R.purple[2], R.purple[3]], belly: R.purple[1], feat: "crown", cheek: R.red[2], foot: R.purple[0] },
 ];
-export { CHAR_DEFS };
-function eyeAt(c, x, y, expr, ramp) {
-  if (expr === 1) { c.rect(x - 2, y + 1, 5, 1, K); return; }
-  if (expr === 2) { c.px(x - 2, y + 2, K); c.px(x - 1, y + 1, K); c.px(x, y, K); c.px(x + 1, y + 1, K); c.px(x + 2, y + 2, K); return; }
-  if (expr === 3) { c.line(x - 2, y - 1, x + 2, y + 3, K); c.line(x + 2, y - 1, x - 2, y + 3, K); return; }
-  c.rect(x - 2, y - 1, 5, 6, W); c.rect(x - 1, y - 2, 3, 8, W); c.rect(x - 1, y + 1, 3, 3, K); c.px(x - 1, y + 1, W);
+export const CHAR_IDS = CHAR_DEFS.map((d) => d.id);
+function eye(c, x, y, expr) {
+  if (expr === 1) { c.rect(x - 2, y + 2, 5, 1, NAVY); return; }
+  if (expr === 2) { c.px(x - 2, y + 2, NAVY); c.px(x - 1, y + 1, NAVY); c.px(x, y, NAVY); c.px(x + 1, y + 1, NAVY); c.px(x + 2, y + 2, NAVY); return; }
+  if (expr === 3) { c.line(x - 2, y, x + 2, y + 4, NAVY); c.line(x + 2, y, x - 2, y + 4, NAVY); return; }
+  c.rect(x - 2, y - 1, 4, 6, NAVY); c.rect(x - 1, y - 2, 2, 8, NAVY);
+  c.rect(x - 1, y - 1, 2, 2, W); c.px(x, y + 3, R.blue[2]);
 }
 function drawChar(c, d, expr) {
-  const bob = expr === 0 ? 0 : 0, cx = 16, cy = 19 + bob, [dk, md, lt, wh] = d.ramp;
-  const f = d.feat;
-  if (f === "cloud") { for (const [x, y, r] of [[8, 14, 6], [24, 14, 6], [12, 9, 6], [20, 9, 6], [16, 7, 5]]) c.sphere(x, y + 2, r, d.ramp); }
+  const cx = 16, cy = 18, [dk, md, lt, wh] = d.ramp, f = d.feat;
+  // what sits behind the body
+  if (f === "cloud") for (const [x, y, r] of [[8, 15, 6], [24, 15, 6], [11, 10, 6], [21, 10, 6], [16, 8, 5]]) c.sphere(x, y, r, d.ramp);
   if (f === "ears" || f === "cat") {
-    const inner = f === "cat" ? R.purple[3] : R.red[7];
-    c.poly([[4, 12], [6, 2], [14, 8]], md); c.poly([[28, 12], [26, 2], [18, 8]], md);
-    c.poly([[6, 10], [7, 5], [11, 8]], inner); c.poly([[26, 10], [25, 5], [21, 8]], inner);
+    const inner = f === "cat" ? R.purple[3] : R.red[3];
+    c.poly([[4, 13], [6, 2], [14, 9]], md); c.poly([[28, 13], [26, 2], [18, 9]], md);
+    c.poly([[6, 11], [7, 5], [11, 9]], inner); c.poly([[26, 11], [25, 5], [21, 9]], inner);
   }
-  if (f === "spikes") for (const x of [6, 10, 14, 18, 22, 26]) c.poly([[x - 3, 11], [x, 1 + Math.abs(x - 16) / 4], [x + 3, 11]], R.purple[0]);
-  if (f === "ice") for (const [x, h] of [[9, 8], [16, 4], [23, 8]]) c.poly([[x - 3, 13], [x, h], [x + 3, 13]], R.teal[3]);
+  if (f === "spikes") for (const x of [7, 11, 16, 21, 25]) c.poly([[x - 3, 12], [x, 2 + Math.abs(x - 16) / 3], [x + 3, 12]], lt);
+  if (f === "ice") for (const [x, h] of [[9, 4], [16, 1], [23, 4]]) c.poly([[x - 3, 12], [x, h], [x + 3, 12]], R.teal[3]);
   if (f === "flame") {
-    c.poly([[8, 12], [10, 3], [14, 9], [16, 0], [19, 9], [23, 3], [24, 12]], R.orange[2]);
-    c.poly([[12, 12], [14, 7], [16, 4], [18, 7], [20, 12]], R.yellow[3]);
+    c.poly([[8, 12], [10, 3], [13, 8], [16, 0], [19, 8], [22, 3], [24, 12]], R.orange[2]);
+    c.poly([[12, 12], [14, 6], [16, 3], [18, 6], [20, 12]], R.yellow[2]);
   }
-  if (f === "ghost") { c.poly([[8, 26], [8, 30], [12, 27], [16, 30], [20, 27], [24, 30], [24, 26]], R.grey[1]); }
+  // feet and arms
+  c.ellipse(11, 29, 4, 2, d.foot); c.ellipse(21, 29, 4, 2, d.foot);
+  if (expr === 2) { c.ellipse(4, 13, 2.5, 3, md); c.ellipse(28, 13, 2.5, 3, md); }
+  else { c.ellipse(4, 21, 2.5, 3, md); c.ellipse(28, 21, 2.5, 3, md); }
   c.sphere(cx, cy, 11, d.ramp, -0.5, -0.6, 12, 11);
-  c.ellipse(cx, cy + 4, 7, 5, d.belly);
-  if (f === "ghost") c.ellipse(cx, cy + 4, 7, 5, R.purple[0]);
-  if (f === "leaf") { c.line(16, 9, 16, 4, R.green[0]); c.poly([[16, 5], [22, 1], [24, 6], [18, 7]], R.green[2]); c.poly([[16, 5], [10, 2], [9, 6], [14, 7]], R.green[3]); }
-  if (f === "tuft") { c.line(15, 8, 13, 3, R.orange[1]); c.line(16, 8, 16, 2, R.orange[1]); c.line(17, 8, 20, 3, R.orange[1]); }
-  if (f === "cat") { c.line(2, 21, 8, 20, K); c.line(2, 24, 8, 22, K); c.line(30, 21, 24, 20, K); c.line(30, 24, 24, 22, K); }
-  if (f === "ghost") { c.poly([[9, 10], [10, 3], [13, 7], [16, 1], [19, 7], [22, 3], [23, 10]], R.yellow[2]); c.rect(9, 9, 14, 2, R.yellow[1]); }
-  eyeAt(c, 11, 15 + bob, expr, d.ramp); eyeAt(c, 21, 15 + bob, expr, d.ramp);
-  c.rect(7, 21, 3, 2, d.cheek); c.rect(22, 21, 3, 2, d.cheek);
-  if (expr === 2) { c.rect(13, 21, 6, 3, K); c.rect(14, 23, 4, 1, R.red[5]); c.rect(13, 21, 6, 1, W); }
-  else if (expr === 3) { c.px(13, 24, K); c.px(14, 23, K); c.px(15, 24, K); c.px(16, 23, K); c.px(17, 24, K); c.px(18, 23, K); }
-  else { c.px(14, 22, K); c.px(15, 23, K); c.px(16, 23, K); c.px(17, 23, K); c.px(18, 22, K); }
-  c.outline(K);
+  c.ellipse(cx, cy + 6, 7, 4, d.belly);
+  if (f === "leaf") { c.line(16, 8, 16, 3, R.green[0]); c.poly([[16, 4], [23, 0], [25, 5], [18, 6]], R.green[2]); c.poly([[16, 4], [10, 1], [9, 5], [14, 6]], R.green[3]); }
+  if (f === "tuft") { c.line(15, 7, 12, 2, R.orange[2]); c.line(16, 7, 16, 1, R.orange[2]); c.line(17, 7, 20, 2, R.orange[2]); }
+  if (f === "crown") { c.poly([[9, 10], [10, 2], [13, 6], [16, 0], [19, 6], [22, 2], [23, 10]], R.yellow[2]); c.rect(9, 8, 15, 2, R.yellow[1]); c.px(16, 4, R.red[2]); }
+  c.outline(dk);
+  // the face
+  eye(c, 12, 14, expr); eye(c, 20, 14, expr);
+  c.rect(7, 20, 3, 2, d.cheek); c.rect(22, 20, 3, 2, d.cheek);
+  if (f === "tuft") { c.rect(15, 19, 3, 2, R.orange[2]); c.px(16, 21, R.orange[1]); }
+  else if (expr === 2) { c.rect(13, 20, 6, 3, NAVY); c.rect(14, 22, 4, 1, R.red[2]); }
+  else if (expr === 3) { c.px(13, 22, NAVY); c.px(14, 21, NAVY); c.px(15, 22, NAVY); c.px(16, 21, NAVY); c.px(17, 22, NAVY); c.px(18, 21, NAVY); }
+  else { c.px(14, 21, NAVY); c.rect(15, 22, 3, 1, NAVY); c.px(18, 21, NAVY); }
+  if (f === "tuft" && expr === 2) c.rect(15, 21, 3, 1, R.red[2]);
 }
 export const CHARS = CHAR_DEFS.map((d) => ({ id: d.id, w: 32, h: 32, frames: 4, draw: (c, f) => drawChar(c, d, f) }));
 
-// ---------------------------------------------------------------- Doc Capsule: capsules, viruses (12x12 in 16x16 frames), big viruses, the doctor
-export const DM_COLORS = [R.red, R.yellow, R.blue]; // red, yellow, blue
-// frames per colour: 0 single, 1 left half, 2 right half, 3 top half, 4 bottom half, 5 popping
-function pillShape(c, ramp, kind) {
-  const [dk, md, lt, wh] = ramp;
-  for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) {
-    const dx = x + 0.5 - 6, dy = y + 0.5 - 6, round = Math.hypot(dx, dy) <= 6;
-    let inside;
-    if (kind === 0) inside = round;
-    else if (kind === 1) inside = x < 6 ? round : true;
-    else if (kind === 2) inside = x >= 6 ? round : true;
-    else if (kind === 3) inside = y < 6 ? round : true;
-    else inside = y >= 6 ? round : true;
-    if (!inside) continue;
-    c.px(x, y, md);
+// ---------------------------------------------------------------- the logo: one letter on a big panel per frame (P A N E L O), the letters
+// being the font's, three times as big
+const LOGO = [["P", R.red], ["A", R.yellow], ["N", R.green], ["E", R.teal], ["L", R.blue], ["O", R.purple]];
+export const LOGO_LETTERS = LOGO.map((l) => l[0]).join("");
+export const LOGOS = {
+  w: 32, h: 32, frames: LOGO.length,
+  draw(c, f) {
+    const [ch, ramp] = LOGO[f], [dk, md, lt, wh] = ramp;
+    block(c, 1, 1, 30, 30, { edge: dk, fill: lt, hi: wh, sh: md, shine: W });
+    const g = GLYPHS[ch], big = g.flatMap((row) => { const r = [...row].map((p) => p.repeat(3)).join(""); return [r, r, r]; });
+    symbol(c, big, 9, 6, W, dk, wh, 3, false);
+  },
+};
+
+// ---------------------------------------------------------------- small things
+// the board cursor: brackets around two cells (40x24, drawn 4 pixels up and left of the left cell), two frames that breathe
+export const CURSOR = {
+  w: 40, h: 24, frames: 2,
+  draw(c, f) {
+    const i = f === 0 ? 2 : 1, w = 40 - i * 2, h = 24 - i * 2, L = 7;
+    // an L in each corner; the right and bottom ones grow back from the far edge
+    const rect = (x, y, w2, h2) => c.rect(Math.min(x, x + w2), Math.min(y, y + h2), Math.abs(w2), Math.abs(h2), W);
+    const corner = (x, y, sx, sy) => { rect(x, y, L * sx, 2 * sy); rect(x, y, 2 * sx, L * sy); };
+    corner(i, i, 1, 1); corner(i + w, i, -1, 1); corner(i, i + h, 1, -1); corner(i + w, i + h, -1, -1);
+    c.outline(NAVY);
+  },
+};
+// a twinkle for popping panels: 4 frames, big to small
+export const SPARK = {
+  w: 8, h: 8, frames: 4,
+  draw(c, f) {
+    const s = [3, 3, 2, 1][f], col = f < 2 ? W : R.yellow[3];
+    c.rect(4 - s, 3, s * 2, 2, col); c.rect(3, 4 - s, 2, s * 2, col);
+    if (f === 0) { c.px(3, 3, R.yellow[2]); c.px(4, 4, R.yellow[2]); }
+  },
+};
+export const ICONS = [
+  { id: "arrow", w: 8, h: 8, frames: 2, draw(c, f) { c.ascii(["#.....", "##....", "###...", "####..", "###...", "##....", "#....."], { "#": f ? R.yellow[3] : R.yellow[2] }, 1 + f, 0); c.outline(R.orange[0]); } },
+  { id: "star", w: 8, h: 8, frames: 2, draw(c, f) { c.ascii(["...#...", "..###..", "#######", ".#####.", "..###..", ".##.##.", ".#...#."], { "#": f ? R.yellow[3] : R.yellow[2] }, 0, 0); c.outline(R.orange[1]); } },
+];
+
+// ---------------------------------------------------------------- tilesets
+// ts_sky: six soft backgrounds, each a 4x4 block of 16x16 tiles that repeats (64x64), four across and two down (pattern p starts at
+// tile (p // 4) * 64 + (p % 4) * 4; the game's lib/ui.lua knows this). Light and low in contrast so the panels stand out.
+export const SKY_LOOKS = [
+  { name: "blue", base: R.blue[3], soft: W, dot: R.blue[2], kind: "checker" },
+  { name: "mint", base: R.teal[3], soft: W, dot: R.teal[2], kind: "dots" },
+  { name: "lilac", base: R.purple[3], soft: W, dot: R.purple[2], kind: "stripes" },
+  { name: "lemon", base: R.yellow[3], soft: W, dot: R.orange[3], kind: "diamonds" },
+  { name: "peach", base: R.orange[3], soft: R.yellow[3], dot: R.red[3], kind: "dots" },
+  { name: "lime", base: R.green[3], soft: R.yellow[3], dot: R.green[2], kind: "checker" },
+];
+function skyPattern(c, ox, oy, look) {
+  const { base, soft, dot, kind } = look;
+  c.rect(ox, oy, 64, 64, base);
+  const dith = (x, y) => (x + y) % 2 === 0;
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+    let on = false;
+    if (kind === "checker") on = ((x >> 5) + (y >> 5)) % 2 === 0 && dith(x, y);
+    if (kind === "stripes") on = ((x + y) % 32) < 12 && dith(x, y);
+    if (kind === "dots") { const dx = (x % 32) - 16, dy = (y % 32) - 16; on = Math.hypot(dx + 0.5, dy + 0.5) < 9 && dith(x, y); }
+    if (kind === "diamonds") { const dx = Math.abs((x % 32) - 15.5), dy = Math.abs((y % 32) - 15.5); on = dx + dy < 12 && dith(x, y); }
+    if (on) c.px(ox + x, oy + y, soft);
   }
-  // outline, then light from the top left
-  const keep = new Canvas(12, 12); keep.stamp(c, 0, 0);
-  for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) {
-    if (keep.get(x, y) === -1) continue;
-    const edge = keep.get(x - 1, y) === -1 || keep.get(x + 1, y) === -1 || keep.get(x, y - 1) === -1 || keep.get(x, y + 1) === -1;
-    if (edge) { c.px(x, y, dk); continue; }
-    const inner = keep.get(x - 2, y) === -1 || keep.get(x, y - 2) === -1;
-    const inner2 = keep.get(x + 2, y) === -1 || keep.get(x, y + 2) === -1;
-    if (inner && (x + y) % 1 === 0 && !inner2) c.px(x, y, lt);
-    else if (inner2) c.px(x, y, ramp[1]);
+  // little four-point twinkles
+  for (const [x, y] of [[8, 8], [40, 40], [24 + 16, 10], [10, 44]]) {
+    c.px(ox + x, oy + y, dot); c.px(ox + x - 1, oy + y, soft); c.px(ox + x + 1, oy + y, soft); c.px(ox + x, oy + y - 1, soft); c.px(ox + x, oy + y + 1, soft);
   }
-  const hx = kind === 2 ? 3 : 2, hy = kind === 4 ? 3 : 2;
-  c.px(hx + 1, hy + 1, wh);
 }
-function pillPop(c, ramp) {
-  const pts = [[6, 1], [6, 10], [1, 6], [10, 6], [2, 2], [9, 2], [2, 9], [9, 9]];
-  for (const [x, y] of pts) { c.rect(x - 1, y - 1, 2, 2, ramp[2]); c.px(x, y, W); }
-  c.px(6, 6, W); c.px(5, 5, ramp[3]); c.px(6, 5, ramp[3]); c.px(5, 6, ramp[3]);
-}
-export const PILLS = { w: 16, h: 16, frames: 18, draw(c, f) { const col = DM_COLORS[Math.floor(f / 6)], k = f % 6; if (k === 5) pillPop(c, col); else pillShape(c, col, k); } };
-
-function virusSmall(c, col, f) {
-  const ramp = DM_COLORS[col], [dk, md, lt, wh] = ramp, up = f === 1;
-  if (f === 2) { // cleared: a sad flat blob
-    c.ellipse(6, 8, 5, 3, md); c.outline(dk); c.px(4, 8, K); c.px(8, 8, K); return;
-  }
-  const bob = up ? -1 : 0;
-  c.sphere(6, 6.5 + bob, 5, ramp);
-  if (col === 0) { c.poly([[2, 3 + bob], [3, 0], [5, 3 + bob]], dk); c.poly([[7, 3 + bob], [9, 0], [10, 3 + bob]], dk); }
-  if (col === 1) { for (const x of [2, 5, 8]) c.px(x, 0 + (up ? 1 : 0), dk); c.px(6, 11, dk); c.px(2, 10, dk); c.px(9, 10, dk); }
-  if (col === 2) { c.px(6, 0, dk); c.px(6, 1 + bob, dk); c.px(5, 0, md); c.px(7, 0, md); c.px(0, 6 + (up ? -2 : 1), dk); c.px(11, 6 + (up ? -2 : 1), dk); }
-  c.outline(dk);
-  if (col === 2) { c.rect(4, 5 + bob, 4, 3, W); c.rect(5, 6 + bob, 2, 2, K); }
-  else { c.rect(3, 5 + bob, 2, 3, W); c.rect(7, 5 + bob, 2, 3, W); c.px(4, 6 + bob, K); c.px(8, 6 + bob, K); }
-  c.rect(4, 9 + bob, 4, 1, dk);
-  if (up) c.px(3, 9 + bob, dk), c.px(8, 9 + bob, dk);
-}
-export const VIRUSES = { w: 16, h: 16, frames: 9, draw: (c, f) => virusSmall(c, Math.floor(f / 3), f % 3) };
-
-// big viruses for the magnifier: 0/1 dance, 2 laugh, 3 sad
-function virusBig(c, col, f) {
-  const ramp = DM_COLORS[col], [dk, md, lt, wh] = ramp, dance = f === 1 ? -2 : 0, laugh = f === 2, sad = f === 3;
-  const y0 = 17 + dance;
-  c.sphere(16, y0, 12, ramp, -0.5, -0.6);
-  if (col === 0) { c.poly([[6, y0 - 8], [8, 1 + dance], [13, y0 - 10]], dk); c.poly([[19, y0 - 10], [24, 1 + dance], [26, y0 - 8]], dk); }
-  if (col === 1) { for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; c.line(16 + Math.cos(a) * 11, y0 + Math.sin(a) * 11, 16 + Math.cos(a) * 15, y0 + Math.sin(a) * 15, dk); } }
-  if (col === 2) { c.line(16, y0 - 12, 16, 2, dk); c.disc(16, 2, 2, lt); c.line(3, y0, 0, y0 - 6 - (f === 1 ? 4 : 0), dk); c.line(29, y0, 31, y0 - 6 - (f === 1 ? 4 : 0), dk); }
-  c.outline(dk);
-  if (col === 2) { c.ellipse(16, y0 - 2, 6, 5, W); c.disc(16 + (sad ? 0 : 1), y0 - 2, 2.5, K); }
-  else { c.ellipse(11, y0 - 2, 3.5, 4.5, W); c.ellipse(21, y0 - 2, 3.5, 4.5, W); c.disc(sad ? 11 : 12, y0 - 1, 1.7, K); c.disc(sad ? 21 : 22, y0 - 1, 1.7, K); }
-  if (laugh) { c.ellipse(16, y0 + 7, 6, 4, K); c.ellipse(16, y0 + 9, 4, 2, R.red[6]); c.rect(11, y0 + 3, 10, 2, W); }
-  else if (sad) { c.px(12, y0 + 9, dk); c.line(11, y0 + 9, 14, y0 + 7, dk); c.line(14, y0 + 7, 18, y0 + 7, dk); c.line(18, y0 + 7, 21, y0 + 9, dk); }
-  else { c.line(11, y0 + 6, 14, y0 + 8, dk); c.line(14, y0 + 8, 18, y0 + 8, dk); c.line(18, y0 + 8, 21, y0 + 6, dk); }
-}
-export const BIG_VIRUSES = { w: 32, h: 32, frames: 12, draw: (c, f) => virusBig(c, Math.floor(f / 4), f % 4) };
-
-// the doctor: 0 idle, 1 arm up (about to throw), 2 throw, 3 cheer, 4 sulk
-function drawDoc(c, f) {
-  const skin = R.orange[3], hair = R.orange[0], coat = W, shade = R.grey[2], teal = R.teal[1];
-  // body
-  c.poly([[8, 31], [9, 17], [23, 17], [24, 31]], coat); c.rect(9, 17, 3, 14, shade); c.line(16, 18, 16, 31, shade);
-  c.rect(11, 20, 2, 2, R.red[5]); c.rect(19, 20, 2, 2, teal);
-  c.poly([[14, 17], [18, 17], [16, 22]], R.red[6]);
-  // arms
-  const arm = (x0, y0, x1, y1) => { c.line(x0, y0, x1, y1, coat); c.line(x0 + 1, y0, x1 + 1, y1, coat); c.line(x0 + 2, y0, x1 + 2, y1, coat); c.disc(x1 + 1, y1, 2, skin); };
-  if (f === 0) { arm(7, 18, 5, 27); arm(23, 18, 25, 27); }
-  if (f === 1) { arm(7, 18, 5, 27); arm(23, 18, 26, 8); }
-  if (f === 2) { arm(7, 18, 5, 27); arm(23, 18, 28, 20); }
-  if (f === 3) { arm(7, 18, 3, 8); arm(23, 18, 28, 8); }
-  if (f === 4) { arm(7, 18, 9, 26); arm(23, 18, 21, 26); }
-  // head
-  c.disc(16, 10, 8, skin); c.rect(8, 6, 16, 3, hair);
-  c.poly([[7, 7], [9, 2], [23, 2], [25, 7]], W); c.rect(7, 7, 18, 2, shade);
-  c.disc(16, 4, 3, R.red[6]); c.rect(15, 3, 2, 2, W);
-  if (f === 3) { c.px(11, 11, K); c.px(12, 10, K); c.px(13, 11, K); c.px(19, 11, K); c.px(20, 10, K); c.px(21, 11, K); c.rect(13, 14, 6, 2, K); }
-  else if (f === 4) { c.line(11, 10, 13, 12, K); c.line(13, 10, 11, 12, K); c.line(19, 10, 21, 12, K); c.line(21, 10, 19, 12, K); c.line(13, 16, 19, 15, K); }
-  else { c.rect(11, 10, 2, 3, K); c.rect(19, 10, 2, 3, K); c.rect(14, 15, 4, 1, K); }
-  c.rect(8, 11, 2, 2, R.red[7]); c.rect(22, 11, 2, 2, R.red[7]);
-  c.outline(K);
-}
-export const DOC = { w: 32, h: 32, frames: 5, draw: drawDoc };
-
-// ---------------------------------------------------------------- backgrounds (64x64 tiles that repeat) and a few small icons
-export function bgTile(hue, variant) {
-  // dark and quiet: the game is drawn over it, and one opaque tile layer costs one screen of drawing (the boards use most of the budget)
-  const c = new Canvas(64, 64), base = hue[0], md = K;
-  c.rect(0, 0, 64, 64, base);
-  if (variant % 3 === 0) { for (let y = 0; y < 64; y += 16) for (let x = 0; x < 64; x += 16) if (((x + y) / 16) % 2 === 0) c.rect(x, y, 16, 16, md); }
-  else if (variant % 3 === 1) { for (let i = -64; i < 64; i += 16) for (let t = 0; t < 8; t++) { c.line(i, 0 + t, i + 64, 64 + t, md); } }
-  else { for (let y = 8; y < 64; y += 32) for (let x = 8; x < 64; x += 32) { c.disc(x + 8, y + 8, 8, md); c.disc(x + 8, y + 8, 4, base); } }
+export function skyTileset() {
+  const c = new Canvas(256, 128);
+  SKY_LOOKS.forEach((l, i) => skyPattern(c, (i % 4) * 64, Math.floor(i / 4) * 64, l));
   return c;
 }
-export const ICONS = [
-  { id: "arrow", w: 8, h: 8, frames: 1, draw(c) { c.ascii(["..##....", "..###...", "..####..", "..#####.", "..####..", "..###...", "..##....", "........"], { "#": W }); c.outline(K); } },
-  { id: "star", w: 8, h: 8, frames: 2, draw(c, f) { c.ascii(["...##...", "...##...", "########", ".######.", "..####..", ".##..##.", ".#....#.", "........"], { "#": f ? R.yellow[3] : R.yellow[2] }); } },
-  { id: "spark", w: 8, h: 8, frames: 3, draw(c, f) { const s = [1, 2, 3][f]; c.rect(4 - s, 4, s * 2, 1, W); c.rect(4, 4 - s, 1, s * 2, W); } },
+
+// ts_ui: 8x8 tiles in 3x3 blocks for the layout's panels (windows, menu rows, bars), four blocks across and two down. Block b starts at tile
+// (b // 4) * 36 + (b % 4) * 3; the names below are what lib/ui.lua calls them.
+export const UI_BLOCKS = [
+  { name: "window", fill: W, edge: R.blue[1], hi: W, sh: R.blue[3] },
+  { name: "selected", fill: R.yellow[3], edge: R.orange[1], hi: W, sh: R.yellow[2] },
+  { name: "bar", fill: R.blue[1], edge: R.blue[0], hi: R.blue[2], sh: R.blue[0] },
+  { name: "inset", fill: R.blue[3], edge: R.blue[2], hi: R.blue[2], sh: W },
+  { name: "go", fill: R.green[2], edge: R.green[0], hi: R.green[3], sh: R.green[1] },
+  { name: "pink", fill: R.red[3], edge: R.red[1], hi: W, sh: R.red[2] },
+  { name: "lilac", fill: R.purple[3], edge: R.purple[1], hi: W, sh: R.purple[2] },
+  { name: "mint", fill: R.teal[3], edge: R.teal[1], hi: W, sh: R.teal[2] },
 ];
+export function uiTileset() {
+  const c = new Canvas(96, 48);
+  UI_BLOCKS.forEach((b, i) => {
+    const ox = (i % 4) * 24, oy = Math.floor(i / 4) * 24;
+    block(c, ox, oy, 24, 24, { edge: b.edge, fill: b.fill, hi: b.hi, sh: b.sh });
+  });
+  return c;
+}

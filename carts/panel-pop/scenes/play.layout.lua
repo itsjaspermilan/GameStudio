@@ -1,0 +1,52 @@
+-- The scene's layout, built when it starts. Named things are fields of its code: self.<name>.
+return {
+  width = 320, height = 240, background = "#a8d4ff",
+  layers = {
+    { name = "sky", tileset = "ts_sky", depth = 100, wrap_x = true, wrap_y = true, data = {
+      { 0, 1, 2, 3 },
+      { 16, 17, 18, 19 },
+      { 32, 33, 34, 35 },
+      { 48, 49, 50, 51 },
+    } },
+  },
+  entities = {
+  },
+  panels = {
+    { 6, 24, 100, 108, tileset = "ts_ui", tile = 0, name = "stats_box" },
+    { 6, 138, 100, 78, tileset = "ts_ui", tile = 0, name = "speed_box" },
+    { 214, 24, 100, 108, tileset = "ts_ui", tile = 0, name = "face_box" },
+    { 214, 138, 100, 78, tileset = "ts_ui", tile = 0, name = "help_box" },
+    { 0, 90, 320, 52, tileset = "ts_ui", tile = 6, name = "banner_bar", screen = true },
+    { 100, 70, 120, 96, tileset = "ts_ui", tile = 0, name = "pause_box", screen = true },
+    { 112, 96, 96, 20, tileset = "ts_ui", tile = 0, name = "prow1", screen = true },
+    { 112, 118, 96, 20, tileset = "ts_ui", tile = 0, name = "prow2", screen = true },
+    { 112, 140, 96, 20, tileset = "ts_ui", tile = 0, name = "prow3", screen = true },
+  },
+  texts = {
+    { "", 14, 31, name = "lab1", font = "spr_font_r" },
+    { "", 98, 42, name = "val1", align = "right", font = "spr_font" },
+    { "", 14, 56, name = "lab2", font = "spr_font_r" },
+    { "", 98, 67, name = "val2", align = "right", font = "spr_font" },
+    { "", 14, 81, name = "lab3", font = "spr_font_r" },
+    { "", 98, 92, name = "val3", align = "right", font = "spr_font" },
+    { "", 14, 106, name = "lab4", font = "spr_font_r" },
+    { "", 98, 117, name = "val4", align = "right", font = "spr_font" },
+    { "SPEED", 14, 146, name = "speed_label", font = "spr_font_r" },
+    { "DANGER!", 56, 178, name = "danger", align = "center", font = "spr_font_r" },
+    { "", 56, 198, name = "mode_name", align = "center", font = "spr_font" },
+    { "", 264, 112, name = "shout", align = "center", font = "spr_font_r" },
+    { "A SWAP", 264, 148, name = "help1", align = "center", font = "spr_font" },
+    { "B RAISE", 264, 163, name = "help2", align = "center", font = "spr_font" },
+    { "START PAUSE", 264, 178, name = "help3", align = "center", font = "spr_font" },
+    { "SEL RETRY", 264, 193, name = "help4", align = "center", font = "spr_font" },
+    { "", 160, 98, name = "banner", size = 2, align = "center", font = "spr_font_y", screen = true },
+    { "PRESS A", 160, 124, name = "banner_hint", align = "center", font = "spr_font_w", screen = true },
+    { "PAUSED", 160, 80, name = "pause_title", align = "center", font = "spr_font_r", screen = true },
+    { "RESUME", 160, 102, name = "ptext1", align = "center", font = "spr_font", screen = true },
+    { "RESTART", 160, 124, name = "ptext2", align = "center", font = "spr_font", screen = true },
+    { "QUIT", 160, 146, name = "ptext3", align = "center", font = "spr_font", screen = true },
+  },
+  pictures = {
+    { "spr_char_pip", 264, 68, name = "face", scale = 2 },
+  },
+}

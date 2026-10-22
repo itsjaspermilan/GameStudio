@@ -3,20 +3,20 @@
  "loop": null,
  "tracks": [
   {
-   "instrument": "square",
+   "instrument": "pluck",
    "steps": [
-    [
-     60,
-     3,
-     0
-    ],
     [
      67,
      3,
      0
     ],
     [
-     72,
+     74,
+     3,
+     0
+    ],
+    [
+     79,
      4,
      5
     ]
