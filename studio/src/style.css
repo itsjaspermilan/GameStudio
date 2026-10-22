@@ -49,8 +49,8 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 ::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
 /* The window is an app, not a page: the chrome never scrolls or rubber-bands. Panels scroll on their own. */
 html, body { overflow: hidden; overscroll-behavior: none; }
-#app { display: grid; height: 100vh; width: 100vw; overflow: hidden;
-  grid-template-columns: 220px 1fr; grid-template-rows: 42px 1fr 180px;
+#app { display: grid; height: 100vh; width: 100vw; overflow: hidden; position: relative;
+  grid-template-columns: var(--side-w, 220px) 1fr; grid-template-rows: 42px 1fr var(--log-h, 180px);
   grid-template-areas: "bar bar" "side main" "side log"; }
 #toolbar { grid-area: bar; display: flex; align-items: center; gap: 14px; padding: 0 10px;
   background: var(--panel); border-bottom: 1px solid var(--border); }
@@ -81,6 +81,10 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 .tab-item { display: flex; align-items: center; gap: 2px; padding: 2px 4px 2px 10px; border: 1px solid var(--border); border-bottom: none; border-radius: 5px 5px 0 0; background: var(--panel); color: var(--muted); font-size: 12px; cursor: pointer; white-space: nowrap; }
 .tab-item.on { background: var(--bg); color: var(--text); }
 .tab-item button { padding: 0 5px; line-height: 16px; background: transparent; border-color: transparent; color: var(--muted); }
+/* macOS puts a tab's close button on its left, shown when the pointer is over the tab (Finder, Safari, Xcode) */
+:root[data-os=mac] .tab-item { padding: 2px 10px 2px 4px; }
+:root[data-os=mac] .tab-item button { order: -1; visibility: hidden; }
+:root[data-os=mac] .tab-item:hover button { visibility: visible; }
 .find-dialog { position: fixed; inset: 60px 16px auto auto; margin: 0; width: 420px; max-height: calc(100vh - 90px); display: flex; flex-direction: column; gap: 6px; }
 .find-dialog:not([open]) { display: none; }
 .fd-head { display: flex; justify-content: space-between; align-items: center; }
@@ -98,7 +102,7 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 .fd-hit .ln { color: var(--muted); display: inline-block; min-width: 34px; }
 #code-area { flex: 1; min-height: 0; display: flex; }
 #editor { flex: 1; min-height: 0; min-width: 0; }
-#split { flex: 1; min-width: 0; display: flex; flex-direction: column; border-left: 2px solid var(--border); }
+#split { flex: 0 0 var(--split-w, 50%); min-width: 0; display: flex; flex-direction: column; border-left: 2px solid var(--border); }
 #split[hidden] { display: none; }
 .split-bar { display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: var(--panel-2); border-bottom: 1px solid var(--border); }
 .split-bar select { flex: 1; min-width: 0; font-size: 12px; }
@@ -108,7 +112,7 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 #split-editor .cm-scroller { font-family: var(--mono); font-size: 13px; }
 #editor .cm-editor { height: 100%; }
 #editor .cm-scroller { font-family: var(--mono); font-size: 13px; }
-#log-wrap { grid-area: log; border-top: 1px solid var(--border); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+#log-wrap { position: relative; grid-area: log; border-top: 1px solid var(--border); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
 #log { flex: 1; margin: 0; padding: 6px 12px; overflow: auto; white-space: pre-wrap;
   font: 12px var(--mono); color: var(--text); }
 #log .err { color: var(--danger); }
@@ -117,7 +121,19 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 .head-btns { display: flex; gap: 6px; }
 #log-new { color: var(--danger); margin-left: 4px; }
 #app.log-hidden { grid-template-rows: 42px 1fr 33px; }
-#app.log-hidden #log, #app.log-hidden #handheld, #app.log-hidden #inspector { display: none; }
+#app.log-hidden #log, #app.log-hidden #handheld, #app.log-hidden #inspector, #app.log-hidden #gut-log { display: none; }
+/* The lines between panels: a few pixels to grab, shown in the accent colour while held (panels.js) */
+.gutter { z-index: 5; touch-action: none; }
+.gutter:hover, .gutter:active { background: var(--accent); opacity: .5; }
+.gutter.gx { cursor: col-resize; width: 5px; }
+.gutter.gy { cursor: row-resize; height: 5px; }
+#gut-side { position: absolute; top: 42px; bottom: 0; left: calc(var(--side-w, 220px) - 3px); }
+#gut-log { position: absolute; top: -3px; left: 0; right: 0; }
+#gut-split { flex: none; margin: 0 -2px; }
+#gut-split[hidden] { display: none; }
+#app.welcome-mode #gut-side { display: none; }
+body.resizing-x, body.resizing-x * { cursor: col-resize !important; user-select: none; }
+body.resizing-y, body.resizing-y * { cursor: row-resize !important; user-select: none; }
 .section-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px 4px; }
 .section-head h2 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 ul { list-style: none; margin: 0; padding: 0 6px 8px; }
@@ -194,6 +210,23 @@ code { background: var(--bg); padding: 1px 4px; border-radius: 3px; }
 .tree-item .x.armed { background: var(--danger); color: #fff; visibility: visible; }
 .tree-item .name { overflow: hidden; text-overflow: ellipsis; }
 .tree-empty { color: var(--muted); padding: 2px 8px; font-size: 12px; }
+/* Folders inside a group: a row you can fold, a drop target while a file is dragged. The folder icon is drawn, not a glyph. */
+li.tree-folder { padding: 0; border-radius: 0; }
+li.tree-folder:hover { background: transparent; }
+.tree-folder > .tree-items { padding: 0 0 0 12px; }
+.folder-row { padding: 4px 8px; border-radius: 5px; }
+.folder-row:hover { background: var(--panel-2); }
+.folder-row { justify-content: flex-start; cursor: pointer; }
+.folder-row .name { flex: 1; }
+.folder-row .caret { width: 10px; color: var(--muted); font-size: 9px; }
+.folder-ico { position: relative; display: inline-block; width: 12px; height: 9px; margin: 2px 2px 0 0; border: 1.5px solid currentColor; border-radius: 1px 2px 2px 2px; color: var(--muted); flex: none; }
+.folder-ico::before { content: ""; position: absolute; left: -1.5px; top: -4px; width: 5px; height: 2px; border: 1.5px solid currentColor; border-bottom: none; border-radius: 2px 2px 0 0; }
+.folder-ico.plus::after { content: "+"; position: absolute; inset: -4px 0 0 0; font-size: 9px; font-weight: 700; line-height: 12px; text-align: center; }
+button .folder-ico { margin: 0; vertical-align: -1px; }
+.tree-head > button + button { margin-left: 2px; }
+.tree-head.drop, .tree-item.drop { background: var(--accent); color: var(--accent-text); border-radius: 3px; }
+.tree-head.drop h2, .tree-item.drop .folder-ico, .tree-item.drop .caret { color: var(--accent-text); }
+.tree-item.dragging { opacity: .45; }
 #raw-files { border-top: 1px solid var(--border); margin-top: 8px; }
 #raw-files summary { padding: 8px 12px; cursor: pointer; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; user-select: none; }
 
@@ -562,7 +595,7 @@ input, textarea, select, [contenteditable="true"], .cm-editor, #output, .output,
 #handheld .hh-row[data-level="over"] .hh-label span:last-child { color: var(--danger); }
 #handheld .hh-row[data-level="warn"] .hh-label span:last-child { color: var(--warn); }
 #handheld .hh-empty { color: var(--muted); }
-#app.hh-open:not(.log-hidden):not(.welcome-mode) { grid-template-rows: 42px 1fr 250px; }
+#app.hh-open:not(.log-hidden):not(.welcome-mode) { grid-template-rows: 42px 1fr var(--log-h, 250px); }
 
 /* the Help window */
 .help-dialog { width: min(1100px, 94vw); height: min(760px, 90vh); padding: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); overflow: hidden; }

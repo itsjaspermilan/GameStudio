@@ -35,6 +35,7 @@
         <button id="btn-settings">Settings</button>
       </header>
 
+      <div id="gut-side" class="gutter gx" title="Drag to make the side bar wider or narrower (double-click: usual size)"></div>
       <aside id="sidebar">
         <div id="project-head">
           <div><div id="project-title"></div><div id="project-kind"></div><button id="btn-console" class="link" title="See what would change on another console, and switch">Change console…</button><button id="btn-info" class="link" title="The title, description and box art your device's game list shows">Game info…</button></div>
@@ -87,7 +88,7 @@
             <span id="editor-title"></span>
             <span class="eb-tools">
               <select id="outline" title="Go to a function in this file (Ctrl/Cmd+Shift+O)" hidden></select>
-              <button id="btn-tidy" class="small" title="Put the indentation right (Shift+Alt+F)" hidden>Tidy</button>
+              <button id="btn-tidy" class="small" title="Put the indentation right and wrap long comments at 100 characters (Shift+Alt+F)" hidden>Tidy</button>
               <button id="btn-split" class="small" title="Show a second file beside this one" hidden>Split</button>
               <button id="btn-find" class="small" title="Find (and replace) in every file of the game (Ctrl/Cmd+Shift+F)">Find in game</button>
             </span>
@@ -95,6 +96,7 @@
         </div>
         <div id="code-area">
           <div id="editor"></div>
+          <div id="gut-split" class="gutter gx" title="Drag to share the room between the two files (double-click: half each)" hidden></div>
           <div id="split" hidden>
             <div class="split-bar"><select id="split-file" title="The file shown on this side"></select><span id="split-dirty"></span><button id="split-close" class="small" title="Close this side (it is saved first)">×</button></div>
             <div id="split-editor"></div>
@@ -109,6 +111,7 @@
       </main>
 
       <section id="log-wrap">
+        <div id="gut-log" class="gutter gy" title="Drag to make this panel taller or shorter (double-click: usual size)"></div>
         <div class="section-head"><h2><button id="tab-log" class="tab on">Output</button><button id="tab-hh" class="tab" title="What your game uses compared with what the handheld can do">Handheld</button><button id="tab-insp" class="tab" title="Look inside the running game: pause it, step it, see every kind of thing and what it costs">Inspector</button> <span id="log-new" hidden title="New output while hidden">●</span></h2><span class="head-btns"><button id="btn-clear-log" class="small">Clear</button><button id="btn-toggle-log" class="small" title="Hide or show the output">Hide</button></span></div>
         <pre id="log"></pre>
         <div id="handheld" hidden></div>

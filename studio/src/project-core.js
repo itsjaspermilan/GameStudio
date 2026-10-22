@@ -36,6 +36,34 @@ export function resourceFiles(g, name) {
 export const moduleName = (g, name) => `${g.dir}.${name.replace(/\//g, ".")}`;
 export const refName = (g, name) => (g.key === "entities" || g.key === "rooms" ? name.replace(/\//g, ".") : moduleName(g, name));
 
+// The folders of a group with names in folders ("enemies/grub"), for the tree: { folders: [{ name, path, ...node }], items: [names] } at
+// every level, folders first, both in name order. `extra` are folders that have no file yet (made in the tree, kept until the game closes).
+export function folderTree(names, extra = []) {
+  const root = { folders: new Map(), items: [] };
+  const dirOf = (path) => {
+    let node = root, at = "";
+    for (const part of path.split("/")) {
+      at = at ? at + "/" + part : part;
+      if (!node.folders.has(part)) node.folders.set(part, { name: part, path: at, folders: new Map(), items: [] });
+      node = node.folders.get(part);
+    }
+    return node;
+  };
+  for (const f of extra) if (f) dirOf(f);
+  for (const n of names) {
+    const i = n.lastIndexOf("/");
+    (i < 0 ? root : dirOf(n.slice(0, i))).items.push(n);
+  }
+  const done = (node) => ({ ...node, folders: [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name)).map(done), items: node.items.sort() });
+  return done(root);
+}
+
+// The name a resource gets when it is dragged into a folder ("" is the top of the group): "enemies/grub" into "bosses" is "bosses/grub".
+export function movedName(name, folder) {
+  const base = name.split("/").pop();
+  return folder ? `${folder}/${base}` : base;
+}
+
 // Sort the file list into the tree: { hasGame, groups: {key: [names]}, other: [files that belong to no group] }.
 export function scanProject(files) {
   const groups = Object.fromEntries(GROUPS.map((g) => [g.key, []]));

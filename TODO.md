@@ -26,11 +26,11 @@ Studio
 - [x] Help: `open:<game>` links ("Open Breakout" on the Welcome page), a First steps checklist on the welcome screen in place of the old tour, "More in Help" in the editor's hover tips.
 - [x] "Make this game" has a console picker (Dot by default; the tutorials are laid out for 320x240).
 - [ ] Studio's Handheld tab: the 3 ms-per-frame guide (computer time) is a guess; calibrate it against device measurements.
-- [ ] Folders should be shown in the side tree nav. They don't have to mean anything to the code and editor but they should be visible and items should be draggable between folders of code.
-- [ ] The different panels should be able to be resized
+- [x] Folders in the side tree (code groups): they fold, have their own + and "new folder", and files drag between them. They are real folders (decided 2026-10-22): a move is a rename, and the plain places code names the file (module strings, `gs.spawn`, `gs.goto_scene`, `gs.load_room`, room entity lists) are rewritten; other mentions are reported. An empty folder made in the tree lasts until the game closes.
+- [x] Panels resize: the side bar, the output and the split view (drag the line, double-click for the usual size, remembered). The editors' own side panels (sprite, room) are still fixed.
 - [ ] We should figure out how to get an embedded live preview within the studio. Is there a way we can simulate a console in there? 1 GB RAM etc.
-- [ ] Code wrapping in the editor and when we Tidy we should make the comments fit within a column
-- [ ] On MacOS, the editor tabs should have the close button on the left
+- [x] Long lines wrap in the code editor (both sides of a split); Tidy wraps whole-line comments at 100 characters (the sample games and tutorials pass it).
+- [x] On macOS the editor tabs have their close button on the left, shown on hover.
 
 Framework (`engine/gs/`)
 - [x] `collision_tests` and `draw_screens` are measured while a game runs (`GS_STATS`: busiest step and frame each second) and shown in the Handheld tab.

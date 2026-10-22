@@ -30,7 +30,8 @@ async function seed() {
       }
   carts.demo = { files: {
     "game.lua": { text: 'return gs.game{ title = "Demo", console = "dot", start = "scenes.main" }\n' },
-    "scenes/main.lua": { text: 'local Main = gs.scene{}\nfunction Main:enter()\n  gs.spawn("player", 160, 120)\nend\nreturn Main\n' },
+    "scenes/main.lua": { text: 'local Main = gs.scene{}\nfunction Main:enter()\n  gs.spawn("player", 160, 120)\n  gs.spawn("enemies.grub", 40, 40)\nend\nreturn Main\n' },
+    "entities/enemies/grub.lua": { text: 'local Grub = gs.entity{ sprite = "spr_demo", tags = { "enemy" } }\n\nreturn Grub\n' },
     "entities/player.lua": { text: 'local Player = gs.entity{ sprite = "spr_demo", tags = { "player" } }\n\nfunction Player:update(dt)\n  local dx, dy = gs.input.dir()\n  self.x = self.x + dx * 90 * dt\n  self.y = self.y + dy * 90 * dt\nend\n\nreturn Player\n' },
     "meta/info.json": { text: JSON.stringify({ title: "Demo", console: "dot" }, null, 2) },
     "sprites/spr_demo.json": { text: JSON.stringify(toJSON(s), null, 2) },

@@ -27,17 +27,18 @@ import { encodeSpritePng, decodeSpritePng } from "./sprite-io.js";
 import { BUILTIN_CONSOLES, allConsoles, budgetStatus, formatKB, consoleFor, duplicateConsole, paletteOf, parseCustomConsoles, screenText, uniqueId, consoleFileOf, consoleFileText, resolveConsole } from "./consoles.js";
 import { createConsoleEditor } from "./console-editor.js";
 import { parseWav, sampleName } from "./wav.js";
-import { renameReferences, countCodeMentions } from "./rename-core.js";
+import { renameReferences, countCodeMentions, renameInCode } from "./rename-core.js";
 import { checkProject } from "./console-check.js";
 import { budgetRows, consoleSummary, parseStatsLine } from "./budget-core.js";
 import { GENRES, BOX_ART_PATH, normalizeInfo, defaultTitle, charsLeft, isPng, pngSize, boxArtScale, PICTURES, decodeBmp } from "./info-core.js";
 import { createSprite, createTileset, normalizeAnimations, toJSON, tilesetToJSON, offPaletteCount, usedColors, SIZE_GUIDE } from "./sprite-core.js";
 import { FIRST_STEPS, parseSteps, stringifySteps, showSteps } from "./steps-core.js";
 import { parseRoom, serializeRoom } from "./room-core.js";
-import { findInFiles, replaceInText, outline, reindent, applyEdits } from "./search-core.js";
+import { findInFiles, replaceInText, outline, tidyLua, applyEdits } from "./search-core.js";
 import { SPEEDS, parseInspectLine, commandText, classRows, fmtMs } from "./inspector-core.js";
 import { createRoomEditor } from "./room-editor.js";
-import { GROUPS, group, validName, resourceFiles, scanProject, consoleIdOf, setConsoleInGame, TEMPLATES, newGameFiles, renameProblem } from "./project-core.js";
+import { GROUPS, group, validName, folderTree, movedName, resourceFiles, scanProject, consoleIdOf, setConsoleInGame, TEMPLATES, newGameFiles, renameProblem } from "./project-core.js";
+import { setupPanels } from "./panels.js";
 import "./style.css";
 
 const $ = (id) => document.getElementById(id);
@@ -50,7 +51,8 @@ const state = {
   file: null,         // the file open in the code editor
   name: null,         // the resource open in the editor of `view` (not for code)
   dirty: false,       // the code editor has unsaved changes
-  collapsed: {},      // resource tree groups the user collapsed
+  collapsed: {},      // resource tree groups and folders ("entities/enemies") the user collapsed
+  newFolders: {},     // folders made in the tree that have no file yet: { group key: [paths] }, forgotten when the game closes
 };
 const luaApi = parseApi(apiText);
 let luaIndex = buildIndex({}, {});
@@ -109,6 +111,7 @@ function makeEditor() {
       doc: "",
       extensions: [
         basicSetup,
+        EditorView.lineWrapping, // long lines wrap at the window's edge instead of scrolling sideways
         keymap.of([indentWithTab]),
         StreamLanguage.define(lua),
         editorTheme.of(codeLook(scheme())),
@@ -336,7 +339,7 @@ async function closeProject() {
   await confirmDiscard();
   if (state.running) await invoke("stop_preview").catch(fail);
   if (split.file) await closeSplit();
-  state.cart = null; state.files = []; state.scan = null; state.info = null; state.tabs = [];
+  state.cart = null; state.files = []; state.scan = null; state.info = null; state.tabs = []; state.newFolders = {};
   if ($("find-dialog").open) $("find-dialog").close();
   if (luaServer) await luaServer.stop();
   clearOpen();
@@ -712,6 +715,9 @@ async function createJson(g, name, def) {
   await openJsonResource(g, name);
 }
 
+// Groups whose names may hold folders (the code groups) show them as folders you can fold, and their files can be dragged from one folder
+// to another (or onto the group's title for the top). Moving a file is a rename: the files move on disk and the code that names them is
+// updated (renameResource).
 function renderTree() {
   $("tree-section").hidden = !state.scan;
   const tree = $("tree"); tree.replaceChildren();
@@ -729,6 +735,10 @@ function renderTree() {
     const count = document.createElement("span"); count.className = "count"; count.textContent = names.length;
     head.append(caret, h, count);
     head.onclick = () => { state.collapsed[g.key] = open; renderTree(); };
+    if (g.nested) {
+      head.appendChild(folderButton(g, ""));
+      dropTarget(head, g, "");
+    }
     const add = document.createElement("button"); add.className = "small"; add.textContent = "+";
     add.title = g.importFile ? "Import a WAV sound" : `New ${g.single}`;
     add.onclick = (e) => {
@@ -740,62 +750,142 @@ function renderTree() {
     wrap.appendChild(head);
     if (open) {
       const ul = document.createElement("ul"); ul.id = `tree-${g.key}`; ul.className = "tree-items";
-      if (!names.length) { const e = document.createElement("li"); e.className = "tree-empty"; e.textContent = "none yet"; ul.appendChild(e); }
-      for (const n of names) {
-        const li = document.createElement("li"); li.className = "tree-item" + (isOpen(g, n) ? " active" : "");
-        const label = document.createElement("span"); label.className = "name"; label.textContent = n;
-        li.appendChild(label);
-        li.onclick = () => openers[g.kind](g, n);
-        const rn = document.createElement("button"); rn.className = "x"; rn.textContent = "✎"; rn.title = "Rename";
-        rn.onclick = (e) => {
-          e.stopPropagation();
-          const input = document.createElement("input"); input.value = n; input.spellcheck = false;
-          label.replaceWith(input); li.onclick = null; input.focus(); input.select();
-          let done = false;
-          const finish = (commit) => {
-            if (done) return; done = true;
-            const v = input.value.trim();
-            if (commit && v && v !== n) run("rename", () => renameResource(g, n, v)); else renderTree();
-          };
-          input.onkeydown = (ev) => { if (ev.key === "Enter") finish(true); if (ev.key === "Escape") finish(false); };
-          input.onblur = () => finish(false);
-          input.onclick = (ev) => ev.stopPropagation();
-        };
-        li.appendChild(rn);
-        const x = document.createElement("button"); x.className = "x"; x.textContent = "×"; x.title = "Delete";
-        let armed = false;
-        x.onclick = (e) => {
-          e.stopPropagation();
-          if (!armed) {
-            armed = true; x.textContent = "Delete?"; x.classList.add("armed");
-            setTimeout(() => { armed = false; x.textContent = "×"; x.classList.remove("armed"); }, 2500);
-            return;
-          }
-          run("delete", () => deleteResource(g, n));
-        };
-        li.appendChild(x);
-        ul.appendChild(li);
-      }
+      const node = g.nested ? folderTree(names, state.newFolders[g.key]) : { folders: [], items: names };
+      if (!names.length && !node.folders.length) { const e = document.createElement("li"); e.className = "tree-empty"; e.textContent = "none yet"; ul.appendChild(e); }
+      renderFolder(ul, g, node);
       wrap.appendChild(ul);
     }
     tree.appendChild(wrap);
   }
 }
 
+const folderListId = (g, path) => `tree-${g.key}` + (path ? "--" + path.replace(/\//g, "--") : "");
+
+function renderFolder(ul, g, node) {
+  for (const f of node.folders) {
+    const key = `${g.key}/${f.path}`, open = !state.collapsed[key];
+    const li = document.createElement("li"); li.className = "tree-folder";
+    const row = document.createElement("div"); row.className = "tree-item folder-row"; row.title = `${f.path}/: drag files here to move them into this folder`;
+    const caret = document.createElement("span"); caret.className = "caret"; caret.textContent = open ? "▼" : "▶";
+    const icon = document.createElement("span"); icon.className = "folder-ico";
+    const label = document.createElement("span"); label.className = "name"; label.textContent = f.name;
+    row.append(caret, icon, label);
+    row.onclick = () => { state.collapsed[key] = open; renderTree(); };
+    const add = document.createElement("button"); add.className = "x"; add.textContent = "+"; add.title = `New ${g.single} in ${f.path}/`;
+    add.onclick = (e) => {
+      e.stopPropagation(); state.collapsed[key] = false; renderTree();
+      promptInList(folderListId(g, f.path), "name", (n) => creators[g.key](g, `${f.path}/${n}`));
+    };
+    row.append(folderButton(g, f.path), add);
+    dropTarget(row, g, f.path);
+    li.appendChild(row);
+    if (open) {
+      const sub = document.createElement("ul"); sub.className = "tree-items"; sub.id = folderListId(g, f.path);
+      if (!f.folders.length && !f.items.length) { const e = document.createElement("li"); e.className = "tree-empty"; e.textContent = "empty: drag files here"; sub.appendChild(e); }
+      renderFolder(sub, g, f);
+      li.appendChild(sub);
+    }
+    ul.appendChild(li);
+  }
+  for (const n of node.items) ul.appendChild(treeItem(g, n));
+}
+
+// A folder that has no file yet stays in the tree until the game closes (a real folder needs a file in it to be kept).
+function folderButton(g, parent) {
+  const b = document.createElement("button"); b.className = parent ? "x" : "small";
+  const icon = document.createElement("span"); icon.className = "folder-ico plus"; b.appendChild(icon);
+  b.title = parent ? `New folder in ${parent}/` : "New folder";
+  b.onclick = (e) => {
+    e.stopPropagation();
+    if (parent) state.collapsed[`${g.key}/${parent}`] = false; else state.collapsed[g.key] = false;
+    renderTree();
+    promptInList(folderListId(g, parent), "folder name", (n) => {
+      const path = parent ? `${parent}/${n}` : n;
+      if (!validName(path, true)) throw new Error("Use letters, digits, - and _ for folder names (at most 3 folders deep).");
+      (state.newFolders[g.key] ||= []).push(path);
+    });
+  };
+  return b;
+}
+
+// What is being dragged in the tree: { g, name }. Files only move inside their own group (an entity stays an entity).
+let dragging = null;
+function dropTarget(el, g, folder) {
+  const ok = () => dragging && dragging.g === g && movedName(dragging.name, folder) !== dragging.name;
+  el.addEventListener("dragover", (e) => { if (!ok()) return; e.preventDefault(); e.dataTransfer.dropEffect = "move"; el.classList.add("drop"); });
+  el.addEventListener("dragleave", () => el.classList.remove("drop"));
+  el.addEventListener("drop", (e) => {
+    el.classList.remove("drop");
+    if (!ok()) return;
+    e.preventDefault(); e.stopPropagation();
+    const { name } = dragging, to = movedName(name, folder); dragging = null;
+    if (folder) state.collapsed[`${g.key}/${folder}`] = false;
+    run("move", async () => {
+      await renameResource(g, name, to);
+      if (state.newFolders[g.key]) state.newFolders[g.key] = state.newFolders[g.key].filter((p) => !(folder + "/").startsWith(p + "/")); // it has a file now
+    });
+  });
+}
+
+function treeItem(g, n) {
+  const li = document.createElement("li"); li.className = "tree-item" + (isOpen(g, n) ? " active" : "");
+  const label = document.createElement("span"); label.className = "name"; label.textContent = g.nested ? n.split("/").pop() : n;
+  li.title = n;
+  li.appendChild(label);
+  li.onclick = () => openers[g.kind](g, n);
+  if (g.nested) {
+    li.draggable = true;
+    li.addEventListener("dragstart", (e) => { dragging = { g, name: n }; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n); li.classList.add("dragging"); });
+    li.addEventListener("dragend", () => { dragging = null; li.classList.remove("dragging"); });
+  }
+  const rn = document.createElement("button"); rn.className = "x"; rn.textContent = "✎"; rn.title = "Rename";
+  rn.onclick = (e) => {
+    e.stopPropagation();
+    const input = document.createElement("input"); input.value = n; input.spellcheck = false;
+    label.replaceWith(input); li.onclick = null; li.draggable = false; input.focus(); input.select();
+    let done = false;
+    const finish = (commit) => {
+      if (done) return; done = true;
+      const v = input.value.trim();
+      if (commit && v && v !== n) run("rename", () => renameResource(g, n, v)); else renderTree();
+    };
+    input.onkeydown = (ev) => { if (ev.key === "Enter") finish(true); if (ev.key === "Escape") finish(false); };
+    input.onblur = () => finish(false);
+    input.onclick = (ev) => ev.stopPropagation();
+  };
+  li.appendChild(rn);
+  const x = document.createElement("button"); x.className = "x"; x.textContent = "×"; x.title = "Delete";
+  let armed = false;
+  x.onclick = (e) => {
+    e.stopPropagation();
+    if (!armed) {
+      armed = true; x.textContent = "Delete?"; x.classList.add("armed");
+      setTimeout(() => { armed = false; x.textContent = "×"; x.classList.remove("armed"); }, 2500);
+      return;
+    }
+    run("delete", () => deleteResource(g, n));
+  };
+  li.appendChild(x);
+  return li;
+}
+
+// Every saved Lua file of the game: { rel: text }
 const readLuaFiles = async () => {
-  const texts = [];
-  for (const f of state.files) if (f.endsWith(".lua")) { try { texts.push(await invoke("read_file", { cart: state.cart, rel: f })); } catch { /* skip */ } }
+  const texts = {};
+  for (const f of state.files) if (f.endsWith(".lua")) { try { texts[f] = await invoke("read_file", { cart: state.cart, rel: f }); } catch { /* skip */ } }
   return texts;
 };
 
-// Rename a resource: move its files, update the sound files that name it, and reopen what was open (from disk, so no editor is left holding
-// the old name). Names inside Lua code can't be updated safely, so they are counted and reported.
+// Rename a resource (or move it to another folder): move its files, update the sound files and the plain places in Lua code that name it,
+// and reopen what was open (from disk, so no editor is left holding the old name). Other mentions in code are counted and reported.
 async function renameResource(g, from, to) {
   const problem = renameProblem(state.scan.groups[g.key], g, from, to) || (g.key === "instruments" && isBuiltinName(to) ? `'${to}' is the name of a built-in instrument.` : null);
   if (problem) throw new Error(problem);
   await confirmDiscard(); // saves whatever is being edited first
 
-  const mentions = countCodeMentions(await readLuaFiles(), g.key, from);
+  const lua = await readLuaFiles();
+  const code = renameInCode(lua, g.key, from, to);
+  const mentions = countCodeMentions(Object.values({ ...lua, ...code.files }), g.key, from);
   const files = {};
   for (const k of ["music", "sfx", "instruments"]) for (const n of state.scan.groups[k]) { try { files[`${k}/${n}.json`] = await readJson(`${k}/${n}.json`); } catch { /* nothing to update */ } }
   const result = renameReferences(files, g.key, from, to);
@@ -813,8 +903,12 @@ async function renameResource(g, from, to) {
       if (meta.image === oldFiles[1]) { meta.image = newFiles[1]; await writeJson(newFiles[0], meta); }
     } catch { /* nothing to fix */ }
   }
-  // 3. every sound file that referred to the old name
+  // 3. every sound file and Lua file that referred to the old name (a file that was moved is written where it is now)
   for (const path of result.changed) await writeJson(path, result.files[path]);
+  for (const [rel, text] of Object.entries(code.files)) {
+    const i = oldFiles.indexOf(rel);
+    await invoke("write_file", { cart: state.cart, rel: i >= 0 ? newFiles[i] : rel, content: text });
+  }
 
   // 4. forget what was open and open it again, under its new name if it was the one renamed
   clearOpen();
@@ -828,8 +922,10 @@ async function renameResource(g, from, to) {
       await openers[open.view](og, og === g && open.name === from ? to : open.name);
     }
   } catch (e) { fail(e); }
-  info(`Renamed '${from}' to '${to}'` + (result.count ? `, and updated ${result.count} sound reference${result.count === 1 ? "" : "s"}.` : "."));
-  if (mentions) info(`${mentions} place${mentions === 1 ? "" : "s"} in your Lua code mention '${from}' as text. Those were not changed: search your code for it.`);
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const updated = [result.count && plural(result.count, "sound reference"), code.count && plural(code.count, "place") + " in your code"].filter(Boolean);
+  info(`${from.includes("/") || to.includes("/") ? "Moved" : "Renamed"} '${from}' to '${to}'` + (updated.length ? `, and updated ${updated.join(" and ")}.` : "."));
+  if (mentions) info(`${plural(mentions, "place")} in your Lua code still mention${mentions === 1 ? "s" : ""} '${from}' as text. Those were not changed: search your code for it.`);
 }
 
 async function deleteResource(g, name) {
@@ -1366,7 +1462,7 @@ function makeSplitEditor() {
     state: EditorState.create({
       doc: "",
       extensions: [
-        basicSetup, keymap.of([indentWithTab]), StreamLanguage.define(lua), split.theme.of(codeLook(scheme())),
+        basicSetup, EditorView.lineWrapping, keymap.of([indentWithTab]), StreamLanguage.define(lua), split.theme.of(codeLook(scheme())),
         ...luaIntel({ getApi: () => luaApi, getIndex: () => luaIndex, getFile: () => split.file, get server() { return null; },
           openResource: (g, name) => openers[group(g).kind](group(g), name), openHelp: (page, anchor) => help.open(page, anchor) }),
         EditorView.updateListener.of((u) => { if (u.docChanged && !split.loading) { split.dirty = true; $("split-dirty").textContent = "●"; } }),
@@ -1386,7 +1482,7 @@ async function openSplit(rel) {
   split.file = rel; split.loading = true;
   split.view.dispatch({ changes: { from: 0, to: split.view.state.doc.length, insert: text } });
   split.loading = false; split.dirty = false; $("split-dirty").textContent = "";
-  $("split").hidden = false; fillSplitChoices(); renderCodeTools();
+  $("split").hidden = $("gut-split").hidden = false; fillSplitChoices(); renderCodeTools();
 }
 async function saveSplit() {
   if (!split.file || !split.dirty) return;
@@ -1398,7 +1494,7 @@ async function saveSplit() {
 }
 async function closeSplit() {
   await saveSplit();
-  split.file = null; $("split").hidden = true; renderCodeTools();
+  split.file = null; $("split").hidden = $("gut-split").hidden = true; renderCodeTools();
 }
 $("btn-split").onclick = () => run("split", async () => {
   const other = state.files.filter((f) => f.endsWith(".lua") && f !== state.file);
@@ -1418,8 +1514,8 @@ $("outline").onchange = () => {
 };
 function tidy() {
   if (state.view !== "code" || !state.file || !state.file.endsWith(".lua")) return;
-  const text = view.state.doc.toString(), next = reindent(text);
-  if (next === text) { info("The indentation is already right."); return; }
+  const text = view.state.doc.toString(), next = tidyLua(text);
+  if (next === text) { info("This file is already tidy."); return; }
   view.dispatch({ changes: { from: 0, to: text.length, insert: next } });
 }
 $("btn-tidy").onclick = tidy;
@@ -1571,6 +1667,11 @@ $("settings").addEventListener("close", async () => {
     await import("./mock-backend.js"); // plain-browser development: in-memory fake of the Rust commands
   }
   setupWindowChrome($("toolbar"), { native });
+  setupPanels([
+    { handle: $("gut-side"), target: $("app"), prop: "--side-w", axis: "x", from: "start", unit: "px", min: 160, max: () => Math.min(520, innerWidth * 0.45) },
+    { handle: $("gut-log"), target: $("app"), prop: "--log-h", axis: "y", from: "end", unit: "px", min: 90, max: () => innerHeight - 220 },
+    { handle: $("gut-split"), target: $("code-area"), prop: "--split-w", axis: "x", from: "start", unit: "%", min: 200, max: () => $("code-area").clientWidth - 200 },
+  ]);
   listen("log", (e) => {
     const line = e.payload.line;
     const look = parseInspectLine(line); // the Inspector's answer, not for the Output

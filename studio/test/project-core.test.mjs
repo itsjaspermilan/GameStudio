@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { GROUPS, group, validName, resourceFiles, moduleName, refName, scanProject, consoleIdOf, setConsoleInGame, TEMPLATES, newGameFiles, renameProblem } from "../src/project-core.js";
+import { GROUPS, group, validName, folderTree, movedName, resourceFiles, moduleName, refName, scanProject, consoleIdOf, setConsoleInGame, TEMPLATES, newGameFiles, renameProblem } from "../src/project-core.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -80,4 +80,18 @@ return Main
   const r = spawnSync(gs, [dir], { encoding: "utf8", env: { ...process.env, SDL_VIDEODRIVER: "dummy", SDL_AUDIODRIVER: "dummy", GS_SAVE_DIR: dir, GS_MAX_FRAMES: "60" } });
   assert.match(r.stdout + r.stderr, /NEW GAME OK/, r.stdout + r.stderr);
   assert.doesNotMatch(r.stdout + r.stderr, /error/i);
+});
+
+test("folderTree puts names in folders, folders first, and keeps empty folders made in the tree", () => {
+  const t = folderTree(["player", "enemies/grub", "enemies/bosses/king", "bullet"], ["pickups"]);
+  assert.deepEqual(t.items, ["bullet", "player"]);
+  assert.deepEqual(t.folders.map((f) => f.path), ["enemies", "pickups"]);
+  const enemies = t.folders[0];
+  assert.deepEqual(enemies.items, ["enemies/grub"]);
+  assert.deepEqual(enemies.folders[0].path, "enemies/bosses");
+  assert.deepEqual(enemies.folders[0].items, ["enemies/bosses/king"]);
+  assert.deepEqual(t.folders[1].items, []);
+  assert.equal(movedName("enemies/grub", "bosses"), "bosses/grub");
+  assert.equal(movedName("enemies/grub", ""), "grub");
+  assert.equal(movedName("grub", "a/b"), "a/b/grub");
 });
