@@ -47,11 +47,11 @@ end
 function M.preload()
   local n = 0
   for _, path in ipairs(gs.list("sprites")) do
-    local name = path:match("^sprites/([^/]+)%.json$")
+    local name = path:match("^sprites/(.+)%.json$") -- in folders too: "ui/logo"
     if name then M.sprite(name); n = n + 1 end
   end
   for _, path in ipairs(gs.list("tilesets")) do
-    local name = path:match("^tilesets/([^/]+)%.json$")
+    local name = path:match("^tilesets/(.+)%.json$")
     if name then M.tileset(name); n = n + 1 end
   end
   return n

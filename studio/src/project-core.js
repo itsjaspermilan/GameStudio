@@ -1,19 +1,20 @@
 // The project is its folder. There is no index file: what the tree shows is found by scanning the file list, so a file added outside the studio
 // (or by git) appears at once. This module knows the folders, how names map to files and Lua module names, and the starter text of new files.
 
-// kind: how the studio opens it ("code" = the Lua editor, otherwise the named editor). nested: names may contain folders (entities/enemies/grub).
+// kind: how the studio opens it ("code" = the Lua editor, otherwise the named editor). nested: names may contain folders (entities/enemies/grub,
+// sprites/ui/logo is the sprite "ui/logo"): a folder is part of the name, and moving something to another folder renames it.
 // layout: a scene is its code (scenes/title.lua), its layout (scenes/title.layout.lua, edited in the layout editor), or both.
 export const GROUPS = [
   { key: "entities", title: "Entities", dir: "entities", ext: "lua", kind: "code", nested: true, single: "entity", tip: "Things in your game: the player, enemies, bullets. One Lua file each." },
   { key: "scenes", title: "Scenes", dir: "scenes", ext: "lua", layout: "layout.lua", kind: "code", nested: true, single: "scene", tip: "Screens and levels of your game: title, play, game over. Each has a layout (what is placed where) and code." },
   { key: "rooms", title: "Rooms", dir: "rooms", ext: "lua", kind: "code", nested: true, single: "room", tip: "Level data: tile layers and where things start." },
   { key: "lib", title: "Code", dir: "lib", ext: "lua", kind: "code", nested: true, single: "code file", tip: "Shared code and game state you load with require." },
-  { key: "sprites", title: "Sprites", dir: "sprites", ext: "json", pair: "png", kind: "sprite", single: "sprite" },
-  { key: "tilesets", title: "Tilesets", dir: "tilesets", ext: "json", pair: "png", kind: "tileset", single: "tileset" },
-  { key: "sfx", title: "Sound effects", dir: "sfx", ext: "json", kind: "sfx", single: "sound effect" },
-  { key: "music", title: "Music", dir: "music", ext: "json", kind: "music", single: "song" },
-  { key: "instruments", title: "Instruments", dir: "instruments", ext: "json", kind: "instrument", single: "instrument" },
-  { key: "sounds", title: "Samples", dir: "sounds", ext: "wav", kind: "sample", single: "sample", importFile: true },
+  { key: "sprites", title: "Sprites", dir: "sprites", ext: "json", pair: "png", kind: "sprite", nested: true, single: "sprite" },
+  { key: "tilesets", title: "Tilesets", dir: "tilesets", ext: "json", pair: "png", kind: "tileset", nested: true, single: "tileset" },
+  { key: "sfx", title: "Sound effects", dir: "sfx", ext: "json", kind: "sfx", nested: true, single: "sound effect" },
+  { key: "music", title: "Music", dir: "music", ext: "json", kind: "music", nested: true, single: "song" },
+  { key: "instruments", title: "Instruments", dir: "instruments", ext: "json", kind: "instrument", nested: true, single: "instrument" },
+  { key: "sounds", title: "Samples", dir: "sounds", ext: "wav", kind: "sample", nested: true, single: "sample", importFile: true },
 ];
 export const group = (key) => GROUPS.find((g) => g.key === key);
 

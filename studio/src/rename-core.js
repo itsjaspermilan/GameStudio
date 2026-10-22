@@ -5,6 +5,7 @@
 //
 // files: { "music/song.json": {...}, "sfx/boop.json": {...}, "instruments/lead.json": {...} }     kind: a group key from project-core.js
 import { refName, moduleName, group } from "./project-core.js";
+import { parseRoom, serializeRoom } from "./room-core.js";
 
 export function renameReferences(files, kind, from, to) {
   const next = JSON.parse(JSON.stringify(files));
@@ -48,6 +49,7 @@ export function countCodeMentions(luaTexts, kind, name) {
 // files: { rel: text }. Returns { files: {rel: new text} (only those that changed), count }.
 export function renameInCode(files, kind, from, to) {
   const g = group(kind);
+  if (g && ASSET_CALLS[kind]) return renameAsset(files, kind, from, to);
   if (!g || g.kind !== "code") return { files: {}, count: 0 };
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const dotted = (n) => n.replace(/\//g, ".");
@@ -112,4 +114,45 @@ export function settleRenames(steps, namesNow) {
   }
   for (const k of Object.keys(out)) if (out[k] === k || !now.has(out[k]) || now.has(k)) delete out[k];
   return out;
+}
+
+// Where Lua code names art and sound (a sprite moved to a folder is renamed "ui/logo"): the string right after these.
+const ASSET_CALLS = {
+  sprites: ["\\bsprite\\s*=\\s*", "[:.]set_sprite\\s*\\(\\s*", "\\bgs\\.draw\\.sprite\\s*\\(\\s*", "\\bgs\\.assets\\.sprite\\s*\\(\\s*", "\\bfont\\s*=\\s*", "\\bgs\\.draw\\.font_(?:text|width)\\s*\\(\\s*"],
+  tilesets: ["\\btileset\\s*=\\s*", "\\bgs\\.assets\\.tileset\\s*\\(\\s*"],
+  sfx: ["\\bgs\\.sfx\\s*\\(\\s*"],
+  music: ["\\bgs\\.music\\s*\\(\\s*"],
+};
+
+// What a layout or room names, as data: pictures and fonts are sprites, layers and panels use tilesets. Returns the new room or null.
+function renameInRoom(room, kind, from, to) {
+  let n = 0;
+  const swap = (o, k) => { if (o && o[k] === from) { o[k] = to; n++; } };
+  if (kind === "sprites") { for (const p of room.pictures) swap(p, "sprite"); for (const t of room.texts) swap(t, "font"); }
+  if (kind === "tilesets") { for (const l of room.layers) swap(l, "tileset"); for (const p of room.panels) swap(p, "tileset"); }
+  return n ? { room, n } : null;
+}
+
+// A sprite, tileset, sound effect or song renamed or moved: the plain places code names it (ASSET_CALLS), and layouts and rooms, read
+// as data and written back (an entity and a sprite may share a name, so a layout is not searched as text). Sound files are renamed
+// by renameReferences. Returns { files: {rel: new text}, count }.
+function renameAsset(files, kind, from, to) {
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const patterns = ASSET_CALLS[kind].map((pre) => new RegExp(`(${pre})(["'])${esc(from)}\\2`, "g"));
+  const out = {};
+  let count = 0;
+  for (const [rel, text] of Object.entries(files)) {
+    if (/^rooms\//.test(rel) || /\.layout\.lua$/.test(rel)) {
+      const parsed = parseRoom(text);
+      if (parsed.room) {
+        const r = renameInRoom(parsed.room, kind, from, to);
+        if (r) { const first = /^-- (.*)/.exec(text); out[rel] = serializeRoom(r.room, first ? first[1] : undefined); count += r.n; }
+        continue;
+      }
+    }
+    let t = String(text);
+    for (const re of patterns) t = t.replace(re, (_, pre, q) => { count++; return pre + q + to + q; });
+    if (t !== text) out[rel] = t;
+  }
+  return { files: out, count };
 }

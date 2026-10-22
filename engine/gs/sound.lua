@@ -14,11 +14,11 @@ local function load_json(path)
   if not ok then error(path .. ": " .. tostring(res), 0) end
   return res
 end
--- the names of the .json files in a folder, in alphabetical order
+-- the names of the .json files in a folder and the folders in it ("hits/zap"), in alphabetical order
 local function names(folder)
   local out = {}
   for _, path in ipairs(gs.list(folder)) do
-    local name = path:match("^" .. folder .. "/([^/]+)%.json$")
+    local name = path:match("^" .. folder .. "/(.+)%.json$")
     if name then out[#out + 1] = name end
   end
   table.sort(out)

@@ -79,7 +79,7 @@ function M.poll()
             else M.last_error = path .. ": " .. tostring(err):gsub("^[^\n]-:%d+: ", function(m) return m end); message = "could not reload " .. path end
           end
         else
-          local kind, name = path:match("^(%a+)/([^/]+)%.%a+$")
+          local kind, name = path:match("^(%a+)/(.+)%.%a+$")
           if kind and (kind == "sprites" or kind == "tilesets") then
             assets.fresh = true
             assets.forget(kind, name)

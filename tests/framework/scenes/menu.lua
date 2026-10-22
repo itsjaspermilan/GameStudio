@@ -11,6 +11,7 @@ function Menu:enter()
   -- drawing them works: a panel bigger than its block, one a bar, letters the font has and has not
   gs.world.draw()
   check("the layout's size limits the camera", gs.world.room_w == 640 and gs.world.room_h == 480)
+  check("a sprite in a folder is found by its folder and name", gs.assets.sprites["ui/dot"] ~= nil and gs.assets.sprite("ui/dot").fw == gs.assets.sprite("ball").fw)
   self.title.text = "CHANGED"
   check("a text can be changed", self.title.text == "CHANGED")
   gs.goto_scene("lvl1", 3)

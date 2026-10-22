@@ -82,6 +82,17 @@ return Main
   assert.doesNotMatch(r.stdout + r.stderr, /error/i);
 });
 
+test("every group can have folders: a sprite in sprites/ui/ is ui/logo, with its picture beside it", () => {
+  const scan = scanProject(["game.lua", "sprites/ui/logo.json", "sprites/ui/logo.png", "sprites/hero.json", "sprites/hero.png", "sfx/hits/zap.json", "sounds/drums/kick.wav", "tilesets/world/ground.json", "tilesets/world/ground.png"]);
+  assert.deepEqual(scan.groups.sprites, ["hero", "ui/logo"]);
+  assert.deepEqual(scan.groups.sfx, ["hits/zap"]);
+  assert.deepEqual(scan.groups.sounds, ["drums/kick"]);
+  assert.deepEqual(scan.groups.tilesets, ["world/ground"]);
+  assert.deepEqual(scan.other, [], "the pictures belong to their sprite and tileset");
+  assert.deepEqual(resourceFiles(group("sprites"), "ui/logo"), ["sprites/ui/logo.json", "sprites/ui/logo.png"]);
+  for (const g of GROUPS) assert.ok(g.nested, `${g.key} has folders`);
+});
+
 test("folderTree puts names in folders, folders first, and keeps empty folders made in the tree", () => {
   const t = folderTree(["player", "enemies/grub", "enemies/bosses/king", "bullet"], ["pickups"]);
   assert.deepEqual(t.items, ["bullet", "player"]);

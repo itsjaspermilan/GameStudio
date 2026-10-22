@@ -5,7 +5,7 @@ Sizes are lines. Pure = no DOM, covered by a test in `../test/`.
 | File | What |
 | --- | --- |
 | `main.js` (~700) | State, the tree, save/rename/delete, run/pack/push, creates every editor. Sections: log, code editor, the project's console, rendering, actions, consoles, changing a console, files, game info, resources (tree), sprites, tilesets, samples, **sound effects, music and instruments** (+ audio context, previews), toolbar, settings, boot |
-| `project-core.js` pure | The project model: `GROUPS` (folders and how each opens), `scanProject` (file list to tree), `folderTree` / `movedName` (folders in the tree; dragging a code file to another folder is a rename), names and Lua module names, templates of new files, `newGameFiles` (the starter game), console in `game.lua` / `meta/info.json` |
+| `project-core.js` pure | The project model: `GROUPS` (folders and how each opens), `scanProject` (file list to tree), `folderTree` / `movedName` (folders in the tree, for every group: a folder is part of the name, `ui/logo`; dragging to another folder is a rename), names and Lua module names, templates of new files, `newGameFiles` (the starter game), console in `game.lua` / `meta/info.json` |
 | `mock-backend.js` | In-memory fake of the Rust commands for plain-browser development (demo projects, fake `render_audio`) |
 | `audio-core.js` (~870) pure | Sound hub: sfx tracks/steps/ties, instruments + built-in set, key lock, `AudioDesc` (builds `gs render-audio` descriptions), tracker song model + note/kit ops, ranges, timing, drum beats, melody generator, starter songs, legacy converters |
 | `lanes.js` | Canvas lanes (instrument box + piano roll / drum / drum kit strip): rows, snapping, resize, collapse, hover, playhead. Reports user actions through callbacks |
@@ -29,7 +29,7 @@ Sizes are lines. Pure = no DOM, covered by a test in `../test/`.
 | `panels.js` | Drag the lines between the side bar, the editor, the output and the split view to resize them (CSS variables `--side-w`, `--log-h`, `--split-w`; double-click for the usual size; remembered in localStorage) |
 | `play-core.js` pure, `play-panel.js` | The Play panel (the game inside the studio): `decodeFrame` reads the runtime's frame messages (`GS_EMBED`, runtime/main.c "embedded preview"), `KEYS` / `keyBit` are the runtime's keyboard keys as a button mask, `fitScale`; the panel draws frames on a canvas and sends the keys held while it has focus (`preview_buttons`). Run in `main.js` passes a `Channel` to `run_preview`; Settings > Run games picks the panel or a window (localStorage `gs.runIn`) |
 | `steps-core.js` pure | The First steps checklist on the welcome screen (kept in localStorage) |
-| `rename-core.js` pure | Rename a resource and rewrite the sound files that name it; counts mentions in Lua code; `renameInCode` rewrites the plain ways Lua names a moved or renamed code file (module strings, `gs.spawn` / `gs.goto_scene` / `gs.load_room`, room entity lists) |
+| `rename-core.js` pure | Rename a resource and rewrite the sound files that name it; counts mentions in Lua code; `renameInCode` rewrites the plain ways Lua names a moved or renamed code file (module strings, `gs.spawn` / `gs.goto_scene` / `gs.load_room`, room entity lists) or asset (`sprite =`, `set_sprite`, `tileset =`, `gs.sfx`, `gs.music`, ...; layouts and rooms are rewritten as data) |
 | `wav.js` pure | WAV import checks |
 | `style.css` (~480) | All styles; sections per editor. Colours are CSS variables on `:root` |
 

@@ -886,7 +886,8 @@ function renderFolder(ul, g, node) {
       e.stopPropagation(); state.collapsed[key] = false; renderTree();
       promptInList(folderListId(g, f.path), "name", (n) => creators[g.key](g, `${f.path}/${n}`));
     };
-    row.append(folderButton(g, f.path), add);
+    row.append(folderButton(g, f.path));
+    if (!g.importFile) row.append(add); // samples come in by importing a WAV; drag one into a folder afterwards
     dropTarget(row, g, f.path);
     li.appendChild(row);
     if (open) {
