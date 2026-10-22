@@ -454,6 +454,20 @@ function gs.draw.text_centered(str, y, color, scale) end
 ---@param color? Color
 ---@param scale? number
 function gs.draw.text_right(str, x, y, color, scale) end
+---Text in a font of your own: a sprite whose frames are the letters, from the space (frame 0) on in ASCII order. Each letter is a frame
+---wide; letters the sprite has no frame for leave a gap. The sprite's own colours are used.
+---@param font string A sprite name
+---@param str string
+---@param x number
+---@param y number
+---@param scale? number
+function gs.draw.font_text(font, str, x, y, scale) end
+---How wide text is in a sprite font, in pixels.
+---@param font string
+---@param str string
+---@param scale? number
+---@return number
+function gs.draw.font_width(font, str, scale) end
 ---Width of text in pixels.
 ---@param str any
 ---@param scale? number

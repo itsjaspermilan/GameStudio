@@ -11,10 +11,13 @@ local txtc, txtr = ui.txtc, ui.txtr
 
 local Results = gs.scene{}
 
+-- the panel's tiles in ts_panel: a gold edge for a cleared sector, a red one otherwise
+local GOLD, RED = 15, 18
+
 function Results:enter()
   self.tick = 0
   local R = run.R
-  self.panel.edge = R.win and 14 or 5
+  self.panel.tile = R.win and GOLD or RED
   self.headline.text = R.win and "SECTOR CLEARED!" or (R.abandoned and "RUN ENDED" or "SHIP DESTROYED")
   self.headline.color = R.win and 14 or 6
   self.sector.text = R.sdef.name

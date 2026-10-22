@@ -3,9 +3,9 @@ return {
   width = 320, height = 240, background = "#000000",
   entities = {
   },
-  boxes = {
-    { 30, 20, 260, 196, name = "panel", color = 0, alpha = 225, edge = 14, screen = true },
-    { 60, 168, 200, 1, name = "divider", color = 22, screen = true },
+  panels = {
+    { 30, 20, 260, 196, tileset = "ts_panel", tile = 15, name = "panel", screen = true },
+    { 60, 168, 200, 8, tileset = "ts_panel", tile = 21, name = "divider", screen = true },
   },
   texts = {
     { "SECTOR CLEARED!", 160, 30, name = "headline", color = 14, size = 2, align = "center", screen = true },

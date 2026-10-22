@@ -41,11 +41,10 @@ return {
   },
   entities = {
   },
-  boxes = {
-    { 0, 0, 320, 22, name = "header", color = 0, alpha = 200 },
-    { 0, 22, 320, 1, name = "header_line", color = 22 },
-    { 176, 36, 136, 152, name = "pilot_panel", color = 0, alpha = 190, edge = 22 },
-    { 0, 226, 320, 14, name = "footer", color = 0, alpha = 210 },
+  panels = {
+    { 0, 0, 320, 23, tileset = "ts_panel", tile = 9, name = "header" },
+    { 176, 36, 136, 152, tileset = "ts_panel", tile = 0, name = "pilot_panel" },
+    { 0, 226, 320, 14, tileset = "ts_panel", tile = 12, name = "footer" },
   },
   texts = {
     { "HANGAR", 8, 7, name = "heading", color = 14, size = 1 },

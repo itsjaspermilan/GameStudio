@@ -347,14 +347,17 @@ end
 --   return { width = 640, height = 480, background = "#000000",          -- the size is how far the camera may scroll
 --            layers = { { tileset = "ground", data = { {0, 1}, ... }, depth = 100, scroll_x = 1 } },
 --            entities = { { "player", 160, 120, { hp = 3 }, name = "player" }, { "brick", 32, 16 }, ... },
---            texts = { { "PRESS A", 160, 206, name = "prompt", color = 3, size = 2, align = "center" } },
+--            texts = { { "PRESS A", 160, 206, name = "prompt", color = 3, size = 2, align = "center", font = "spr_font" } },
 --            pictures = { { "spr_logo", 80, 20, name = "logo", frame = 0, scale = 2 } },
---            boxes = { { 0, 0, 320, 22, name = "bar", color = 0, alpha = 200, edge = 22 } },   -- x, y, w, h: panels and bars
+--            panels = { { 0, 0, 320, 22, tileset = "ts_ui", tile = 0, name = "bar" } },   -- x, y, w, h: panels and bars made of tiles
 --            paths = { patrol = { { 0, 0 }, { 64, 0 }, loop = true } },
 --            code = "level" }        -- optional: run another scene's code with this layout (ten levels, one set of rules)
--- A layout with no code file of its own (and no `code`) is a scene that only shows its layout. Texts, pictures and boxes are entities of the
--- kinds gs.world.Text, gs.world.Picture and gs.world.Box: move them, hide them (visible = false), change text or color, tween them.
--- In one layout boxes are drawn first, then pictures, then texts (a panel under its picture under its words), each in the order listed.
+-- A layout with no code file of its own (and no `code`) is a scene that only shows its layout. Texts, pictures and panels are entities of the
+-- kinds gs.world.Text, gs.world.Picture and gs.world.Panel: move them, hide them (visible = false), change their text or tile, tween them.
+-- In one layout panels are drawn first, then pictures, then texts (a panel under its picture under its words), each in the order listed.
+-- A panel is a 3x3 block of tiles from a tileset (`tile` is its top-left one): the corners stay as drawn, the edges and the middle repeat
+-- to fill the size. One tile high (or wide) it is a bar: only the block's top row (or left column). A text with a `font` is drawn with that
+-- sprite, one frame a letter from " " (frame 0) on in ASCII order; without one it uses the built-in 8x8 font and its color.
 -- rooms/<name>.lua holds the same data without a scene; gs.load_room(name) builds one into the scene that is running.
 
 -- Classes are named after the file that is loading; this file makes three, so each gets a name of its own (one name would be one class).
@@ -370,22 +373,48 @@ function W.Text.draw(self)
   local s = self.text
   if s == nil or s == "" then return end
   s = tostring(s)
-  local w = draw.text_width(s, self.size)
+  local font = self.font
+  local w = font and draw.font_width(font, s, self.size) or draw.text_width(s, self.size)
   local x = self.align == "center" and self.x - w / 2 or self.align == "right" and self.x - w or self.x
-  draw.text(s, x, self.y, self.color, self.size)
+  if font then draw.font_text(font, s, x, self.y, self.size) else draw.text(s, x, self.y, self.color, self.size) end
 end
 W.Picture = builtin("gs.picture", "entity", {})
--- a filled rectangle (alpha 0 to 255: how solid the fill is) with an optional one-pixel edge, solid
-W.Box = builtin("gs.box", "entity", { w = 16, h = 16, color = 0, alpha = 255 })
-function W.Box.draw(self)
-  local r, g, b, a = draw.color(self.color)
-  local x, y, w, h = self.x, self.y, self.w, self.h
-  gs.raw.rect(x, y, w, h, r, g, b, math.floor(a * self.alpha / 255 + 0.5))
-  local edge = self.edge
-  if edge ~= nil then
-    r, g, b, a = draw.color(edge)
-    gs.raw.rect(x, y, w, 1, r, g, b, a); gs.raw.rect(x, y + h - 1, w, 1, r, g, b, a)
-    gs.raw.rect(x, y, 1, h, r, g, b, a); gs.raw.rect(x + w - 1, y, 1, h, r, g, b, a)
+-- A panel's tiles are put together once into one picture (gs.compose) for each tileset, block and size, and drawn in at most four pieces:
+-- the composed grid is whole tiles, so the right column and the bottom row are drawn where the size says, over the repeated middle.
+W.Panel = builtin("gs.panel", "entity", { w = 32, h = 32, tile = 0 })
+local panel_pics = {}
+function W.Panel.draw(self)
+  local ts = assets.tileset(self.tileset, 2)
+  local tw, th = ts.tw, ts.th
+  local w, h = math.max(1, floor(self.w)), math.max(1, floor(self.h))
+  local cols, rows = math.max(1, math.ceil(w / tw)), math.max(1, math.ceil(h / th))
+  if w > tw and cols < 2 then cols = 2 end
+  if h > th and rows < 2 then rows = 2 end
+  local key = ts.name .. ":" .. self.tile .. ":" .. cols .. "x" .. rows
+  local pic = panel_pics[key]
+  if not pic then
+    local data = {}
+    for r = 1, rows do
+      local part_r = rows == 1 and 0 or r == 1 and 0 or r == rows and 2 or 1
+      local row = {}
+      for c = 1, cols do
+        local part_c = cols == 1 and 0 or c == 1 and 0 or c == cols and 2 or 1
+        row[c] = self.tile + part_r * ts.cols + part_c
+      end
+      data[r] = row
+    end
+    pic = gs.compose(ts.img, tw, th, ts.cols, ts.count, tw, th, cols, rows, data)
+    panel_pics[key] = pic
+  end
+  local x, y = floor(self.x), floor(self.y)
+  -- what of the grid's last column and row is left over after the middle: the right and bottom edges go at the far side of the size
+  local lw, lh = cols > 1 and w - tw or w, rows > 1 and h - th or h
+  local tile = gs.tile
+  tile(pic, 0, 0, lw, lh, x, y)
+  if cols > 1 then tile(pic, (cols - 1) * tw, 0, tw, lh, x + w - tw, y) end
+  if rows > 1 then
+    tile(pic, 0, (rows - 1) * th, lw, th, x, y + h - th)
+    if cols > 1 then tile(pic, (cols - 1) * tw, (rows - 1) * th, tw, th, x + w - tw, y + h - th) end
   end
 end
 
@@ -404,8 +433,9 @@ local function build(data, where, scene)
     scene[n] = e
   end
   for _, s in ipairs(data.entities or {}) do named(s, W.spawn(s[1] or s.class, s[2] or s.x, s[3] or s.y, s[4] or s.props)) end
-  for _, t in ipairs(data.boxes or {}) do
-    named(t, W.spawn(W.Box, t[1] or t.x, t[2] or t.y, { w = t[3] or t.w or 16, h = t[4] or t.h or 16, color = t.color or 0, alpha = t.alpha or 255, edge = t.edge,
+  for _, t in ipairs(data.panels or {}) do
+    if not t.tileset then error(where .. ": a panel needs a tileset (tileset = \"name\")", 0) end
+    named(t, W.spawn(W.Panel, t[1] or t.x, t[2] or t.y, { w = t[3] or t.w or 32, h = t[4] or t.h or 32, tileset = t.tileset, tile = t.tile or 0,
       depth = t.depth or 0, screen = t.screen or false }))
   end
   for _, t in ipairs(data.pictures or {}) do
@@ -413,7 +443,8 @@ local function build(data, where, scene)
     named(t, W.spawn(W.Picture, t[2] or t.x, t[3] or t.y, { sprite = t[1] or t.sprite, frame = t.frame or 0, sx = sc, sy = sc, depth = t.depth or 0, screen = t.screen or false }))
   end
   for _, t in ipairs(data.texts or {}) do
-    named(t, W.spawn(W.Text, t[2] or t.x, t[3] or t.y, { text = t[1] or t.text or "", color = t.color or "#ffffff", size = t.size or 1, align = t.align or "left", depth = t.depth or -10, screen = t.screen or false }))
+    named(t, W.spawn(W.Text, t[2] or t.x, t[3] or t.y, { text = t[1] or t.text or "", color = t.color or "#ffffff", size = t.size or 1, align = t.align or "left", font = t.font,
+      depth = t.depth or -10, screen = t.screen or false }))
   end
   return data
 end

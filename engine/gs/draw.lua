@@ -3,6 +3,7 @@
 -- so a see-through color written as a string costs nothing per frame, unlike a new table.
 --   gs.draw.rect(10, 10, 40, 8, "#ff0000")         gs.draw.frame(...)  gs.draw.line(...)  gs.draw.circle(x, y, r, color)
 --   gs.draw.text("SCORE 10", 4, 4, "#ffffff", 1)   gs.draw.text_centered("GAME OVER", 100, "#ffd08a", 2)
+--   gs.draw.font_text("spr_font", "SCORE 10", 4, 4)  text in a font drawn as a sprite (a frame a letter)
 --   gs.draw.sprite("star", x, y, { frame = 1, angle = 45, scale = 2, alpha = 0.5 })
 --   gs.draw.panel(x, y, w, h)   gs.draw.bar(x, y, w, h, value, max, { color = "#4ade80" })
 -- The built-in font is 8x8 plain ASCII; text at scale 1 is the right size for most UI.
@@ -52,6 +53,20 @@ function M.text_centered(str, y, color, scale)
   M.text(str, (w - M.text_width(str, scale)) / 2, y, color, scale)
 end
 function M.text_right(str, x, y, color, scale) M.text(str, x - M.text_width(str, scale), y, color, scale) end
+
+-- Text in a font of your own: a sprite whose frames are the letters, from " " (frame 0) on in ASCII order (! " # ... 0-9 ... A-Z ...).
+-- Letters it has no frame for are left as a gap. Every letter is as wide as a frame; the sprite's own colours are used.
+function M.font_width(font, str, scale) return #tostring(str) * assets.sprite(font, 2).fw * (scale or 1) end
+function M.font_text(font, str, x, y, scale)
+  local s, sc = assets.sprite(font, 2), scale or 1
+  str = tostring(str)
+  local fw, fh, img, tile = s.fw, s.fh, s.img, gs.tile
+  x, y = math.floor(x), math.floor(y)
+  for i = 1, #str do
+    local f = str:byte(i) - 32
+    if f >= 0 and f < s.frames then tile(img, f * fw, 0, fw, fh, x + (i - 1) * fw * sc, y, sc) end
+  end
+end
 
 function M.sprite(name, x, y, opts)
   opts = opts or {}

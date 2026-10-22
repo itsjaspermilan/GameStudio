@@ -4,8 +4,8 @@
 // it (a function, a variable, arithmetic) is code, not data: parseRoom says so and the studio opens it as text instead.
 //
 // A room: { width, height, background, layers: [{ name, tileset, depth, data: [[tile, ...], ...], ... }], entities: [[kind, x, y, props?, name?]],
-//           texts: [{ text, x, y, name, color, size, align, screen }], pictures: [{ sprite, x, y, name, frame, scale, screen }],
-//           boxes: [{ x, y, w, h, name, color, alpha, edge, screen }],
+//           texts: [{ text, x, y, name, color, size, align, font, screen }] (font: a sprite, a frame a letter from " "), pictures: [{ sprite, x, y, name, frame, scale, screen }],
+//           panels: [{ x, y, w, h, tileset, tile, name, screen }] (a 3x3 block of tiles, `tile` its top-left, stretched to the size),
 //           paths: { name: { points: [[x, y], ...], loop } }, code?, ...anything else, kept as it was }
 // A name makes the thing a field of the scene's code (self.<name>), see engine/gs/world.lua "scene layouts".
 
@@ -115,10 +115,10 @@ export function normalizeRoom(r) {
     return { [first]: String(l[0] ?? o[first] ?? ""), x: Number(l[1] ?? o.x) || 0, y: Number(l[2] ?? o.y) || 0, ...Object.fromEntries(Object.entries(o).filter(([k]) => !["__list", first, "x", "y"].includes(k))) };
   });
   room.texts = items(r.texts, "text");
-  room.boxes = (Array.isArray(r.boxes) ? r.boxes : []).map((t) => {
+  room.panels = (Array.isArray(r.panels) ? r.panels : []).map((t) => {
     const l = Array.isArray(t) ? t : t.__list || [], o = Array.isArray(t) ? {} : t;
     const n = (i, k, d) => Number(l[i] ?? o[k] ?? d) || 0;
-    return { x: n(0, "x", 0), y: n(1, "y", 0), w: Math.max(1, n(2, "w", 16)), h: Math.max(1, n(3, "h", 16)), ...Object.fromEntries(Object.entries(o).filter(([k]) => !["__list", "x", "y", "w", "h"].includes(k))) };
+    return { x: n(0, "x", 0), y: n(1, "y", 0), w: Math.max(1, n(2, "w", 32)), h: Math.max(1, n(3, "h", 32)), tile: 0, ...Object.fromEntries(Object.entries(o).filter(([k]) => !["__list", "x", "y", "w", "h"].includes(k))) };
   });
   room.pictures = items(r.pictures, "sprite");
   room.paths = r.paths && typeof r.paths === "object" && !Array.isArray(r.paths) ? Object.fromEntries(Object.entries(r.paths).map(([k, p]) => [k, normalizePath(p)])) : {};
@@ -151,9 +151,9 @@ export function luaInline(v) {
 }
 
 const ROOM_ORDER = ["width", "height", "background"];
-const TEXT_ORDER = ["name", "color", "size", "align", "screen", "depth"];
+const TEXT_ORDER = ["name", "color", "size", "align", "font", "screen", "depth"];
 const PICTURE_ORDER = ["name", "frame", "scale", "screen", "depth"];
-const BOX_ORDER = ["name", "color", "alpha", "edge", "screen", "depth"];
+const PANEL_ORDER = ["tileset", "tile", "name", "screen", "depth"];
 const LAYER_ORDER = ["name", "tileset", "depth", "scroll_x", "scroll_y", "wrap_x", "wrap_y", "solid", "visible", "cell"];
 
 // A room as Lua: the known parts in a fixed order and a readable shape (a tile row per line, an entity per line), the rest after them.
@@ -161,7 +161,7 @@ export function serializeRoom(room, comment) {
   const L = [];
   if (comment) L.push(`-- ${comment}`);
   L.push("return {");
-  const known = new Set([...ROOM_ORDER, "layers", "entities", "texts", "pictures", "boxes", "paths"]);
+  const known = new Set([...ROOM_ORDER, "layers", "entities", "texts", "pictures", "panels", "paths"]);
   const head = ROOM_ORDER.filter((k) => room[k] !== undefined && room[k] !== null).map((k) => `${k} = ${luaInline(room[k])}`);
   if (head.length) L.push(`  ${head.join(", ")},`);
   for (const [k, v] of Object.entries(room)) if (!known.has(k) && k !== "__list" && v !== undefined) L.push(`  ${luaKey(k)} = ${luaInline(v)},`);
@@ -187,10 +187,10 @@ export function serializeRoom(room, comment) {
     const rest = [...order.filter((k) => t[k] !== undefined && t[k] !== null && t[k] !== ""), ...Object.keys(t).filter((k) => ![first, "x", "y", ...order].includes(k) && t[k] !== undefined)];
     return `    { ${luaString(t[first])}, ${luaNum(t.x)}, ${luaNum(t.y)}${rest.map((k) => `, ${luaKey(k)} = ${luaInline(t[k])}`).join("")} },`;
   };
-  if (room.boxes && room.boxes.length) {
-    L.push("  boxes = {");
-    for (const b of room.boxes) {
-      const rest = [...BOX_ORDER.filter((k) => b[k] !== undefined && b[k] !== null && b[k] !== ""), ...Object.keys(b).filter((k) => !["x", "y", "w", "h", ...BOX_ORDER].includes(k) && b[k] !== undefined)];
+  if (room.panels && room.panels.length) {
+    L.push("  panels = {");
+    for (const b of room.panels) {
+      const rest = [...PANEL_ORDER.filter((k) => b[k] !== undefined && b[k] !== null && b[k] !== ""), ...Object.keys(b).filter((k) => !["x", "y", "w", "h", ...PANEL_ORDER].includes(k) && b[k] !== undefined)];
       L.push(`    { ${[b.x, b.y, b.w, b.h].map(luaNum).join(", ")}${rest.map((k) => `, ${luaKey(k)} = ${luaInline(b[k])}`).join("")} },`);
     }
     L.push("  },");
@@ -263,7 +263,7 @@ export const SCENE_NAMES = new Set(["enter", "leave", "update", "draw", "draw_ui
 export function layoutNames(room) {
   const out = [];
   for (const [kind, x, y, , name] of room.entities || []) if (name) out.push({ name, kind: "entity", detail: `entity ${kind} at ${x}, ${y}` });
-  for (const b of room.boxes || []) if (b.name) out.push({ name: b.name, kind: "box", detail: `box ${b.w}x${b.h} at ${b.x}, ${b.y}` });
+  for (const b of room.panels || []) if (b.name) out.push({ name: b.name, kind: "panel", detail: `panel ${b.w}x${b.h} of ${b.tileset} at ${b.x}, ${b.y}` });
   for (const p of room.pictures || []) if (p.name) out.push({ name: p.name, kind: "picture", detail: `picture ${p.sprite} at ${p.x}, ${p.y}` });
   for (const t of room.texts || []) if (t.name) out.push({ name: t.name, kind: "text", detail: `text "${t.text}" at ${t.x}, ${t.y}` });
   return out;
@@ -278,9 +278,10 @@ export function nameProblem(name, room, own) {
   return null;
 }
 
-// A text's box in the room (the built-in font is 8x8 per character), for picking it with the pointer: [x0, y0, x1, y1]
-export function textBox(t) {
-  const size = Number(t.size) || 1, w = String(t.text ?? "").length * 8 * size, h = 8 * size;
+// A text's box in the room, for picking it with the pointer: [x0, y0, x1, y1]. A letter is 8x8 in the built-in font, or `font` = [w, h]
+// (the size of a frame of the text's font sprite).
+export function textBox(t, font) {
+  const size = Number(t.size) || 1, [fw, fh] = font || [8, 8], w = String(t.text ?? "").length * fw * size, h = fh * size;
   const x0 = t.align === "center" ? t.x - w / 2 : t.align === "right" ? t.x - w : t.x;
   return [x0, t.y, x0 + Math.max(w, 8), t.y + h];
 }
