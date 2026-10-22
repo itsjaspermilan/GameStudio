@@ -1,5 +1,7 @@
--- puzdata.lua: Panel Pop puzzles. Written by `GS_GENPUZ=1 GS_SELFTEST=1 build/gs carts/panel-pop` (see tests.lua), which only keeps layouts a solver proved
--- can be cleared in the given number of swaps, and then replayed on the real board. rows go top to bottom, 0 = empty, 1..3 = a panel colour.
+-- puzdata.lua: Panel Pop puzzles. Written by `GS_GENPUZ=1 GS_SELFTEST=1 build/gs carts/panel-pop`
+-- (see tests.lua), which only keeps layouts a solver proved can be cleared in the given number of
+-- swaps, and then replayed on the real board. rows go top to bottom, 0 = empty, 1..3 = a panel
+-- colour.
 return {
   { moves = 1, rows = { "010200", "010122" } },
   { moves = 1, rows = { "000102", "011202" } },

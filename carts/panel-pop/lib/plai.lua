@@ -1,12 +1,14 @@
--- plai.lua: the CPU player for Panel Pop. It looks at a plain copy of the board (colours only), tries every swap that makes a match (and
--- what that sets falling), picks the best, then walks the cursor there at a speed set by the opponent's level. Weaker opponents move the
--- cursor slowly, pause between moves, ignore chains and sometimes pick a worse move.
+-- plai.lua: the CPU player for Panel Pop. It looks at a plain copy of the board (colours only),
+-- tries every swap that makes a match (and what that sets falling), picks the best, then walks the
+-- cursor there at a speed set by the opponent's level. Weaker opponents move the cursor slowly,
+-- pause between moves, ignore chains and sometimes pick a worse move.
 local PL = require "lib.pl"
 local PLAI = {}
 local floor, max, min, random, abs = math.floor, math.max, math.min, math.random, math.abs
 local COLS, VIS, TOP, NR = PL.COLS, PL.VIS, PL.TOP, PL.NR
 
--- ai: { gap = frames per cursor step, cool = frames after a swap, think = frames between decisions, err = chance of a worse move,
+-- ai: { gap = frames per cursor step, cool = frames after a swap, think = frames between decisions,
+-- err = chance of a worse move,
 --       chains = looks for chains, raise = raises the stack when the board is low }
 function PLAI.new(o)
   return { gap = o.gap or 8, cool = o.cool or 12, think = o.think or 20, err = o.err or 0.2, chains = o.chains or false, raise = o.raise ~= false,

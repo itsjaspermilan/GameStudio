@@ -1,6 +1,8 @@
--- dm.lua: the Doc Capsule bottle (rules only) and its CPU player. 8 wide, 16 tall. Cells are nil or { t = "v" (virus) | "p" (half of a capsule),
--- c = colour 1..3, link = the other half of its capsule, ori = "s" single / "l" "r" "u" "d" (which half), flash = being cleared }.
--- The falling capsule is d.pill = { r, c, dir, a, b }: the pivot cell (r, c) has colour a, the other half sits at pivot + DIRS[dir] with colour b.
+-- dm.lua: the Doc Capsule bottle (rules only) and its CPU player. 8 wide, 16 tall. Cells are nil or
+-- { t = "v" (virus) | "p" (half of a capsule), c = colour 1..3, link = the other half of its
+-- capsule, ori = "s" single / "l" "r" "u" "d" (which half), flash = being cleared }.
+-- The falling capsule is d.pill = { r, c, dir, a, b }: the pivot cell (r, c) has colour a, the
+-- other half sits at pivot + DIRS[dir] with colour b.
 local DM = {}
 local floor, max, min, random = math.floor, math.max, math.min, math.random
 local W, H = 8, 16
@@ -12,7 +14,8 @@ local SPEEDS = { 40, 26, 15 } -- frames per row: low, med, hi
 
 local function ev(d, t, a) a = a or {}; a.t = t; d.ev[#d.ev + 1] = a end
 
--- ---------------------------------------------------------------- grid helpers (also used on copies by the CPU)
+-- ---------------------------------------------------------------- grid helpers (also used on
+-- copies by the CPU)
 local function newgrid() local g = {}; for r = 1, H do g[r] = {} end; return g end
 
 local function find_runs(g)
@@ -60,7 +63,8 @@ local function remove_flashing(g)
   return viruses, halves
 end
 
--- one step of gravity: every capsule piece with nothing under it drops a row. Returns true if anything moved.
+-- one step of gravity: every capsule piece with nothing under it drops a row. Returns true if
+-- anything moved.
 local function gravity_step(g)
   local moved = false
   local done = {}
@@ -105,7 +109,8 @@ local function copy_grid(g)
   return o
 end
 
--- plays a position out at once: clears, drops, clears again. Returns viruses removed, halves removed, runs.
+-- plays a position out at once: clears, drops, clears again. Returns viruses removed, halves
+-- removed, runs.
 local function resolve(g)
   local tv, th, tr = 0, 0, 0
   while true do
@@ -121,7 +126,8 @@ local function resolve(g)
 end
 
 -- ---------------------------------------------------------------- a new bottle
--- o: level 0..20 (virus count 4 * (level + 1)), speed 1..3 (low, med, hi), viruses (override the count)
+-- o: level 0..20 (virus count 4 * (level + 1)), speed 1..3 (low, med, hi), viruses (override the
+-- count)
 function DM.new(o)
   local d = { g = newgrid(), ev = {}, t = 0, lvl = o.level or 0, speed = o.speed or 2, score = 0, pills = 0, phase = "spawn", pt = 30, gt = 0, soft = 0,
     incoming = {}, lost = false, won = false, runs = 0, cols = {}, kills = 0, vleft = 0, nextp = nil, das = 0, vkill_total = 0 }
@@ -295,7 +301,8 @@ function DM.height(d) for r = 1, H do for c = 1, W do if d.g[r][c] then return H
 
 -- ---------------------------------------------------------------- the CPU player
 local DMAI = {}
--- o: gap (frames between key presses), err (chance of a worse placement), think (frames to "look" at a new capsule), look (also plans the next capsule)
+-- o: gap (frames between key presses), err (chance of a worse placement), think (frames to "look"
+-- at a new capsule), look (also plans the next capsule)
 function DMAI.new(o) return { gap = o.gap or 8, err = o.err or 0.2, think = o.think or 20, look = o.look or false, t = 0, target = nil } end
 
 -- how many pieces sit above viruses (those viruses are harder to reach)
@@ -338,7 +345,8 @@ local function potential(g)
   return total
 end
 
--- drops capsule (colours pa, pb, facing dir) down column col of a copy of g0 and plays it out. Returns a score and the board afterwards.
+-- drops capsule (colours pa, pb, facing dir) down column col of a copy of g0 and plays it out.
+-- Returns a score and the board afterwards.
 local function evaluate(g0, pa, pb, dir, col, base)
   local g = copy_grid(g0)
   local o = DIRS[dir]
@@ -376,7 +384,8 @@ local function evaluate(g0, pa, pb, dir, col, base)
   return score, g
 end
 
--- the thinking is done in slices (a coroutine) so a hard opponent never stalls a frame: after every few placements it gives the frame back
+-- the thinking is done in slices (a coroutine) so a hard opponent never stalls a frame: after every
+-- few placements it gives the frame back
 local evals = 0
 local function slice()
   evals = evals + 1

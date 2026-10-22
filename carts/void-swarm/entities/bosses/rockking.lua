@@ -1,4 +1,5 @@
--- ROCK KING. The attacks are cycled through in order, one every 2.4 seconds (see entities/boss.lua for what each does).
+-- ROCK KING. The attacks are cycled through in order, one every 2.4 seconds (see entities/boss.lua
+-- for what each does).
 local Boss = require "entities.boss"
 
 return gs.entity(Boss, {

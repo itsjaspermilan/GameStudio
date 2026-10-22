@@ -1,4 +1,5 @@
--- Boomer: walks at the player; close up it lights a fuse and blows up after 0.7 seconds, hurting the player if they are still near.
+-- Boomer: walks at the player; close up it lights a fuse and blows up after 0.7 seconds, hurting
+-- the player if they are still near.
 local Enemy = require "entities.enemy"
 local run = require "lib.run"
 local audio = require "lib.audio"

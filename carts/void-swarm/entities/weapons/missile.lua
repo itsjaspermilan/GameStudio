@@ -1,4 +1,5 @@
--- A homing missile: it steers toward a target and blows up on the first enemy it touches, or when its time runs out.
+-- A homing missile: it steers toward a target and blows up on the first enemy it touches, or when
+-- its time runs out.
 local Shot = require "entities.weapons.shot"
 local run = require "lib.run"
 local targets = require "lib.targets"

@@ -1,4 +1,5 @@
--- A mine: it arms after half a second and blows up when an enemy touches it (or after nine seconds).
+-- A mine: it arms after half a second and blows up when an enemy touches it (or after nine
+-- seconds).
 local run = require "lib.run"
 
 local Mine = gs.entity{

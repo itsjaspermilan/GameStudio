@@ -1,4 +1,5 @@
--- Wraith: fades out for part of every cycle. A faded wraith cannot be hurt, targeted or hurt the player.
+-- Wraith: fades out for part of every cycle. A faded wraith cannot be hurt, targeted or hurt the
+-- player.
 local Enemy = require "entities.enemy"
 
 local Wraith = gs.entity(Enemy, {

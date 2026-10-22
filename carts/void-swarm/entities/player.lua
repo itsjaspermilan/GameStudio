@@ -1,4 +1,5 @@
--- The pilot's ship. It moves with the D-pad, dashes with A or B, collects pickups it touches, and runs the weapons. Its stats live in lib/run.lua.
+-- The pilot's ship. It moves with the D-pad, dashes with A or B, collects pickups it touches, and
+-- runs the weapons. Its stats live in lib/run.lua.
 local run = require "lib.run"
 local weapons = require "lib.weapons"
 local controls = require "lib.controls"

@@ -1,4 +1,5 @@
--- The base of the ten sector bosses (files in entities/bosses/). A boss is an enemy with a health bar, phases and a list of attacks it cycles through:
+-- The base of the ten sector bosses (files in entities/bosses/). A boss is an enemy with a health
+-- bar, phases and a list of attacks it cycles through:
 --   ring n      a ring of n slow shots            aim n      n shots fanned at the player          spiral     a spinning stream of shots
 --   charge      stops, aims, then rams            summon k n n enemies of kind k                    strike n   n warned blasts around the player
 --   pull        drags the player for two seconds

@@ -1,4 +1,5 @@
--- Minelayer: circles the player at a distance and leaves mines behind (one every 1.5 seconds, each lasting nine).
+-- Minelayer: circles the player at a distance and leaves mines behind (one every 1.5 seconds, each
+-- lasting nine).
 local Enemy = require "entities.enemy"
 local run = require "lib.run"
 

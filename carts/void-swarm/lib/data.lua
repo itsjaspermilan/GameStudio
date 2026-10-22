@@ -1,12 +1,17 @@
--- Everything about Void Swarm that is a number or a name and is not one kind of thing: pilots, weapons, passives, ship upgrades and the ten sectors.
--- (Each enemy and boss keeps its own numbers in its file: entities/enemies/ and entities/bosses/.) To rebalance the game, edit these tables.
--- Weapon stats: cd = seconds between shots, count = shots / blades / bolts, pierce = extra enemies a shot passes through (arc: extra jumps),
--- area = size multiplier. up = what each in-run level 2..8 adds, pathB = what each permanent rank of the second path adds.
--- A "stat" is dmg, cd, count, pierce, area, speed or dur; dmg, cd, area, speed and dur are fractions, count and pierce are whole numbers.
--- A sector's pool lists the enemies that can appear: { enemy file name, first second it can appear, weight }. The boss is entities/bosses/<name>.lua.
+-- Everything about Void Swarm that is a number or a name and is not one kind of thing: pilots,
+-- weapons, passives, ship upgrades and the ten sectors. (Each enemy and boss keeps its own numbers
+-- in its file: entities/enemies/ and entities/bosses/.) To rebalance the game, edit these tables.
+-- Weapon stats: cd = seconds between shots, count = shots / blades / bolts, pierce = extra enemies
+-- a shot passes through (arc: extra jumps), area = size multiplier. up = what each in-run level
+-- 2..8 adds, pathB = what each permanent rank of the second path adds.
+-- A "stat" is dmg, cd, count, pierce, area, speed or dur; dmg, cd, area, speed and dur are
+-- fractions, count and pierce are whole numbers.
+-- A sector's pool lists the enemies that can appear: { enemy file name, first second it can appear,
+-- weight }. The boss is entities/bosses/<name>.lua.
 
 -- ---------------------------------------------------------------- pilots
--- mods: dmg/cd/area/xp/credits/magnet are fractions (0.1 = 10%); hp and spd multiply; regen is health a second.
+-- mods: dmg/cd/area/xp/credits/magnet are fractions (0.1 = 10%); hp and spd multiply; regen is
+-- health a second.
 local PILOTS = {
   { id = "nova",    name = "NOVA",    weapon = "pulse",   cost = 0,    blurb = "A steady all-rounder.",                  mods = {} },
   { id = "bulwark", name = "BULWARK", weapon = "shards",  cost = 250,  blurb = "Slow, tough, blades all around.",         mods = { hp = 1.4, spd = 0.9, armor = 1 } },
@@ -21,9 +26,11 @@ local PILOTS = {
 }
 
 -- ---------------------------------------------------------------- weapons
--- cd: seconds between shots. count: shots / blades / bolts. pierce: extra enemies a shot passes through (arc: extra jumps).
--- area: size multiplier. up: what each in-run level 2..8 adds. pathB: what each permanent rank of the second path adds.
--- A "stat" is dmg, cd, count, pierce, area, speed or dur; dmg, cd, area, speed and dur are fractions, count and pierce are whole numbers.
+-- cd: seconds between shots. count: shots / blades / bolts. pierce: extra enemies a shot passes
+-- through (arc: extra jumps). area: size multiplier. up: what each in-run level 2..8 adds. pathB:
+-- what each permanent rank of the second path adds.
+-- A "stat" is dmg, cd, count, pierce, area, speed or dur; dmg, cd, area, speed and dur are
+-- fractions, count and pierce are whole numbers.
 local WEAPONS = {
   pulse = { name = "PULSE BLASTER", icon = "w_pulse", blurb = "Rapid shots at the nearest enemy.", cd = 0.55, dmg = 9, count = 1, speed = 210, pierce = 0, area = 1,
     up = { {"dmg", .2}, {"cd", -.12}, {"count", 1}, {"pierce", 1}, {"dmg", .25}, {"count", 1}, {"cd", -.15} },
@@ -59,7 +66,8 @@ local WEAPONS = {
 local WEAPON_ORDER = { "pulse", "shards", "nova", "missiles", "arc", "lance", "mines", "well", "scatter", "comet" }
 local WEAPON_PATH_A = { stat = "dmg", per = 0.10, name = "Overcharge" } -- every rank: +10% damage
 
--- ---------------------------------------------------------------- passives (picked while playing, up to 5 levels each)
+-- ---------------------------------------------------------------- passives (picked while playing,
+-- up to 5 levels each)
 local PASSIVES = {
   power   = { name = "POWER CELL",  icon = "p_power",   text = "+10% damage",           key = "dmg",     per = 0.10 },
   haste   = { name = "OVERCLOCK",   icon = "p_haste",   text = "-8% weapon cooldown",   key = "cd",      per = -0.08 },
@@ -72,7 +80,8 @@ local PASSIVES = {
 }
 local PASSIVE_ORDER = { "power", "haste", "reach", "thrust", "plating", "magnet", "repair", "scholar" }
 
--- ---------------------------------------------------------------- ship upgrades (permanent, 4 paths x 5 ranks)
+-- ---------------------------------------------------------------- ship upgrades (permanent, 4
+-- paths x 5 ranks)
 local SHIP_PATHS = {
   { id = "hull", name = "HULL", icon = "s_hull", cost = 80, ranks = {
     { "Reinforced Plating", "+20 max health", { hp_add = 20 } },
@@ -135,7 +144,8 @@ local STAGES = {
     pool = { {"grub", 0, 4}, {"imp", 12, 3}, {"wraith", 25, 3}, {"knight", 40, 3}, {"golem", 55, 2}, {"vortex", 70, 2}, {"sniper", 85, 2}, {"reaper", 100, 3}, {"hive", 120, 1}, {"spore", 140, 2} } },
 }
 
--- Every sector lasts 15 minutes: the boss arrives at the 10 minute mark (`time`). The pools above were written for a few minutes; stretch them.
+-- Every sector lasts 15 minutes: the boss arrives at the 10 minute mark (`time`). The pools above
+-- were written for a few minutes; stretch them.
 for _, st in ipairs(STAGES) do for _, p in ipairs(st.pool) do p[2] = math.floor(p[2] * 3.5) end end
 return {
   PILOTS = PILOTS, WEAPONS = WEAPONS, WEAPON_ORDER = WEAPON_ORDER, WEAPON_PATH_A = WEAPON_PATH_A,

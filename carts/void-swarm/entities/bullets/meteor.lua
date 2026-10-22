@@ -1,4 +1,5 @@
--- A hazard from the sector: a reticle shows where it comes from (at the edge of the screen) for `delay` seconds, then it streaks through.
+-- A hazard from the sector: a reticle shows where it comes from (at the edge of the screen) for
+-- `delay` seconds, then it streaks through.
 local EBullet = require "entities.bullets.ebullet"
 local ui = require "lib.ui"
 

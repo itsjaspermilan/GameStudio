@@ -1,4 +1,5 @@
--- Permanent weapon upgrades: every weapon has two paths of five ranks (A: more damage, B: its own special improvements).
+-- Permanent weapon upgrades: every weapon has two paths of five ranks (A: more damage, B: its own
+-- special improvements).
 local data = require "lib.data"
 local run = require "lib.run"
 local save = require "lib.save"

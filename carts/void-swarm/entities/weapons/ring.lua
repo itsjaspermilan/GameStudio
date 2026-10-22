@@ -1,4 +1,5 @@
--- The plasma nova: a ring that grows from the player and shoves back what it passes. It hurts an enemy once, when the ring reaches it.
+-- The plasma nova: a ring that grows from the player and shoves back what it passes. It hurts an
+-- enemy once, when the ring reaches it.
 local run = require "lib.run"
 local ui = require "lib.ui"
 

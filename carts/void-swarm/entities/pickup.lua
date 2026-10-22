@@ -1,4 +1,5 @@
--- Things to pick up: gems (experience), coins (credits), hearts, a magnet that pulls every gem in, a bomb that clears the screen.
+-- Things to pick up: gems (experience), coins (credits), hearts, a magnet that pulls every gem in,
+-- a bomb that clears the screen.
 -- They are drawn toward the player when close; the player's on_collide_pickup calls collect.
 local run = require "lib.run"
 local audio = require "lib.audio"

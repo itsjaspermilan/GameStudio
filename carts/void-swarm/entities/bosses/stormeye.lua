@@ -1,4 +1,5 @@
--- STORM EYE. The attacks are cycled through in order, one every 2.2 seconds (see entities/boss.lua for what each does).
+-- STORM EYE. The attacks are cycled through in order, one every 2.2 seconds (see entities/boss.lua
+-- for what each does).
 local Boss = require "entities.boss"
 
 return gs.entity(Boss, {

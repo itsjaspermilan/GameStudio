@@ -1,4 +1,5 @@
--- THE VOID HEART. The attacks are cycled through in order, one every 1.6 seconds (see entities/boss.lua for what each does).
+-- THE VOID HEART. The attacks are cycled through in order, one every 1.6 seconds (see
+-- entities/boss.lua for what each does).
 local Boss = require "entities.boss"
 
 return gs.entity(Boss, {

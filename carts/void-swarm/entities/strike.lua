@@ -1,4 +1,5 @@
--- A blast that lands after a warning: a red circle (or, for the player's comet, a reticle) grows for `total` seconds, then it explodes.
+-- A blast that lands after a warning: a red circle (or, for the player's comet, a reticle) grows
+-- for `total` seconds, then it explodes.
 -- Enemy strikes hurt the player if they are inside; the player's own (mine = true) hurt enemies.
 local run = require "lib.run"
 local audio = require "lib.audio"

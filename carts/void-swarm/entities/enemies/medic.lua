@@ -1,4 +1,5 @@
--- Medic Drone: stays 80 to 110 pixels away and heals the enemies around it (12% of their health every 0.8 seconds).
+-- Medic Drone: stays 80 to 110 pixels away and heals the enemies around it (12% of their health
+-- every 0.8 seconds).
 local Enemy = require "entities.enemy"
 local run = require "lib.run"
 

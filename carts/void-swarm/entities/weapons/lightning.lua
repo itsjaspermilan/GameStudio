@@ -1,4 +1,5 @@
--- One jump of the arc coil's lightning: a jagged line from one point to another that is there for a moment.
+-- One jump of the arc coil's lightning: a jagged line from one point to another that is there for a
+-- moment.
 local Lightning = gs.entity{
   tags = { "lightning" },
   depth = 15,

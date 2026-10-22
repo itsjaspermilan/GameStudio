@@ -1,6 +1,8 @@
--- One run through a sector. The scene is the director: it spawns the enemies, the hazards and the boss, watches for a level-up, a death or a
--- fallen boss, and draws the heads-up display. The ship, the enemies, the shots and the pickups are entities that look after themselves.
--- While a level-up choice or the pause menu is open the world is frozen (gs.pause) and only this scene's update runs.
+-- One run through a sector. The scene is the director: it spawns the enemies, the hazards and the
+-- boss, watches for a level-up, a death or a fallen boss, and draws the heads-up display. The ship,
+-- the enemies, the shots and the pickups are entities that look after themselves.
+-- While a level-up choice or the pause menu is open the world is frozen (gs.pause) and only this
+-- scene's update runs.
 local data = require "lib.data"
 local run = require "lib.run"
 local save = require "lib.save"
@@ -15,7 +17,8 @@ local spr, txt, txtc, txtr, box = ui.spr, ui.txt, ui.txtc, ui.txtr, ui.box
 
 local Play = gs.scene{}
 
--- the background tile: the 256x256 picture of a sector is a tileset of 16x16 tiles, laid out as one map that repeats in every direction
+-- the background tile: the 256x256 picture of a sector is a tileset of 16x16 tiles, laid out as one
+-- map that repeats in every direction
 local BG_GRID = {}
 for r = 0, 15 do
   local row = {}
@@ -53,7 +56,8 @@ function Play:open_levelup()
   gs.pause(true)
 end
 
--- ---------------------------------------------------------------- the director: who arrives, and when
+-- ---------------------------------------------------------------- the director: who arrives, and
+-- when
 local function pick_enemy(R)
   local pool = R.sdef.pool
   local counts = R.counts or {}
@@ -127,7 +131,8 @@ local function spawn_boss(R)
   audio.music(R.stage == #data.STAGES and "msc_final" or "msc_boss")
 end
 
--- the boss fell: everything else dies, the floor fills with gems, and after a few seconds of explosions the result screen comes
+-- the boss fell: everything else dies, the floor fills with gems, and after a few seconds of
+-- explosions the result screen comes
 local function boss_down(R)
   local b = R.boss_down
   R.boss_down, R.boss, R.boss_death_fx, R.boss_x, R.boss_y = nil, nil, true, b.x, b.y
@@ -291,7 +296,8 @@ function Play:draw_hud()
     box(61, 23, floor(198 * max(0, b.hp / b.maxhp)), 5, 5)
     box(61, 23, floor(198 * max(0, b.hp / b.maxhp)), 2, 6)
   end
-  -- the radar: where the gems, coins and boss are, near and far (the little rectangle is what the screen shows)
+  -- the radar: where the gems, coins and boss are, near and far (the little rectangle is what the
+  -- screen shows)
   do
     local rx, ry, rr, range = SW - 30, SH - 54, 26, 320
     local k = rr / range

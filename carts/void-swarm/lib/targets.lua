@@ -1,5 +1,5 @@
--- Finding enemies for weapons to aim at. gs.nearest would do, but a ghost (a wraith in its faded phase) cannot be targeted, and multi-shot
--- weapons want the second, third... nearest.
+-- Finding enemies for weapons to aim at. gs.nearest would do, but a ghost (a wraith in its faded
+-- phase) cannot be targeted, and multi-shot weapons want the second, third... nearest.
 local M = {}
 
 -- the nth nearest targetable enemy within maxd of (x, y), or nil. `skip` is an enemy to leave out.

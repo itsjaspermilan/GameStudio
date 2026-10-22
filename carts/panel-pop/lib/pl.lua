@@ -1,10 +1,15 @@
--- pl.lua: the Panel Pop board. Rules only (no drawing, no input devices): ui.lua feeds it button presses, plai.lua is a CPU player.
+-- pl.lua: the Panel Pop board. Rules only (no drawing, no input devices): ui.lua feeds it button
+-- presses, plai.lua is a CPU player.
 --
--- The grid is b.g[row][col], rows 1..NR top to bottom, 6 columns. Rows TOP..NR-1 are on screen, rows above are a hidden space where
--- garbage waits and falls in from, and the last row NR is the dim "incoming" row that scrolls up into view.
--- A cell is nil (empty), a panel { k = colour 1..6, st = state, tm = frames left, chain = bool } or garbage { gb = block }.
--- Panel states: idle, swap (4 frames), hover (waits before falling), fall, flash / face (being cleared), dim (the incoming row).
--- Things that happen are put in b.ev (a list) for the UI to turn into sounds and effects; the UI empties it every frame.
+-- The grid is b.g[row][col], rows 1..NR top to bottom, 6 columns. Rows TOP..NR-1 are on screen,
+-- rows above are a hidden space where garbage waits and falls in from, and the last row NR is the
+-- dim "incoming" row that scrolls up into view.
+-- A cell is nil (empty), a panel { k = colour 1..6, st = state, tm = frames left, chain = bool } or
+-- garbage { gb = block }.
+-- Panel states: idle, swap (4 frames), hover (waits before falling), fall, flash / face (being
+-- cleared), dim (the incoming row).
+-- Things that happen are put in b.ev (a list) for the UI to turn into sounds and effects; the UI
+-- empties it every frame.
 local PL = {}
 local floor, max, min, random = math.floor, math.max, math.min, math.random
 
@@ -19,7 +24,8 @@ PL.PANIC_MAX = PANIC_MAX
 
 local function ev(b, t, a) a = a or {}; a.t = t; b.ev[#b.ev + 1] = a end
 
--- ---------------------------------------------------------------- scoring (numbers from the originals, roughly)
+-- ---------------------------------------------------------------- scoring (numbers from the
+-- originals, roughly)
 local COMBO_BONUS = { [4] = 20, [5] = 30, [6] = 50, [7] = 60, [8] = 70, [9] = 80, [10] = 100, [11] = 140, [12] = 170 }
 local CHAIN_BONUS = { [2] = 50, [3] = 80, [4] = 150, [5] = 300, [6] = 400, [7] = 500, [8] = 700, [9] = 900, [10] = 1100, [11] = 1300, [12] = 1500 }
 function PL.combo_bonus(n) return n < 4 and 0 or (COMBO_BONUS[n] or 170 + (n - 12) * 30) end
@@ -57,7 +63,8 @@ local function gen_incoming(b)
   for c = 1, COLS do b.g[NR][c] = panel(safe_color(b, NR, c, b.colors), "dim") end
 end
 
--- o: colors (5 or 6), speed (level), rise (false = the stack never rises), height (starting rows), puzzle = { "......", ... } (a fixed layout)
+-- o: colors (5 or 6), speed (level), rise (false = the stack never rises), height (starting rows),
+-- puzzle = { "......", ... } (a fixed layout)
 function PL.new(o)
   local b = {
     g = {}, garbs = {}, pending = {}, ev = {}, t = 0, colors = o.colors or 5, speed = o.speed or 1, rise_on = o.rise ~= false,
@@ -111,7 +118,8 @@ local function spawn_garbage(b)
   ev(b, "spawn", { g = g })
 end
 
--- a block put straight on the board (Stage Clear starts with some): x, y = top left cell, resting unless there is nothing under it
+-- a block put straight on the board (Stage Clear starts with some): x, y = top left cell, resting
+-- unless there is nothing under it
 function PL.place_garbage(b, x, y, w, h, metal)
   local g = { x = x, y = y, w = w, h = h, metal = metal, st = "idle", tm = 0, fall = false }
   b.garbs[#b.garbs + 1] = g
@@ -369,7 +377,8 @@ function PL.update(b, inp)
   end
 end
 
--- ---------------------------------------------------------------- questions about the board (for the CPU and the UI)
+-- ---------------------------------------------------------------- questions about the board (for
+-- the CPU and the UI)
 function PL.settled(b) return not b.moving and b.nflash == 0 and not b.anyflag and b.chain == 0 end
 function PL.garbage_left(b) return #b.garbs + #b.pending end
 -- number of panels (not garbage) on the board

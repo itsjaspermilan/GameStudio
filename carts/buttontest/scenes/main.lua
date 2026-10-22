@@ -1,4 +1,5 @@
--- Reads the runtime's buttons directly (gs.btn), so it shows what the device sends even for names a console does not list.
+-- Reads the runtime's buttons directly (gs.btn), so it shows what the device sends even for names a
+-- console does not list.
 local NAMES = { "up", "down", "left", "right", "a", "b", "x", "y", "l", "r", "start", "select", "l2", "r2", "l3", "r3" }
 local Main = gs.scene{}
 

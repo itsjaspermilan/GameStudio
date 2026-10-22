@@ -1,5 +1,6 @@
--- What the player's weapons do. Every weapon has a cooldown and a fire function that makes entities (shots, rings, mines...) or hurts enemies
--- directly (the beam and the lightning). The orbit blades are the one weapon without a cooldown: their entities circle the player all the time.
+-- What the player's weapons do. Every weapon has a cooldown and a fire function that makes entities
+-- (shots, rings, mines...) or hurts enemies directly (the beam and the lightning). The orbit blades
+-- are the one weapon without a cooldown: their entities circle the player all the time.
 local run = require "lib.run"
 local audio = require "lib.audio"
 local targets = require "lib.targets"
@@ -48,7 +49,8 @@ function fire.nova(w, s, P)
   audio.sfx("sfx_nova", 4)
 end
 
--- chain lightning: hits the nearest enemy, then jumps to the nearest one to that (pierce = extra jumps)
+-- chain lightning: hits the nearest enemy, then jumps to the nearest one to that (pierce = extra
+-- jumps)
 function fire.arc(w, s, P)
   local first = targets.nearest(P.x, P.y, 170)
   if not first then return false end

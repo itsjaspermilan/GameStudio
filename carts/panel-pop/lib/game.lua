@@ -1,5 +1,7 @@
--- game.lua: playing one game of any mode (Endless, Time Attack, Vs CPU, Stage Clear, Puzzle, Virus Buster, Capsule Vs). ui.lua has the menus around it.
--- PG.start(mode, opts) begins, PG.step() / PG.draw() run it every frame. PG.step returns "results" or "quit" when the player leaves; PG.result says how it went.
+-- game.lua: playing one game of any mode (Endless, Time Attack, Vs CPU, Stage Clear, Puzzle, Virus
+-- Buster, Capsule Vs). ui.lua has the menus around it.
+-- PG.start(mode, opts) begins, PG.step() / PG.draw() run it every frame. PG.step returns "results"
+-- or "quit" when the player leaves; PG.result says how it went.
 local PP = require "lib.util"
 local PL = require "lib.pl"
 local PLAI = require "lib.plai"
@@ -143,7 +145,8 @@ local function human_dm(ps)
   return inp
 end
 
--- ---------------------------------------------------------------- reacting to what happened on a board
+-- ---------------------------------------------------------------- reacting to what happened on a
+-- board
 local function face(ps, f, t) ps.face = f; ps.face_t = t end
 
 local function send_garbage(from, to, w, h, metal)

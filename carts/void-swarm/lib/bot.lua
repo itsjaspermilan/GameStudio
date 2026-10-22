@@ -1,5 +1,6 @@
--- A pilot that plays by itself, for testing the game without a person (GS_BOT=1, see lib/debug.lua): it steers away from enemies and shots, toward
--- gems, dashes when something is about to hit it, and picks level-up cards by a simple score.
+-- A pilot that plays by itself, for testing the game without a person (GS_BOT=1, see
+-- lib/debug.lua): it steers away from enemies and shots, toward gems, dashes when something is
+-- about to hit it, and picks level-up cards by a simple score.
 local run = require "lib.run"
 
 local sqrt, cos, sin, random = math.sqrt, math.cos, math.sin, math.random

@@ -1,5 +1,7 @@
--- The progress that survives between runs: credits, which pilots are unlocked, the permanent ship and weapon ranks, the sectors cleared.
--- One table in the game's save file (gs.save). Games saved before the entity port wrote a text file; it is read once and converted.
+-- The progress that survives between runs: credits, which pilots are unlocked, the permanent ship
+-- and weapon ranks, the sectors cleared.
+-- One table in the game's save file (gs.save). Games saved before the entity port wrote a text
+-- file; it is read once and converted.
 local data = require "lib.data"
 
 local M = { data = nil }

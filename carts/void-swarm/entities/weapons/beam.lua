@@ -1,4 +1,5 @@
--- The lance's beam: lib/weapons.lua hurts everything along it the moment it is fired; this only draws it, fading out.
+-- The lance's beam: lib/weapons.lua hurts everything along it the moment it is fired; this only
+-- draws it, fading out.
 local ui = require "lib.ui"
 
 local Beam = gs.entity{

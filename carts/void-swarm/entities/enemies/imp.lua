@@ -1,4 +1,5 @@
--- Imp: walks at the player and, every three seconds or so, blinks to a new spot 75 pixels from them.
+-- Imp: walks at the player and, every three seconds or so, blinks to a new spot 75 pixels from
+-- them.
 local Enemy = require "entities.enemy"
 local run = require "lib.run"
 

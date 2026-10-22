@@ -1,4 +1,5 @@
--- DREADNOUGHT. The attacks are cycled through in order, one every 1.8 seconds (see entities/boss.lua for what each does).
+-- DREADNOUGHT. The attacks are cycled through in order, one every 1.8 seconds (see
+-- entities/boss.lua for what each does).
 local Boss = require "entities.boss"
 
 return gs.entity(Boss, {

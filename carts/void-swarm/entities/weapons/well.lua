@@ -1,4 +1,5 @@
--- A gravity well: it drags enemies toward its middle and hurts them four times a second until it fades.
+-- A gravity well: it drags enemies toward its middle and hurts them four times a second until it
+-- fades.
 local Well = gs.entity{
   tags = { "well" },
   depth = 90,

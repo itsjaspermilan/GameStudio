@@ -1,4 +1,5 @@
--- The ball rides on the paddle until A is pressed, then bounces off the walls, the paddle and the bricks.
+-- The ball rides on the paddle until A is pressed, then bounces off the walls, the paddle and the
+-- bricks.
 local state = require "lib.state"
 
 local Ball = gs.entity{
@@ -35,7 +36,8 @@ function Ball:lose_life()
   else self.launched, self.vx, self.vy = false, 0, 0 end
 end
 
--- hitting the paddle: where the ball lands decides the angle (the middle sends it straight up) and it speeds up a little
+-- hitting the paddle: where the ball lands decides the angle (the middle sends it straight up) and
+-- it speeds up a little
 function Ball:on_collide_paddle(paddle)
   if self.vy <= 0 then return end
   local hit = gs.clamp(((self.x + self:width() / 2) - (paddle.x + paddle:width() / 2)) / (paddle:width() / 2), -1, 1)
@@ -46,7 +48,8 @@ function Ball:on_collide_paddle(paddle)
 end
 
 function Ball:on_collide_brick(brick)
-  -- bounce off the side we hit: a ball that is mostly beside the brick turns around sideways, otherwise upside down
+  -- bounce off the side we hit: a ball that is mostly beside the brick turns around sideways,
+  -- otherwise upside down
   local cx, cy = self.x + self:width() / 2, self.y + self:height() / 2
   local bx, by = brick.x + brick:width() / 2, brick.y + brick:height() / 2
   if math.abs(cx - bx) / brick:width() > math.abs(cy - by) / brick:height() then self.vx = -self.vx else self.vy = -self.vy end

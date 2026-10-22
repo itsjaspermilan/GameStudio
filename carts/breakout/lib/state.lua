@@ -1,4 +1,5 @@
--- The score and lives, shared by every file that needs them. A plain module: require "lib.state" gives the same table everywhere.
+-- The score and lives, shared by every file that needs them. A plain module: require "lib.state"
+-- gives the same table everywhere.
 local S = { score = 0, lives = 3, best = gs.save.get("best", 0) }
 
 function S.reset() S.score, S.lives = 0, 3 end

@@ -1,9 +1,11 @@
--- Shortcuts for testing and screenshots, all through environment variables (nothing here runs in a normal game):
+-- Shortcuts for testing and screenshots, all through environment variables (nothing here runs in a
+-- normal game):
 --   GS_BOT=1            a bot plays a run by itself (GS_PILOT, GS_STAGE, GS_UPG upgrade ranks, GS_T0 start second, GS_SEED, GS_BOT_SECS time limit)
 --   GS_SCREEN=name      start on a screen: hub, pilots, ship, weapons, stages, play, levelup, pause, results
 --   GS_SEL, GS_CREDITS  the chosen pilot and the credits
 --   GS_TEXTAUDIT=1      draw every screen and report text that had to be cut off (scenes/audit.lua)
--- Buttons can be scripted with GS_BOT_LUA=tests/keys-bot.lua GS_KEYS="a,down,a" (see tests/keys-bot.lua).
+-- Buttons can be scripted with GS_BOT_LUA=tests/keys-bot.lua GS_KEYS="a,down,a" (see
+-- tests/keys-bot.lua).
 local data = require "lib.data"
 local run = require "lib.run"
 local save = require "lib.save"
@@ -67,7 +69,8 @@ function M.run_started(scene)
   end
 end
 
--- called every step of a run: a test run can be told to stop after some seconds of play, finished or not
+-- called every step of a run: a test run can be told to stop after some seconds of play, finished
+-- or not
 local limit = number("GS_BOT_SECS", "0")
 local finished = false -- quitting happens at the end of the frame, and with GS_FF several steps may still run before it
 function M.run_step()

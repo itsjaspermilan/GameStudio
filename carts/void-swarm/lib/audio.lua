@@ -1,4 +1,5 @@
--- Sound helpers: music that does not restart when asked for again, and sound effects that cannot pile up (a crowd of kills is one sound, not fifty).
+-- Sound helpers: music that does not restart when asked for again, and sound effects that cannot
+-- pile up (a crowd of kills is one sound, not fifty).
 local M = {}
 local now, last = nil, {}
 

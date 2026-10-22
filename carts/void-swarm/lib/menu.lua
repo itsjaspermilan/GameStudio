@@ -1,4 +1,5 @@
--- Pieces the menu scenes share: moving a cursor, the header with the credits, the footer with hints and short messages.
+-- Pieces the menu scenes share: moving a cursor, the header with the credits, the footer with hints
+-- and short messages.
 local audio = require "lib.audio"
 local save = require "lib.save"
 local ui = require "lib.ui"

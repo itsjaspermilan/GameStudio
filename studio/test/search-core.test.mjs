@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { findInFiles, replaceInText, searchPattern, outline, reindent, applyEdits } from "../src/search-core.js";
+import { findInFiles, replaceInText, searchPattern, outline, reindent, wrapComments, tidyLua, applyEdits } from "../src/search-core.js";
 import { parsePage, gameFiles } from "../src/help-core.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -81,13 +81,15 @@ test("every Lua file in the repository and every tutorial is already formatted",
   const files = [];
   const walk = (d) => { for (const f of readdirSync(d)) { const p = join(d, f); if (statSync(p).isDirectory()) walk(p); else if (f.endsWith(".lua")) files.push(p); } };
   for (const d of ["carts", "engine/gs", "tests/framework"]) walk(join(root, d));
+  // the sample games and tutorials are what people open in the studio, so they pass the whole Tidy (comments included);
+  // the engine's own files only have to be indented right
   for (const f of files) {
     const t = readFileSync(f, "utf8");
-    assert.equal(reindent(t), t, f);
+    assert.equal(f.includes("/carts/") ? tidyLua(t) : reindent(t), t, f);
   }
   for (const f of readdirSync(join(root, "docs/help"))) {
     const g = gameFiles(parsePage(readFileSync(join(root, "docs/help", f), "utf8"), f));
-    for (const [rel, text] of Object.entries(g || {})) assert.equal(reindent(text), text, `${f} ${rel}`);
+    for (const [rel, text] of Object.entries(g || {})) assert.equal(tidyLua(text), text, `${f} ${rel}`);
   }
 });
 
@@ -95,4 +97,27 @@ test("language-server edits apply last first", () => {
   const r = (l1, c1, l2, c2) => ({ start: { line: l1, character: c1 }, end: { line: l2, character: c2 } });
   assert.equal(applyEdits("local hp = 3\nhp = hp - 1", [{ range: r(0, 6, 0, 8), newText: "health" }, { range: r(1, 0, 1, 2), newText: "health" }, { range: r(1, 5, 1, 7), newText: "health" }]),
     "local health = 3\nhealth = health - 1");
+});
+
+test("Tidy wraps long comments at the column and keeps the rest", () => {
+  const long = "-- one two three four five six seven eight nine ten eleven twelve";
+  assert.equal(wrapComments(long, 30), "-- one two three four five six\n-- seven eight nine ten eleven\n-- twelve");
+  // what runs over goes in front of a next line that carries on the sentence, not one that starts a new one
+  assert.equal(wrapComments("  -- alpha beta gamma delta\n  -- epsilon zeta", 23), "  -- alpha beta gamma\n  -- delta epsilon zeta");
+  assert.equal(wrapComments("-- alpha beta gamma delta\n-- Next one", 20), "-- alpha beta gamma\n-- delta\n-- Next one");
+  // left alone: code with a comment after it, annotations, indented comment text, long comments, long strings, words longer than the line
+  const keep = [
+    "local x = 1 -- " + "word ".repeat(30),
+    "---@param a number " + "word ".repeat(30),
+    "--   example = { " + "a = 1, ".repeat(20) + "}",
+    "--[[ " + "word ".repeat(30) + "]]",
+    "local s = [[",
+    "-- " + "word ".repeat(30),
+    "]]",
+    "-- " + "x".repeat(140),
+  ].join("\n");
+  assert.equal(wrapComments(keep, 60), keep);
+  const t = tidyLua("if a then\n-- " + "word ".repeat(40).trim() + "\nend");
+  assert.ok(t.split("\n").every((l) => l.length <= 100), "wrapped lines keep their indent and fit");
+  assert.equal(tidyLua(t), t, "a second Tidy changes nothing");
 });

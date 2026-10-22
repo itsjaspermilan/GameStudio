@@ -1,5 +1,7 @@
--- The base of every enemy. A kind (a file in entities/enemies/) builds on this and gives its numbers (hp, speed, touch damage, the experience it drops,
--- its hit radius) and, if it does anything but walk toward the player, a think() method that returns the velocity it wants this step.
+-- The base of every enemy. A kind (a file in entities/enemies/) builds on this and gives its
+-- numbers (hp, speed, touch damage, the experience it drops, its hit radius) and, if it does
+-- anything but walk toward the player, a think() method that returns the velocity it wants this
+-- step.
 --   cap    the most of this kind that may be alive at once (a director rule, read with gs.defaults)
 --   group  how many appear together
 --   split  what it breaks into when killed
@@ -80,7 +82,8 @@ function Enemy:kill()
   self:destroy()
 end
 
--- touching the player hurts them and shoves the enemy back (ghosts and enemies still warning cannot)
+-- touching the player hurts them and shoves the enemy back (ghosts and enemies still warning
+-- cannot)
 function Enemy:on_collide_player(p)
   if self.ghosted or (self.warn and self.warn > 0) then return end
   run.hurt_player(self.dmg, self.kind)

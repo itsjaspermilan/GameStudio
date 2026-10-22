@@ -1,4 +1,5 @@
--- draw.lua: drawing a Panel Pop board and a Doc Capsule bottle, plus the little effects (sparks, floating text) that belong to a board.
+-- draw.lua: drawing a Panel Pop board and a Doc Capsule bottle, plus the little effects (sparks,
+-- floating text) that belong to a board.
 local PP = require "lib.util"
 local PL = require "lib.pl"
 local DM = require "lib.dm"
@@ -13,7 +14,8 @@ local DRAW = {}
 local PCOL = { 6, 14, 18, 22, 26, 30 }
 DRAW.PCOL = PCOL
 
--- ---------------------------------------------------------------- effects stored on a board / bottle: b.fx
+-- ---------------------------------------------------------------- effects stored on a board /
+-- bottle: b.fx
 function DRAW.fx_text(b, x, y, s, col, life, sc)
   b.fx = b.fx or {}
   b.fx[#b.fx + 1] = { kind = "text", x = x, y = y, s = s, col = col or 3, life = life or 60, max = life or 60, sc = sc or 1 }
@@ -49,7 +51,8 @@ local function fx_draw(b, ox, oy)
 end
 DRAW.fx_step = fx_step
 
--- ---------------------------------------------------------------- Panel Pop board (96 x 192 at x, y)
+-- ---------------------------------------------------------------- Panel Pop board (96 x 192 at x,
+-- y)
 local function garbage_piece(g, rr, cc)
   local base = g.metal and GARBAGE_PIECES or 0
   if g.h == 1 then return base + 9 + (cc == 0 and 0 or cc == g.w - 1 and 2 or 1) end
@@ -138,7 +141,8 @@ function DRAW.pl_board(b, x, y, o)
   if b.danger and (tick // 10) % 2 == 0 then txt("!", x + 90, y - 16, 6) end
 end
 
--- ---------------------------------------------------------------- Doc Capsule bottle (96 x 192 at x, y; cells are 12 pixels)
+-- ---------------------------------------------------------------- Doc Capsule bottle (96 x 192 at
+-- x, y; cells are 12 pixels)
 local function cell_frame(x, f) end
 local function pill_frame(c, ori)
   local idx = ({ s = 0, l = 1, r = 2, u = 3, d = 4 })[ori] or 0

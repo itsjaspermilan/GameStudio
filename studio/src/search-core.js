@@ -154,3 +154,44 @@ export function reindent(text, unit = "  ") {
   });
   return out.join("\n");
 }
+
+// ---------- the formatter: comments that fit a column ----------
+export const COMMENT_WIDTH = 100;
+
+// Comment lines longer than `width` are broken between words. What runs over goes in front of the next comment line when that line
+// carries on the same sentence (same indent, starts in lower case), so a paragraph stays a paragraph; otherwise it gets a line of its own.
+// Earlier line breaks are kept, so lists and short lines stay as they were. Only whole-line `-- ` comments change: code with a comment
+// after it, `---` annotations, indented comment text (examples, tables) and long strings or `--[[ ]]` comments stay as they are.
+export function wrapComments(text, width = COMMENT_WIDTH) {
+  const lines = String(text).split("\n"), out = [];
+  let open = null, carry = null; // carry: { indent, words } still to be placed
+  const plain = (line) => line.match(/^(\s*)-- (\S.*)$/);
+  const flush = () => { if (carry) { emit(carry.indent, carry.words); carry = null; } };
+  const emit = (indent, words) => {
+    let cur = "";
+    for (const w of words) {
+      if (cur && (indent + "-- " + cur + " " + w).length > width) { out.push(indent + "-- " + cur); cur = w; } else cur = cur ? cur + " " + w : w;
+    }
+    if (cur) out.push(indent + "-- " + cur);
+  };
+  for (const line of lines) {
+    const inLong = !!open;
+    open = codeOf(line, open).open;
+    const m = !inLong && !line.trimStart().startsWith("---") && !line.trimStart().startsWith("--[") ? plain(line) : null;
+    if (!m) { flush(); out.push(line); continue; }
+    const [, indent, body] = m;
+    let words = body.split(" ");
+    if (carry && carry.indent === indent && /^[a-z(]/.test(body)) { words = carry.words.concat(words); carry = null; } else flush();
+    if ((indent + "-- " + words.join(" ")).length <= width) { out.push(indent + "-- " + words.join(" ")); continue; }
+    // fill this line, keep the rest for the next one
+    let cur = words[0], k = 1;
+    while (k < words.length && (indent + "-- " + cur + " " + words[k]).length <= width) cur += " " + words[k++];
+    out.push(indent + "-- " + cur);
+    carry = k < words.length ? { indent, words: words.slice(k) } : null;
+  }
+  flush();
+  return out.join("\n");
+}
+
+// The Tidy button: indentation first, then comments wrapped to the column.
+export const tidyLua = (text, width = COMMENT_WIDTH) => wrapComments(reindent(text), width);

@@ -1,5 +1,7 @@
--- Drawing helpers for the menus and the heads-up display. Colors are numbers from the console's palette (0 black, 3 white, 22 teal, ...).
--- Text never leaves its container: `limit` is the x the text may not pass; what does not fit is cut off. GS_TEXTAUDIT=1 reports every cut (see lib/debug.lua).
+-- Drawing helpers for the menus and the heads-up display. Colors are numbers from the console's
+-- palette (0 black, 3 white, 22 teal, ...).
+-- Text never leaves its container: `limit` is the x the text may not pass; what does not fit is cut
+-- off. GS_TEXTAUDIT=1 reports every cut (see lib/debug.lua).
 local floor, max, min = math.floor, math.max, math.min
 local SW, SH = 320, 240
 
@@ -68,7 +70,8 @@ function M.dot(x, y, w, h, ci, alpha) gs.draw.rect(x, y, w, h, tint(ci, alpha)) 
 function M.line(x1, y1, x2, y2, ci, alpha) gs.draw.line(x1, y1, x2, y2, tint(ci, alpha)) end
 function M.rgba(r, g, b, a) return { r, g, b, a } end
 
--- a scrolling starfield for the menus: a far layer and a nearer dust layer, both 256 pixels square and repeating
+-- a scrolling starfield for the menus: a far layer and a nearer dust layer, both 256 pixels square
+-- and repeating
 function M.menu_background(bg, tick, speed)
   local far, dust = gs.image("tilesets/ts_bg_" .. bg .. ".png"), gs.image("tilesets/ts_dust.png")
   local t = tick * (speed or 0.3)

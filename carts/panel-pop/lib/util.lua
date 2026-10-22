@@ -1,5 +1,6 @@
--- util.lua: drawing helpers, sound helpers and the save file. Everything is plain Lua tables drawn straight with gs.tile / gs.rect:
--- boards hold hundreds of cells and engine instances would cost far more.
+-- util.lua: drawing helpers, sound helpers and the save file. Everything is plain Lua tables drawn
+-- straight with gs.tile / gs.rect: boards hold hundreds of cells and engine instances would cost
+-- far more.
 local art = require "lib.art"
 local ART, BG_COUNT, PAL = art.ART, art.BG_COUNT, art.PAL
 local floor, max, min = math.floor, math.max, math.min
@@ -108,7 +109,8 @@ function PP.rec_best(key, i, val)
 end
 
 -- ---------------------------------------------------------------- input
--- GS_KEYS="a,down,a,wait60,left" feeds scripted presses (one every GS_KEYGAP frames, default 8) in place of the pad, for testing menus without a controller
+-- GS_KEYS="a,down,a,wait60,left" feeds scripted presses (one every GS_KEYGAP frames, default 8) in
+-- place of the pad, for testing menus without a controller
 local keys, key_i, key_t, key_now = {}, 0, 0, nil
 for k in (os.getenv("GS_KEYS") or ""):gmatch("[^,]+") do keys[#keys + 1] = k end
 local key_gap = tonumber(os.getenv("GS_KEYGAP") or "8") or 8

@@ -1,4 +1,5 @@
--- Sentinel: a slow turret. It keeps coming until it is 150 pixels away and then fires a ring of eight shots every 2.4 seconds.
+-- Sentinel: a slow turret. It keeps coming until it is 150 pixels away and then fires a ring of
+-- eight shots every 2.4 seconds.
 local Enemy = require "entities.enemy"
 local run = require "lib.run"
 

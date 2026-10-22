@@ -1,5 +1,7 @@
--- GS_TEXTAUDIT=1: draws every menu screen with every cursor position, with all ranks and a few pilots, and prints each piece of text that had to be cut off.
--- Scenes are classes, so their draw_ui can be called with a made-up `self`: no need to go to the screens one by one.
+-- GS_TEXTAUDIT=1: draws every menu screen with every cursor position, with all ranks and a few
+-- pilots, and prints each piece of text that had to be cut off.
+-- Scenes are classes, so their draw_ui can be called with a made-up `self`: no need to go to the
+-- screens one by one.
 local data = require "lib.data"
 local run = require "lib.run"
 local save = require "lib.save"

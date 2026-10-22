@@ -1,4 +1,5 @@
--- Asks for one button at a time and stores the raw button numbers with gs.pad_set (the runtime's own call, not a framework one).
+-- Asks for one button at a time and stores the raw button numbers with gs.pad_set (the runtime's
+-- own call, not a framework one).
 local STEPS = {
   { "a", "A  (main action)" }, { "b", "B  (back)" }, { "x", "X" }, { "y", "Y" },
   { "l", "L  (left shoulder)" }, { "r", "R  (right shoulder)" }, { "start", "START" }, { "select", "SELECT" },
@@ -30,7 +31,8 @@ function Main:update(dt)
     return
   end
   self.idle = 0
-  -- a button already taken by an earlier name skips this one (a device without sticks has no L3 or R3)
+  -- a button already taken by an earlier name skips this one (a device without sticks has no L3 or
+  -- R3)
   if not self.used[n] then self.used[n] = true; self.got[self.step] = n end
   self.step = self.step + 1
   if self.step > #STEPS then self:save() end

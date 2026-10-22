@@ -1,4 +1,5 @@
--- A short animation (an explosion, a spark, a puff): it plays its sprite once over `life` seconds and goes away. Made by run.fx.
+-- A short animation (an explosion, a spark, a puff): it plays its sprite once over `life` seconds
+-- and goes away. Made by run.fx.
 local Fx = gs.entity{
   tags = { "fx" },
   depth = 10,

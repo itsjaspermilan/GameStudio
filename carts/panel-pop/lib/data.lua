@@ -1,18 +1,21 @@
--- data.lua: the names and numbers of Panel Pop & Doc Capsule (opponents, difficulties, stages). To rebalance the game this is the file to edit.
+-- data.lua: the names and numbers of Panel Pop & Doc Capsule (opponents, difficulties, stages). To
+-- rebalance the game this is the file to edit.
 local art = require "lib.art"
 local BG_COUNT, CHAR_IDS = art.BG_COUNT, art.CHAR_IDS
 local M = {}
 
--- ---------------------------------------------------------------- difficulty (what the player picks)
--- colors: how many kinds of panel. speed: where Endless starts. cpu: how much better the CPU opponents play (added to their level).
+-- ---------------------------------------------------------------- difficulty (what the player
+-- picks) colors: how many kinds of panel. speed: where Endless starts. cpu: how much better the CPU
+-- opponents play (added to their level).
 M.DIFFS = {
   { name = "EASY",   colors = 5, speed = 1, cpu = -0.25 },
   { name = "NORMAL", colors = 5, speed = 4, cpu = 0 },
   { name = "HARD",   colors = 6, speed = 8, cpu = 0.2 },
 }
 
--- ---------------------------------------------------------------- Panel Pop opponents, in ladder order. Chars index CHAR_IDS (1 = Pip, the player).
--- gap: frames per cursor step. cool: frames between moves. think: frames between decisions. err: chance of a worse move.
+-- ---------------------------------------------------------------- Panel Pop opponents, in ladder
+-- order. Chars index CHAR_IDS (1 = Pip, the player). gap: frames per cursor step. cool: frames
+-- between moves. think: frames between decisions. err: chance of a worse move.
 M.OPPONENTS = {
   { char = 2, name = "BLOOP", speed = 1, bg = 4, gap = 15, cool = 30, think = 40, err = 0.55, chains = false, raise = false, hi = "Blip blop!", lo = "Bloop... sleepy." },
   { char = 3, name = "FUZZ",  speed = 2, bg = 6, gap = 12, cool = 22, think = 32, err = 0.40, chains = false, raise = true,  hi = "Fluff you up!", lo = "Aww, fuzzy loss." },
@@ -24,15 +27,18 @@ M.OPPONENTS = {
   { char = 9, name = "SHADE", speed = 14, bg = 8, gap = 4, cool = 5,  think = 8,  err = 0.03, chains = true,  raise = true,  hi = "Bow to the king.", lo = "The crown is yours." },
 }
 
--- ---------------------------------------------------------------- Doc Capsule opponents (the same characters, a different game)
+-- ---------------------------------------------------------------- Doc Capsule opponents (the same
+-- characters, a different game)
 M.DM_SPEEDS = { "LOW", "MED", "HI" }
 M.DM_OPPONENTS = {
   { gap = 14, err = 0.55, think = 40 }, { gap = 11, err = 0.42, think = 32 }, { gap = 9, err = 0.32, think = 26 }, { gap = 7, err = 0.24, think = 20, look = true },
   { gap = 6, err = 0.16, think = 16, look = true }, { gap = 5, err = 0.10, think = 12, look = true }, { gap = 4, err = 0.05, think = 9, look = true }, { gap = 3, err = 0.02, think = 6, look = true },
 }
 
--- ---------------------------------------------------------------- Stage Clear: break every garbage block to clear the stage
--- Each stage lays garbage blocks over a small stack. speed is the rise level, rain is seconds between extra blocks that drop in (0 = none).
+-- ---------------------------------------------------------------- Stage Clear: break every garbage
+-- block to clear the stage
+-- Each stage lays garbage blocks over a small stack. speed is the rise level, rain is seconds
+-- between extra blocks that drop in (0 = none).
 M.STAGE_COUNT = 15
 function M.STAGE_DEF(i)
   local d = { n = i, speed = 1 + math.floor(i * 1.3), colors = i >= 9 and 6 or 5, bg = (i - 1) % BG_COUNT + 1, rain = i >= 4 and (46 - i * 2) or 0, rows = {} }
@@ -52,7 +58,8 @@ function M.STAGE_DEF(i)
   return d
 end
 
--- ---------------------------------------------------------------- the little tips shown while loading and on the results screen
+-- ---------------------------------------------------------------- the little tips shown while
+-- loading and on the results screen
 M.TIPS = {
   "Match 3 or more panels in a row or column.",
   "Hold B to raise the stack faster.",

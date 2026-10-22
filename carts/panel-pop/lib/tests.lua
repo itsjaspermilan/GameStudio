@@ -28,7 +28,8 @@ local function cell_k(b, r, c) local x = b.g[r][c]; return x and not x.gb and x.
 -- puzzle rows are bottom aligned, so row i of n is at NR - 1 - (n - i)
 local function row_of(b, rows, i) return NR - 1 - (#rows - i) end
 
--- ---------------------------------------------------------------- the puzzle solver (a static copy of the rules, then checked on the real board)
+-- ---------------------------------------------------------------- the puzzle solver (a static copy
+-- of the rules, then checked on the real board)
 local PR, PC = 6, 6
 local function pcopy(g) local o = {}; for r = 1, PR do o[r] = {}; for c = 1, PC do o[r][c] = g[r][c] end end; return o end
 local function pgravity(g)
@@ -81,7 +82,8 @@ local function live_check(rows, path)
   if not settle(b, 600) then return false end
   for _, m in ipairs(path) do
     local r, c = m[1], m[2]
-    -- the static board has PR rows, bottom aligned like the puzzle: row r of PR is at NR - 1 - (PR - r)
+    -- the static board has PR rows, bottom aligned like the puzzle: row r of PR is at NR - 1 - (PR
+    -- - r)
     b.cur_r, b.cur_c = NR - 1 - (PR - r), c
     if not PL.swap(b) then return false end
     if not settle(b, 3000) then return false end

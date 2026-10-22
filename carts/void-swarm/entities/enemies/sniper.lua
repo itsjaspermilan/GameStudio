@@ -1,4 +1,5 @@
--- Sniper: keeps far away (130 to 175 pixels). It takes aim for two seconds (a white line shows where) and then fires one fast, hard shot.
+-- Sniper: keeps far away (130 to 175 pixels). It takes aim for two seconds (a white line shows
+-- where) and then fires one fast, hard shot.
 local Enemy = require "entities.enemy"
 local run = require "lib.run"
 

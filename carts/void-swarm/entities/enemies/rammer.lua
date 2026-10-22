@@ -1,4 +1,5 @@
--- Rammer: walks, then stops and aims (a red line shows where), then charges in a straight line at five times its speed.
+-- Rammer: walks, then stops and aims (a red line shows where), then charges in a straight line at
+-- five times its speed.
 local Enemy = require "entities.enemy"
 
 local Rammer = gs.entity(Enemy, {

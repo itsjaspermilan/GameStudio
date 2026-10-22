@@ -1,4 +1,5 @@
--- One of the blades of the orbit weapon. lib/weapons.lua moves them around the player every step and sets their damage and size.
+-- One of the blades of the orbit weapon. lib/weapons.lua moves them around the player every step
+-- and sets their damage and size.
 local run = require "lib.run"
 local ui = require "lib.ui"
 

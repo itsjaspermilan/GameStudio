@@ -1,5 +1,7 @@
--- A shot fired by the player's pulse blaster, scatter cannon or missile launcher. The kinds (bolt, pellet, missile) build on this.
--- It flies straight (the engine moves it by vx and vy), hurts what it touches, and is used up when it has pierced enough enemies or its time runs out.
+-- A shot fired by the player's pulse blaster, scatter cannon or missile launcher. The kinds (bolt,
+-- pellet, missile) build on this.
+-- It flies straight (the engine moves it by vx and vy), hurts what it touches, and is used up when
+-- it has pierced enough enemies or its time runs out.
 local run = require "lib.run"
 
 local Shot = gs.entity{

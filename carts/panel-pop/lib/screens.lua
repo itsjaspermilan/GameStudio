@@ -1,6 +1,9 @@
--- screens.lua: title, menus, setup screens, puzzle select, records, results and the ending. Each screen is a scene (scenes/<name>.lua is
--- `return require("lib.screens").scene("<name>")`); they share the menu cursor and helpers kept here. scenes/start.lua picks the first one.
--- With GS_BOT=1 the game plays itself (see the end of this file for the environment variables that start a game directly).
+-- screens.lua: title, menus, setup screens, puzzle select, records, results and the ending. Each
+-- screen is a scene (scenes/<name>.lua is
+-- `return require("lib.screens").scene("<name>")`); they share the menu cursor and helpers kept
+-- here. scenes/start.lua picks the first one.
+-- With GS_BOT=1 the game plays itself (see the end of this file for the environment variables that
+-- start a game directly).
 local floor, sin, max, min = math.floor, math.sin, math.max, math.min
 local PP = require "lib.util"
 local PG = require "lib.game"
@@ -26,7 +29,8 @@ local setup            -- the setup screen being shown: { title, rows, start, ba
 local menu_bg = 1
 
 local MENU_SCREENS = { main = true, pp = true, dm = true, setup = true, puzzles = true, records = true, howto = true }
--- leave for another screen; it starts at the next step (state changes now, so a fast-forward loop over the game stops at once)
+-- leave for another screen; it starts at the next step (state changes now, so a fast-forward loop
+-- over the game stops at once)
 local function go(name, arg)
   state = name
   gs.goto_scene("scenes." .. name, nil, arg)
@@ -192,7 +196,8 @@ S.dm = {
   end,
 }
 
--- ---------------------------------------------------------------- setup screens: a few rows to change with left / right, then START
+-- ---------------------------------------------------------------- setup screens: a few rows to
+-- change with left / right, then START
 local function range_labels(a, b) local t = {}; for i = a, b do t[#t + 1] = tostring(i) end; return t end
 local function diff_labels() local t = {}; for i, d in ipairs(DIFFS) do t[i] = d.name end; return t end
 
@@ -549,7 +554,8 @@ function M.scene(name)
   return Scene
 end
 
--- The first scene: loads the save, then shows the title, or (for tests) runs the self-test, starts a game directly or opens one screen.
+-- The first scene: loads the save, then shows the title, or (for tests) runs the self-test, starts
+-- a game directly or opens one screen.
 function M.start()
   PP.load_game()
   if os.getenv("GS_SELFTEST") then tests.selftest(); return end

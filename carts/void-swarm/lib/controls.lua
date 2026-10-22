@@ -1,4 +1,5 @@
--- What the player asks the ship to do: a direction and a dash. The buttons by default; with GS_BOT=1 a bot steers instead (see lib/bot.lua).
+-- What the player asks the ship to do: a direction and a dash. The buttons by default; with
+-- GS_BOT=1 a bot steers instead (see lib/bot.lua).
 local M = { bot = nil }
 
 function M.move()

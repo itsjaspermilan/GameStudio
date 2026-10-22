@@ -1,5 +1,6 @@
--- The state of one run (R) and everything several kinds of entity share: the player's stats, damage, explosions, drops, level-up choices and
--- the end of a run. R holds the run; R.P (also run.P) is the player entity; progress between runs is in lib/save.lua.
+-- The state of one run (R) and everything several kinds of entity share: the player's stats,
+-- damage, explosions, drops, level-up choices and the end of a run. R holds the run; R.P (also
+-- run.P) is the player entity; progress between runs is in lib/save.lua.
 local data = require "lib.data"
 local save = require "lib.save"
 local audio = require "lib.audio"
@@ -45,7 +46,8 @@ function M.build_mods()
   return m
 end
 
--- what a weapon does right now: its base numbers plus the in-run levels, the permanent paths and the player's modifiers
+-- what a weapon does right now: its base numbers plus the in-run levels, the permanent paths and
+-- the player's modifiers
 function M.weapon_stats(w)
   local def, wi = data.WEAPONS[w.id], M.weapon_index(w.id)
   local acc = { dmg = 0, cd = 0, area = 0, speed = 0, dur = 0, count = 0, pierce = 0 }
@@ -106,7 +108,8 @@ function M.ring_pos(dist)
   return M.P.x + cos(a) * dist, M.P.y + sin(a) * dist, a
 end
 
--- kind is a file in entities/enemies/ ("grub"). free: the cap on enemies does not stop splits and summons from a little over it.
+-- kind is a file in entities/enemies/ ("grub"). free: the cap on enemies does not stop splits and
+-- summons from a little over it.
 function M.spawn_enemy(kind, x, y, free)
   local n = gs.count("enemy")
   if n >= ENEMY_CAP + 20 or (n >= ENEMY_CAP and not free) then return nil end
@@ -234,7 +237,8 @@ function M.reroll()
   audio.sfx("sfx_error", 1)
 end
 
--- after a choice: another level-up may be waiting (a big gem, a head start), otherwise back to the run
+-- after a choice: another level-up may be waiting (a big gem, a head start), otherwise back to the
+-- run
 function M.next_after_choice()
   local R, P = M.R, M.P
   if P.xp >= M.xp_need(P.lvl) then
