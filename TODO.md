@@ -6,7 +6,7 @@ Open items, newest thinking first. Cross things out (or delete them) when they a
 
 Housekeeping
 - [x] `main` (one fresh commit) is pushed to `git@github.com:itsjaspermilan/GameStudio.git`.
-- [ ] Void Swarm, Breakout, Panel Pop, Button test and Pad setup were pushed again on 2026-10-22 (plain launchers, new runtime with HOTKEY + Start, `.keys` files beside each launcher). Look at Void Swarm's new art and walk on the device. `carts/stress.cart` on the console is an old plain `main.lua` test the runtime no longer runs (no launcher): delete it when convenient.
+- [ ] Void Swarm, Breakout, Panel Pop, Button test and Pad setup were pushed again on 2026-10-22 (plain launchers, new runtime with HOTKEY + Start, `.keys` files beside each launcher). Look at Void Swarm's new art and walk on the device. The old `stress.cart` test is deleted from the console.
 - [ ] Void Swarm was only measured on the device in short early sectors. Play a late sector (7+, past 5 minutes) with `GS_PERF=1` and read `last-run-void-swarm.log`.
 
 Games
