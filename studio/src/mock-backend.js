@@ -28,6 +28,14 @@ async function seed() {
         const edge = x === 0 || y === 0 ? 40 : 0;
         setPixel(ts, 0, (t % 4) * 16 + x, Math.floor(t / 4) * 16 + y, [Math.min(255, cols[t][0] + edge), Math.min(255, cols[t][1] + edge), Math.min(255, cols[t][2] + edge), 255]);
       }
+  // two panel styles for the layout editor: 8x8 tiles, 3x3 blocks side by side (a teal edge, a gold edge), dark see-through middles
+  const ui = createTileset("ts_ui", 8, 8, 6, 3);
+  for (let b = 0; b < 2; b++)
+    for (let y = 0; y < 24; y++)
+      for (let x = 0; x < 24; x++) {
+        const edge = x === 0 || y === 0 || x === 23 || y === 23;
+        setPixel(ui, 0, b * 24 + x, y, edge ? (b ? [245, 217, 74, 255] : [69, 209, 197, 255]) : [10, 12, 20, 200]);
+      }
   carts.demo = { files: {
     "game.lua": { text: 'return gs.game{ title = "Demo", console = "dot", start = "scenes.main" }\n' },
     "scenes/main.lua": { text: 'local Main = gs.scene{}\nfunction Main:enter()\n  gs.spawn("player", 160, 120)\n  gs.spawn("enemies.grub", 40, 40)\nend\nreturn Main\n' },
@@ -39,6 +47,8 @@ async function seed() {
     "sprites/spr_demo.json": { text: JSON.stringify(toJSON(s), null, 2) },
     "tilesets/ts_demo.json": { text: JSON.stringify({ image: "tilesets/ts_demo.png", tile_w: 16, tile_h: 16 }) },
     "tilesets/ts_demo.png": { b64: await encodeSpritePng(ts) },
+    "tilesets/ts_ui.json": { text: JSON.stringify({ image: "tilesets/ts_ui.png", tile_w: 8, tile_h: 8 }) },
+    "tilesets/ts_ui.png": { b64: await encodeSpritePng(ui) },
     "sprites/spr_demo.png": { b64: await encodeSpritePng(s) },
   } };
   carts.hello = { files: { "main.lua": { text: LUA } } };

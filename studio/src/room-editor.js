@@ -21,11 +21,12 @@ const TOOLS = [
 ];
 // what each tool places and selects
 const KIND_OF = { entities: "entities", texts: "texts", pictures: "pictures", panels: "panels" };
+// what a drag onto the layout carries (from its own palettes and from the studio's side tree): { what: "entity" | "sprite", name }
+export const PLACE = "application/x-gs-place";
 
 export function createRoomEditor(root, hooks = {}) {
   root.innerHTML = `
     <div class="se-left re-left">
-      <div class="re-tools"></div>
       <div class="re-panel re-tiles-panel">
         <h3>Layers</h3>
         <div class="re-layers"></div>
@@ -35,8 +36,8 @@ export function createRoomEditor(root, hooks = {}) {
         <p class="se-hint re-tilehint"></p>
       </div>
       <div class="re-panel re-ents-panel">
-        <h3>Entity to place</h3>
-        <div class="re-entlist"></div>
+        <h3>Entities</h3>
+        <div class="re-entlist re-thumbs"></div>
         <p class="se-hint re-ents-hint"></p>
       </div>
       <div class="re-panel re-texts-panel">
@@ -44,15 +45,20 @@ export function createRoomEditor(root, hooks = {}) {
         <p class="se-hint">Click where the text goes. Each text gets a name, so the code can change it: <code>self.title.text = "GO!"</code>.</p>
       </div>
       <div class="re-panel re-pics-panel">
-        <h3>Sprite to place</h3>
-        <div class="re-spritelist"></div>
-        <p class="se-hint">A picture is a sprite with no code of its own: a logo, a sign, a decoration. The code can move it: <code>self.logo.y = 40</code>.</p>
+        <h3>Sprites</h3>
+        <div class="re-spritelist re-thumbs"></div>
+        <p class="se-hint">Click one, then click in the layout; or drag it in. A picture is a sprite with no code of its own: a logo, a sign, a decoration.</p>
       </div>
       <div class="re-panel re-panels-panel">
-        <h3>Panel tiles</h3>
-        <select class="re-panel-ts" title="The tileset the panel's tiles come from"></select>
-        <div class="re-tilepal"><canvas class="re-blockcanvas"></canvas></div>
-        <p class="se-hint">Click the top-left tile of a 3 × 3 block: its corners stay as drawn and the edges and middle repeat to fill the panel. One tile high, a panel is a bar made of the block's top row. Then drag in the layout to draw one; with a panel selected, a click here changes its tiles.</p>
+        <h3>Panel styles</h3>
+        <select class="re-panel-ts" title="The tileset the panels' tiles come from"></select>
+        <div class="re-styles"></div>
+        <p class="se-hint re-styles-hint">Pick a style, then drag in the layout to draw a panel. With a panel selected, a click on a style changes it.</p>
+        <details class="re-anytiles">
+          <summary title="For tilesets whose 3 × 3 blocks do not start every third tile">Start at any tile</summary>
+          <div class="re-tilepal re-tilepal-wide"><canvas class="re-blockcanvas"></canvas></div>
+          <p class="se-hint">Click the top-left tile of a 3 × 3 block. Its corners stay as drawn; the edges and middle repeat to fill the panel.</p>
+        </details>
       </div>
       <div class="re-panel re-paths-panel">
         <h3>Paths</h3>
@@ -63,6 +69,7 @@ export function createRoomEditor(root, hooks = {}) {
       </div>
     </div>
     <div class="se-center">
+      <div class="re-tools" role="toolbar"></div>
       <div class="se-canvaswrap re-wrap"><canvas class="se-canvas re-canvas"></canvas></div>
       <div class="se-status re-status"></div>
     </div>
@@ -319,9 +326,9 @@ export function createRoomEditor(root, hooks = {}) {
     $("[data-act=addlayer]").disabled = !names.length;
     drawTilePalette();
     // things to place
-    pickList($(".re-entlist"), hooks.getEntities ? hooks.getEntities() : [], entName, "No entities in this game yet.", (n) => { entName = n; if (!(n in looks)) loadAssets(); });
-    pickList($(".re-spritelist"), hooks.getSprites ? hooks.getSprites() : [], spriteName, "No sprites in this game yet.", (n) => { spriteName = n; if (!(n in pics)) loadAssets(); });
-    $(".re-ents-hint").textContent = kind === "layout" ? "Each one is made where you put it when the scene starts. Give one a name to use it in the code (self.name)." : "Each one starts where you put it when gs.load_room builds the room.";
+    if (tool === "entities") pickList($(".re-entlist"), "entity", hooks.getEntities ? hooks.getEntities() : [], entName, "No entities in this game yet.", (n) => { entName = n; });
+    if (tool === "pictures") pickList($(".re-spritelist"), "sprite", hooks.getSprites ? hooks.getSprites() : [], spriteName, "No sprites in this game yet.", (n) => { spriteName = n; });
+    $(".re-ents-hint").textContent = (kind === "layout" ? "Click one, then click in the layout; or drag it in (from here or from the side tree). Give one a name to use it in the code (self.name)." : "Each one starts where you put it when gs.load_room builds the room.");
     // paths
     const pbox = $(".re-pathlist"); pbox.replaceChildren();
     for (const [k, p] of Object.entries(room.paths)) {
@@ -363,14 +370,32 @@ export function createRoomEditor(root, hooks = {}) {
     renderSelected();
   }
 
-  function pickList(box, list, current, empty, pick) {
+  // what can be placed, as pictures with their names; click to choose, or drag onto the layout
+  function pickList(box, what, list, current, empty, pick) {
     box.replaceChildren();
     if (!list.length) { const p = document.createElement("p"); p.className = "se-hint"; p.textContent = empty; box.appendChild(p); }
+    const store = what === "entity" ? looks : pics, load = what === "entity" ? hooks.entityLook : hooks.spriteLook;
+    let missing = false;
     for (const n of list) {
-      const b = document.createElement("button"); b.className = "re-pick" + (n === current ? " active" : ""); b.textContent = n;
+      const b = document.createElement("button"); b.className = "re-thumb" + (n === current ? " active" : ""); b.title = n; b.draggable = true;
+      const c = document.createElement("canvas"); c.width = c.height = 32;
+      const look = store[n];
+      if (n in store) { if (look) thumb(c, look); } else missing = true;
+      const label = document.createElement("span"); label.textContent = n.split(/[/.]/).pop();
+      b.append(c, label);
       b.onclick = () => { pick(n); renderSide(); };
+      b.addEventListener("dragstart", (e) => { e.dataTransfer.setData(PLACE, JSON.stringify({ what, name: n })); e.dataTransfer.effectAllowed = "copy"; });
       box.appendChild(b);
     }
+    // fetch the pictures not seen yet, then draw the list again
+    if (missing && load) Promise.all(list.filter((n) => !(n in store)).map(async (n) => { try { store[n] = await load(n); } catch { store[n] = null; } })).then(() => renderSide());
+  }
+  // the first frame of a look, as big as fits a 32 x 32 square, pixels kept sharp
+  function thumb(c, look) {
+    const g = c.getContext("2d"), k = Math.max(0.25, Math.min(4, Math.floor(32 / Math.max(look.fw, look.fh)) || 32 / Math.max(look.fw, look.fh)));
+    g.imageSmoothingEnabled = false;
+    const w = look.fw * k, h = look.fh * k;
+    g.drawImage(look.img, 0, 0, look.fw, look.fh, (32 - w) / 2, (32 - h) / 2, w, h);
   }
 
   function renderSelected() {
@@ -454,8 +479,9 @@ export function createRoomEditor(root, hooks = {}) {
     if ([...tsSel.options].map((o) => o.value).join("|") !== names.join("|")) tsSel.replaceChildren(...names.map((n) => new Option(n, n)));
     tsSel.value = panelTs;
     const t = tilesets[panelTs], c = $(".re-blockcanvas");
-    if (!t) { c.width = c.height = 0; if (panelTs && !(panelTs in tilesets)) loadAssets(); return; }
-    const k = Math.max(1, Math.floor(128 / (t.cols * t.tw)));
+    if (!t) { c.width = c.height = 0; $(".re-styles").replaceChildren(); if (panelTs && !(panelTs in tilesets)) loadAssets(); return; }
+    drawStyles(t);
+    const k = Math.max(2, Math.floor(160 / (t.cols * t.tw)));
     c.width = t.img.width * k; c.height = t.img.height * k;
     const g = c.getContext("2d"); g.imageSmoothingEnabled = false;
     g.drawImage(t.img, 0, 0, c.width, c.height);
@@ -465,11 +491,46 @@ export function createRoomEditor(root, hooks = {}) {
       const r = c.getBoundingClientRect(), sx = c.width / r.width;
       const col = Math.floor(((ev.clientX - r.left) * sx) / (t.tw * k)), row = Math.floor(((ev.clientY - r.top) * sx) / (t.th * k));
       const v = row * t.cols + col;
-      if (v < 0 || v >= t.count) return;
-      panelTile = v;
-      const p = selected() && sel.kind === "panels" ? selected() : null;
-      if (p) commit(() => { p.tileset = panelTs; p.tile = v; }); else drawBlockPicker();
+      if (v >= 0 && v < t.count) choosePanelTile(v);
     };
+  }
+
+  // The tileset's 3 x 3 blocks that start every third tile, each shown as a small panel; empty ones are left out.
+  function drawStyles(t) {
+    const box = $(".re-styles"); box.replaceChildren();
+    const blocks = panelBlocks(t), rows = Math.floor(t.img.height / t.th);
+    $(".re-styles-hint").textContent = blocks.length ? "Pick a style, then drag in the layout to draw a panel. With a panel selected, a click on a style changes it."
+      : `${t.cols} × ${rows} tiles: no 3 × 3 blocks to make panels of. Draw them in the tileset, or start at any tile below.`;
+    for (const tile0 of blocks) {
+      const b = document.createElement("button"); b.className = "re-style" + (tile0 === panelTile ? " active" : ""); b.title = `tiles from ${tile0}`;
+      const c = document.createElement("canvas"), k = Math.max(1, Math.floor(16 / t.tw) || 1);
+      c.width = 5 * t.tw * k; c.height = 3 * t.th * k; // the middle column twice more, so it shows how it stretches
+      const g = c.getContext("2d"); g.imageSmoothingEnabled = false;
+      [0, 1, 1, 1, 2].forEach((pc, x) => [0, 1, 2].forEach((pr) => {
+        const v = tile0 + pr * t.cols + pc;
+        g.drawImage(t.img, (v % t.cols) * t.tw, Math.floor(v / t.cols) * t.th, t.tw, t.th, x * t.tw * k, pr * t.th * k, t.tw * k, t.th * k);
+      }));
+      b.appendChild(c);
+      b.onclick = () => choosePanelTile(tile0);
+      box.appendChild(b);
+    }
+  }
+  const blockCache = new Map();
+  function panelBlocks(t) {
+    if (blockCache.has(t)) return blockCache.get(t);
+    const out = [];
+    let px = null;
+    try { const c = document.createElement("canvas"); c.width = t.img.width; c.height = t.img.height; const g = c.getContext("2d"); g.drawImage(t.img, 0, 0); px = g.getImageData(0, 0, c.width, c.height).data; } catch { /* cannot look: show them all */ }
+    const empty = (x0, y0, w, h) => { if (!px) return false; for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) if (px[(y * t.img.width + x) * 4 + 3]) return false; return true; };
+    const rows = Math.floor(t.img.height / t.th);
+    for (let r = 0; r + 3 <= rows; r += 3) for (let c = 0; c + 3 <= t.cols; c += 3) if (!empty(c * t.tw, r * t.th, 3 * t.tw, 3 * t.th)) out.push(r * t.cols + c);
+    blockCache.set(t, out);
+    return out;
+  }
+  function choosePanelTile(v) {
+    panelTile = v;
+    const p = selected() && sel.kind === "panels" ? selected() : null;
+    if (p) commit(() => { p.tileset = panelTs; p.tile = v; }); else drawBlockPicker();
   }
 
   function drawTilePalette() {
@@ -513,6 +574,23 @@ export function createRoomEditor(root, hooks = {}) {
     const clean = String(base).replace(/^(spr|sprite|ts)_/, "").replace(/[^A-Za-z0-9_]/g, "_").replace(/^(\d)/, "_$1") || "thing";
     const ok = R.nameProblem(clean, room) ? "thing" : clean;
     return R.freshName(ok, allNames());
+  }
+
+  // dropped from the palette on the left or from the studio's side tree: an entity is placed, a sprite becomes a picture
+  wrap.addEventListener("dragover", (e) => { if (room && e.dataTransfer.types.includes(PLACE)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; wrap.classList.add("drop"); } });
+  wrap.addEventListener("dragleave", () => wrap.classList.remove("drop"));
+  wrap.addEventListener("drop", (e) => {
+    wrap.classList.remove("drop");
+    const raw = e.dataTransfer.getData(PLACE); if (!raw || !room) return;
+    e.preventDefault();
+    const { what, name: n } = JSON.parse(raw), [x, y] = worldAt(e);
+    placeAt(what, n, x, y);
+  });
+  function placeAt(what, n, x, y) {
+    if (what === "entity") { entName = n; tool = "entities"; commit(() => { room.entities.push([n, snapped(x), snapped(y)]); sel = { kind: "entities", i: room.entities.length - 1 }; }); }
+    else { spriteName = n; tool = "pictures"; commit(() => { room.pictures.push({ sprite: n, x: snapped(x), y: snapped(y), name: freshName(n) }); sel = { kind: "pictures", i: room.pictures.length - 1 }; }); }
+    loadAssets();
+    root.focus({ preventScroll: true });
   }
 
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -606,8 +684,10 @@ export function createRoomEditor(root, hooks = {}) {
   function deleteSelected() { commit(() => { room[sel.kind].splice(sel.i, 1); sel = null; }); }
 
   // ---------- buttons and fields ----------
-  for (const [id, label, tip] of TOOLS) {
-    const b = document.createElement("button"); b.dataset.tool = id; b.textContent = label; b.title = tip;
+  for (const [id, label, tip, key] of TOOLS) {
+    const b = document.createElement("button"); b.dataset.tool = id; b.title = tip;
+    const k = document.createElement("kbd"); k.textContent = key.toUpperCase();
+    b.append(label, k);
     b.onclick = () => { tool = id; render(); };
     $(".re-tools").appendChild(b);
   }

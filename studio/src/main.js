@@ -36,7 +36,7 @@ import { FIRST_STEPS, parseSteps, stringifySteps, showSteps } from "./steps-core
 import { parseRoom, serializeRoom } from "./room-core.js";
 import { findInFiles, replaceInText, outline, tidyLua, applyEdits } from "./search-core.js";
 import { SPEEDS, parseInspectLine, commandText, classRows, fmtMs } from "./inspector-core.js";
-import { createRoomEditor } from "./room-editor.js";
+import { createRoomEditor, PLACE } from "./room-editor.js";
 import { GROUPS, group, validName, folderTree, movedName, resourceFiles, layoutFile, scanProject, consoleIdOf, setConsoleInGame, TEMPLATES, LAYOUT_TEMPLATE, LAYOUT_COMMENT, newGameFiles, renameProblem } from "./project-core.js";
 import { setupPanels } from "./panels.js";
 import { createPlayPanel } from "./play-panel.js";
@@ -943,9 +943,17 @@ function treeItem(g, n) {
   li.title = n;
   li.appendChild(label);
   li.onclick = () => openers[g.kind](g, n);
-  if (g.nested) {
+  // code files drag to another folder; entities and sprites also drag onto an open layout, which places them
+  const placeable = g.key === "entities" ? "entity" : g.key === "sprites" ? "sprite" : null;
+  if (g.nested || placeable) {
     li.draggable = true;
-    li.addEventListener("dragstart", (e) => { dragging = { g, name: n }; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n); li.classList.add("dragging"); });
+    li.addEventListener("dragstart", (e) => {
+      if (g.nested) dragging = { g, name: n };
+      e.dataTransfer.effectAllowed = g.nested ? "copyMove" : "copy";
+      e.dataTransfer.setData("text/plain", n);
+      if (placeable) e.dataTransfer.setData(PLACE, JSON.stringify({ what: placeable, name: n }));
+      li.classList.add("dragging");
+    });
     li.addEventListener("dragend", () => { dragging = null; li.classList.remove("dragging"); });
   }
   // a drawn pencil: the ✎ glyph comes out heavier than × and in another font on each system

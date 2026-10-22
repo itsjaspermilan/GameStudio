@@ -260,21 +260,36 @@ dialog.modal { width: 540px; }
 .size-roles button { text-align: left; display: flex; justify-content: space-between; gap: 12px; }
 .size-roles button .sr-note { color: var(--muted); font-size: 12px; }
 /* ---------- room editor ---------- */
-.re-tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
-.re-tools button { padding: 6px 0; font-size: 12px; }
+/* the layout editor: tools in a row over the canvas, the left column is the chosen tool's palette */
+.se.re { grid-template-columns: 210px 1fr 240px; }
+.re-tools { display: flex; gap: 2px; padding: 5px 8px; border-bottom: 1px solid var(--border); background: var(--panel-2); overflow-x: auto; flex: none; }
+.re-tools button { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 12px; background: transparent; border-color: transparent; white-space: nowrap; }
+.re-tools button:hover { background: var(--hover); }
 .re-tools button.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.re-tools kbd { font: 10px var(--mono); opacity: .6; }
+.re-wrap.drop { outline: 2px dashed var(--accent); outline-offset: -6px; }
+.re-thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 4px; }
+.re-thumb { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 2px; font-size: 11px; min-width: 0; cursor: grab; }
+.re-thumb canvas { width: 32px; height: 32px; image-rendering: pixelated; background: var(--surface); border-radius: 3px; }
+.re-thumb span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.re-thumb.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.re-styles { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; margin: 8px 0; }
+.re-style { padding: 4px; background: var(--surface); line-height: 0; }
+.re-style canvas { width: 100%; image-rendering: pixelated; }
+.re-style.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+.re-anytiles summary { font-size: 12px; color: var(--muted); cursor: pointer; margin: 6px 0; }
+.re-tilepal-wide { overflow-x: auto; }
+.re-blockcanvas { display: block; image-rendering: pixelated; cursor: pointer; }
+.re-tilepal-wide .re-blockcanvas { width: auto; }
+.re-panel-ts { width: 100%; }
 .re-layer { display: flex; align-items: center; gap: 4px; padding: 3px 4px; border-radius: 4px; cursor: pointer; font-size: 12px; }
 .re-layer span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .re-layer.active { background: var(--panel-2); outline: 1px solid var(--accent); }
 .re-layer input[type=checkbox] { margin: 0; }
 .re-tilepal { max-height: 220px; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; }
 .re-tilecanvas { display: block; width: 100%; image-rendering: pixelated; cursor: pointer; }
-.re-entlist { display: flex; flex-direction: column; gap: 3px; }
-.re-pick { text-align: left; font-size: 12px; padding: 3px 6px; }
-.re-pick.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .re .re-canvas { cursor: crosshair; }
 .re-props { width: 100%; margin-top: 4px; font-family: var(--mono); }
-.re-tools { grid-template-columns: repeat(3, 1fr); }
 .re-name, .re-text, .re-sprite { width: 100%; margin-top: 4px; }
 .re-name { font-family: var(--mono); }
 .re-colors { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; margin: 6px 0; }
@@ -282,7 +297,6 @@ dialog.modal { width: 540px; }
 .re-swatch.active { outline: 2px solid var(--accent); outline-offset: 1px; }
 .re-swatch.re-none { background: var(--control); color: var(--muted); font-size: 10px; line-height: 1; }
 .re-alpha { width: 110px; vertical-align: middle; }
-.re-spritelist { display: flex; flex-direction: column; gap: 3px; }
 /* Layout | Code: the two halves of a scene, in the editor's bar */
 .seg { display: inline-flex; border: 1px solid var(--control-border); border-radius: 6px; overflow: hidden; flex: none; }
 .seg button { border: none; border-radius: 0; padding: 2px 12px; font-size: 12px; background: var(--control); }
