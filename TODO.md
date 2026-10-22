@@ -6,7 +6,7 @@ Open items, newest thinking first. Cross things out (or delete them) when they a
 
 Housekeeping
 - [x] `main` (one fresh commit) is pushed to `git@github.com:itsjaspermilan/GameStudio.git`.
-- [ ] Void Swarm is on the device with timing on (`GS_PERF=1`, 150 s limit): push it again without `GS_PERF` for normal play. Its art was redrawn at native size (pilots with an 8-frame idle/walk set, the five big enemies at 32x32) and the cover regenerated; see it on the device.
+- [ ] Void Swarm, Breakout, Panel Pop, Button test and Pad setup were pushed again on 2026-10-22 (plain launchers, new runtime with HOTKEY + Start, `.keys` files beside each launcher). Look at Void Swarm's new art and walk on the device. `carts/stress.cart` on the console is an old plain `main.lua` test the runtime no longer runs (no launcher): delete it when convenient.
 - [ ] Void Swarm was only measured on the device in short early sectors. Play a late sector (7+, past 5 minutes) with `GS_PERF=1` and read `last-run-void-swarm.log`.
 
 Games
@@ -51,7 +51,7 @@ Still open:
 - [x] Limits and budgets tuned on the console (see `engine/consoles/README.md`): `instances_alive` 512, `particles` 300, `collision_tests` 1000, `draw_screens` 6. Not measured yet: scaled and rotated sprites (the software renderer's slow path), General MIDI voices, and a game with all of it at once.
 - [x] **Clock lock-in at 30 fps** (a heavy scene made the CPU sit at about 790 MHz and the game at 30 fps, console cool): fixed by the adaptive CPU floor (`runtime/AGENTS.md`). On the console: 500 moving objects 29.6 -> 58.1 fps, 1,200 collision checks 34 -> 54 fps, light scenes stay at 480 to 640 MHz, floor restored to 480 MHz after the run. It takes about a second to notice lateness, so a heavy scene starts with a second at 30 fps. Possible later: a second step up to the maximum clock if frames are still late after a few seconds (2,400 checks stays at 28 fps at 1.2 to 1.3 GHz; it is over the 1,000-check budget anyway).
 - [x] The studio shows what a typical GBA-style game uses next to each limit (tooltips in the console editor, a note in a busy room's status line); table in `engine/consoles/README.md`.
-- [ ] The `breakout-dash` speed-test copy is still on the console (Dash system): delete it when you have a real Dash game.
+- [x] The `breakout-dash` speed-test cart is no longer on the console (only its old log in `/userdata/gs`).
 
 ## Knulli
 
