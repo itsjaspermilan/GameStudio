@@ -7,6 +7,7 @@
 //   drum  a single drum sound: one row of hits
 //   kit   a drum kit: one row per piece (kick, snare, hi-hat...), each hit is a dot on its row
 import { acceptsInstrument, droppedInstrument, instrumentColor, CHANNEL_COLORS } from "./instrument-panel.js";
+import { color as themeColor, ink, tint } from "./theme.js";
 import * as A from "./audio-core.js";
 
 const ROW_H = 6;                            // pixels per row when every semitone is shown
@@ -178,25 +179,25 @@ export function createLanes(root, config) {
   function drawGutter(i) {
     const l = lanes[i], info = config.lane(i), ctx = l.gctx, W = l.gw, H = l.h, dpr = l.gutter.width / l.gw, key = keyOf(i);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#14161d"; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "rgba(255,255,255,0.1)"; ctx.fillRect(W - 1, 0, 1, H);
+    ctx.fillStyle = themeColor("surface"); ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = ink(0.1); ctx.fillRect(W - 1, 0, 1, H);
     if (collapsed.has(i) || !info.instrument) return;
     ctx.textBaseline = "middle";
     if (info.kind === "kit") {
       ctx.font = "10px -apple-system, system-ui, sans-serif";
       info.kit.forEach((p, k) => {
-        if (k % 2) { ctx.fillStyle = "rgba(255,255,255,0.04)"; ctx.fillRect(0, k * KIT_ROW_H, W - 1, KIT_ROW_H); }
-        ctx.fillStyle = "#c9cde0"; ctx.fillText(p.label, 5, k * KIT_ROW_H + KIT_ROW_H / 2 + 0.5, W - 9);
+        if (k % 2) { ctx.fillStyle = ink(0.04); ctx.fillRect(0, k * KIT_ROW_H, W - 1, KIT_ROW_H); }
+        ctx.fillStyle = themeColor("text"); ctx.fillText(p.label, 5, k * KIT_ROW_H + KIT_ROW_H / 2 + 0.5, W - 9);
       });
     } else if (info.kind === "roll") {
       const rh = rowHeightOf(i);
       rowsOf(i).forEach((note, k) => {
         const y = k * rh, c = note % 12 === 0, home = key && (note - key.root) % 12 === 0, fits = !key || A.inKey(note, key);
-        if (home) { ctx.fillStyle = "rgba(255,255,255,0.08)"; ctx.fillRect(0, y, W - 1, rh); }
-        ctx.fillStyle = c ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.06)"; ctx.fillRect(0, y + rh - 1, W - 1, 1);
+        if (home) { ctx.fillStyle = ink(0.08); ctx.fillRect(0, y, W - 1, rh); }
+        ctx.fillStyle = c ? ink(0.2) : ink(0.06); ctx.fillRect(0, y + rh - 1, W - 1, 1);
         if (key || c) {
           ctx.font = (c || home ? "600 " : "") + "10px -apple-system, system-ui, sans-serif";
-          ctx.fillStyle = !fits ? "#585e74" : c ? "#e4e7f5" : home ? "#c9cde0" : "#8a90a8";
+          ctx.fillStyle = !fits ? tint("muted", 0.5) : c ? themeColor("text") : home ? themeColor("text") : themeColor("muted");
           ctx.fillText(A.trackerNoteName(note), 6, y + rh / 2 + 0.5);
         }
       });
@@ -208,12 +209,12 @@ export function createLanes(root, config) {
     const info = config.lane(i), ctx = l.ctx, W = l.w, H = l.h, dpr = l.canvas.width / l.w;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const color = CHANNEL_COLORS[i % CHANNEL_COLORS.length], shown = config.shown(), kind = info.kind, key = keyOf(i), unit = unitOf(), beat = config.beat || 4;
-    ctx.fillStyle = "#1b1d27"; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = themeColor("surface"); ctx.fillRect(0, 0, W, H);
     for (let c = 0; c < config.columns(); c++) {
-      ctx.fillStyle = c >= shown ? "#15171f" : Math.floor(c / unit) % 2 ? "#222530" : "#1e212b"; // the shading alternates with the timing, so the grid is easy to follow
+      ctx.fillStyle = c >= shown ? themeColor("surface") : Math.floor(c / unit) % 2 ? themeColor("surface-3") : themeColor("surface-2"); // the shading alternates with the timing, so the grid is easy to follow
       ctx.fillRect(c * cw, 0, cw, H);
       const strength = c % (beat * 4) === 0 ? 0.24 : c % beat === 0 ? 0.13 : c % unit === 0 ? 0.05 : 0; // bars, then beats, then the timing's own steps
-      if (strength) { ctx.fillStyle = `rgba(255,255,255,${strength})`; ctx.fillRect(c * cw, 0, 1, H); }
+      if (strength) { ctx.fillStyle = ink(strength); ctx.fillRect(c * cw, 0, 1, H); }
     }
     if (collapsed.has(i)) { // a thin overview: every note as a dash, high above low
       const ns = config.notes(i), ys = ns.map((n) => n.note), lo = Math.min(...ys, 999), hi = Math.max(...ys, -1);
@@ -221,8 +222,8 @@ export function createLanes(root, config) {
         const t = kind === "roll" && hi > lo ? (hi - n.note) / (hi - lo) : 0.5;
         ctx.fillStyle = color; ctx.fillRect(n.col * cw + 1, 4 + t * (H - 12), Math.max(2, (n.len || 1) * cw - 2), 3);
       }
-      if (!ns.length) { ctx.fillStyle = "#6b7188"; ctx.font = "11px sans-serif"; ctx.textBaseline = "middle"; ctx.fillText(info.instrument ? "empty: click to open" : "no instrument", 10, H / 2); }
-      if (playhead >= 0) { ctx.fillStyle = "rgba(255,255,255,0.18)"; ctx.fillRect(playhead * cw, 0, cw, H); }
+      if (!ns.length) { ctx.fillStyle = themeColor("muted"); ctx.font = "11px sans-serif"; ctx.textBaseline = "middle"; ctx.fillText(info.instrument ? "empty: click to open" : "no instrument", 10, H / 2); }
+      if (playhead >= 0) { ctx.fillStyle = ink(0.18); ctx.fillRect(playhead * cw, 0, cw, H); }
       return;
     }
     ctx.textBaseline = "middle";
@@ -230,10 +231,10 @@ export function createLanes(root, config) {
       info.kit.forEach((p, k) => {
         const y = k * KIT_ROW_H;
         if (k % 2) { ctx.fillStyle = "rgba(0,0,0,0.16)"; ctx.fillRect(0, y, W, KIT_ROW_H); }
-        ctx.fillStyle = "rgba(255,255,255,0.08)"; ctx.fillRect(0, y + KIT_ROW_H - 1, W, 1);
+        ctx.fillStyle = ink(0.08); ctx.fillRect(0, y + KIT_ROW_H - 1, W, 1);
       });
     } else if (kind === "drum") {
-      ctx.fillStyle = "rgba(255,255,255,0.05)"; ctx.fillRect(0, DRUM_H / 2 - 1, W, 2);
+      ctx.fillStyle = ink(0.05); ctx.fillRect(0, DRUM_H / 2 - 1, W, 2);
     } else if (info.instrument) {
       const rows = rowsOf(i), rh = rowHeightOf(i);
       ctx.textBaseline = "middle";
@@ -241,12 +242,12 @@ export function createLanes(root, config) {
         const y = k * rh, inside = !key || A.inKey(note, key), home = key && (note - key.root) % 12 === 0;
         if (k % 2) { ctx.fillStyle = "rgba(0,0,0,0.13)"; ctx.fillRect(0, y, W, rh); }
         if (!key && BLACK.has(note % 12)) { ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.fillRect(0, y, W, rh); }
-        if (key && !inside) { ctx.fillStyle = "rgba(10,11,16,0.55)"; ctx.fillRect(0, y, W, rh); }               // a note already here that does not fit
-        else if (home) { ctx.fillStyle = "rgba(255,255,255,0.09)"; ctx.fillRect(0, y, W, rh); }                  // the key's home note
-        ctx.fillStyle = note % 12 === 0 ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.06)"; ctx.fillRect(0, y + rh - 1, W, 1);
+        if (key && !inside) { ctx.fillStyle = tint("surface", 0.6); ctx.fillRect(0, y, W, rh); }               // a note already here that does not fit
+        else if (home) { ctx.fillStyle = ink(0.09); ctx.fillRect(0, y, W, rh); }                  // the key's home note
+        ctx.fillStyle = note % 12 === 0 ? ink(0.18) : ink(0.06); ctx.fillRect(0, y + rh - 1, W, 1);
       });
     }
-    if (!info.instrument) { ctx.fillStyle = "#6b7188"; ctx.font = "12px sans-serif"; ctx.textBaseline = "middle"; ctx.fillText("Drag an instrument onto this lane to start", 12, H / 2); }
+    if (!info.instrument) { ctx.fillStyle = themeColor("muted"); ctx.font = "12px sans-serif"; ctx.textBaseline = "middle"; ctx.fillText("Drag an instrument onto this lane to start", 12, H / 2); }
     for (const n of config.notes(i)) { // a note is a rounded box: its own colour (fainter when quiet) with a light edge, and a grip when it can be stretched
       const x = n.col * cw + 1, w = Math.max(1, n.len || 1) * cw - 2, rh = rowHeightOf(i);
       const y = kind === "kit" ? rowY(i, n.note) + 1 : kind === "roll" ? rowY(i, n.note) + 1 : rowY(i, n.note), h = kind === "kit" ? KIT_ROW_H - 3 : kind === "roll" ? rh - 2 : ROW_H;
@@ -255,22 +256,22 @@ export function createLanes(root, config) {
       ctx.globalAlpha = (n.col >= shown ? 0.4 : 0.4 + 0.6 * Math.min(1, (n.vol >= 0 ? n.vol : n.volMax || 1) / (n.volMax || 1))) * (carried ? 0.3 : 1);
       ctx.fillStyle = color; roundRect(ctx, x, y, w, h, radius); ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1; roundRect(ctx, x + 0.5, y + 0.5, w - 1, h - 1, radius); ctx.stroke();
+      ctx.strokeStyle = ink(0.45); ctx.lineWidth = 1; roundRect(ctx, x + 0.5, y + 0.5, w - 1, h - 1, radius); ctx.stroke();
       if (n.len > 1 && kind === "roll") { ctx.fillStyle = "rgba(0,0,0,0.28)"; ctx.fillRect(x + w - 4, y + 2, 1, h - 4); ctx.fillRect(x + w - 6, y + 2, 1, h - 4); } // the grip for the length
-      if (n.selected) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; roundRect(ctx, x - 1, y - 1.5, w + 2, h + 3, radius + 1); ctx.stroke(); ctx.lineWidth = 1; }
+      if (n.selected) { ctx.strokeStyle = themeColor("text"); ctx.lineWidth = 1.5; roundRect(ctx, x - 1, y - 1.5, w + 2, h + 3, radius + 1); ctx.stroke(); ctx.lineWidth = 1; }
     }
     if (move && move.on && move.target && move.target.lane === i) { // where the carried note would land
       const g = move.target, x = g.col * cw + 1, w = Math.max(1, Math.min(move.n.len || 1, config.columns() - g.col)) * cw - 2, rh = rowHeightOf(i), y = rowY(i, g.note) + 1;
       ctx.fillStyle = color; ctx.globalAlpha = 0.35; roundRect(ctx, x, y, w, rh - 2, 3); ctx.fill(); ctx.globalAlpha = 1;
-      ctx.strokeStyle = "#fff"; ctx.setLineDash([3, 2]); roundRect(ctx, x + 0.5, y + 0.5, w - 1, rh - 3, 3); ctx.stroke(); ctx.setLineDash([]);
+      ctx.strokeStyle = themeColor("text"); ctx.setLineDash([3, 2]); roundRect(ctx, x + 0.5, y + 0.5, w - 1, rh - 3, 3); ctx.stroke(); ctx.setLineDash([]);
     }
     if (hover && hover.lane === i && !drag && !(move && move.on)) { // the step a click will land on: a faint column and the exact cell
       const w = Math.min(unit, config.columns() - hover.col) * cw;
-      ctx.fillStyle = "rgba(255,255,255,0.05)"; ctx.fillRect(hover.col * cw, 0, w, H);
+      ctx.fillStyle = ink(0.05); ctx.fillRect(hover.col * cw, 0, w, H);
       const y = rowY(i, hover.note), h = kind === "kit" ? KIT_ROW_H : kind === "roll" ? rowHeightOf(i) : H;
-      if (y >= 0 || kind === "drum") { ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.strokeRect(hover.col * cw + 0.5, (kind === "drum" ? 0 : y) + 0.5, w - 1, h - 1); }
+      if (y >= 0 || kind === "drum") { ctx.strokeStyle = ink(0.7); ctx.strokeRect(hover.col * cw + 0.5, (kind === "drum" ? 0 : y) + 0.5, w - 1, h - 1); }
     }
-    if (playhead >= 0) { ctx.fillStyle = "rgba(255,255,255,0.18)"; ctx.fillRect(playhead * cw, 0, cw, H); }
+    if (playhead >= 0) { ctx.fillStyle = ink(0.18); ctx.fillRect(playhead * cw, 0, cw, H); }
   }
   const drawAll = () => lanes.forEach((_, i) => drawLane(i));
 

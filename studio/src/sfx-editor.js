@@ -252,6 +252,7 @@ export function createSfxEditor(root, hooks = {}) {
     isDirty: () => dirty,
     markClean() { dirty = false; },
     refreshInstruments() { panel.refresh(); lanes.rebuild(); refresh(); },
+    redraw() { if (def) { lanes.rebuild(); refresh(); } }, // the look changed
     stop,
   };
 }

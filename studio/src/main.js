@@ -6,7 +6,9 @@ import { keymap } from "@codemirror/view";
 import { indentWithTab } from "@codemirror/commands";
 import { StreamLanguage } from "@codemirror/language";
 import { lua } from "@codemirror/legacy-modes/mode/lua";
-import { oneDark } from "@codemirror/theme-one-dark";
+import { oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
+import { syntaxHighlighting } from "@codemirror/language";
+import { lookChoice, setLook, scheme, onLookChange } from "./theme.js";
 import { luaIntel } from "./lua-editor.js";
 import { createLuaServer } from "./lua-server.js";
 import { createHelp } from "./help.js";
@@ -71,16 +73,33 @@ const fail = (e) => log(String(e), "err");
 
 // ---------- code editor ----------
 let loadingDoc = false;
-// ---------- look (dark or light; a per-viewer choice kept in the browser) ----------
+// ---------- look (theme.js: the system's colours and light or dark mode) ----------
+// The code editor takes its colours from the same CSS variables as everything else; only the syntax colours differ by mode.
 const editorTheme = new Compartment();
-function currentTheme() { try { return localStorage.getItem("gs.theme") === "light" ? "light" : "dark"; } catch { return "dark"; } }
-function applyTheme(t) {
-  document.documentElement.dataset.theme = t;
-  try { localStorage.setItem("gs.theme", t); } catch { /* not remembered */ }
-  if (view) view.dispatch({ effects: editorTheme.reconfigure(t === "light" ? [] : oneDark) });
-  if (split.view) split.view.dispatch({ effects: split.theme.reconfigure(t === "light" ? [] : oneDark) });
-}
-document.documentElement.dataset.theme = currentTheme();
+const codeLook = (s) => [
+  EditorView.theme({
+    "&": { backgroundColor: "var(--bg)", color: "var(--text)" },
+    ".cm-content": { caretColor: "var(--accent)" },
+    ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)" },
+    ".cm-gutters": { backgroundColor: "var(--panel)", color: "var(--muted)", borderRight: "1px solid var(--border)" },
+    ".cm-activeLine": { backgroundColor: "rgba(var(--ink), 0.05)" },
+    ".cm-activeLineGutter": { backgroundColor: "rgba(var(--ink), 0.07)", color: "var(--text)" },
+    "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, ::selection": { backgroundColor: "color-mix(in srgb, var(--accent) 30%, transparent)" },
+    ".cm-selectionMatch": { backgroundColor: "color-mix(in srgb, var(--accent) 15%, transparent)" },
+    "&.cm-focused .cm-matchingBracket": { backgroundColor: "color-mix(in srgb, var(--ok) 25%, transparent)", outline: "none" },
+    ".cm-searchMatch": { backgroundColor: "color-mix(in srgb, var(--warn) 30%, transparent)" },
+    ".cm-tooltip": { backgroundColor: "var(--panel)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "var(--radius)" },
+    ".cm-tooltip-autocomplete > ul > li[aria-selected]": { backgroundColor: "var(--accent)", color: "var(--accent-text)" },
+    ".cm-panels": { backgroundColor: "var(--panel)", color: "var(--text)" },
+  }, { dark: s === "dark" }),
+  s === "dark" ? syntaxHighlighting(oneDarkHighlightStyle) : [],
+];
+// Canvas editors and both code panes follow a change of look at once.
+onLookChange((s) => {
+  if (view) view.dispatch({ effects: editorTheme.reconfigure(codeLook(s)) });
+  if (split.view) split.view.dispatch({ effects: split.theme.reconfigure(codeLook(s)) });
+  for (const e of [spriteEditor, tilesetEditor, roomEditor, sfxEditor, musicEditor, instrumentEditor]) if (e && e.redraw) e.redraw();
+});
 
 function makeEditor() {
   view = new EditorView({
@@ -91,7 +110,7 @@ function makeEditor() {
         basicSetup,
         keymap.of([indentWithTab]),
         StreamLanguage.define(lua),
-        editorTheme.of(currentTheme() === "light" ? [] : oneDark),
+        editorTheme.of(codeLook(scheme())),
         ...luaIntel({
           getApi: () => luaApi, getIndex: () => luaIndex, getFile: () => (state.view === "code" ? state.file : null),
           get server() { return luaServer; },
@@ -1291,7 +1310,7 @@ async function makeHelpGame(title, files, consoleId = "dot") {
   await openGame(name);
 }
 
-$("set-theme").onchange = () => applyTheme($("set-theme").value);
+$("set-theme").onchange = () => setLook($("set-theme").value);
 
 // ---------- tabs (what was open lately, to go back to with a click) ----------
 const tabKey = () => (state.view === "code" ? (state.file ? "file:" + state.file : null) : state.name ? `${state.view}:${state.name}` : null);
@@ -1346,7 +1365,7 @@ function makeSplitEditor() {
     state: EditorState.create({
       doc: "",
       extensions: [
-        basicSetup, keymap.of([indentWithTab]), StreamLanguage.define(lua), split.theme.of(currentTheme() === "light" ? [] : oneDark),
+        basicSetup, keymap.of([indentWithTab]), StreamLanguage.define(lua), split.theme.of(codeLook(scheme())),
         ...luaIntel({ getApi: () => luaApi, getIndex: () => luaIndex, getFile: () => split.file, get server() { return null; },
           openResource: (g, name) => openers[group(g).kind](group(g), name), openHelp: (page, anchor) => help.open(page, anchor) }),
         EditorView.updateListener.of((u) => { if (u.docChanged && !split.loading) { split.dirty = true; $("split-dirty").textContent = "●"; } }),
@@ -1529,7 +1548,7 @@ window.addEventListener("keydown", (e) => {
 $("btn-settings").onclick = async () => {
   const s = await invoke("get_settings");
   $("set-workspace").value = s.workspace; $("set-host").value = s.device_host;
-  $("set-theme").value = currentTheme();
+  $("set-theme").value = lookChoice();
   $("set-user").value = s.device_user; $("set-dir").value = s.device_dir;
   $("settings").showModal();
 };

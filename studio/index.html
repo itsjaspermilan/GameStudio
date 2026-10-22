@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GameStudio</title>
+    <script>
+      // The look before the first paint (src/theme.js keeps it current): the system's light or dark mode unless Settings picked one,
+      // in the colours of the system the studio runs on.
+      (function () {
+        var d = document.documentElement, pick = "", ua = navigator.userAgent;
+        try { pick = localStorage.getItem("gs.look") || ""; } catch (e) {}
+        d.dataset.os = /Mac/.test(ua) ? "mac" : /Windows/.test(ua) ? "windows" : "other";
+        d.dataset.scheme = pick === "light" || pick === "dark" ? pick : window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      })();
+    </script>
   </head>
   <body>
     <div id="app" class="welcome-mode">
@@ -168,7 +178,7 @@
         <label>Workspace folder <small>(contains carts/ and build/)</small>
           <input id="set-workspace" spellcheck="false" />
         </label>
-        <label>Look <select id="set-theme"><option value="dark">Dark</option><option value="light">Light</option></select></label>
+        <label>Look <select id="set-theme"><option value="system">Match the system</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
         <h3>Device (SSH)</h3>
         <label>Host <input id="set-host" placeholder="192.168.1.50" spellcheck="false" /></label>
         <label>User <input id="set-user" placeholder="root" spellcheck="false" /></label>

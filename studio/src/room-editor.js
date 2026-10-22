@@ -2,6 +2,7 @@
 // rooms/<name>.lua data files; room-core.js reads and writes them, this file is the DOM over it.
 // hooks: { onChange(), getEntities() -> [names], getTilesets() -> [names], loadTileset(name) -> Promise<{ img, tw, th, cols, count }>,
 //          entityLook(name) -> Promise<{ img, fw, fh, ox, oy } | null>, getScreen() -> { width, height }, editAsText() }
+import { color as themeColor } from "./theme.js";
 import * as R from "./room-core.js";
 import { History } from "./sprite-core.js";
 
@@ -126,7 +127,7 @@ export function createRoomEditor(root, hooks = {}) {
       if (look) ctx.drawImage(look.img, 0, 0, look.fw, look.fh, px - look.ox * zoom, py - look.oy * zoom, look.fw * zoom, look.fh * zoom);
       else { ctx.fillStyle = "#ffa38c"; ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.fill(); }
       ctx.globalAlpha = 1;
-      if (i === sel && tool === "entities") { ctx.strokeStyle = "#5b8cff"; ctx.lineWidth = 2; ctx.strokeRect(px - 9, py - 9, 18, 18); }
+      if (i === sel && tool === "entities") { ctx.strokeStyle = themeColor("accent"); ctx.lineWidth = 2; ctx.strokeRect(px - 9, py - 9, 18, 18); }
       if (!look || i === sel) { ctx.fillStyle = "#ffffff"; ctx.fillText(n, px, py - 10); }
     });
     // paths
@@ -219,7 +220,7 @@ export function createRoomEditor(root, hooks = {}) {
     c.width = t.img.width * k; c.height = t.img.height * k;
     const g = c.getContext("2d"); g.imageSmoothingEnabled = false;
     g.drawImage(t.img, 0, 0, c.width, c.height);
-    g.strokeStyle = "#5b8cff"; g.lineWidth = 2;
+    g.strokeStyle = themeColor("accent"); g.lineWidth = 2;
     g.strokeRect((tile % t.cols) * t.tw * k + 1, Math.floor(tile / t.cols) * t.th * k + 1, t.tw * k - 2, t.th * k - 2);
     c.onclick = (ev) => {
       const r = c.getBoundingClientRect(), sx = c.width / r.width;
@@ -375,5 +376,6 @@ export function createRoomEditor(root, hooks = {}) {
     isDirty: () => dirty,
     markClean: () => { dirty = false; },
     refit: () => room && fit(),
+    redraw: () => room && render(), // the look changed
   };
 }

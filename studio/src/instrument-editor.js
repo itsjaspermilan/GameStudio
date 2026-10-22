@@ -1,5 +1,6 @@
 // Instrument editor: how a note sounds. Pick a kind of sound (square wave, drawn wave, noise or sample), shape it with the
 // envelope, and play it on a piano. Pure logic is in audio-core.js; previews come from the runtime's own synth.
+import { color as themeColor, ink, tint } from "./theme.js";
 import * as A from "./audio-core.js";
 import { History } from "./sprite-core.js";
 
@@ -115,14 +116,14 @@ export function createInstrumentEditor(root, hooks = {}) {
 
   // ---------- the drawn wave ----------
   function drawWave() {
-    wctx.fillStyle = "#15171f"; wctx.fillRect(0, 0, WAVE_W, WAVE_H);
+    wctx.fillStyle = themeColor("surface"); wctx.fillRect(0, 0, WAVE_W, WAVE_H);
     if (def.type !== "wave") return;
     const w = A.hexToWave(def.wave), cw = WAVE_W / 32, ch = WAVE_H / 16;
-    wctx.strokeStyle = "rgba(255,255,255,0.08)";
+    wctx.strokeStyle = ink(0.1);
     for (let y = 0; y <= 16; y += 4) { wctx.beginPath(); wctx.moveTo(0, y * ch); wctx.lineTo(WAVE_W, y * ch); wctx.stroke(); }
-    wctx.fillStyle = "#4f9bf0";
+    wctx.fillStyle = themeColor("accent");
     w.forEach((v, i) => wctx.fillRect(i * cw + 1, (15 - v) * ch, cw - 2, ch));
-    wctx.fillStyle = "rgba(79,155,240,0.25)";
+    wctx.fillStyle = tint("accent", 0.25);
     w.forEach((v, i) => wctx.fillRect(i * cw + 1, (15 - v) * ch + ch, cw - 2, WAVE_H - (15 - v) * ch - ch));
   }
   function paintWave(e) {
@@ -141,14 +142,14 @@ export function createInstrumentEditor(root, hooks = {}) {
     const W = env.width, H = env.height, pad = 6, hold = 400;                // a note held for 400 ms for the picture
     const total = def.attack + def.decay + hold + def.release || 1;
     const x = (ms) => pad + (ms / total) * (W - 2 * pad), y = (lv) => H - pad - lv * (H - 2 * pad);
-    ectx.fillStyle = "#15171f"; ectx.fillRect(0, 0, W, H);
+    ectx.fillStyle = themeColor("surface"); ectx.fillRect(0, 0, W, H);
     const s = def.sustain / 100, a = def.attack, d = def.decay;
     const pts = [[0, 0], [a, 1], [a + d, s], [a + d + hold, s], [a + d + hold + def.release, 0]];
-    ectx.strokeStyle = "rgba(255,255,255,0.1)"; ectx.beginPath(); ectx.moveTo(x(a + d + hold), 0); ectx.lineTo(x(a + d + hold), H); ectx.stroke();
+    ectx.strokeStyle = ink(0.12); ectx.beginPath(); ectx.moveTo(x(a + d + hold), 0); ectx.lineTo(x(a + d + hold), H); ectx.stroke();
     ectx.beginPath(); pts.forEach(([t, l], i) => (i ? ectx.lineTo(x(t), y(l)) : ectx.moveTo(x(t), y(l))));
     ectx.lineTo(x(total), y(0)); ectx.closePath();
-    ectx.fillStyle = "rgba(255,163,0,0.2)"; ectx.fill(); ectx.strokeStyle = "#ffa300"; ectx.lineWidth = 2; ectx.stroke(); ectx.lineWidth = 1;
-    ectx.fillStyle = "#8a90a8"; ectx.font = "10px sans-serif"; ectx.fillText("key down", x(0) + 2, 10); ectx.fillText("key up", x(a + d + hold) + 3, 10);
+    ectx.fillStyle = tint("warn", 0.2); ectx.fill(); ectx.strokeStyle = themeColor("warn"); ectx.lineWidth = 2; ectx.stroke(); ectx.lineWidth = 1;
+    ectx.fillStyle = themeColor("muted"); ectx.font = "10px sans-serif"; ectx.fillText("key down", x(0) + 2, 10); ectx.fillText("key up", x(a + d + hold) + 3, 10);
   }
 
   // ---------- the piano ----------
@@ -245,6 +246,7 @@ export function createInstrumentEditor(root, hooks = {}) {
   return {
     load(n, d) { stop(); name = n; def = A.normalizeInstrument(d); dirty = false; history = new History(); renderAll(); },
     refresh: renderAll,
+    redraw() { if (def) renderAll(); }, // the look changed
     getName: () => name,
     getDef: () => A.normalizeInstrument(def),
     isDirty: () => dirty,

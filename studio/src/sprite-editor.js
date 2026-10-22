@@ -1,4 +1,5 @@
 // Pixel-art sprite editor UI. Pure editing logic is in sprite-core.js.
+import { color as themeColor, ink, tint } from "./theme.js";
 import * as C from "./sprite-core.js";
 
 const PALETTE = ["#000000", "#1d2b53", "#7e2553", "#008751", "#ab5236", "#5f574f", "#c2c3c7", "#fff1e8",
@@ -192,7 +193,7 @@ export function createSpriteEditor(root, hooks = {}) {
     canvas.width = s.w * z; canvas.height = s.h * z;
     for (let y = 0; y < s.h; y++)
       for (let x = 0; x < s.w; x++) {
-        ctx.fillStyle = (x + y) % 2 ? "#2f3441" : "#272b36";
+        ctx.fillStyle = (x + y) % 2 ? themeColor("checker-a") : themeColor("checker-b");
         ctx.fillRect(x * z, y * z, z, z);
       }
     off.width = s.w; off.height = s.h;
@@ -201,13 +202,13 @@ export function createSpriteEditor(root, hooks = {}) {
     ctx.drawImage(off, 0, 0, s.w * z, s.h * z);
 
     if (z >= 8) {
-      ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1; ctx.beginPath();
+      ctx.strokeStyle = ink(0.1); ctx.lineWidth = 1; ctx.beginPath();
       for (let x = 1; x < s.w; x++) { ctx.moveTo(x * z + 0.5, 0); ctx.lineTo(x * z + 0.5, s.h * z); }
       for (let y = 1; y < s.h; y++) { ctx.moveTo(0, y * z + 0.5); ctx.lineTo(s.w * z, y * z + 0.5); }
       ctx.stroke();
     }
     if (isTS() && s.tile) { // tile boundaries
-      ctx.strokeStyle = "rgba(91,140,255,0.7)"; ctx.lineWidth = 1; ctx.beginPath();
+      ctx.strokeStyle = tint("accent", 0.7); ctx.lineWidth = 1; ctx.beginPath();
       for (let x = s.tile[0]; x < s.w; x += s.tile[0]) { ctx.moveTo(x * z + 0.5, 0); ctx.lineTo(x * z + 0.5, s.h * z); }
       for (let y = s.tile[1]; y < s.h; y += s.tile[1]) { ctx.moveTo(0, y * z + 0.5); ctx.lineTo(s.w * z, y * z + 0.5); }
       ctx.stroke();
@@ -234,7 +235,7 @@ export function createSpriteEditor(root, hooks = {}) {
     }
     // hover cell
     if (cursor && C.inBounds(s, cursor[0], cursor[1])) {
-      ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.lineWidth = 1;
+      ctx.strokeStyle = ink(0.6); ctx.lineWidth = 1;
       ctx.strokeRect(cursor[0] * z + 0.5, cursor[1] * z + 0.5, z - 1, z - 1);
     }
     renderStatus();
@@ -531,6 +532,7 @@ export function createSpriteEditor(root, hooks = {}) {
       fitZoom(); renderAll();
     },
     refit() { if (s && !userZoom) { fitZoom(); renderCanvas(); } },
+    redraw() { if (s) renderAll(); }, // the look changed
     getSprite: () => s,
     isDirty: () => dirty,
     markClean() { dirty = false; },

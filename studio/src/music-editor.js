@@ -333,6 +333,7 @@ export function createMusicEditor(root, hooks = {}) {
       lanes.rebuild(); renderAll();
     },
     refresh() { panel.refresh(); lanes.rebuild(); renderAll(); },
+    redraw() { if (song) { lanes.rebuild(); renderAll(); } }, // the look changed
     getName: () => name,
     getDef: () => (legacy ? legacy : A.serializeSong(song)),
     isDirty: () => dirty,
