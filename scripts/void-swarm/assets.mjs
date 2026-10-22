@@ -9,6 +9,7 @@ import { ENEMIES } from "./enemies.mjs";
 import { BOSSES } from "./bosses.mjs";
 import { PROJECTILES, FX, PICKUPS, ICONS, PLANETS, BACKGROUNDS, backgroundTile, dustTile } from "./misc.mjs";
 import { SFX, allMusic } from "./audio.mjs";
+import { panelTiles } from "./panels.mjs";
 
 export function writeAssets(dir, opts = {}) {
   for (const d of ["sprites", "tilesets", "sfx", "music"]) mkdirSync(join(dir, d), { recursive: true });
@@ -46,6 +47,10 @@ export function writeAssets(dir, opts = {}) {
   }
   BACKGROUNDS.forEach((b, i) => tileset("ts_bg_" + b.id, backgroundTile(i)));
   tileset("ts_dust", dustTile());
+  const panel = panelTiles();
+  writeFileSync(join(dir, "tilesets", "ts_panel.png"), png(panel.w, panel.h, panel.rgba));
+  json("tilesets/ts_panel.json", { image: "tilesets/ts_panel.png", tile_w: panel.tile, tile_h: panel.tile });
+  tilesets.push("ts_panel");
 
   for (const [n, d] of Object.entries(SFX)) json(`sfx/${n}.json`, d);
   const music = allMusic();

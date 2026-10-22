@@ -10,6 +10,7 @@ import { color as themeColor } from "./theme.js";
 import * as R from "./room-core.js";
 import { History } from "./sprite-core.js";
 import { settleRenames } from "./rename-core.js";
+import { FONT8, FONT8_FIRST } from "./font8.js";
 
 const TOOLS = [
   ["tiles", "Tiles", "Paint tiles on the chosen layer. Shift-click fills an area, Alt-click erases, right-click picks a tile up. (T)", "t"],
@@ -27,27 +28,30 @@ export const PLACE = "application/x-gs-place";
 export function createRoomEditor(root, hooks = {}) {
   root.innerHTML = `
     <div class="se-left re-left">
+      <section class="re-outline-wrap">
+        <h3>In this layout</h3>
+        <div class="re-outline"></div>
+      </section>
+      <section class="re-palette">
       <div class="re-panel re-tiles-panel">
-        <h3>Layers</h3>
-        <div class="re-layers"></div>
+        <h3>Paint tiles</h3>
         <div class="se-row"><select class="re-newlayer-ts" title="The tileset the new layer uses"></select><button data-act="addlayer" title="A new tile layer">+ Layer</button></div>
-        <h3>Tile</h3>
+        <p class="se-hint re-layerhint"></p>
         <div class="re-tilepal"><canvas class="re-tilecanvas"></canvas></div>
         <p class="se-hint re-tilehint"></p>
       </div>
-      <div class="re-panel re-ents-panel">
-        <h3>Entities</h3>
+      <div class="re-panel re-add-panel">
+        <h3>Add</h3>
+        <input class="re-search" type="search" placeholder="Search entities and sprites" spellcheck="false">
+        <div class="re-libhead">Entities</div>
         <div class="re-entlist re-thumbs"></div>
+        <div class="re-libhead">Sprites <span class="re-libnote">(a picture, no code of its own)</span></div>
+        <div class="re-spritelist re-thumbs"></div>
         <p class="se-hint re-ents-hint"></p>
       </div>
       <div class="re-panel re-texts-panel">
         <h3>Text</h3>
         <p class="se-hint">Click where the text goes. Each text gets a name, so the code can change it: <code>self.title.text = "GO!"</code>.</p>
-      </div>
-      <div class="re-panel re-pics-panel">
-        <h3>Sprites</h3>
-        <div class="re-spritelist re-thumbs"></div>
-        <p class="se-hint">Click one, then click in the layout; or drag it in. A picture is a sprite with no code of its own: a logo, a sign, a decoration.</p>
       </div>
       <div class="re-panel re-panels-panel">
         <h3>Panel styles</h3>
@@ -62,11 +66,11 @@ export function createRoomEditor(root, hooks = {}) {
       </div>
       <div class="re-panel re-paths-panel">
         <h3>Paths</h3>
-        <div class="re-pathlist"></div>
         <div class="se-row"><button data-act="addpath" title="A new, empty path">+ Path</button></div>
         <label class="se-field"><input type="checkbox" class="re-loop"> Goes round (loop)</label>
-        <p class="se-hint">An entity walks one with <code>self:follow_path("name", speed)</code>.</p>
+        <p class="se-hint">Click to add points to the chosen path (in the list above). An entity walks one with <code>self:follow_path("name", speed)</code>.</p>
       </div>
+      </section>
     </div>
     <div class="se-center">
       <div class="re-tools" role="toolbar"></div>
@@ -130,6 +134,7 @@ export function createRoomEditor(root, hooks = {}) {
   const canvas = $(".re-canvas"), ctx = canvas.getContext("2d"), wrap = $(".re-wrap");
   let room = null, name = "", kind = "room", dirty = false, tool = "tiles", zoom = 2;
   let layerIx = 0, tile = 0, entName = "", spriteName = "", sel = null, pathName = "", pointIx = -1;
+  let hover = null; // { kind, i } under the pointer
   let panelTs = "", panelTile = 0; // what a new panel is made of: a tileset and the top-left tile of a 3x3 block
   let renames = []; // [old, new] in order since the last save
   const tilesets = {}, looks = {}, pics = {};
@@ -181,6 +186,16 @@ export function createRoomEditor(root, hooks = {}) {
     if (!look) return [p.x - 6, p.y - 6, p.x + 6, p.y + 6];
     return [p.x - look.ox * s, p.y - look.oy * s, p.x + (look.fw - look.ox) * s, p.y + (look.fh - look.oy) * s];
   }
+  // drawn again only when it changes (the list is rebuilt with every drawing)
+  function setHover(h) {
+    if ((h && h.kind) === (hover && hover.kind) && (h && h.i) === (hover && hover.i)) return;
+    hover = h; render();
+  }
+  // the topmost thing at a point, whatever its kind (texts are on top, then pictures, entities and panels)
+  function thingAt(x, y) {
+    for (const k of ["texts", "pictures", "entities", "panels"]) { const i = hitAt(k, x, y); if (i >= 0) return { kind: k, i }; }
+    return null;
+  }
   function hitAt(k, x, y) {
     if (k === "entities") { const i = R.entityAt(room, x, y, 12 / Math.min(zoom, 2) + 4); return i; }
     const list = room[k], box = k === "texts" ? textBoxOf : k === "panels" ? (b) => [b.x, b.y, b.x + b.w, b.y + b.h] : pictureBox;
@@ -189,6 +204,17 @@ export function createRoomEditor(root, hooks = {}) {
   }
 
   // ---------- drawing ----------
+  // the built-in font as a strip of letters in one colour, made once for each colour used
+  const font8Strips = new Map();
+  function font8(colour) {
+    let c = font8Strips.get(colour);
+    if (c) return c;
+    c = document.createElement("canvas"); c.width = FONT8.length * 8; c.height = 8;
+    const g = c.getContext("2d"); g.fillStyle = colour;
+    FONT8.forEach((hex, i) => { for (let y = 0; y < 8; y++) { const v = parseInt(hex.slice(y * 2, y * 2 + 2), 16); for (let x = 0; x < 8; x++) if (v & (0x80 >> x)) g.fillRect(i * 8 + x, y, 1, 1); } });
+    font8Strips.set(colour, c);
+    return c;
+  }
   function render() {
     if (!room) return;
     const cw = Math.round(room.width * zoom), ch = Math.round(room.height * zoom);
@@ -224,14 +250,14 @@ export function createRoomEditor(root, hooks = {}) {
     ctx.setLineDash([]);
     const labels = []; // names drawn last, above everything: [text, x, y]
     const ring = (x0, y0, x1, y1) => { ctx.strokeStyle = themeColor("accent"); ctx.lineWidth = 2; ctx.strokeRect(x0 * zoom - 2, y0 * zoom - 2, (x1 - x0) * zoom + 4, (y1 - y0) * zoom + 4); };
-    const isSel = (k, i) => sel && sel.kind === k && sel.i === i;
+    const isSel = (k, i) => (sel && sel.kind === k && sel.i === i) || (hover && hover.kind === k && hover.i === i && !drag);
     // panels, then pictures, then texts: the order the game builds them in
     room.panels.forEach((b, i) => {
       ctx.globalAlpha = tool === "panels" ? 1 : 0.9;
       drawPanel(b);
       ctx.globalAlpha = 1;
       if (isSel("panels", i)) ring(b.x, b.y, b.x + b.w, b.y + b.h);
-      if (b.name) labels.push([`self.${b.name}`, b.x + b.w / 2, b.y + 14]);
+      if (b.name) labels.push([`self.${b.name}`, b.x + b.w / 2, b.y + 14, "panels", i]);
     });
     // pictures
     room.pictures.forEach((p, i) => {
@@ -244,7 +270,7 @@ export function createRoomEditor(root, hooks = {}) {
       ctx.globalAlpha = 1;
       const b = pictureBox(p);
       if (isSel("pictures", i)) ring(...b);
-      if (p.name) labels.push([`self.${p.name}`, (b[0] + b[2]) / 2, b[1]]);
+      if (p.name) labels.push([`self.${p.name}`, (b[0] + b[2]) / 2, b[1], "pictures", i]);
     });
     // entities
     ctx.font = "11px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
@@ -255,26 +281,30 @@ export function createRoomEditor(root, hooks = {}) {
       else { ctx.fillStyle = "#ffa38c"; ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.fill(); }
       ctx.globalAlpha = 1;
       if (isSel("entities", i)) { ctx.strokeStyle = themeColor("accent"); ctx.lineWidth = 2; ctx.strokeRect(px - 9, py - 9, 18, 18); }
-      if (nm) labels.push([`self.${nm}`, x, y - (look ? look.oy : 6)]);
+      if (nm) labels.push([`self.${nm}`, x, y - (look ? look.oy : 6), "entities", i]);
       else if (!look || isSel("entities", i)) { ctx.fillStyle = "#ffffff"; ctx.fillText(n, px, py - 10); }
     });
     // texts: a sprite font as the game draws it; the built-in font in its size (8 pixels a letter), the Play panel shows its real letters
     room.texts.forEach((t, i) => {
       const size = Number(t.size) || 1, [x0, y0, x1, y1] = textBoxOf(t), font = t.font && pics[t.font];
       ctx.globalAlpha = tool === "texts" ? 1 : 0.8;
-      ctx.font = `${8 * size * zoom}px ui-monospace, Menlo, monospace`; ctx.textBaseline = "top"; ctx.textAlign = "left";
+      ctx.imageSmoothingEnabled = false;
       ctx.fillStyle = colorOf(t.color);
       const s = String(t.text ?? "");
       const frames = font ? Math.max(1, Math.floor(font.img.width / font.fw)) : 0;
       for (let k = 0; k < s.length; k++) {
-        if (!font) { ctx.fillText(s[k], (x0 + k * 8 * size) * zoom, y0 * zoom, 8 * size * zoom); continue; }
+        if (!font) { // the runtime's own letters (font8.js), in the text's colour
+          const f = s.charCodeAt(k) - FONT8_FIRST;
+          if (f >= 0 && f < FONT8.length) ctx.drawImage(font8(ctx.fillStyle), f * 8, 0, 8, 8, (x0 + k * 8 * size) * zoom, y0 * zoom, 8 * size * zoom, 8 * size * zoom);
+          continue;
+        }
         const f = s.charCodeAt(k) - 32;
         if (f >= 0 && f < frames) ctx.drawImage(font.img, f * font.fw, 0, font.fw, font.fh, (x0 + k * font.fw * size) * zoom, y0 * zoom, font.fw * size * zoom, font.fh * size * zoom);
       }
       if (!s) { ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.strokeRect(x0 * zoom, y0 * zoom, (x1 - x0) * zoom, (y1 - y0) * zoom); }
       ctx.globalAlpha = 1;
       if (isSel("texts", i)) ring(x0, y0, x1, y1);
-      if (t.name) labels.push([`self.${t.name}`, (x0 + x1) / 2, y0]);
+      if (t.name) labels.push([`self.${t.name}`, (x0 + x1) / 2, y0, "texts", i]);
     });
     // paths
     ctx.font = "11px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
@@ -291,11 +321,16 @@ export function createRoomEditor(root, hooks = {}) {
       });
       if (p.points.length) { ctx.fillStyle = on ? "#f5d94a" : "rgba(245,217,74,0.6)"; ctx.fillText(k, p.points[0][0] * zoom, p.points[0][1] * zoom - 8); }
     }
-    // names: the way the code reaches them
-    ctx.font = "11px ui-monospace, Menlo, monospace";
-    for (const [text, x, y] of labels) {
-      const w = ctx.measureText(text).width + 8, lx = x * zoom - w / 2, ly = y * zoom - 18;
-      ctx.fillStyle = "rgba(10,12,20,0.75)"; ctx.fillRect(lx, ly, w, 15);
+    // names, the way the code reaches them: the selected thing's first, then the one under the pointer, then the current tool's kind;
+    // a label that would cover one already drawn is left out
+    ctx.font = "11px ui-monospace, Menlo, monospace"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    const rank = (l) => (isSel(l[3], l[4]) ? 0 : hover && hover.kind === l[3] && hover.i === l[4] ? 1 : KIND_OF[tool] === l[3] ? 2 : 9);
+    const placed = [];
+    for (const l of labels.filter((l) => rank(l) < 9).sort((a, b) => rank(a) - rank(b))) {
+      const [text, x, y] = l, w = ctx.measureText(text).width + 8, lx = x * zoom - w / 2, ly = y * zoom - 18;
+      if (placed.some(([px, py, pw]) => lx < px + pw && lx + w > px && ly < py + 15 && ly + 15 > py)) continue;
+      placed.push([lx, ly, w]);
+      ctx.fillStyle = "rgba(10,12,20,0.8)"; ctx.fillRect(lx, ly, w, 15);
       ctx.fillStyle = "#a8d4ff"; ctx.fillText(text, x * zoom, ly + 11);
     }
     renderSide();
@@ -303,51 +338,22 @@ export function createRoomEditor(root, hooks = {}) {
 
   function renderSide() {
     root.querySelectorAll(".re-tools button").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
-    $(".re-tiles-panel").hidden = tool !== "tiles"; $(".re-ents-panel").hidden = tool !== "entities"; $(".re-paths-panel").hidden = tool !== "paths";
-    $(".re-texts-panel").hidden = tool !== "texts"; $(".re-pics-panel").hidden = tool !== "pictures"; $(".re-panels-panel").hidden = tool !== "panels";
+    $(".re-tiles-panel").hidden = tool !== "tiles"; $(".re-add-panel").hidden = tool !== "entities" && tool !== "pictures"; $(".re-paths-panel").hidden = tool !== "paths";
+    $(".re-texts-panel").hidden = tool !== "texts"; $(".re-panels-panel").hidden = tool !== "panels";
     if (tool === "panels") drawBlockPicker();
-    // layers
-    const lbox = $(".re-layers"); lbox.replaceChildren();
-    if (!room.layers.length) { const p = document.createElement("p"); p.className = "se-hint"; p.textContent = "No tile layers yet. Pick a tileset and add one."; lbox.appendChild(p); }
-    room.layers.forEach((l, i) => {
-      const row = document.createElement("div"); row.className = "re-layer" + (i === layerIx ? " active" : "");
-      const eye = document.createElement("input"); eye.type = "checkbox"; eye.checked = l.visible !== false; eye.title = "Show this layer (in the game too)";
-      eye.onclick = (e) => { e.stopPropagation(); commit(() => { if (eye.checked) delete l.visible; else l.visible = false; }); };
-      const label = document.createElement("span"); label.textContent = `${l.name || "layer " + (i + 1)} · ${l.tileset}`;
-      label.title = `depth ${l.depth ?? 100} (a bigger depth is further back)${l.solid ? ", solid" : ""}`;
-      const del = document.createElement("button"); del.className = "small"; del.textContent = "×"; del.title = "Delete this layer";
-      del.onclick = (e) => { e.stopPropagation(); commit(() => { room.layers.splice(i, 1); layerIx = Math.max(0, Math.min(layerIx, room.layers.length - 1)); }); };
-      row.append(eye, label, del);
-      row.onclick = () => { layerIx = i; tile = 0; render(); };
-      lbox.appendChild(row);
-    });
+    renderOutline();
+    $(".re-layerhint").textContent = room.layers.length ? `Painting on ${layer() ? layer().name || "layer " + (layerIx + 1) : "no layer"} (pick another in the list above).` : "No tile layers yet: pick a tileset and add one.";
     const tsSel = $(".re-newlayer-ts"), names = hooks.getTilesets ? hooks.getTilesets() : [];
     if (tsSel.options.length !== names.length) tsSel.replaceChildren(...names.map((n) => new Option(n, n)));
     $("[data-act=addlayer]").disabled = !names.length;
     drawTilePalette();
     // things to place
-    if (tool === "entities") pickList($(".re-entlist"), "entity", hooks.getEntities ? hooks.getEntities() : [], entName, "No entities in this game yet.", (n) => { entName = n; });
-    if (tool === "pictures") pickList($(".re-spritelist"), "sprite", hooks.getSprites ? hooks.getSprites() : [], spriteName, "No sprites in this game yet.", (n) => { spriteName = n; });
-    $(".re-ents-hint").textContent = (kind === "layout" ? "Click one, then click in the layout; or drag it in (from here or from the side tree). Give one a name to use it in the code (self.name)." : "Each one starts where you put it when gs.load_room builds the room.");
-    // paths
-    const pbox = $(".re-pathlist"); pbox.replaceChildren();
-    for (const [k, p] of Object.entries(room.paths)) {
-      const row = document.createElement("div"); row.className = "re-layer" + (k === pathName ? " active" : "");
-      const label = document.createElement("span"); label.textContent = `${k} · ${p.points.length} point${p.points.length === 1 ? "" : "s"}`;
-      const ren = document.createElement("button"); ren.className = "small"; ren.textContent = "✎"; ren.title = "Rename";
-      ren.onclick = (e) => {
-        e.stopPropagation();
-        const n = (prompt("New name for the path", k) || "").trim();
-        if (!n || n === k) return;
-        if (!/^[A-Za-z_]\w*$/.test(n) || room.paths[n]) { alert("Use letters, digits and _ (not starting with a digit), and a name not taken."); return; }
-        commit(() => { room.paths = Object.fromEntries(Object.entries(room.paths).map(([a, b]) => [a === k ? n : a, b])); pathName = n; });
-      };
-      const del = document.createElement("button"); del.className = "small"; del.textContent = "×"; del.title = "Delete this path";
-      del.onclick = (e) => { e.stopPropagation(); commit(() => { delete room.paths[k]; if (pathName === k) pathName = ""; }); };
-      row.append(label, ren, del);
-      row.onclick = () => { pathName = k; pointIx = -1; render(); };
-      pbox.appendChild(row);
+    if (tool === "entities" || tool === "pictures") {
+      const q = $(".re-search").value.trim().toLowerCase(), match = (n) => !q || n.toLowerCase().includes(q);
+      pickList($(".re-entlist"), "entity", (hooks.getEntities ? hooks.getEntities() : []).filter(match), tool === "entities" ? entName : "", q ? "No entity matches." : "No entities in this game yet.", (n) => { entName = n; tool = "entities"; });
+      pickList($(".re-spritelist"), "sprite", (hooks.getSprites ? hooks.getSprites() : []).filter(match), tool === "pictures" ? spriteName : "", q ? "No sprite matches." : "No sprites in this game yet.", (n) => { spriteName = n; tool = "pictures"; });
     }
+    $(".re-ents-hint").textContent = (kind === "layout" ? "Click one, then click in the layout; or drag it in (from here or from the side tree). Give one a name to use it in the code (self.name)." : "Each one starts where you put it when gs.load_room builds the room.");
     const cur = room.paths[pathName];
     $(".re-loop").checked = !!(cur && cur.loop); $(".re-loop").disabled = !cur;
     // size, background, code
@@ -368,6 +374,53 @@ export function createRoomEditor(root, hooks = {}) {
     }
     $(".re-astext").title = kind === "layout" ? `Open scenes/${name}.layout.lua in the code editor` : `Open rooms/${name}.lua in the code editor`;
     renderSelected();
+  }
+
+  // Everything in the layout, by kind, in the order the game draws it (back to front). A click selects it (and the tool for its kind),
+  // the pointer over a row shows which one it is in the layout, × deletes it.
+  function renderOutline() {
+    const box = $(".re-outline"); box.replaceChildren();
+    const group = (title, items) => {
+      if (!items.length) return;
+      const h = document.createElement("div"); h.className = "re-og"; h.textContent = `${title} · ${items.length}`; box.appendChild(h);
+      for (const it of items) {
+        const row = document.createElement("div"); row.className = "re-orow" + (it.on ? " active" : "") + (it.off ? " off" : "");
+        if (it.eye) row.appendChild(it.eye);
+        const main = document.createElement("span"); main.className = "re-oname"; main.textContent = it.label; row.appendChild(main);
+        if (it.detail) { const d = document.createElement("span"); d.className = "re-odetail"; d.textContent = it.detail; row.appendChild(d); }
+        for (const [glyph, tip, fn] of it.buttons || []) {
+          const b = document.createElement("button"); b.className = "x"; b.textContent = glyph; b.title = tip;
+          b.onclick = (e) => { e.stopPropagation(); fn(); };
+          row.appendChild(b);
+        }
+        row.onclick = it.pick;
+        if (it.hover) { row.onmouseenter = () => setHover(it.hover); row.onmouseleave = () => setHover(null); }
+        box.appendChild(row);
+      }
+    };
+    const del = (k, i) => ["×", "Delete", () => commit(() => { room[k].splice(i, 1); if (sel && sel.kind === k) sel = null; })];
+    const choose = (k, i, t) => () => { tool = t; sel = { kind: k, i }; render(); };
+    const isOn = (k, i) => !!(sel && sel.kind === k && sel.i === i);
+    group("Tile layers", room.layers.map((l, i) => {
+      const eye = document.createElement("input"); eye.type = "checkbox"; eye.checked = l.visible !== false; eye.title = "Show this layer (in the game too)";
+      eye.onclick = (e) => { e.stopPropagation(); commit(() => { if (eye.checked) delete l.visible; else l.visible = false; }); };
+      return { label: l.name || `layer ${i + 1}`, detail: l.tileset, eye, on: tool === "tiles" && i === layerIx, off: l.visible === false,
+        pick: () => { tool = "tiles"; layerIx = i; tile = 0; render(); },
+        buttons: [["×", "Delete this layer", () => commit(() => { room.layers.splice(i, 1); layerIx = Math.max(0, Math.min(layerIx, room.layers.length - 1)); })]] };
+    }));
+    group("Panels", room.panels.map((p, i) => ({ label: p.name ? `self.${p.name}` : "panel", detail: `${p.w} × ${p.h}`, on: isOn("panels", i), pick: choose("panels", i, "panels"), hover: { kind: "panels", i }, buttons: [del("panels", i)] })));
+    group("Pictures", room.pictures.map((p, i) => ({ label: p.name ? `self.${p.name}` : p.sprite, detail: p.name ? p.sprite : "", on: isOn("pictures", i), pick: choose("pictures", i, "pictures"), hover: { kind: "pictures", i }, buttons: [del("pictures", i)] })));
+    group("Things", room.entities.map((e, i) => ({ label: e[4] ? `self.${e[4]}` : e[0], detail: e[4] ? e[0] : `${e[1]}, ${e[2]}`, on: isOn("entities", i), pick: choose("entities", i, "entities"), hover: { kind: "entities", i }, buttons: [del("entities", i)] })));
+    group("Texts", room.texts.map((t, i) => ({ label: t.name ? `self.${t.name}` : `"${t.text}"`, detail: t.name ? `"${t.text}"` : "", on: isOn("texts", i), pick: choose("texts", i, "texts"), hover: { kind: "texts", i }, buttons: [del("texts", i)] })));
+    group("Paths", Object.entries(room.paths).map(([k, p]) => ({ label: k, detail: `${p.points.length} point${p.points.length === 1 ? "" : "s"}`, on: tool === "paths" && k === pathName,
+      pick: () => { tool = "paths"; pathName = k; pointIx = -1; render(); },
+      buttons: [["✎", "Rename", () => {
+        const n = (prompt("New name for the path", k) || "").trim();
+        if (!n || n === k) return;
+        if (!/^[A-Za-z_]\w*$/.test(n) || room.paths[n]) { alert("Use letters, digits and _ (not starting with a digit), and a name not taken."); return; }
+        commit(() => { room.paths = Object.fromEntries(Object.entries(room.paths).map(([a, b]) => [a === k ? n : a, b])); pathName = n; });
+      }], ["×", "Delete this path", () => commit(() => { delete room.paths[k]; if (pathName === k) pathName = ""; })]] })));
+    if (!box.children.length) { const p = document.createElement("p"); p.className = "se-hint"; p.textContent = "Nothing here yet. Pick a tool above the layout and add something."; box.appendChild(p); }
   }
 
   // what can be placed, as pictures with their names; click to choose, or drag onto the layout
@@ -641,6 +694,11 @@ export function createRoomEditor(root, hooks = {}) {
     if (!room || root.offsetParent === null) return;
     const [x, y] = worldAt(ev);
     if (ev.target === canvas) status(`${Math.floor(x)}, ${Math.floor(y)}` + (layer() && ts(layer()) ? `  ·  tile ${Math.floor(x / ts(layer()).tw)}, ${Math.floor(y / ts(layer()).th)}` : ""));
+    // what is under the pointer: its name is shown, and its row in the list lights up
+    if (!drag) {
+      const over = ev.target === canvas ? thingAt(x, y) : null;
+      setHover(over);
+    }
     if (!drag) return;
     if (drag.kind === "paint") { paintAt(x, y, drag.erase, false); render(); }
     else if (drag.kind === "draw" && selected()) {
@@ -763,6 +821,8 @@ export function createRoomEditor(root, hooks = {}) {
   for (const [cls, f, min] of [[".re-bx", "x", -8192], [".re-by", "y", -8192], [".re-bw", "w", 1], [".re-bh", "h", 1]]) {
     $(cls).onchange = () => commit(() => { const b = selected(); if (b && sel.kind === "panels") b[f] = Math.max(min, Math.round(Number($(cls).value) || 0)); });
   }
+  $(".re-search").oninput = () => renderSide();
+  $(".re-search").onkeydown = (e) => { if (e.key === "Escape") { $(".re-search").value = ""; renderSide(); } };
   $(".re-font").onchange = () => { const t = selected(); if (!t || sel.kind !== "texts") return; commit(() => { if ($(".re-font").value) t.font = $(".re-font").value; else delete t.font; }); loadAssets(); };
   $(".re-panel-ts").onchange = async () => { panelTs = $(".re-panel-ts").value; panelTile = 0; await loadAssets(); drawBlockPicker(); };
   $(".re-screen").onchange = () => commit(() => { if ($(".re-screen").checked) selected().screen = true; else delete selected().screen; });

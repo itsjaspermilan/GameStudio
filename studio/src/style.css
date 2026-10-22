@@ -261,7 +261,25 @@ dialog.modal { width: 540px; }
 .size-roles button .sr-note { color: var(--muted); font-size: 12px; }
 /* ---------- room editor ---------- */
 /* the layout editor: tools in a row over the canvas, the left column is the chosen tool's palette */
-.se.re { grid-template-columns: 210px 1fr 240px; }
+.se.re { grid-template-columns: 230px 1fr 240px; }
+/* the left column: what is in the layout on top (it scrolls on its own when long), the chosen tool's palette below */
+.re-left { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.re-outline-wrap { flex: 0 1 auto; max-height: 48%; overflow: auto; padding: 0 10px 8px; border-bottom: 1px solid var(--border); }
+.re-palette { flex: 1 1 auto; min-height: 120px; overflow: auto; padding: 0 10px 10px; }
+.re-og { margin: 8px 0 2px; font-size: 11px; color: var(--muted); }
+.re-orow { display: flex; align-items: center; gap: 6px; padding: 2px 4px 2px 6px; border-radius: 4px; cursor: pointer; font-size: 12px; min-width: 0; }
+.re-orow:hover { background: var(--hover); }
+.re-orow.active { background: var(--accent); color: var(--accent-text); }
+.re-orow.off .re-oname { opacity: .5; }
+.re-orow input[type=checkbox] { margin: 0; flex: none; }
+.re-oname { font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+.re-odetail { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; min-width: 0; font-size: 11px; }
+.re-orow.active .re-odetail { color: var(--accent-text); opacity: .8; }
+.re-orow .x { flex: none; visibility: hidden; padding: 0 5px; line-height: 16px; background: transparent; border-color: transparent; color: inherit; }
+.re-orow:hover .x, .re-orow.active .x { visibility: visible; }
+.re-search { width: 100%; margin: 2px 0 6px; }
+.re-libhead { margin: 8px 0 4px; font-size: 11px; color: var(--muted); }
+.re-libnote { opacity: .8; }
 .re-tools { display: flex; gap: 2px; padding: 5px 8px; border-bottom: 1px solid var(--border); background: var(--panel-2); overflow-x: auto; flex: none; }
 .re-tools button { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 12px; background: transparent; border-color: transparent; white-space: nowrap; }
 .re-tools button:hover { background: var(--hover); }
