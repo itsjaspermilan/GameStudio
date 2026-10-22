@@ -37,6 +37,6 @@ return {
     { "", 160, 214, name = "opt3_text", align = "center", font = "spr_font" },
   },
   pictures = {
-    { "spr_char_pip", 52, 196, name = "pip", scale = 1.5 },
+    { "spr_char_pip", 52, 190, name = "pip", scale = 2 },
   },
 }

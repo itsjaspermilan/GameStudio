@@ -50,6 +50,7 @@ function Play:show()
       self[p .. "_score"].text = commas(ps.b.score)
       self[p .. "_shout"].text = ps.shout_t > 0 and ps.shout or ""
     end
+    self.level.text = "SPEED " .. G.ps[1].b.speed
   else
     local ps = G.ps[1]
     local b, m, o = ps.b, G.mode, G.o
@@ -60,7 +61,14 @@ function Play:show()
     else rows = { "PUZZLE", o.puzzle, "SWAPS LEFT", max(0, G.puz.moves - b.moves), "TIME", fmt_time(G.secs / 60), "", "" } end
     for i = 1, 4 do self["lab" .. i].text, self["val" .. i].text = rows[i * 2 - 1], tostring(rows[i * 2]) end
     self.face.frame = PG.face_frame(ps)
-    self.shout.text = ps.shout_t > 0 and ps.shout or (G.speed_t and G.speed_t > 0 and "SPEED UP!" or "")
+    -- beside Pip: the last big thing ("CHAIN" over "x3"), else its name
+    local word, n = "PIP", ""
+    if ps.shout_t > 0 then word, n = ps.shout:match("^(%S+) (.*)$") elseif G.speed_t and G.speed_t > 0 then word, n = "SPEED", "UP!" end
+    self.shout.text, self.shout_n.text = word, n
+    local next_up = PG.next_speedup()
+    rows = { "CHAIN", b.best_chain > 1 and "X" .. b.best_chain or "-", "COMBO", b.best_combo >= 4 and b.best_combo or "-", "POPPED", b.cleared,
+      next_up and "FASTER" or "", next_up and fmt_time(next_up) or "" }
+    for i = 1, 4 do self["best" .. i].text, self["best" .. i .. "_v"].text = rows[i * 2 - 1], tostring(rows[i * 2]) end
     self.danger.visible = b.danger and (G.tick // 10) % 2 == 0
   end
   -- the end banner and the pause menu

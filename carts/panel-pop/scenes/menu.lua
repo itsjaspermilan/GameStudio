@@ -59,9 +59,9 @@ function Menu:draw()
     end
     if go == "time" then ui.text(ui.fmt_time(120 - (t // 60) % 120), 247, 108, ui.CORAL, "center") end
   elseif go == "vs" then
-    ui.spr("spr_char_pip", (t // 40) % 2 == 0 and 0 or 2, 216, 78, 1.5)
+    ui.spr("spr_char_pip", (t // 40) % 2 == 0 and 0 or 2, 216, 78)
     ui.text("VS", 247, 72, ui.CORAL, "center")
-    ui.spr("spr_char_kit", (t // 40) % 2, 278, 78, 1.5)
+    ui.spr("spr_char_kit", (t // 40) % 2, 278, 78)
   elseif go == "stage" then
     for c = 0, 4 do frame("spr_garbage", 9 + (c == 0 and 0 or c == 4 and 2 or 1), 207 + c * 16, 56) end
     frame("spr_garbage", 12, 207 + 32, 56)

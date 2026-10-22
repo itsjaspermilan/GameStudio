@@ -55,7 +55,7 @@ function Howto:draw()
     for c = 0, 3 do frame("spr_panels", 18 + ((t // 6 + c) % 2) * 2, 64 + c * 16, y) end
     ui.text("COMBO 4", 96, y - 12, ui.CORAL, "center")
     frame("spr_panels", 12, 190, y - 16); frame("spr_panels", 12, 190, y); frame("spr_panels", 6, 206, y)
-    ui.text("CHAIN x2", 214, y - 28, ui.CORAL, "center")
+    ui.text("CHAIN X2", 214, y - 28, ui.CORAL, "center")
   else
     for c = 0, 3 do frame("spr_garbage", 9 + (c == 0 and 0 or c == 3 and 2 or 1), 72 + c * 16, y) end
     frame("spr_garbage", 12, 88, y)

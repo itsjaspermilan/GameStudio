@@ -49,6 +49,9 @@ end
 
 -- the sky behind each mode (a pattern of ts_sky, see lib/ui.lua)
 local SKY = { endless = 1, time = 4, stage = 2, puzzle = 3 }
+-- seconds between speed-ups: Endless is a long game, so it climbs slowly; a two-minute Time Attack
+-- and a Vs match climb faster
+local SPEEDUP = { endless = 45, time = 20, vs = 30 }
 
 function PG.start(mode, o)
   o = o or {}
@@ -57,6 +60,7 @@ function PG.start(mode, o)
   local diff = DIFFS[o.diff or 2]
   G.diff = diff
   G.sky = SKY[mode] or 1
+  G.speedup = SPEEDUP[mode] and SPEEDUP[mode] * 60
   if mode == "endless" or mode == "time" then
     local b = PL.new({ colors = diff.colors, speed = o.speed or diff.speed })
     G.ps[1] = new_player({ b = b, human = true, x = 112, y = 24, char = 1, name = "PIP" })
@@ -101,6 +105,8 @@ function PG.start(mode, o)
 end
 
 function PG.mode() return G and G.mode end
+-- seconds until the stacks speed up again (nil in modes that do not)
+function PG.next_speedup() return G.speedup and (G.speedup - G.secs % G.speedup) // 60 end
 
 -- ---------------------------------------------------------------- input
 local function human(ps)
@@ -136,7 +142,7 @@ local function events(ps)
         if e.chain >= 2 then sfx("chain" .. min(e.chain, 5), 1) elseif e.n >= 4 then sfx("combo", 1) else sfx("clear", 1) end
       end
       local cx, cy = (e.c - 1) * 16 + 8, (e.r - TOP) * 16 - sy
-      if e.chain >= 2 then BOARD.fx_text(b, cx, cy - 6, "CHAIN x" .. e.chain, ui.GOLD, 70); shout(ps, "CHAIN x" .. e.chain); face(ps, "happy", 80) end
+      if e.chain >= 2 then BOARD.fx_text(b, cx, cy - 6, "CHAIN X" .. e.chain, ui.GOLD, 70); shout(ps, "CHAIN X" .. e.chain); face(ps, "happy", 80) end
       if e.n >= 4 then BOARD.fx_text(b, cx, cy + 6, "COMBO " .. e.n, ui.GOLD, 70); shout(ps, "COMBO " .. e.n); face(ps, "happy", 80) end
       BOARD.fx_text(b, cx, cy - 16, "+" .. e.gain, ui.WHITE, 40)
       if other and e.n >= 4 then for _, w in ipairs(PL.combo_blocks(e.n)) do send_garbage(ps, other, w, 1, false) end end
@@ -184,7 +190,7 @@ local function run()
   local mode, o = G.mode, G.o
   local p1 = G.ps[1]
   -- the stacks get faster as the game goes on
-  if (mode == "endless" or mode == "time" or mode == "vs") and G.secs % (20 * 60) == 0 then
+  if G.speedup and G.secs % G.speedup == 0 then
     for _, ps in ipairs(G.ps) do ps.b.speed = min(40, ps.b.speed + 1) end
     sfx("speedup", 1); G.speed_t = 90
   end

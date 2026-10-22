@@ -42,7 +42,7 @@ return {
     { "B BACK", 8, 227, name = "hint", font = "spr_font_w" },
   },
   pictures = {
-    { "spr_char_pip", 52, 186, name = "pip", scale = 1.5 },
+    { "spr_char_pip", 52, 182, name = "pip", scale = 2 },
     { "spr_ico_star", 252, 180, name = "star1" },
     { "spr_ico_star", 276, 192, name = "star2" },
   },

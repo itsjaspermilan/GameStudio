@@ -3,10 +3,10 @@
  "loop": null,
  "tracks": [
   {
-   "instrument": "pulse",
+   "instrument": "tri",
    "steps": [
     [
-     64,
+     57,
      3,
      0
     ],
@@ -16,7 +16,7 @@
      0
     ],
     [
-     64,
+     57,
      3,
      0
     ],

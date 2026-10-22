@@ -43,7 +43,7 @@ function Results:enter()
   if res.score then row("SCORE", ui.commas(res.score)) end
   if res.time then row("TIME", ui.fmt_time(res.time / 60)) end
   if res.panels then row("PANELS CLEARED", res.panels) end
-  if res.chain and res.chain > 1 then row("BEST CHAIN", "x" .. res.chain) end
+  if res.chain and res.chain > 1 then row("BEST CHAIN", "X" .. res.chain) end
   if res.combo and res.combo >= 4 then row("BEST COMBO", res.combo) end
   if res.moves then row("SWAPS", res.moves) end
   for i = 1, 5 do self["lab" .. i].text, self["val" .. i].text = rows[i] and rows[i][1] or "", rows[i] and tostring(rows[i][2]) or "" end
@@ -61,7 +61,7 @@ function Results:update(dt)
   self.tick = self.tick + 1
   ui.drift(self.tick)
   self.record.visible = self.res.record and (self.tick // 15) % 2 == 0
-  self.pip.y = 196 - (self.res.win and math.abs(math.floor(math.sin(self.tick / 8) * 4)) or 0)
+  self.pip.y = 190 - (self.res.win and math.abs(math.floor(math.sin(self.tick / 8) * 4)) or 0)
   local was = self.cur
   self.cur = ui.move(self.cur, #self.items)
   if self.cur ~= was then self:show() end
