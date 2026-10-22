@@ -1,16 +1,25 @@
-// The room editor: paint tile layers, place entities, draw paths, set the room's size (the camera never shows outside it). Rooms are
-// rooms/<name>.lua data files; room-core.js reads and writes them, this file is the DOM over it.
-// hooks: { onChange(), getEntities() -> [names], getTilesets() -> [names], loadTileset(name) -> Promise<{ img, tw, th, cols, count }>,
-//          entityLook(name) -> Promise<{ img, fw, fh, ox, oy } | null>, getScreen() -> { width, height }, editAsText() }
+// The layout editor: paint tile layers, place entities, texts and pictures, draw paths, set the size (the camera never shows outside it).
+// It edits a scene's layout (scenes/<name>.layout.lua, built when the scene starts) or an older room (rooms/<name>.lua); room-core.js reads
+// and writes both, this file is the DOM over it. Anything given a name is a field of the scene's code (self.<name>): renaming one is
+// remembered until the layout is saved, and main.js then renames it in the code too (getRenames).
+// hooks: { onChange(), getEntities() -> [names], getTilesets() -> [names], getSprites() -> [names], getScenes() -> [names],
+//          loadTileset(name) -> Promise<{ img, tw, th, cols, count }>, entityLook(name), spriteLook(name) -> Promise<{ img, fw, fh, ox, oy } | null>,
+//          getScreen() -> { width, height }, getPalette() -> { colors: ["#rrggbb", ...], fixed }, editAsText() }
+// A text's colour is a place in the palette when the console has a fixed one (as the game's code writes it), otherwise "#rrggbb".
 import { color as themeColor } from "./theme.js";
 import * as R from "./room-core.js";
 import { History } from "./sprite-core.js";
+import { settleRenames } from "./rename-core.js";
 
 const TOOLS = [
   ["tiles", "Tiles", "Paint tiles on the chosen layer. Shift-click fills an area, Alt-click erases, right-click picks a tile up. (T)", "t"],
   ["entities", "Things", "Click to place the chosen entity; drag one to move it; Delete removes the selected one. (N)", "n"],
+  ["texts", "Text", "Click to put a text; drag one to move it; Delete removes the selected one. (X)", "x"],
+  ["pictures", "Pictures", "Click to put the chosen sprite as a picture (no code of its own); drag one to move it; Delete removes it. (I)", "i"],
   ["paths", "Paths", "Click to add a point to the chosen path; drag a point to move it; Delete removes the selected point. (P)", "p"],
 ];
+// what each tool places and selects
+const KIND_OF = { entities: "entities", texts: "texts", pictures: "pictures" };
 
 export function createRoomEditor(root, hooks = {}) {
   root.innerHTML = `
@@ -27,7 +36,16 @@ export function createRoomEditor(root, hooks = {}) {
       <div class="re-panel re-ents-panel">
         <h3>Entity to place</h3>
         <div class="re-entlist"></div>
-        <p class="se-hint">Each one starts where you put it when <code>gs.load_room</code> builds the room.</p>
+        <p class="se-hint re-ents-hint"></p>
+      </div>
+      <div class="re-panel re-texts-panel">
+        <h3>Text</h3>
+        <p class="se-hint">Click where the text goes. Each text gets a name, so the code can change it: <code>self.title.text = "GO!"</code>.</p>
+      </div>
+      <div class="re-panel re-pics-panel">
+        <h3>Sprite to place</h3>
+        <div class="re-spritelist"></div>
+        <p class="se-hint">A picture is a sprite with no code of its own: a logo, a sign, a decoration. The code can move it: <code>self.logo.y = 40</code>.</p>
       </div>
       <div class="re-panel re-paths-panel">
         <h3>Paths</h3>
@@ -42,32 +60,56 @@ export function createRoomEditor(root, hooks = {}) {
       <div class="se-status re-status"></div>
     </div>
     <div class="se-right">
-      <h3>Room</h3>
+      <div class="re-selected">
+        <h3>Selected</h3>
+        <div class="re-selinfo"></div>
+        <label class="se-field" title="With a name, the scene's code can use it as self.<name>. Renaming it here renames it in the code too, when you save.">Name <input class="re-name" spellcheck="false" placeholder="no name"></label>
+        <p class="se-hint re-name-hint"></p>
+        <div class="re-sel-entity">
+          <label class="se-field">Values <input class="re-props" spellcheck="false" placeholder="{ hp = 3 }" title="Starting values for this one only, as a Lua table"></label>
+        </div>
+        <div class="re-sel-text">
+          <label class="se-field">Text <input class="re-text" spellcheck="false"></label>
+          <div class="se-row se-fields">
+            <label title="How big: the built-in font is 8 pixels a letter at size 1">Size <select class="re-size"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+            <label title="Where the text sits against its point">Align <select class="re-align"><option value="left">left</option><option value="center">centre</option><option value="right">right</option></select></label>
+          </div>
+          <div class="re-colors" title="The text's colour, from the console's palette"></div>
+        </div>
+        <div class="re-sel-picture">
+          <label class="se-field">Sprite <select class="re-sprite"></select></label>
+          <div class="se-row se-fields">
+            <label>Frame <input type="number" class="re-frame" min="0" step="1"></label>
+            <label>Scale <input type="number" class="re-scale" min="0.25" max="16" step="0.25"></label>
+          </div>
+        </div>
+        <label class="se-field re-screen-row" title="Stays put when the camera scrolls (a score, a hint). Otherwise it is part of the world."><input type="checkbox" class="re-screen"> Fixed on the screen</label>
+        <div class="se-row"><button data-act="delsel">Delete</button></div>
+      </div>
+      <h3 class="re-size-title">Size</h3>
       <div class="se-row se-fields">
         <label>W <input type="number" class="re-w" min="16" max="8192" step="16"></label>
         <label>H <input type="number" class="re-h" min="16" max="8192" step="16"></label>
       </div>
       <p class="se-hint re-sizehint"></p>
       <label class="se-field">Background <input type="color" class="re-bg"></label>
+      <div class="re-code-row">
+        <label class="se-field" title="Ten levels can share one set of rules: each level's layout runs the same scene's code">Code <select class="re-code"></select></label>
+      </div>
       <h3>View</h3>
       <div class="se-row"><button data-act="zoomout">&minus;</button><button data-act="fit">Fit</button><button data-act="zoomin">+</button></div>
       <label class="se-field"><input type="checkbox" class="re-snap" checked> Snap to the grid</label>
       <label class="se-field"><input type="checkbox" class="re-grid" checked> Show the grid</label>
       <div class="se-row"><button data-act="undo">Undo</button><button data-act="redo">Redo</button></div>
-      <div class="re-selected">
-        <h3>Selected</h3>
-        <div class="re-selinfo"></div>
-        <label class="se-field">Values <input class="re-props" spellcheck="false" placeholder="{ hp = 3 }" title="Starting values for this one only, as a Lua table"></label>
-        <div class="se-row"><button data-act="delent">Delete</button></div>
-      </div>
       <h3>As text</h3>
-      <div class="se-row"><button data-act="text" title="Open rooms/…lua in the code editor">Edit as text</button></div>
+      <div class="se-row"><button data-act="text" class="re-astext">Edit as text</button></div>
     </div>`;
   const $ = (sel) => root.querySelector(sel);
   const canvas = $(".re-canvas"), ctx = canvas.getContext("2d"), wrap = $(".re-wrap");
-  let room = null, name = "", dirty = false, tool = "tiles", zoom = 2;
-  let layerIx = 0, tile = 0, entName = "", sel = -1, pathName = "", pointIx = -1;
-  const tilesets = {}, looks = {};
+  let room = null, name = "", kind = "room", dirty = false, tool = "tiles", zoom = 2;
+  let layerIx = 0, tile = 0, entName = "", spriteName = "", sel = null, pathName = "", pointIx = -1;
+  let renames = []; // [old, new] in order since the last save
+  const tilesets = {}, looks = {}, pics = {};
   const history = new History(100);
 
   const snapshot = () => JSON.stringify(room);
@@ -76,6 +118,18 @@ export function createRoomEditor(root, hooks = {}) {
   const layer = () => room.layers[layerIx];
   const ts = (l) => l && tilesets[l.tileset];
   const grid = () => { const t = ts(layer()); return t ? t.tw : 16; };
+  const BASIC = ["#000000", "#ffffff", "#8a90a8", "#ea5a4b", "#e8913a", "#f5d94a", "#6ccf4f", "#45d1c5", "#4f9bf0", "#a56be0"];
+  const pal = () => { const p = hooks.getPalette ? hooks.getPalette() : null; return p && p.fixed && p.colors.length ? p : { colors: BASIC, fixed: false }; };
+  const palette = () => pal().colors;
+  const colorOf = (c) => (typeof c === "number" ? palette()[c] || "#ffffff" : /^#[0-9a-fA-F]{6}/.test(c || "") ? c.slice(0, 7) : "#ffffff");
+
+  // ---------- the selection: one entity, text or picture ----------
+  const selected = () => (sel && room[sel.kind] ? room[sel.kind][sel.i] : null);
+  const posOf = (k, item) => (k === "entities" ? [item[1], item[2]] : [item.x, item.y]);
+  const setPos = (k, item, x, y) => { if (k === "entities") { item[1] = x; item[2] = y; } else { item.x = x; item.y = y; } };
+  const nameOf = (k, item) => (k === "entities" ? item[4] : item.name);
+  const setName = (k, item, n) => { if (k === "entities") item[4] = n || undefined; else if (n) item.name = n; else delete item.name; };
+  const allNames = () => R.layoutNames(room).map((n) => n.name);
 
   // ---------- assets ----------
   async function loadAssets() {
@@ -85,7 +139,22 @@ export function createRoomEditor(root, hooks = {}) {
     const names = new Set(room.entities.map((e) => e[0]));
     if (entName) names.add(entName);
     for (const n of names) if (!(n in looks)) { try { looks[n] = await hooks.entityLook(n); } catch { looks[n] = null; } }
+    const sprites = new Set(room.pictures.map((p) => p.sprite));
+    if (spriteName) sprites.add(spriteName);
+    for (const n of sprites) if (!(n in pics)) { try { pics[n] = hooks.spriteLook ? await hooks.spriteLook(n) : null; } catch { pics[n] = null; } }
     render();
+  }
+  // a picture's box in the room, from its sprite (its origin is where x, y is)
+  function pictureBox(p) {
+    const look = pics[p.sprite], s = Number(p.scale) || 1;
+    if (!look) return [p.x - 6, p.y - 6, p.x + 6, p.y + 6];
+    return [p.x - look.ox * s, p.y - look.oy * s, p.x + (look.fw - look.ox) * s, p.y + (look.fh - look.oy) * s];
+  }
+  function hitAt(k, x, y) {
+    if (k === "entities") { const i = R.entityAt(room, x, y, 12 / Math.min(zoom, 2) + 4); return i; }
+    const list = room[k], box = k === "texts" ? R.textBox : pictureBox;
+    for (let i = list.length - 1; i >= 0; i--) { const [x0, y0, x1, y1] = box(list[i]); if (x >= x0 - 2 && x <= x1 + 2 && y >= y0 - 2 && y <= y1 + 2) return i; }
+    return -1;
   }
 
   // ---------- drawing ----------
@@ -119,18 +188,49 @@ export function createRoomEditor(root, hooks = {}) {
     ctx.setLineDash([6, 4]); ctx.strokeStyle = "rgba(255,255,255,0.35)";
     ctx.strokeRect(0.5, 0.5, Math.min(scr.width, room.width) * zoom - 1, Math.min(scr.height, room.height) * zoom - 1);
     ctx.setLineDash([]);
+    const labels = []; // names drawn last, above everything: [text, x, y]
+    const ring = (x0, y0, x1, y1) => { ctx.strokeStyle = themeColor("accent"); ctx.lineWidth = 2; ctx.strokeRect(x0 * zoom - 2, y0 * zoom - 2, (x1 - x0) * zoom + 4, (y1 - y0) * zoom + 4); };
+    const isSel = (k, i) => sel && sel.kind === k && sel.i === i;
+    // pictures
+    room.pictures.forEach((p, i) => {
+      const look = pics[p.sprite], s = Number(p.scale) || 1;
+      ctx.globalAlpha = tool === "pictures" ? 1 : 0.75;
+      if (look) {
+        const fr = Math.max(0, Math.floor(p.frame || 0)) % Math.max(1, Math.floor(look.img.width / look.fw));
+        ctx.drawImage(look.img, fr * look.fw, 0, look.fw, look.fh, (p.x - look.ox * s) * zoom, (p.y - look.oy * s) * zoom, look.fw * s * zoom, look.fh * s * zoom);
+      } else { ctx.fillStyle = "#8a90a8"; ctx.fillRect((p.x - 6) * zoom, (p.y - 6) * zoom, 12 * zoom, 12 * zoom); }
+      ctx.globalAlpha = 1;
+      const b = pictureBox(p);
+      if (isSel("pictures", i)) ring(...b);
+      if (p.name) labels.push([`self.${p.name}`, (b[0] + b[2]) / 2, b[1]]);
+    });
     // entities
-    ctx.font = "11px system-ui, sans-serif"; ctx.textAlign = "center";
-    room.entities.forEach(([n, x, y], i) => {
+    ctx.font = "11px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    room.entities.forEach(([n, x, y, , nm], i) => {
       const look = looks[n], px = x * zoom, py = y * zoom;
       ctx.globalAlpha = tool === "entities" ? 1 : 0.6;
       if (look) ctx.drawImage(look.img, 0, 0, look.fw, look.fh, px - look.ox * zoom, py - look.oy * zoom, look.fw * zoom, look.fh * zoom);
       else { ctx.fillStyle = "#ffa38c"; ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.fill(); }
       ctx.globalAlpha = 1;
-      if (i === sel && tool === "entities") { ctx.strokeStyle = themeColor("accent"); ctx.lineWidth = 2; ctx.strokeRect(px - 9, py - 9, 18, 18); }
-      if (!look || i === sel) { ctx.fillStyle = "#ffffff"; ctx.fillText(n, px, py - 10); }
+      if (isSel("entities", i)) { ctx.strokeStyle = themeColor("accent"); ctx.lineWidth = 2; ctx.strokeRect(px - 9, py - 9, 18, 18); }
+      if (nm) labels.push([`self.${nm}`, x, y - (look ? look.oy : 6)]);
+      else if (!look || isSel("entities", i)) { ctx.fillStyle = "#ffffff"; ctx.fillText(n, px, py - 10); }
+    });
+    // texts, in the built-in font's size (8 pixels a letter); the Play panel shows the real letters
+    room.texts.forEach((t, i) => {
+      const size = Number(t.size) || 1, [x0, y0, x1, y1] = R.textBox(t);
+      ctx.globalAlpha = tool === "texts" ? 1 : 0.8;
+      ctx.font = `${8 * size * zoom}px ui-monospace, Menlo, monospace`; ctx.textBaseline = "top"; ctx.textAlign = "left";
+      ctx.fillStyle = colorOf(t.color);
+      const s = String(t.text ?? "");
+      for (let k = 0; k < s.length; k++) ctx.fillText(s[k], (x0 + k * 8 * size) * zoom, y0 * zoom, 8 * size * zoom);
+      if (!s) { ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.strokeRect(x0 * zoom, y0 * zoom, (x1 - x0) * zoom, (y1 - y0) * zoom); }
+      ctx.globalAlpha = 1;
+      if (isSel("texts", i)) ring(x0, y0, x1, y1);
+      if (t.name) labels.push([`self.${t.name}`, (x0 + x1) / 2, y0]);
     });
     // paths
+    ctx.font = "11px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
     for (const [k, p] of Object.entries(room.paths)) {
       const on = k === pathName && tool === "paths";
       ctx.strokeStyle = on ? "#f5d94a" : "rgba(245,217,74,0.4)"; ctx.lineWidth = on ? 2 : 1;
@@ -144,12 +244,20 @@ export function createRoomEditor(root, hooks = {}) {
       });
       if (p.points.length) { ctx.fillStyle = on ? "#f5d94a" : "rgba(245,217,74,0.6)"; ctx.fillText(k, p.points[0][0] * zoom, p.points[0][1] * zoom - 8); }
     }
+    // names: the way the code reaches them
+    ctx.font = "11px ui-monospace, Menlo, monospace";
+    for (const [text, x, y] of labels) {
+      const w = ctx.measureText(text).width + 8, lx = x * zoom - w / 2, ly = y * zoom - 18;
+      ctx.fillStyle = "rgba(10,12,20,0.75)"; ctx.fillRect(lx, ly, w, 15);
+      ctx.fillStyle = "#a8d4ff"; ctx.fillText(text, x * zoom, ly + 11);
+    }
     renderSide();
   }
 
   function renderSide() {
     root.querySelectorAll(".re-tools button").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
     $(".re-tiles-panel").hidden = tool !== "tiles"; $(".re-ents-panel").hidden = tool !== "entities"; $(".re-paths-panel").hidden = tool !== "paths";
+    $(".re-texts-panel").hidden = tool !== "texts"; $(".re-pics-panel").hidden = tool !== "pictures";
     // layers
     const lbox = $(".re-layers"); lbox.replaceChildren();
     if (!room.layers.length) { const p = document.createElement("p"); p.className = "se-hint"; p.textContent = "No tile layers yet. Pick a tileset and add one."; lbox.appendChild(p); }
@@ -169,15 +277,10 @@ export function createRoomEditor(root, hooks = {}) {
     if (tsSel.options.length !== names.length) tsSel.replaceChildren(...names.map((n) => new Option(n, n)));
     $("[data-act=addlayer]").disabled = !names.length;
     drawTilePalette();
-    // entities
-    const ebox = $(".re-entlist"); ebox.replaceChildren();
-    const ents = hooks.getEntities ? hooks.getEntities() : [];
-    if (!ents.length) { const p = document.createElement("p"); p.className = "se-hint"; p.textContent = "No entities in this game yet."; ebox.appendChild(p); }
-    for (const n of ents) {
-      const b = document.createElement("button"); b.className = "re-pick" + (n === entName ? " active" : ""); b.textContent = n;
-      b.onclick = () => { entName = n; if (!(n in looks)) loadAssets(); renderSide(); };
-      ebox.appendChild(b);
-    }
+    // things to place
+    pickList($(".re-entlist"), hooks.getEntities ? hooks.getEntities() : [], entName, "No entities in this game yet.", (n) => { entName = n; if (!(n in looks)) loadAssets(); });
+    pickList($(".re-spritelist"), hooks.getSprites ? hooks.getSprites() : [], spriteName, "No sprites in this game yet.", (n) => { spriteName = n; if (!(n in pics)) loadAssets(); });
+    $(".re-ents-hint").textContent = kind === "layout" ? "Each one is made where you put it when the scene starts. Give one a name to use it in the code (self.name)." : "Each one starts where you put it when gs.load_room builds the room.";
     // paths
     const pbox = $(".re-pathlist"); pbox.replaceChildren();
     for (const [k, p] of Object.entries(room.paths)) {
@@ -199,18 +302,68 @@ export function createRoomEditor(root, hooks = {}) {
     }
     const cur = room.paths[pathName];
     $(".re-loop").checked = !!(cur && cur.loop); $(".re-loop").disabled = !cur;
-    // room and selection
+    // size, background, code
+    $(".re-size-title").textContent = kind === "layout" ? "Layout size" : "Room size";
     if (document.activeElement !== $(".re-w")) $(".re-w").value = room.width;
     if (document.activeElement !== $(".re-h")) $(".re-h").value = room.height;
     $(".re-bg").value = /^#[0-9a-fA-F]{6}$/.test(room.background || "") ? room.background : "#000000";
     const scr = hooks.getScreen ? hooks.getScreen() : { width: 320, height: 240 };
-    $(".re-sizehint").textContent = `${(room.width / scr.width).toFixed(1)} × ${(room.height / scr.height).toFixed(1)} screens. The camera never shows outside the room; the dashed box is one screen.`;
-    const e = room.entities[sel];
-    $(".re-selected").hidden = !(tool === "entities" && e);
-    if (e) {
-      $(".re-selinfo").textContent = `${e[0]} at ${e[1]}, ${e[2]}`;
-      if (document.activeElement !== $(".re-props")) $(".re-props").value = e[3] ? R.luaInline(e[3]) : "";
+    $(".re-sizehint").textContent = `${(room.width / scr.width).toFixed(1)} × ${(room.height / scr.height).toFixed(1)} screens. The camera never shows outside it; the dashed box is one screen.`;
+    $(".re-code-row").hidden = kind !== "layout";
+    if (kind === "layout") {
+      const codeSel = $(".re-code"), scenes = (hooks.getScenes ? hooks.getScenes() : []).filter((n) => n !== name);
+      const want = ["", ...scenes];
+      if ([...codeSel.options].map((o) => o.value).join("|") !== want.join("|")) {
+        codeSel.replaceChildren(new Option(`its own (scenes/${name}.lua)`, ""), ...scenes.map((n) => new Option(`${n}'s code`, n)));
+      }
+      codeSel.value = room.code || "";
     }
+    $(".re-astext").title = kind === "layout" ? `Open scenes/${name}.layout.lua in the code editor` : `Open rooms/${name}.lua in the code editor`;
+    renderSelected();
+  }
+
+  function pickList(box, list, current, empty, pick) {
+    box.replaceChildren();
+    if (!list.length) { const p = document.createElement("p"); p.className = "se-hint"; p.textContent = empty; box.appendChild(p); }
+    for (const n of list) {
+      const b = document.createElement("button"); b.className = "re-pick" + (n === current ? " active" : ""); b.textContent = n;
+      b.onclick = () => { pick(n); renderSide(); };
+      box.appendChild(b);
+    }
+  }
+
+  function renderSelected() {
+    const item = selected(), k = sel && sel.kind;
+    $(".re-selected").hidden = !(item && KIND_OF[tool] === k);
+    if (!item) return;
+    const [x, y] = posOf(k, item);
+    $(".re-selinfo").textContent = k === "entities" ? `${item[0]} at ${x}, ${y}` : k === "texts" ? `Text at ${x}, ${y}` : `Picture of ${item.sprite} at ${x}, ${y}`;
+    const keep = (el, v) => { if (document.activeElement !== el) el.value = v; };
+    keep($(".re-name"), nameOf(k, item) || "");
+    $(".re-name-hint").textContent = nameOf(k, item) ? `In the code: self.${nameOf(k, item)}` : kind === "layout" ? "Give it a name to use it in the scene's code." : "";
+    $(".re-sel-entity").hidden = k !== "entities"; $(".re-sel-text").hidden = k !== "texts"; $(".re-sel-picture").hidden = k !== "pictures";
+    $(".re-screen-row").hidden = k === "entities";
+    if (k === "entities") keep($(".re-props"), item[3] ? R.luaInline(item[3]) : "");
+    if (k === "texts") {
+      keep($(".re-text"), item.text ?? "");
+      $(".re-size").value = String(item.size || 1); $(".re-align").value = item.align || "left";
+      const box = $(".re-colors"); box.replaceChildren();
+      palette().forEach((c, i) => {
+        const fixed = pal().fixed, value = fixed ? i : c;
+        const b = document.createElement("button"); b.className = "re-swatch" + (item.color === value || (item.color == null && c === "#ffffff") ? " active" : ""); b.style.background = c;
+        b.title = fixed ? `palette colour ${i} (${c})` : c;
+        b.onclick = () => commit(() => { item.color = value; });
+        box.appendChild(b);
+      });
+    }
+    if (k === "pictures") {
+      const sprites = hooks.getSprites ? hooks.getSprites() : [];
+      const s = $(".re-sprite");
+      if ([...s.options].map((o) => o.value).join("|") !== sprites.join("|")) s.replaceChildren(...sprites.map((n) => new Option(n, n)));
+      s.value = item.sprite;
+      keep($(".re-frame"), item.frame || 0); keep($(".re-scale"), item.scale || 1);
+    }
+    $(".re-screen").checked = !!item.screen;
   }
 
   function drawTilePalette() {
@@ -249,10 +402,19 @@ export function createRoomEditor(root, hooks = {}) {
     else l.data[r][c] = v;
   }
 
+  // a name for a new text or picture: from its sprite ("spr_logo" -> logo) or "text", not yet used
+  function freshName(base) {
+    const clean = String(base).replace(/^(spr|sprite|ts)_/, "").replace(/[^A-Za-z0-9_]/g, "_").replace(/^(\d)/, "_$1") || "thing";
+    const ok = R.nameProblem(clean, room) ? "thing" : clean;
+    return R.freshName(ok, allNames());
+  }
+
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   canvas.addEventListener("mousedown", (ev) => {
     if (!room) return;
+    root.focus({ preventScroll: true });
     const [x, y] = worldAt(ev);
+    const k = KIND_OF[tool];
     if (tool === "tiles") {
       const l = layer(), t = ts(l);
       if (!l) return;
@@ -263,11 +425,19 @@ export function createRoomEditor(root, hooks = {}) {
       const before = snapshot();
       drag = { kind: "paint", before, erase: ev.button === 2 || ev.altKey };
       paintAt(x, y, drag.erase, ev.shiftKey); render();
-    } else if (tool === "entities") {
-      const hit = R.entityAt(room, x, y, 12 / Math.min(zoom, 2) + 4);
-      if (hit >= 0) { sel = hit; drag = { kind: "move", before: snapshot() }; render(); return; }
-      if (!entName) { status("Pick an entity on the left first."); return; }
-      commit(() => { room.entities.push([entName, snapped(x), snapped(y)]); sel = room.entities.length - 1; });
+    } else if (k) {
+      const hit = hitAt(k, x, y);
+      if (hit >= 0) { const [ix, iy] = posOf(k, room[k][hit]); sel = { kind: k, i: hit }; drag = { kind: "move", before: snapshot(), dx: ix - x, dy: iy - y }; render(); return; }
+      if (k === "entities") {
+        if (!entName) { status("Pick an entity on the left first."); return; }
+        commit(() => { room.entities.push([entName, snapped(x), snapped(y)]); sel = { kind: k, i: room.entities.length - 1 }; });
+      } else if (k === "texts") {
+        commit(() => { room.texts.push({ text: "TEXT", x: snapped(x), y: snapped(y), name: freshName("text"), size: 1 }); sel = { kind: k, i: room.texts.length - 1 }; });
+        requestAnimationFrame(() => { $(".re-text").focus(); $(".re-text").select(); });
+      } else {
+        if (!spriteName) { status("Pick a sprite on the left first."); return; }
+        commit(() => { room.pictures.push({ sprite: spriteName, x: snapped(x), y: snapped(y), name: freshName(spriteName) }); sel = { kind: k, i: room.pictures.length - 1 }; });
+      }
     } else if (tool === "paths") {
       if (!pathName) { commit(() => { pathName = R.freshName("path", Object.keys(room.paths)); room.paths[pathName] = { points: [], loop: false }; }); }
       const p = room.paths[pathName];
@@ -282,7 +452,7 @@ export function createRoomEditor(root, hooks = {}) {
     if (ev.target === canvas) status(`${Math.floor(x)}, ${Math.floor(y)}` + (layer() && ts(layer()) ? `  ·  tile ${Math.floor(x / ts(layer()).tw)}, ${Math.floor(y / ts(layer()).th)}` : ""));
     if (!drag) return;
     if (drag.kind === "paint") { paintAt(x, y, drag.erase, false); render(); }
-    else if (drag.kind === "move" && room.entities[sel]) { room.entities[sel][1] = snapped(x); room.entities[sel][2] = snapped(y); render(); }
+    else if (drag.kind === "move" && selected()) { setPos(sel.kind, selected(), snapped(x + drag.dx), snapped(y + drag.dy)); render(); }
     else if (drag.kind === "point") { const p = room.paths[pathName]; if (p && p.points[pointIx]) { p.points[pointIx] = [snapped(x), snapped(y)]; render(); } }
   });
   window.addEventListener("mouseup", () => {
@@ -292,19 +462,28 @@ export function createRoomEditor(root, hooks = {}) {
   });
   root.addEventListener("keydown", (ev) => {
     if (ev.target.tagName === "INPUT" || ev.target.tagName === "SELECT") return;
-    const k = ev.key.toLowerCase();
-    if ((ev.metaKey || ev.ctrlKey) && k === "z") { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
+    const key = ev.key.toLowerCase();
+    if ((ev.metaKey || ev.ctrlKey) && key === "z") { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
     if (ev.key === "Delete" || ev.key === "Backspace") {
-      if (tool === "entities" && sel >= 0) commit(() => { room.entities.splice(sel, 1); sel = -1; });
+      if (selected() && KIND_OF[tool] === sel.kind) deleteSelected();
       else if (tool === "paths" && room.paths[pathName] && pointIx >= 0) commit(() => { room.paths[pathName].points.splice(pointIx, 1); pointIx = -1; });
       ev.preventDefault(); return;
     }
-    const t = TOOLS.find((x) => x[3] === k);
+    // arrow keys nudge what is selected by a pixel (or the grid with shift)
+    const arrows = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] }[key];
+    if (arrows && selected() && KIND_OF[tool] === sel.kind) {
+      ev.preventDefault();
+      const step = ev.shiftKey ? grid() : 1, [x, y] = posOf(sel.kind, selected());
+      commit(() => setPos(sel.kind, selected(), x + arrows[0] * step, y + arrows[1] * step));
+      return;
+    }
+    const t = TOOLS.find((x) => x[3] === key);
     if (t && !ev.metaKey && !ev.ctrlKey) { tool = t[0]; render(); }
   });
   root.tabIndex = 0;
 
   function status(text) { $(".re-status").textContent = text; }
+  function deleteSelected() { commit(() => { room[sel.kind].splice(sel.i, 1); sel = null; }); }
 
   // ---------- buttons and fields ----------
   for (const [id, label, tip] of TOOLS) {
@@ -314,7 +493,7 @@ export function createRoomEditor(root, hooks = {}) {
   }
   function undo() { const s = history.undo(snapshot()); if (s) { room = JSON.parse(s); markDirty(); clampSel(); render(); } }
   function redo() { const s = history.redo(snapshot()); if (s) { room = JSON.parse(s); markDirty(); clampSel(); render(); } }
-  function clampSel() { if (sel >= room.entities.length) sel = -1; layerIx = Math.min(layerIx, Math.max(0, room.layers.length - 1)); if (!room.paths[pathName]) pathName = ""; }
+  function clampSel() { if (sel && !(room[sel.kind] && room[sel.kind][sel.i])) sel = null; layerIx = Math.min(layerIx, Math.max(0, room.layers.length - 1)); if (!room.paths[pathName]) pathName = ""; }
   function fit() {
     const w = wrap.clientWidth - 24, h = wrap.clientHeight - 24;
     if (w <= 0 || h <= 0) return; // not on screen yet: showView calls refit once it is
@@ -338,13 +517,14 @@ export function createRoomEditor(root, hooks = {}) {
       });
     },
     addpath: () => commit(() => { pathName = R.freshName("path", Object.keys(room.paths)); room.paths[pathName] = { points: [], loop: false }; pointIx = -1; tool = "paths"; }),
-    delent: () => commit(() => { if (sel >= 0) room.entities.splice(sel, 1); sel = -1; }),
+    delsel: () => { if (selected()) deleteSelected(); },
   };
   root.addEventListener("click", (e) => { const b = e.target.closest("[data-act]"); if (b && acts[b.dataset.act]) acts[b.dataset.act](); });
   $(".re-loop").onchange = () => commit(() => { if (room.paths[pathName]) room.paths[pathName].loop = $(".re-loop").checked; });
   $(".re-grid").onchange = () => render();
   $(".re-bg").onchange = () => commit(() => { room.background = $(".re-bg").value; });
-  // the room's size: every layer grows or shrinks with it, so painting reaches the new edge
+  $(".re-code").onchange = () => commit(() => { if ($(".re-code").value) room.code = $(".re-code").value; else delete room.code; });
+  // the size: every layer grows or shrinks with it, so painting reaches the new edge
   const resize = () => commit(() => {
     room.width = Math.max(16, Math.min(8192, Math.round(Number($(".re-w").value) || room.width)));
     room.height = Math.max(16, Math.min(8192, Math.round(Number($(".re-h").value) || room.height)));
@@ -352,19 +532,43 @@ export function createRoomEditor(root, hooks = {}) {
   });
   $(".re-w").onchange = resize; $(".re-h").onchange = resize;
   $(".re-props").onchange = () => {
-    const e = room.entities[sel]; if (!e) return;
+    const e = selected(); if (!e || sel.kind !== "entities") return;
     const text = $(".re-props").value.trim();
-    if (!text) { commit(() => { e.length = 3; }); return; }
+    if (!text) { commit(() => { e[3] = undefined; }); return; }
     const r = R.parseRoom(`return { p = ${text} }`);
     if (r.error || !r.room.p || typeof r.room.p !== "object" || Array.isArray(r.room.p)) { status("Values are a Lua table of names, like { hp = 3, speed = 40 }."); return; }
     commit(() => { e[3] = r.room.p; });
   };
+  // a new name: checked, and remembered so the code follows when the layout is saved
+  $(".re-name").onchange = () => {
+    const item = selected(); if (!item) return;
+    const old = nameOf(sel.kind, item) || "", next = $(".re-name").value.trim();
+    if (next === old) return;
+    const problem = R.nameProblem(next, room, old);
+    if (problem) { status(problem); $(".re-name").value = old; return; }
+    commit(() => setName(sel.kind, item, next));
+    if (old && next) renames.push([old, next]);
+    status(old && next ? `Renamed: the code's self.${old} becomes self.${next} when you save.` : next ? `In the code this is self.${next}.` : "");
+  };
+  // typing shows at once; the whole edit is one step to undo
+  let textBefore = null;
+  $(".re-text").onfocus = () => { textBefore = snapshot(); };
+  $(".re-text").oninput = () => { const t = selected(); if (t && sel.kind === "texts") { t.text = $(".re-text").value; markDirty(); render(); } };
+  $(".re-text").onchange = () => { if (textBefore && textBefore !== snapshot()) history.record(textBefore); textBefore = snapshot(); };
+  $(".re-size").onchange = () => commit(() => { selected().size = Number($(".re-size").value); });
+  $(".re-align").onchange = () => commit(() => { const t = selected(); if ($(".re-align").value === "left") delete t.align; else t.align = $(".re-align").value; });
+  $(".re-sprite").onchange = () => { spriteName = $(".re-sprite").value; commit(() => { selected().sprite = spriteName; }); loadAssets(); };
+  $(".re-frame").onchange = () => commit(() => { const v = Math.max(0, Math.floor(Number($(".re-frame").value) || 0)); if (v) selected().frame = v; else delete selected().frame; });
+  $(".re-scale").onchange = () => commit(() => { const v = Math.max(0.25, Math.min(16, Number($(".re-scale").value) || 1)); if (v !== 1) selected().scale = v; else delete selected().scale; });
+  $(".re-screen").onchange = () => commit(() => { if ($(".re-screen").checked) selected().screen = true; else delete selected().screen; });
 
   return {
-    async load(n, def) {
-      name = n; room = R.normalizeRoom(def); dirty = false; history.undoStack = []; history.redoStack = [];
-      layerIx = 0; tile = 0; sel = -1; pathName = Object.keys(room.paths)[0] || ""; pointIx = -1;
+    // kind: "layout" (a scene's) or "room"
+    async load(n, def, k = "room") {
+      name = n; kind = k; room = R.normalizeRoom(def); dirty = false; history.undoStack = []; history.redoStack = []; renames = [];
+      layerIx = 0; tile = 0; sel = null; pathName = Object.keys(room.paths)[0] || ""; pointIx = -1;
       if (!entName) entName = (hooks.getEntities ? hooks.getEntities() : [])[0] || "";
+      if (!spriteName) spriteName = (hooks.getSprites ? hooks.getSprites() : [])[0] || "";
       render();
       await loadAssets();
       // layers written by hand may be smaller than the room: grow them so every cell can be painted
@@ -373,8 +577,11 @@ export function createRoomEditor(root, hooks = {}) {
     },
     getDef: () => room,
     getName: () => name,
+    getKind: () => kind,
+    // { old: new } for the names changed since the last save that are still changed
+    getRenames: () => settleRenames(renames, allNames()),
     isDirty: () => dirty,
-    markClean: () => { dirty = false; },
+    markClean: () => { dirty = false; renames = []; },
     refit: () => room && fit(),
     redraw: () => room && render(), // the look changed
   };

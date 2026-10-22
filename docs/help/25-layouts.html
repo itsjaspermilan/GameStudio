@@ -1,0 +1,63 @@
+<!--
+title: Layouts: placing things in a scene
+group: Tutorials
+order: 25
+summary: A scene's layout holds what is placed where (texts, pictures, entities, tiles); named things are fields of the scene's code.
+-->
+<h1>Layouts: placing things in a scene</h1>
+<p>A scene has two halves, and the bar above the editor switches between them:</p>
+<ul>
+<li><strong>Layout</strong>: what is placed where. Texts, pictures, entities, tile layers and paths, put in by dragging. It is saved as <code>scenes/title.layout.lua</code>.</li>
+<li><strong>Code</strong>: what the scene does: <code>enter</code>, <code>update</code>, <code>draw_ui</code>. It is <code>scenes/title.lua</code>.</li>
+</ul>
+<p>When the scene starts, its layout is built first, then <code>enter</code> runs. Either half can be missing: a menu may be all layout with a few lines of code, and a scene that makes everything in code needs no layout.</p>
+
+<h2>Names connect the two</h2>
+<p>Give something in the layout a name (in the <strong>Selected</strong> panel) and the code has it as a field: a text named <code>prompt</code> is <code>self.prompt</code>, a picture named <code>logo</code> is <code>self.logo</code>.
+Texts and pictures get a name as soon as you place them; an entity gets one only if you give it one, so forty enemies don't make forty names. The layout editor shows each name as <code>self.name</code> above the thing.</p>
+<p>Typing <code>self.</code> in the scene's code lists the names, hovering one shows what it is, and a typo like <code>self.promtp</code> gets a warning. <strong>Renaming</strong> something in the layout renames it in the code too, when you save the layout.</p>
+
+<h2>A title screen</h2>
+<p>This layout has a big title and a blinking prompt. You would normally place them with the Text tool; this is what the editor writes:</p>
+<pre class="lua" data-path="scenes/title.layout.lua"><code>return {
+  width = 320, height = 240,
+  background = "#14234f",
+  entities = {
+  },
+  texts = {
+    { "SKY HOP", 160, 70, name = "title", color = 15, size = 4, align = "center" },
+    { "PRESS A", 160, 180, name = "prompt", color = 3, align = "center" },
+  },
+}</code></pre>
+<p>The code only says what moves. A text has <code>text</code>, <code>x</code>, <code>y</code>, <code>color</code>, <code>size</code> and <code>visible</code>; a picture has <code>sprite</code>, <code>frame</code> and its scale in <code>sx</code> and <code>sy</code>. Both are entities, so <code>tween</code> works on them too.</p>
+<pre class="lua" data-path="scenes/title.lua"><code>local Title = gs.scene{}
+
+function Title:enter()
+  self.top = self.title.y
+end
+
+function Title:update(dt)
+  self.title.y = self.top + math.sin(gs.time() * 3) * 4  -- the title bobs
+  self.prompt.visible = gs.time() % 1 &lt; 0.6             -- the prompt blinks
+  if gs.input.pressed("a") then
+    self.prompt.text = "GO!"
+  end
+end
+
+return Title</code></pre>
+<pre class="lua" data-path="game.lua"><code>return gs.game{
+  title = "Sky Hop",
+  console = "dot",
+  start = "scenes.title",
+}</code></pre>
+<p>Press Run and the game shows in the Play panel. Move a text in the layout, save, and the running scene starts again with the new layout.</p>
+
+<h2>Many levels, one set of rules</h2>
+<p>Each level can be a scene with its own layout. They don't each need their own code: in a level's layout, <strong>Code</strong> (on the right) picks another scene's code to run. With <code>level1</code> to <code>level10</code> all running <code>level</code>'s code, that code can count on every level having the names it uses, say <code>self.door</code>. Renaming <code>door</code> in one level renames it in the others too.</p>
+<pre class="lua"><code>-- scenes/level1.layout.lua
+return {
+  code = "level",
+  entities = { { "player", 32, 200, {}, name = "player" }, { "door", 300, 200, {}, name = "door" } },
+}</code></pre>
+<div class="note"><strong>Rooms</strong> (<code>rooms/</code>, <a href="help:rooms">Big levels</a>) are the older way to do this: the same data, built by <code>gs.load_room</code> from code. They still work.</div>
+<p>Next: <a href="help:collisions">Collisions and tags</a>.</p>

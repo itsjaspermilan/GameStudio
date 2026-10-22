@@ -2,9 +2,10 @@
 // (or by git) appears at once. This module knows the folders, how names map to files and Lua module names, and the starter text of new files.
 
 // kind: how the studio opens it ("code" = the Lua editor, otherwise the named editor). nested: names may contain folders (entities/enemies/grub).
+// layout: a scene is its code (scenes/title.lua), its layout (scenes/title.layout.lua, edited in the layout editor), or both.
 export const GROUPS = [
   { key: "entities", title: "Entities", dir: "entities", ext: "lua", kind: "code", nested: true, single: "entity", tip: "Things in your game: the player, enemies, bullets. One Lua file each." },
-  { key: "scenes", title: "Scenes", dir: "scenes", ext: "lua", kind: "code", nested: true, single: "scene", tip: "Screens of your game: title, play, game over." },
+  { key: "scenes", title: "Scenes", dir: "scenes", ext: "lua", layout: "layout.lua", kind: "code", nested: true, single: "scene", tip: "Screens and levels of your game: title, play, game over. Each has a layout (what is placed where) and code." },
   { key: "rooms", title: "Rooms", dir: "rooms", ext: "lua", kind: "code", nested: true, single: "room", tip: "Level data: tile layers and where things start." },
   { key: "lib", title: "Code", dir: "lib", ext: "lua", kind: "code", nested: true, single: "code file", tip: "Shared code and game state you load with require." },
   { key: "sprites", title: "Sprites", dir: "sprites", ext: "json", pair: "png", kind: "sprite", single: "sprite" },
@@ -25,12 +26,16 @@ export function validName(name, nested = false) {
   return parts.length <= 4 && parts.every((p) => SEGMENT.test(p) && !p.startsWith("."));
 }
 
-// The files that make up one resource (a sprite is a JSON and a PNG).
+// The files that make up one resource (a sprite is a JSON and a PNG, a scene its code and its layout). The first is the one that opens.
 export function resourceFiles(g, name) {
   const files = [`${g.dir}/${name}.${g.ext}`];
   if (g.pair) files.push(`${g.dir}/${name}.${g.pair}`);
+  if (g.layout) files.push(layoutFile(name));
   return files;
 }
+export const layoutFile = (scene) => `scenes/${scene}.layout.lua`;
+// "scenes/menus/title.layout.lua" -> "menus/title", or null
+export const sceneOfLayout = (rel) => { const m = /^scenes\/(.+)\.layout\.lua$/.exec(rel || ""); return m && validName(m[1], true) ? m[1] : null; };
 
 // What a Lua file calls this resource: "entities/enemies/grub" is required as entities.enemies.grub and spawned as "enemies.grub".
 export const moduleName = (g, name) => `${g.dir}.${name.replace(/\//g, ".")}`;
@@ -64,23 +69,28 @@ export function movedName(name, folder) {
   return folder ? `${folder}/${base}` : base;
 }
 
-// Sort the file list into the tree: { hasGame, groups: {key: [names]}, other: [files that belong to no group] }.
+// Sort the file list into the tree: { hasGame, groups: {key: [names]}, layouts: [scenes with a layout], code: [scenes with code],
+// other: [files that belong to no group] }.
 export function scanProject(files) {
   const groups = Object.fromEntries(GROUPS.map((g) => [g.key, []]));
-  const claimed = new Set();
+  const claimed = new Set(), layouts = [], code = [];
   for (const g of GROUPS) {
     const prefix = g.dir + "/", suffix = "." + g.ext;
+    const names = new Set();
     for (const f of files) {
       if (!f.startsWith(prefix) || !f.endsWith(suffix)) continue;
+      const scene = g.layout && sceneOfLayout(f);
+      if (scene) { names.add(scene); layouts.push(scene); claimed.add(f); continue; }
       const name = f.slice(prefix.length, f.length - suffix.length);
       if (!validName(name, !!g.nested)) continue;
-      groups[g.key].push(name); claimed.add(f);
+      names.add(name); claimed.add(f);
+      if (g.layout) code.push(name);
       if (g.pair) claimed.add(`${g.dir}/${name}.${g.pair}`);
     }
-    groups[g.key].sort();
+    groups[g.key] = [...names].sort();
   }
   const other = files.filter((f) => !claimed.has(f) && !f.startsWith("meta/") && f !== "game.lua").sort();
-  return { hasGame: files.includes("game.lua"), groups, other };
+  return { hasGame: files.includes("game.lua"), groups, layouts: layouts.sort(), code: code.sort(), other };
 }
 
 // The console named in a game's meta/info.json (new games write it there; game.lua says the same in code). Defaults to Dot.
@@ -124,6 +134,7 @@ end
 
 return Scene
 `,
+  // a scene's layout (scenes/<name>.layout.lua): see LAYOUT_TEMPLATE below
   rooms: (name, screen) => `-- A room is plain data: gs.load_room("${name.replace(/\//g, ".")}") builds it.
 return {
   width = ${screen.width}, height = ${screen.height},
@@ -136,6 +147,16 @@ return {
 `,
   lib: () => "local M = {}\n\nreturn M\n",
 };
+
+export const LAYOUT_COMMENT = "The scene's layout, built when it starts. Anything with a name is a field of the scene's code: self.<name>.";
+export const LAYOUT_TEMPLATE = (screen) => `-- ${LAYOUT_COMMENT}
+return {
+  width = ${screen.width}, height = ${screen.height},
+  background = "#101220",
+  entities = {
+  },
+}
+`;
 
 // Starter files of a new game.
 export function newGameFiles(title, consoleId) {

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseRoom, serializeRoom, fitLayer, fillLayer, entityAt, snap, freshName, luaInline } from "../src/room-core.js";
+import { parseRoom, serializeRoom, fitLayer, fillLayer, entityAt, snap, freshName, luaInline, layoutNames, nameProblem, textBox } from "../src/room-core.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -71,4 +71,34 @@ test("editing helpers", () => {
   assert.equal(snap(13, 8), 16); assert.equal(snap(13.4, 1), 13);
   assert.equal(freshName("path", ["path", "path2"]), "path3");
   assert.equal(luaInline({ end: 1, ok: "x" }), '{ ["end"] = 1, ok = "x" }', "Lua words are quoted as keys");
+});
+
+test("a scene layout keeps texts, pictures, names and the code it runs", () => {
+  const src = `return {
+  code = "level",
+  entities = {
+    { "player", 160, 120, {}, name = "hero" },
+    { "grub", 10, 20, { hp = 2 } },
+  },
+  texts = {
+    { "PRESS A", 160, 206, name = "prompt", color = 3, size = 2, align = "center" },
+  },
+  pictures = {
+    { "spr_logo", 80, 20, name = "logo", scale = 2 },
+  },
+}`;
+  const { room } = parseRoom(src);
+  assert.deepEqual(room.entities[0], ["player", 160, 120, undefined, "hero"], "{} is no values");
+  assert.deepEqual(room.entities[1], ["grub", 10, 20, { hp: 2 }]);
+  assert.deepEqual(room.texts[0], { text: "PRESS A", x: 160, y: 206, name: "prompt", color: 3, size: 2, align: "center" });
+  assert.deepEqual(room.pictures[0], { sprite: "spr_logo", x: 80, y: 20, name: "logo", scale: 2 });
+  assert.equal(room.code, "level");
+  const again = parseRoom(serializeRoom(room)).room;
+  assert.deepEqual(again, room, "written and read back unchanged");
+  assert.deepEqual(layoutNames(room).map((n) => n.name), ["hero", "logo", "prompt"]);
+  assert.match(nameProblem("update", room), /every scene/);
+  assert.match(nameProblem("logo", room), /already/);
+  assert.equal(nameProblem("logo", room, "logo"), null, "a thing keeps its own name");
+  assert.match(nameProblem("2fast", room), /letters/);
+  assert.deepEqual(textBox({ text: "ABCD", x: 100, y: 10, size: 2, align: "center" }), [68, 10, 132, 26]);
 });

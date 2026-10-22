@@ -31,6 +31,8 @@ async function seed() {
   carts.demo = { files: {
     "game.lua": { text: 'return gs.game{ title = "Demo", console = "dot", start = "scenes.main" }\n' },
     "scenes/main.lua": { text: 'local Main = gs.scene{}\nfunction Main:enter()\n  gs.spawn("player", 160, 120)\n  gs.spawn("enemies.grub", 40, 40)\nend\nreturn Main\n' },
+    "scenes/title.lua": { text: 'local Title = gs.scene{}\n\nfunction Title:update(dt)\n  self.prompt.visible = gs.time() % 1 < 0.5\n  if gs.input.pressed("a") then gs.goto_scene("main") end\nend\n\nreturn Title\n' },
+    "scenes/title.layout.lua": { text: '-- The scene\'s layout, built when it starts.\nreturn {\n  width = 320, height = 240,\n  background = "#101220",\n  entities = {\n  },\n  texts = {\n    { "DEMO", 160, 60, name = "title", color = 3, size = 4, align = "center" },\n    { "PRESS A", 160, 180, name = "prompt", color = 15, size = 1, align = "center" },\n  },\n  pictures = {\n    { "spr_demo", 160, 120, name = "demo", scale = 3 },\n  },\n}\n' },
     "entities/enemies/grub.lua": { text: 'local Grub = gs.entity{ sprite = "spr_demo", tags = { "enemy" } }\n\nreturn Grub\n' },
     "entities/player.lua": { text: 'local Player = gs.entity{ sprite = "spr_demo", tags = { "player" } }\n\nfunction Player:update(dt)\n  local dx, dy = gs.input.dir()\n  self.x = self.x + dx * 90 * dt\n  self.y = self.y + dy * 90 * dt\nend\n\nreturn Player\n' },
     "meta/info.json": { text: JSON.stringify({ title: "Demo", console: "dot" }, null, 2) },

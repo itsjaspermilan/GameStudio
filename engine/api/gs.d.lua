@@ -242,7 +242,8 @@ function gs.pause(on) end
 ---@return table
 function gs.defaults(name) end
 
----Go to another scene at the end of this step. Anything after the options is passed to the scene's enter(). The options may be left out or be nil; to pass a table as
+---Go to another scene at the end of this step. Its layout (scenes/<name>.layout.lua) is built first: everything named in it is a field of
+---the scene (self.logo) before enter() runs. Anything after the options is passed to the scene's enter(). The options may be left out or be nil; to pass a table as
 ---the first argument to enter(), give the options first ({} for none).
 ---@param name string A scene, e.g. "scenes.play"
 ---@param opts? { fade: number } fade = seconds to fade out and in

@@ -4,7 +4,7 @@
 --   gs.each("enemy", fn)  gs.all("enemy")  gs.first("player")  gs.count("enemy")
 --   gs.nearest(x, y, "enemy", 200)          closest entity with that tag, optionally within a distance
 --   gs.in_radius(x, y, 50, "enemy")         a new list of every one within 50 pixels (pass a list as a 5th argument to refill it instead)
---   gs.goto_scene("scenes.play")            leave this screen for another
+--   gs.goto_scene("scenes.play")            leave this screen for another (its layout, scenes/play.layout.lua, is built first: see "scene layouts")
 -- Each step (60 a second): timers run, every entity's update(dt) runs, entities move by vx, vy and animate, collisions are reported
 -- to the entities' on_collide_<tag> methods, the scene's update(dt) runs, the camera follows. Then draw: layers and entities by depth
 -- (a bigger depth is further back), then the scene's draw_ui and the entities flagged screen = true.
@@ -341,19 +341,85 @@ function W.set_tile(layer, x, y, v)
   if l then assets.set_tile(l, x, y, v) end
 end
 
--- Build a level from the data file rooms/<name>.lua:
---   return { width = 640, height = 480, background = "#000000",
+-- ---------------------------------------------------------------- scene layouts (and the older rooms)
+-- A scene can have a layout beside its code: scenes/<name>.layout.lua, plain data the studio's layout editor writes. It is built when the
+-- scene starts, before enter(), and everything in it with a name becomes a field of the scene (self.player, self.logo, self.prompt).
+--   return { width = 640, height = 480, background = "#000000",          -- the size is how far the camera may scroll
 --            layers = { { tileset = "ground", data = { {0, 1}, ... }, depth = 100, scroll_x = 1 } },
---            entities = { { "brick", 32, 16, { row = 1 } }, ... } }
-function W.load_room(name)
-  local data = require("rooms." .. name)
-  if type(data) ~= "table" then error("rooms/" .. name .. ".lua must end with 'return { ... }'", 2) end
+--            entities = { { "player", 160, 120, { hp = 3 }, name = "player" }, { "brick", 32, 16 }, ... },
+--            texts = { { "PRESS A", 160, 206, name = "prompt", color = 3, size = 2, align = "center" } },
+--            pictures = { { "spr_logo", 80, 20, name = "logo", frame = 0, scale = 2 } },
+--            paths = { patrol = { { 0, 0 }, { 64, 0 }, loop = true } },
+--            code = "level" }        -- optional: run another scene's code with this layout (ten levels, one set of rules)
+-- A layout with no code file of its own (and no `code`) is a scene that only shows its layout. Texts and pictures are entities of the
+-- kinds gs.world.Text and gs.world.Picture: move them, hide them (visible = false), change text or color, tween them.
+-- rooms/<name>.lua holds the same data without a scene; gs.load_room(name) builds one into the scene that is running.
+
+-- Classes are named after the file that is loading; this file makes three, so each gets a name of its own (one name would be one class).
+local function builtin(name, kind, spec)
+  local was = entity.loading
+  entity.loading = name
+  local cls = entity[kind](spec)
+  entity.loading = was
+  return cls
+end
+W.Text = builtin("gs.text", "entity", { text = "", color = "#ffffff", size = 1, align = "left" })
+function W.Text.draw(self)
+  local s = self.text
+  if s == nil or s == "" then return end
+  s = tostring(s)
+  local w = draw.text_width(s, self.size)
+  local x = self.align == "center" and self.x - w / 2 or self.align == "right" and self.x - w or self.x
+  draw.text(s, x, self.y, self.color, self.size)
+end
+W.Picture = builtin("gs.picture", "entity", {})
+
+-- names a layout may not use: what every scene already has
+local TAKEN = { enter = true, leave = true, update = true, draw = true, draw_ui = true, after = true, every = true, go = true, tween = true }
+
+local function build(data, where, scene)
   if data.background then W.bg = data.background end
   if data.width then camera:limit(0, 0, data.width, data.height or W.view_h); W.room_w, W.room_h = data.width, data.height or W.view_h end
   for _, l in ipairs(data.layers or {}) do W.add_layer(l) end
   W.paths = data.paths or {}
-  for _, s in ipairs(data.entities or {}) do W.spawn(s[1] or s.class, s[2] or s.x, s[3] or s.y, s[4] or s.props) end
+  local function named(item, e)
+    local n = item.name
+    if not (n and scene and e) then return end
+    if TAKEN[n] or type(scene[n]) == "function" then error(where .. ": '" .. n .. "' is the name of something every scene has; give it another name", 0) end
+    scene[n] = e
+  end
+  for _, s in ipairs(data.entities or {}) do named(s, W.spawn(s[1] or s.class, s[2] or s.x, s[3] or s.y, s[4] or s.props)) end
+  for _, t in ipairs(data.pictures or {}) do
+    local sc = t.scale or 1
+    named(t, W.spawn(W.Picture, t[2] or t.x, t[3] or t.y, { sprite = t[1] or t.sprite, frame = t.frame or 0, sx = sc, sy = sc, depth = t.depth or 0, screen = t.screen or false }))
+  end
+  for _, t in ipairs(data.texts or {}) do
+    named(t, W.spawn(W.Text, t[2] or t.x, t[3] or t.y, { text = t[1] or t.text or "", color = t.color or "#ffffff", size = t.size or 1, align = t.align or "left", depth = t.depth or -10, screen = t.screen or false }))
+  end
   return data
+end
+
+function W.load_room(name)
+  local data = require("rooms." .. name)
+  if type(data) ~= "table" then error("rooms/" .. name .. ".lua must end with 'return { ... }'", 2) end
+  return build(data, "rooms/" .. name .. ".lua", nil)
+end
+
+-- "title", "scenes.title" -> "scenes.title"; its files are scenes/title.lua and scenes/title.layout.lua
+local function scene_module(name) return name:find("^scenes%.") and name or "scenes." .. name end
+local function file_of(mod) return (mod:gsub("%.", "/")) end
+
+-- A scene's layout as a table, or nil when it has none. Layouts are data: they run with nothing to call.
+function W.layout_of(name)
+  local path = file_of(scene_module(name)) .. ".layout.lua"
+  local text = gs.raw.load(path)
+  if not text then return nil end
+  local chunk, err = load(text, "@" .. path, "t", {})
+  if not chunk then error(err, 0) end
+  local ok, data = pcall(chunk)
+  if not ok then error(data, 0) end
+  if type(data) ~= "table" then error(path .. " must end with 'return { ... }'", 0) end
+  return data, path
 end
 
 -- ---------------------------------------------------------------- paths
@@ -580,8 +646,20 @@ local function compact()
   W.dirty = false
 end
 
+-- the scene of a layout that has no code
+local LayoutOnly = builtin("gs.layout", "scene", {})
+
 local function enter_scene(name, args)
-  local cls = entity.resolve(name, "scene")
+  local mod = scene_module(name)
+  local layout, layout_path = W.layout_of(mod)
+  local code = layout and layout.code and scene_module(layout.code) or mod
+  local cls
+  if layout and not gs.raw.load(file_of(code) .. ".lua") then
+    if layout.code then error(layout_path .. ": its code '" .. layout.code .. "' is not a scene (no " .. file_of(code) .. ".lua)", 0) end
+    cls = LayoutOnly
+  else
+    cls = entity.resolve(code, "scene")
+  end
   entity.finalize(cls)
   if W.scene then
     local leave = W.scene.leave
@@ -601,9 +679,18 @@ local function enter_scene(name, args)
   local s = setmetatable({}, cls)
   for k, v in pairs(cls.__defaults) do s[k] = v end
   W.scene = s
-  W.scene_name = name
+  W.scene_name, W.scene_args, W.scene_layout = name, args, layout_path
+  if layout then build(layout, layout_path, s) end
   local enter = s.enter
   if enter then enter(s, table.unpack(args or {})) end
+end
+
+-- the layout file of the scene that is running (whether it has one yet or not)
+function W.layout_file() return W.scene_name and file_of(scene_module(W.scene_name)) .. ".layout.lua" end
+
+-- start the scene that is running again, with what it was given (live reload does this when its layout changes)
+function W.restart_scene()
+  if W.scene_name then W.pending_scene = { name = W.scene_name, args = W.scene_args or {} }; W.fade_state = nil end
 end
 
 -- leave for another scene. opts.fade = seconds of fade out and in (default none)

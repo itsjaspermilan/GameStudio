@@ -274,6 +274,19 @@ dialog.modal { width: 540px; }
 .re-pick.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .re .re-canvas { cursor: crosshair; }
 .re-props { width: 100%; margin-top: 4px; font-family: var(--mono); }
+.re-tools { grid-template-columns: repeat(3, 1fr); }
+.re-name, .re-text, .re-sprite { width: 100%; margin-top: 4px; }
+.re-name { font-family: var(--mono); }
+.re-colors { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; margin: 6px 0; }
+.re-swatch { aspect-ratio: 1; padding: 0; min-width: 0; border: 1px solid var(--border); border-radius: 3px; }
+.re-swatch.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+.re-spritelist { display: flex; flex-direction: column; gap: 3px; }
+/* Layout | Code: the two halves of a scene, in the editor's bar */
+.seg { display: inline-flex; border: 1px solid var(--control-border); border-radius: 6px; overflow: hidden; flex: none; }
+.seg button { border: none; border-radius: 0; padding: 2px 12px; font-size: 12px; background: var(--control); }
+.seg button + button { border-left: 1px solid var(--control-border); }
+.seg button.on { background: var(--accent); color: var(--accent-text); }
+.seg button.missing { color: var(--muted); font-style: italic; }
 .re:focus { outline: none; }
 .first-steps { margin-top: 20px; padding: 4px 12px 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; }
 .first-steps .fs-head { display: flex; align-items: center; justify-content: space-between; }

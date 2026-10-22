@@ -5,6 +5,7 @@
 -- entities made afterwards; restart the scene (select + start held for a second, or run again from the studio) to see them everywhere.
 local entity = require("gs.entity")
 local assets = require("gs.assets")
+local world = require("gs.world")
 
 local M = { mtimes = {}, clock = 0, last_error = nil }
 
@@ -70,6 +71,8 @@ function M.poll()
           local mod = module_of(path)
           if mod == "game" then
             message = "game.lua changed: restart the game to apply it"
+          elseif path:find("%.layout%.lua$") then -- a scene's layout is built when the scene starts: start it again
+            if path == world.scene_layout or path == world.layout_file() then world.restart_scene(); message = "reloaded " .. path end
           elseif package.loaded[mod] ~= nil then
             local ok, err = reload_module(mod)
             if ok then message = "reloaded " .. path; M.last_error = nil

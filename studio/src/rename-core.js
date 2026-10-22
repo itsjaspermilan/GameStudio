@@ -43,7 +43,8 @@ export function countCodeMentions(luaTexts, kind, name) {
 
 // Rewrite the plain ways Lua code names a code resource after it is renamed or moved to another folder: its module name as a string
 // anywhere ("entities.enemies.grub", require "lib.state"), and its short name where a call takes one: gs.spawn("enemies.grub"),
-// gs.goto_scene("play"), gs.load_room("caves.deep"), and the first item of an entry in a room's entity list ({ "enemies.grub", 10, 20 }).
+// gs.goto_scene("play"), gs.load_room("caves.deep"), the first item of an entry in a room's or layout's entity list ({ "enemies.grub", 10, 20 }),
+// and a layout's `code = "level"`.
 // files: { rel: text }. Returns { files: {rel: new text} (only those that changed), count }.
 export function renameInCode(files, kind, from, to) {
   const g = group(kind);
@@ -61,8 +62,54 @@ export function renameInCode(files, kind, from, to) {
     const swap = (re, name) => { t = t.replace(re, (_, pre, q) => { count++; return pre + q + name + q; }); };
     swap(patterns[0], moduleName(g, to));
     if (patterns[1]) swap(patterns[1], dotted(to));
-    if (kind === "entities" && rel.startsWith("rooms/")) swap(new RegExp(`(\\{\\s*)(["'])${esc(dotted(from))}\\2(?=\\s*,)`, "g"), dotted(to));
+    if (kind === "entities" && (rel.startsWith("rooms/") || rel.endsWith(".layout.lua"))) swap(new RegExp(`(\\{\\s*)(["'])${esc(dotted(from))}\\2(?=\\s*,)`, "g"), dotted(to));
+    // a layout that runs this scene's code names it
+    if (kind === "scenes" && rel.endsWith(".layout.lua")) swap(new RegExp(`(\\bcode\\s*=\\s*)(["'])${esc(dotted(from))}\\2`, "g"), dotted(to));
     if (t !== text) out[rel] = t;
   }
   return { files: out, count };
+}
+
+// A scene's code after things in its layout were renamed ({ old: new }): every `self.old` becomes `self.new`. Strings and comments are
+// left alone. Returns { text, count }.
+export function renameSceneFields(text, renames) {
+  const names = Object.keys(renames || {}).filter((k) => renames[k] && renames[k] !== k);
+  if (!names.length) return { text, count: 0 };
+  let out = "", count = 0, i = 0;
+  const src = String(text);
+  const re = new RegExp(`\\bself(\\s*\\.\\s*)(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`, "y");
+  while (i < src.length) {
+    const c = src[i];
+    // skip what is not code: comments, long strings, quoted strings
+    if (src.startsWith("--", i)) {
+      const long = src.slice(i + 2).match(/^\[(=*)\[/);
+      const end = long ? src.indexOf("]" + long[1] + "]", i) : src.indexOf("\n", i);
+      const stop = end < 0 ? src.length : long ? end + long[1].length + 2 : end;
+      out += src.slice(i, stop); i = stop; continue;
+    }
+    const ls = src.slice(i).match(/^\[(=*)\[/);
+    if (ls) { const end = src.indexOf("]" + ls[1] + "]", i); const stop = end < 0 ? src.length : end + ls[1].length + 2; out += src.slice(i, stop); i = stop; continue; }
+    if (c === '"' || c === "'") {
+      let j = i + 1;
+      while (j < src.length && src[j] !== c && src[j] !== "\n") j += src[j] === "\\" ? 2 : 1;
+      out += src.slice(i, j + 1); i = j + 1; continue;
+    }
+    re.lastIndex = i;
+    const m = /\w/.test(src[i - 1] || "") ? null : re.exec(src);
+    if (m) { out += "self" + m[1] + renames[m[2]]; i += m[0].length; count++; continue; }
+    out += c; i++;
+  }
+  return { text: out, count };
+}
+
+// The renames worth applying when a layout is saved: chains collapsed (a -> b -> c is a -> c), and only where the new name is in the
+// layout and the old one no longer is (an undone rename is not applied).
+export function settleRenames(steps, namesNow) {
+  const now = new Set(namesNow), out = {};
+  for (const [from, to] of steps) {
+    const origin = Object.keys(out).find((k) => out[k] === from); // a name given since the last save: follow it back to the one in the code
+    out[origin ?? from] = to;
+  }
+  for (const k of Object.keys(out)) if (out[k] === k || !now.has(out[k]) || now.has(k)) delete out[k];
+  return out;
 }

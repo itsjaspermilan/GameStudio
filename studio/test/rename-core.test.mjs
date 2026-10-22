@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renameReferences, countCodeMentions, renameInCode } from "../src/rename-core.js";
+import { renameReferences, countCodeMentions, renameInCode, renameSceneFields, settleRenames } from "../src/rename-core.js";
 
 const fixture = () => ({
   "music/song.json": { patterns: [["boop", null, "boop", null], [null, null, null, "other"]] },
@@ -59,4 +59,15 @@ test("renameInCode rewrites the plain ways code names a moved entity, scene, roo
   const l = renameInCode({ "a.lua": 'local st = require("lib.state")' }, "lib", "state", "core/state");
   assert.equal(l.files["a.lua"], 'local st = require("lib.core.state")');
   assert.deepEqual(renameInCode({ "a.lua": '"spr"' }, "sprites", "spr", "x").files, {}, "art is not named by module");
+});
+
+test("renaming something in a layout renames self.<it> in the scene's code, and only there", () => {
+  const code = 'self.prompt.text = "self.prompt" -- self.prompt\nmyself.prompt = 1\nself . prompt:tween{}\nself.prompts = 2\nlocal s = [[self.prompt]]';
+  const r = renameSceneFields(code, { prompt: "hint" });
+  assert.equal(r.count, 2);
+  assert.equal(r.text, 'self.hint.text = "self.prompt" -- self.prompt\nmyself.prompt = 1\nself . hint:tween{}\nself.prompts = 2\nlocal s = [[self.prompt]]');
+  assert.deepEqual(settleRenames([["a", "b"], ["b", "c"]], ["c"]), { a: "c" }, "a chain of renames is one");
+  assert.deepEqual(settleRenames([["a", "b"]], ["a"]), {}, "an undone rename is not applied");
+  const moved = renameInCode({ "scenes/lvl1.layout.lua": 'return { code = "level", entities = { { "grub", 1, 2 } } }' }, "scenes", "level", "rules/level");
+  assert.equal(moved.files["scenes/lvl1.layout.lua"], 'return { code = "rules.level", entities = { { "grub", 1, 2 } } }', "a layout follows its code when that scene is renamed");
 });

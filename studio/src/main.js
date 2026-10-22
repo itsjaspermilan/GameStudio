@@ -27,7 +27,7 @@ import { encodeSpritePng, decodeSpritePng } from "./sprite-io.js";
 import { BUILTIN_CONSOLES, allConsoles, budgetStatus, formatKB, consoleFor, duplicateConsole, paletteOf, parseCustomConsoles, screenText, uniqueId, consoleFileOf, consoleFileText, resolveConsole } from "./consoles.js";
 import { createConsoleEditor } from "./console-editor.js";
 import { parseWav, sampleName } from "./wav.js";
-import { renameReferences, countCodeMentions, renameInCode } from "./rename-core.js";
+import { renameReferences, countCodeMentions, renameInCode, renameSceneFields } from "./rename-core.js";
 import { checkProject } from "./console-check.js";
 import { budgetRows, consoleSummary, parseStatsLine } from "./budget-core.js";
 import { GENRES, BOX_ART_PATH, normalizeInfo, defaultTitle, charsLeft, isPng, pngSize, boxArtScale, PICTURES, decodeBmp } from "./info-core.js";
@@ -37,7 +37,7 @@ import { parseRoom, serializeRoom } from "./room-core.js";
 import { findInFiles, replaceInText, outline, tidyLua, applyEdits } from "./search-core.js";
 import { SPEEDS, parseInspectLine, commandText, classRows, fmtMs } from "./inspector-core.js";
 import { createRoomEditor } from "./room-editor.js";
-import { GROUPS, group, validName, folderTree, movedName, resourceFiles, scanProject, consoleIdOf, setConsoleInGame, TEMPLATES, newGameFiles, renameProblem } from "./project-core.js";
+import { GROUPS, group, validName, folderTree, movedName, resourceFiles, layoutFile, scanProject, consoleIdOf, setConsoleInGame, TEMPLATES, LAYOUT_TEMPLATE, LAYOUT_COMMENT, newGameFiles, renameProblem } from "./project-core.js";
 import { setupPanels } from "./panels.js";
 import { createPlayPanel } from "./play-panel.js";
 import "./style.css";
@@ -185,13 +185,14 @@ const conInfo = () => consoleFor(projectLike());
 
 // ---------- rendering ----------
 const currentDirty = () => (state.view === "code" ? state.dirty : !!state.name && editors()[state.view].isDirty());
-const isOpen = (g, name) => (g.key === "rooms" && state.view === "room" ? state.name === name
+const isOpen = (g, name) => (g.key === "rooms" ? state.view === "room" && state.layoutKind === "room" && state.name === name
+  : g.key === "scenes" ? (state.view === "room" && state.layoutKind === "layout" && state.name === name) || (state.view === "code" && state.file === resourceFiles(g, name)[0])
   : g.kind === "code" ? state.view === "code" && state.file === resourceFiles(g, name)[0] : state.view === g.kind && state.name === name);
 
 function renderTitle() {
   let title = "No file open";
   if (state.view === "code" && state.file) title = `${state.cart} / ${state.file}`;
-  else if (state.view === "room" && state.name) title = `${state.cart} / rooms / ${state.name}`;
+  else if (state.view === "room" && state.name) title = state.layoutKind === "layout" ? `${state.cart} / scenes / ${state.name}  ·  layout` : `${state.cart} / rooms / ${state.name}`;
   else if (state.view !== "code" && state.name) title = `${state.cart} / ${GROUPS.find((g) => g.kind === state.view).dir} / ${state.name}`;
   $("editor-title").textContent = title + (currentDirty() ? "  ●" : "");
   noteTab(); renderTabs(); renderCodeTools();
@@ -650,14 +651,14 @@ $("info-save").onclick = () => run("game info", async () => {
 // ---------- project resources (the tree) ----------
 // What each group does: how a new one starts and how it opens. Everything else about a group is in project-core.js.
 const creators = {
-  entities: (g, n) => createCode(g, n), scenes: (g, n) => createCode(g, n), rooms: (g, n) => createCode(g, n), lib: (g, n) => createCode(g, n),
+  entities: (g, n) => createCode(g, n), scenes: (g, n) => createScene(g, n), rooms: (g, n) => createCode(g, n), lib: (g, n) => createCode(g, n),
   sprites: (g, n) => createNewSprite(n), tilesets: (g, n) => createNewTileset(n),
   sfx: (g, n) => createJson(g, n, newSfx()),
   instruments: (g, n) => isBuiltinName(n) ? Promise.reject(new Error(`'${n}' is the name of a built-in instrument: pick another.`)) : createJson(g, n, INSTRUMENT_PRESETS["Bright lead"]()),
   music: (g, n) => createJson(g, n, serializeSong(newSong({ tracks: conInfo().audio?.music_tracks || 4 }))),
 };
 const openers = {
-  code: (g, n) => (g.key === "rooms" ? openRoom(n) : openFile(resourceFiles(g, n)[0])),
+  code: (g, n) => (g.key === "rooms" ? openRoom(n) : g.key === "scenes" ? openScene(n) : openFile(resourceFiles(g, n)[0])),
   sprite: (g, n) => openSprite(n), tileset: (g, n) => openTileset(n),
   sfx: (g, n) => openJsonResource(g, n), music: (g, n) => openJsonResource(g, n), instrument: (g, n) => openJsonResource(g, n),
   sample: (g, n) => previewSample(n),
@@ -675,24 +676,126 @@ async function createCode(g, name) {
   if (g.key === "rooms") await openRoom(name, true); else await openFile(resourceFiles(g, name)[0], true);
 }
 
-// ---------- rooms ----------
-// A room that is plain data opens in the room editor; one with code in it opens as text (the editor says why in the output).
-async function openRoom(name, skipConfirm) {
-  const rel = `rooms/${name}.lua`;
-  if (state.view === "room" && state.name === name) return;
+// ---------- rooms and scene layouts ----------
+// A scene is its layout (scenes/<name>.layout.lua, the layout editor) and its code (scenes/<name>.lua); either may be missing. Rooms are the
+// older form of a layout (rooms/<name>.lua, gs.load_room). Both open in the layout editor when they are plain data, as text otherwise.
+const dataRel = (kind, name) => (kind === "layout" ? layoutFile(name) : `rooms/${name}.lua`);
+async function openData(kind, name, skipConfirm) {
+  const rel = dataRel(kind, name);
+  if (state.view === "room" && state.layoutKind === kind && state.name === name) return;
   if (!skipConfirm && !(await confirmDiscard())) return;
   const text = await invoke("read_file", { cart: state.cart, rel });
   const parsed = parseRoom(text);
-  if (parsed.error) { info(`rooms/${name}.lua opens as text: ${parsed.error}.`); return openFile(rel, true); }
-  state.file = null; state.name = name;
+  if (parsed.error) { info(`${rel} opens as text: ${parsed.error}.`); return openFile(rel, true); }
+  state.file = null; state.name = name; state.layoutKind = kind;
   showView("room");
-  await roomEditor.load(name, parsed.room);
+  await roomEditor.load(name, parsed.room, kind);
   render();
 }
+const openRoom = (name, skipConfirm) => openData("room", name, skipConfirm);
+const openLayout = (name, skipConfirm) => openData("layout", name, skipConfirm);
+// a scene opens on its layout when it has one
+const openScene = (name) => (state.scan.layouts.includes(name) ? openLayout(name) : openFile(`scenes/${name}.lua`));
+
 async function saveRoom() {
   const name = roomEditor.getName(); if (!name) return;
-  await invoke("write_file", { cart: state.cart, rel: `rooms/${name}.lua`, content: serializeRoom(roomEditor.getDef(), `A room: gs.load_room("${name.replace(/\//g, ".")}") builds it. Made in the room editor; plain data you can also edit as text.`) });
+  const kind = roomEditor.getKind(), def = roomEditor.getDef();
+  const comment = kind === "layout" ? LAYOUT_COMMENT : `A room: gs.load_room("${name.replace(/\//g, ".")}") builds it. Made in the room editor; plain data you can also edit as text.`;
+  await invoke("write_file", { cart: state.cart, rel: dataRel(kind, name), content: serializeRoom(def, comment) });
+  const renames = roomEditor.getRenames();
   roomEditor.markClean(); renderTitle();
+  if (kind === "layout" && Object.keys(renames).length) await carryRenames(name, def.code, renames);
+}
+
+// The scene that is open, by its layout or its code (code another layout runs counts as that layout's scene while you go back and forth).
+const sceneOfCode = (rel) => { const m = /^scenes\/(.+)\.lua$/.exec(rel || ""); return m && !m[1].endsWith(".layout") ? m[1] : null; };
+function currentScene() {
+  if (state.view === "room") return state.layoutKind === "layout" ? state.name : null;
+  const s = state.view === "code" ? sceneOfCode(state.file) : null;
+  return s && state.sceneLink && state.sceneLink.code === s ? state.sceneLink.layout : s;
+}
+// the scene whose code a layout runs: its own, or the one its `code` names
+function codeOf(scene) {
+  if (state.view === "room" && state.layoutKind === "layout" && state.name === scene) return roomEditor.getDef().code || scene;
+  const parsed = luaTexts[layoutFile(scene)] ? parseRoom(luaTexts[layoutFile(scene)]) : null;
+  return (parsed && parsed.room && parsed.room.code) || scene;
+}
+function renderSceneSwitch() {
+  const scene = state.scan && state.scan.hasGame ? currentScene() : null, sw = $("scene-switch");
+  sw.hidden = !scene;
+  if (!scene) return;
+  const code = codeOf(scene), parts = { layout: state.scan.layouts.includes(scene), code: state.scan.code.includes(code) };
+  for (const b of sw.querySelectorAll("button")) {
+    const part = b.dataset.part;
+    b.classList.toggle("on", part === "layout" ? state.view === "room" : state.view === "code");
+    b.classList.toggle("missing", !parts[part]);
+    b.textContent = parts[part] ? (part === "layout" ? "Layout" : code !== scene ? `Code (${code})` : "Code") : part === "layout" ? "+ Layout" : "+ Code";
+  }
+}
+$("scene-switch").onclick = (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  const scene = currentScene(); if (!scene) return;
+  run("open", async () => {
+    if (b.dataset.part === "layout") {
+      if (!state.scan.layouts.includes(scene)) {
+        await confirmDiscard();
+        await invoke("write_file", { cart: state.cart, rel: layoutFile(scene), content: LAYOUT_TEMPLATE(conInfo().screen) });
+        await refreshFiles();
+        info(`Added a layout to ${scene}: drag things in, and give them names to use them in the code as self.<name>.`);
+      }
+      await openLayout(scene);
+    } else {
+      const code = codeOf(scene), rel = `scenes/${code}.lua`;
+      if (!state.scan.code.includes(code)) {
+        await confirmDiscard();
+        await invoke("write_file", { cart: state.cart, rel, content: TEMPLATES.scenes(code) });
+        await refreshFiles();
+      }
+      state.sceneLink = code !== scene ? { layout: scene, code } : null;
+      await openFile(rel);
+    }
+  });
+};
+
+// A new scene has both halves, and opens on its layout.
+async function createScene(g, name) {
+  checkNew(g, name, state.scan.groups[g.key]);
+  await invoke("write_file", { cart: state.cart, rel: `scenes/${name}.lua`, content: TEMPLATES.scenes(name, conInfo().screen) });
+  await invoke("write_file", { cart: state.cart, rel: layoutFile(name), content: LAYOUT_TEMPLATE(conInfo().screen) });
+  await refreshFiles();
+  await openLayout(name, true);
+}
+
+// After things in a layout were renamed and it was saved: the scene's code says self.<new> where it said self.<old>, and so do other layouts
+// that run the same code (the names are what that code expects of each of them).
+async function carryRenames(scene, code, renames) {
+  const codeScene = code || scene, codeRel = `scenes/${codeScene}.lua`;
+  const done = [];
+  // 1. other layouts that run this code
+  for (const other of state.scan.layouts) {
+    if (other === scene) continue;
+    const rel = layoutFile(other), parsed = parseRoom(await invoke("read_file", { cart: state.cart, rel }).catch(() => ""));
+    if (!parsed.room || (parsed.room.code || other) !== codeScene) continue;
+    let changed = 0;
+    const swap = (n) => (renames[n] ? (changed++, renames[n]) : n);
+    for (const e of parsed.room.entities) if (e[4]) e[4] = swap(e[4]);
+    for (const t of [...parsed.room.texts, ...parsed.room.pictures]) if (t.name) t.name = swap(t.name);
+    if (changed) { await invoke("write_file", { cart: state.cart, rel, content: serializeRoom(parsed.room, LAYOUT_COMMENT) }); done.push(`${changed} in ${rel}`); }
+  }
+  // 2. the code: in the split view if it is open there (its edits are kept), on disk otherwise
+  if (state.scan.code.includes(codeScene)) {
+    const inSplit = split.file === codeRel && split.view;
+    const text = inSplit ? split.view.state.doc.toString() : await invoke("read_file", { cart: state.cart, rel: codeRel });
+    const r = renameSceneFields(text, renames);
+    if (r.count) {
+      if (inSplit) split.view.dispatch({ changes: { from: 0, to: text.length, insert: r.text } });
+      else await invoke("write_file", { cart: state.cart, rel: codeRel, content: r.text });
+      done.push(`${r.count} in ${codeRel}${inSplit ? " (not saved yet)" : ""}`);
+    }
+  }
+  const list = Object.entries(renames).map(([a, b]) => `self.${a} is now self.${b}`).join(", ");
+  info(`${list}${done.length ? `: changed ${done.join(" and ")}.` : "; the code did not use it yet."}`);
+  await refreshLuaIndex();
 }
 const imageFromB64 = (b64) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("could not read the picture")); i.src = "data:image/png;base64," + b64; });
 async function loadRoomTileset(name) {
@@ -703,11 +806,15 @@ async function loadRoomTileset(name) {
 }
 // What an entity looks like in the room: the first frame of the sprite its file names (sprite = "..."), or nothing.
 async function entityLook(name) {
-  const text = await invoke("read_file", { cart: state.cart, rel: `entities/${name}.lua` });
+  const text = await invoke("read_file", { cart: state.cart, rel: `entities/${name.replace(/\./g, "/")}.lua` });
   const m = text.match(/\bsprite\s*=\s*["']([\w\/-]+)["']/);
-  if (!m || !state.scan.groups.sprites.includes(m[1])) return null;
-  const meta = await readJson(`sprites/${m[1]}.json`);
-  const img = await imageFromB64(await invoke("read_binary", { cart: state.cart, rel: meta.image || `sprites/${m[1]}.png` }));
+  return m ? spriteLook(m[1]) : null;
+}
+// A sprite's frames as the layout editor draws them (a picture in a layout, or what an entity looks like).
+async function spriteLook(name) {
+  if (!state.scan.groups.sprites.includes(name)) return null;
+  const meta = await readJson(`sprites/${name}.json`);
+  const img = await imageFromB64(await invoke("read_binary", { cart: state.cart, rel: meta.image || `sprites/${name}.png` }));
   const frames = Math.max(1, meta.frames || 1), o = meta.origin || [0, 0];
   return { img, fw: Math.floor(img.width / frames), fh: img.height, ox: o[0], oy: o[1] };
 }
@@ -1420,7 +1527,7 @@ async function makeHelpGame(title, files, consoleId = "dot") {
 $("set-theme").onchange = () => setLook($("set-theme").value);
 
 // ---------- tabs (what was open lately, to go back to with a click) ----------
-const tabKey = () => (state.view === "code" ? (state.file ? "file:" + state.file : null) : state.name ? `${state.view}:${state.name}` : null);
+const tabKey = () => (state.view === "code" ? (state.file ? "file:" + state.file : null) : state.name ? `${state.view === "room" ? state.layoutKind : state.view}:${state.name}` : null);
 function noteTab() {
   const k = tabKey(); if (!k) return;
   if (!state.tabs.includes(k)) { state.tabs.push(k); if (state.tabs.length > 8) state.tabs.splice(state.tabs.findIndex((t) => t !== k), 1); }
@@ -1429,6 +1536,7 @@ async function openTab(k) {
   const [kind, ...rest] = k.split(":"), name = rest.join(":");
   if (kind === "file") return openFile(name);
   if (kind === "room") return openRoom(name);
+  if (kind === "layout") return openLayout(name);
   const g = GROUPS.find((x) => x.kind === kind);
   if (g) return openers[kind](g, name);
 }
@@ -1438,13 +1546,14 @@ function renderTabs() {
   state.tabs = state.tabs.filter((k) => {
     const [kind, ...rest] = k.split(":"), name = rest.join(":");
     if (kind === "file") return state.files.includes(name);
+    if (kind === "layout") return !!state.scan && state.scan.layouts.includes(name);
     const g = kind === "room" ? group("rooms") : GROUPS.find((x) => x.kind === kind);
     return g && state.scan && state.scan.groups[g.key].includes(name);
   });
   if (state.tabs.length < 2) return;
   const cur = tabKey();
   for (const k of state.tabs) {
-    const label = k.split(":").slice(1).join(":").split("/").pop();
+    const label = k.split(":").slice(1).join(":").split("/").pop() + (k.startsWith("layout:") ? " · layout" : "");
     const t = document.createElement("div"); t.className = "tab-item" + (k === cur ? " on" : ""); t.title = k.replace(":", ": ");
     const x = document.createElement("button"); x.textContent = "\u00D7"; x.title = "Close this tab";
     x.onclick = (e) => { e.stopPropagation(); state.tabs = state.tabs.filter((y) => y !== k); renderTabs(); };
@@ -1456,6 +1565,7 @@ function renderTabs() {
 
 // ---------- outline and tidy (the code editor's bar) ----------
 function renderCodeTools() {
+  renderSceneSwitch();
   const lua = state.view === "code" && state.file && state.file.endsWith(".lua");
   $("outline").hidden = $("btn-tidy").hidden = !lua;
   if (!$("outline").options.length) $("outline").appendChild(new Option("Go to…", "")); // filled when it is opened
@@ -1715,7 +1825,9 @@ $("settings").addEventListener("close", async () => {
   roomEditor = createRoomEditor($("room-editor"), {
     onChange: renderTitle, getEntities: () => state.scan.groups.entities, getTilesets: () => state.scan.groups.tilesets,
     loadTileset: loadRoomTileset, entityLook, getScreen: () => conInfo().screen,
-    editAsText: async () => { await save(); await openFile(`rooms/${roomEditor.getName()}.lua`, true); },
+    editAsText: async () => { await save(); await openFile(dataRel(roomEditor.getKind(), roomEditor.getName()), true); },
+    getSprites: () => state.scan.groups.sprites, getScenes: () => state.scan.groups.scenes, spriteLook,
+    getPalette: () => { const p = paletteOf(conInfo()); return { colors: p.colors || [], fixed: p.mode === "fixed" }; },
   });
   // The runtime's own synth makes every preview, so it sounds exactly like the game.
   sfxEditor = createSfxEditor($("sfx-editor"), {

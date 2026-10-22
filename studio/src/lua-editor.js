@@ -129,6 +129,10 @@ function tooltip(h, index, openHelp) {
       more.onmousedown = (e) => { e.preventDefault(); openHelp("api", "api-" + h.sym.path); };
       d.appendChild(more);
     }
+  } else if (h.kind === "layout") {
+    row("lua-sig", `self.${h.name}`);
+    row("lua-doc", h.text);
+    row("lua-doc", "Placed and named in the layout editor; renaming it there renames it here too.");
   } else if (h.kind === "tag") {
     row("lua-sig", `tag '${h.name}'`);
     row("lua-doc", h.exists ? "Entities with this tag are found with gs.first / gs.each / gs.count." : "No entity has this tag yet.");

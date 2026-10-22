@@ -153,3 +153,23 @@ test("closest name suggestions", () => {
   assert.equal(closest("plyer", ["player", "enemy"]), "player");
   assert.equal(closest("zzzzzz", ["player", "enemy"]), null);
 });
+
+test("what a scene's layout names is known in that scene's code (and in the code another layout runs)", () => {
+  const t = {
+    "scenes/title.layout.lua": 'return { texts = { { "PRESS A", 160, 206, name = "prompt" } }, pictures = { { "spr_logo", 80, 20, name = "logo" } }, entities = { { "player", 1, 2, {}, name = "hero" }, { "grub", 3, 4 } } }',
+    "scenes/title.lua": "local T = gs.scene{}\nfunction T:update(dt)\n  self.lgoo.y = 3\n  self.prompt.visible = true\n  self.timer = 0\n  self.timr = 1\nend\nreturn T",
+    "scenes/lvl1.layout.lua": 'return { code = "level", pictures = { { "door", 10, 10, name = "door" } } }',
+  };
+  const ix = buildIndex({ scenes: ["title", "lvl1", "level"] }, t);
+  assert.deepEqual(Object.keys(ix.layouts["scenes/title.lua"]).sort(), ["hero", "logo", "prompt"]);
+  assert.ok(ix.layouts["scenes/level.lua"].door, "a layout's things belong to the code it runs");
+  const code = t["scenes/title.lua"], pos = code.indexOf("self.prompt") + "self.p".length;
+  const items = complete(contextAt(code.slice(code.lastIndexOf("\n", pos) + 1, pos)), api, ix, code, "scenes/title.lua", pos);
+  assert.ok(labels(items).includes("prompt"), labels(items).join(","));
+  const h = hoverAt("  self.logo.y = 3", 8, api, ix, "scenes/title.lua", code);
+  assert.equal(h.kind, "layout"); assert.match(h.text, /picture spr_logo at 80, 20/);
+  const warn = diagnose(code, "scenes/title.lua", ix).filter((d) => /layout/.test(d.message));
+  assert.equal(warn.length, 1, warn.map((d) => d.message).join(" | "));
+  assert.match(warn[0].message, /'lgoo'.*'logo'/);
+  assert.equal(code.slice(warn[0].from, warn[0].to), "lgoo");
+});

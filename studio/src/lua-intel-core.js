@@ -1,7 +1,8 @@
 // What the editor knows about the game's Lua, without a language server: the GameStudio API (read from engine/api/gs.d.lua), the project's
 // own files (entities, scenes, sprites, sounds, tags) and a few lint rules that only make sense for a handheld game. Pure: text in, answers out.
 // The Lua language server (see lsp-*) adds general Lua intelligence on top; this layer keeps working when it is not running.
-import { refName, moduleName, group } from "./project-core.js";
+import { refName, moduleName, group, sceneOfLayout } from "./project-core.js";
+import { parseRoom, layoutNames } from "./room-core.js";
 
 // ---------------------------------------------------------------- the API file
 // Reads the annotation file: "---" lines above a declaration are its help text, ---@param / ---@return / ---@field add detail.
@@ -62,16 +63,28 @@ export const SCENE_HOOKS = [
 
 // ---------------------------------------------------------------- the project
 // What the editor knows about the game's files. names: group key -> [names] (from scanProject); texts: { "entities/a.lua": "..." }.
+// layouts: for each scene's code file, what its layouts name ({ "scenes/title.lua": { logo: [{ kind, detail, layout }] } }), so self.logo completes,
+// hovers and is checked in that code. A layout's things are the code's when it runs it (its own scene, or the one its `code` names).
 export function buildIndex(names, texts) {
-  const tags = new Set(), fields = {};
+  const tags = new Set(), fields = {}, layouts = {};
   for (const [file, text] of Object.entries(texts || {})) {
+    const scene = sceneOfLayout(file);
+    if (scene) {
+      const parsed = parseRoom(text);
+      if (!parsed.room) continue;
+      const code = `scenes/${parsed.room.code || scene}.lua`, mine = (layouts[code] ||= {});
+      for (const n of layoutNames(parsed.room)) (mine[n.name] ||= []).push({ kind: n.kind, detail: n.detail, layout: scene });
+      continue;
+    }
     for (const m of text.matchAll(/\btags\s*=\s*\{([^}]*)\}/g)) for (const t of m[1].matchAll(/["']([^"']+)["']/g)) tags.add(t[1]);
     if (/^(entities|scenes)\//.test(file)) fields[file] = selfFields(text);
   }
   const modules = new Set();
   for (const key of ["entities", "scenes", "rooms", "lib"]) for (const n of names[key] || []) modules.add(moduleName(group(key), n));
-  return { names: names || {}, tags, fields, modules };
+  return { names: names || {}, tags, fields, modules, layouts };
 }
+// One line about a named thing from the layouts: "picture spr_logo at 252, 168 (in the title layout)"
+const layoutLine = (uses) => uses.map((u) => `${u.detail} (in the ${u.layout} layout)`).join("; ");
 
 // Fields a file's entity has: the starting values in gs.entity{ ... } and every self.name = ... in its methods.
 export function selfFields(text) {
@@ -215,7 +228,10 @@ export function complete(ctx, api, index, text, file, pos) {
     const mine = (index.fields[file] || []);
     const known = new Set(items.map((i) => i.label));
     const own = (text ? selfFields(text) : mine);
-    for (const f of own) if (!known.has(f) && starts(f)) items.push({ label: f, type: "property", detail: "this entity's value" });
+    for (const [n, uses] of Object.entries((owner === "Scene" && index.layouts && index.layouts[file]) || {})) {
+      if (!known.has(n) && starts(n)) { known.add(n); items.push({ label: n, type: "variable", detail: `in the layout: ${uses[0].kind}`, info: layoutLine(uses) }); }
+    }
+    for (const f of own) if (!known.has(f) && starts(f)) items.push({ label: f, type: "property", detail: owner === "Scene" ? "this scene's value" : "this entity's value" });
     if (owner === "Entity" && ctx.sep === ":") items = items.filter((i) => i.type === "function");
   }
   return items;
@@ -246,6 +262,10 @@ export function hoverAt(line, col, api, index, file, textBefore) {
       const kind = variableKind(parts[0], textBefore || "", file);
       if (kind) sym = api.symbols.get(`${kind}.${parts[1]}`);
     }
+  }
+  if (!sym) { // self.logo in a scene's code: something its layout placed
+    const parts = m.text.split(/[.:]/), uses = parts[0] === "self" && parts[1] && index.layouts && (index.layouts[file] || {})[parts[1]];
+    if (uses) return { kind: "layout", name: parts[1], text: layoutLine(uses), from: m.from, to: m.to };
   }
   return sym && sym.kind !== "namespace" ? { kind: "api", sym, from: m.from, to: m.to } : null;
 }
@@ -287,6 +307,9 @@ function wordAt(line, col) {
   return { text: chainText, from: a, to: e };
 }
 
+// what every scene has, so self.<it> is never a typo
+const SCENE_MEMBERS = new Set(["enter", "leave", "update", "draw", "draw_ui", "after", "every", "go", "tween"]);
+
 // ---------------------------------------------------------------- lint
 // Warnings for the file at `file`. Each: { from, to, severity: "error"|"warning"|"info", message } with offsets into `text`.
 export function diagnose(text, file, index) {
@@ -294,6 +317,7 @@ export function diagnose(text, file, index) {
   const lines = text.split("\n");
   let offset = 0;
   let inHot = null; // inside update or draw: name and the line where it started
+  let ownFields = null; // what this scene's own code sets on self (made when first needed)
   const isEntity = /^entities\//.test(file), isScene = /^scenes\//.test(file);
   const isGameCode = /^(entities|scenes|lib|rooms)\//.test(file) || file === "game.lua";
 
@@ -330,6 +354,20 @@ export function diagnose(text, file, index) {
       const from = offset + line.indexOf("on_collide_") + "on_collide_".length;
       const guess = closest(col[1], [...index.tags]);
       out.push({ from, to: from + col[1].length, severity: "warning", message: `No entity has the tag '${col[1]}', so this will never run.${guess ? ` Did you mean '${guess}'?` : ""}` });
+    }
+    // self.lgoo where the layout has a logo: a typo in a name the layout gives
+    const placed = isScene && index.layouts && index.layouts[file];
+    if (placed) {
+      ownFields ||= new Set(selfFields(text));
+      for (const m of code.matchAll(/\bself\.([A-Za-z_]\w*)/g)) {
+        const n = m[1];
+        if (placed[n] || ownFields.has(n) || SCENE_MEMBERS.has(n)) continue;
+        const guess = closest(n, Object.keys(placed));
+        if (guess && guess !== n) {
+          const from = offset + m.index + 5;
+          out.push({ from, to: from + n.length, severity: "warning", message: `Nothing in the layout is called '${n}'. Did you mean '${guess}'? (Names are set in the layout editor.)` });
+        }
+      }
     }
     // a new table every step
     if (inHot && /(?:=|\(|,|return)\s*\{/.test(code) && !/^\s*function/.test(code)) {

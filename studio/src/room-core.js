@@ -1,9 +1,12 @@
-// Rooms (rooms/<name>.lua): a level as plain data that gs.load_room builds. This reads the part of Lua a room uses (`return { ... }` with
+// Scene layouts (scenes/<name>.layout.lua, built when the scene starts) and rooms (rooms/<name>.lua, the older form gs.load_room builds) are
+// the same data: a level or a screen as plain data. This reads the part of Lua a room uses (`return { ... }` with
 // numbers, strings, true/false/nil, nested tables and comments) into JS, and writes a room back as tidy Lua. A file with anything else in
 // it (a function, a variable, arithmetic) is code, not data: parseRoom says so and the studio opens it as text instead.
 //
-// A room: { width, height, background, layers: [{ name, tileset, depth, data: [[tile, ...], ...], ... }], entities: [[name, x, y, props?]],
-//           paths: { name: { points: [[x, y], ...], loop } }, ...anything else, kept as it was }
+// A room: { width, height, background, layers: [{ name, tileset, depth, data: [[tile, ...], ...], ... }], entities: [[kind, x, y, props?, name?]],
+//           texts: [{ text, x, y, name, color, size, align, screen }], pictures: [{ sprite, x, y, name, frame, scale, screen }],
+//           paths: { name: { points: [[x, y], ...], loop } }, code?, ...anything else, kept as it was }
+// A name makes the thing a field of the scene's code (self.<name>), see engine/gs/world.lua "scene layouts".
 
 // ---------- reading ----------
 function tokenize(src) {
@@ -95,10 +98,23 @@ export function normalizeRoom(r) {
   room.width = Math.max(16, Math.round(Number(r.width) || 320));
   room.height = Math.max(16, Math.round(Number(r.height) || 240));
   room.layers = Array.isArray(r.layers) ? r.layers.map((l) => ({ ...l, data: Array.isArray(l.data) ? l.data.map((row) => (Array.isArray(row) ? row.map((v) => (Number.isFinite(v) ? v : -1)) : [])) : [] })) : [];
+  // an entity is { "kind", x, y, props } or, with a name, { "kind", x, y, props, name = "hero" } (its list part, then the name)
   room.entities = Array.isArray(r.entities)
-    ? r.entities.map((e) => (Array.isArray(e) ? [String(e[0]), Number(e[1]) || 0, Number(e[2]) || 0, e[3] && typeof e[3] === "object" ? e[3] : undefined]
-      : [String(e.class || e.name || ""), Number(e.x) || 0, Number(e.y) || 0, e.props]))
+    ? r.entities.map((e) => {
+      const l = Array.isArray(e) ? e : e.__list || [e.class, e.x, e.y, e.props];
+      const props = l[3] && typeof l[3] === "object" && !Array.isArray(l[3]) ? l[3] : undefined; // {} reads as an empty list: no values
+      const out = [String(l[0] ?? ""), Number(l[1]) || 0, Number(l[2]) || 0, props];
+      if (!Array.isArray(e) && typeof e.name === "string") out.push(e.name);
+      return out;
+    })
     : [];
+  const items = (list, first) => (Array.isArray(list) ? list : []).map((t) => {
+    const l = Array.isArray(t) ? t : t.__list || [];
+    const o = Array.isArray(t) ? {} : t;
+    return { [first]: String(l[0] ?? o[first] ?? ""), x: Number(l[1] ?? o.x) || 0, y: Number(l[2] ?? o.y) || 0, ...Object.fromEntries(Object.entries(o).filter(([k]) => !["__list", first, "x", "y"].includes(k))) };
+  });
+  room.texts = items(r.texts, "text");
+  room.pictures = items(r.pictures, "sprite");
   room.paths = r.paths && typeof r.paths === "object" && !Array.isArray(r.paths) ? Object.fromEntries(Object.entries(r.paths).map(([k, p]) => [k, normalizePath(p)])) : {};
   return room;
 }
@@ -129,6 +145,8 @@ export function luaInline(v) {
 }
 
 const ROOM_ORDER = ["width", "height", "background"];
+const TEXT_ORDER = ["name", "color", "size", "align", "screen", "depth"];
+const PICTURE_ORDER = ["name", "frame", "scale", "screen", "depth"];
 const LAYER_ORDER = ["name", "tileset", "depth", "scroll_x", "scroll_y", "wrap_x", "wrap_y", "solid", "visible", "cell"];
 
 // A room as Lua: the known parts in a fixed order and a readable shape (a tile row per line, an entity per line), the rest after them.
@@ -136,7 +154,7 @@ export function serializeRoom(room, comment) {
   const L = [];
   if (comment) L.push(`-- ${comment}`);
   L.push("return {");
-  const known = new Set([...ROOM_ORDER, "layers", "entities", "paths"]);
+  const known = new Set([...ROOM_ORDER, "layers", "entities", "texts", "pictures", "paths"]);
   const head = ROOM_ORDER.filter((k) => room[k] !== undefined && room[k] !== null).map((k) => `${k} = ${luaInline(room[k])}`);
   if (head.length) L.push(`  ${head.join(", ")},`);
   for (const [k, v] of Object.entries(room)) if (!known.has(k) && k !== "__list" && v !== undefined) L.push(`  ${luaKey(k)} = ${luaInline(v)},`);
@@ -151,11 +169,23 @@ export function serializeRoom(room, comment) {
     L.push("  },");
   }
   L.push("  entities = {");
-  for (const [name, x, y, props] of room.entities || []) {
+  for (const [kind, x, y, props, name] of room.entities || []) {
     const hasProps = props && Object.keys(props).filter((k) => k !== "__list").length;
-    L.push(`    { ${luaString(name)}, ${luaNum(x)}, ${luaNum(y)}${hasProps ? ", " + luaInline(props) : ""} },`);
+    // a name after the list needs the props' place kept, so an empty one is written as {}
+    const p = hasProps ? ", " + luaInline(props) : name ? ", {}" : "";
+    L.push(`    { ${luaString(kind)}, ${luaNum(x)}, ${luaNum(y)}${p}${name ? `, name = ${luaString(name)}` : ""} },`);
   }
   L.push("  },");
+  const itemLine = (t, first, order) => {
+    const rest = [...order.filter((k) => t[k] !== undefined && t[k] !== null && t[k] !== ""), ...Object.keys(t).filter((k) => ![first, "x", "y", ...order].includes(k) && t[k] !== undefined)];
+    return `    { ${luaString(t[first])}, ${luaNum(t.x)}, ${luaNum(t.y)}${rest.map((k) => `, ${luaKey(k)} = ${luaInline(t[k])}`).join("")} },`;
+  };
+  for (const [key, first, order] of [["texts", "text", TEXT_ORDER], ["pictures", "sprite", PICTURE_ORDER]]) {
+    if (!room[key] || !room[key].length) continue;
+    L.push(`  ${key} = {`);
+    for (const t of room[key]) L.push(itemLine(t, first, order));
+    L.push("  },");
+  }
   const paths = Object.entries(room.paths || {});
   if (paths.length) {
     L.push("  paths = {");
@@ -208,4 +238,33 @@ export function freshName(base, taken) {
   let n = 2;
   while (taken.includes(base + n)) n++;
   return base + n;
+}
+
+// ---------- names (a named thing is a field of the scene's code: self.<name>) ----------
+// Names every scene already has (engine/gs/world.lua TAKEN), so a layout may not use them.
+export const SCENE_NAMES = new Set(["enter", "leave", "update", "draw", "draw_ui", "after", "every", "go", "tween"]);
+
+// Everything with a name in a layout: [{ name, kind: "entity" | "text" | "picture", detail }], in the order they are built.
+export function layoutNames(room) {
+  const out = [];
+  for (const [kind, x, y, , name] of room.entities || []) if (name) out.push({ name, kind: "entity", detail: `entity ${kind} at ${x}, ${y}` });
+  for (const p of room.pictures || []) if (p.name) out.push({ name: p.name, kind: "picture", detail: `picture ${p.sprite} at ${p.x}, ${p.y}` });
+  for (const t of room.texts || []) if (t.name) out.push({ name: t.name, kind: "text", detail: `text "${t.text}" at ${t.x}, ${t.y}` });
+  return out;
+}
+
+// What is wrong with giving something this name, or null. `own` is the thing's current name (it may keep it).
+export function nameProblem(name, room, own) {
+  if (!name) return null;
+  if (!/^[A-Za-z_]\w*$/.test(name) || RESERVED.has(name)) return "A name is letters, digits and _, not starting with a digit (it is used in code as self.name).";
+  if (SCENE_NAMES.has(name)) return `'${name}' is something every scene already has: pick another name.`;
+  if (name !== own && layoutNames(room).some((n) => n.name === name)) return `Something in this layout is already called '${name}'.`;
+  return null;
+}
+
+// A text's box in the room (the built-in font is 8x8 per character), for picking it with the pointer: [x0, y0, x1, y1]
+export function textBox(t) {
+  const size = Number(t.size) || 1, w = String(t.text ?? "").length * 8 * size, h = 8 * size;
+  const x0 = t.align === "center" ? t.x - w / 2 : t.align === "right" ? t.x - w : t.x;
+  return [x0, t.y, x0 + Math.max(w, 8), t.y + h];
 }

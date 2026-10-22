@@ -243,6 +243,10 @@ function Tests:enter()
     _G.FINISH = function()
       check("scene arguments", _G.SECOND_ARGS and _G.SECOND_ARGS[1] == 7 and _G.SECOND_ARGS[2] == 8)
       check("scene change clears the world", gs.world.count_alive() == 0, gs.world.count_alive())
+      gs.goto_scene("menu") -- scene layouts: scenes.menu checks its own, then lvl1 (another scene's code), then plain (no code)
+    end
+    _G.LAYOUT_CHECK = check
+    _G.DONE = function()
       if failed == 0 then print("FRAMEWORK TEST PASS") else print("FRAMEWORK TEST FAILED: " .. failed) end
       gs.raw.quit()
     end
