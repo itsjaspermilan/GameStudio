@@ -3,7 +3,7 @@
   "app": {
     "windows": [{
       "title": "GameStudio", "width": 1200, "height": 780, "minWidth": 800, "minHeight": 520, "dragDropEnabled": false,
-      "titleBarStyle": "Overlay", "hiddenTitle": true, "trafficLightPosition": { "x": 14, "y": 14 }
+      "titleBarStyle": "Overlay", "hiddenTitle": true, "trafficLightPosition": { "x": 14, "y": 23 }
     }]
   }
 }

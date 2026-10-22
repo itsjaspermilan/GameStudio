@@ -1,7 +1,6 @@
 // The top bar is the window's title bar. On macOS the window keeps its traffic lights but has no title strip of its own
-// (tauri.macos.conf.json: titleBarStyle Overlay), so the bar leaves room for them on the left. In fullscreen macOS hides them until the
-// pointer reaches the top of the screen; the bar then opens that room as they slide in and closes it after they leave. On Windows the
-// window has no system title bar (tauri.windows.conf.json: decorations false) and the bar draws Windows 11 caption buttons on the right.
+// (tauri.macos.conf.json: titleBarStyle Overlay), so the bar leaves room for them on the left. In fullscreen macOS shows them in its own
+// strip when the pointer reaches the top of the screen, so the bar needs no room for them there. On Windows the window has no system title bar (tauri.windows.conf.json: decorations false) and the bar draws Windows 11 caption buttons on the right.
 // Empty parts of the bar move the window (data-tauri-drag-region; a double click zooms or maximises).
 // In a plain browser nothing changes, unless ?chrome=mac or ?chrome=windows asks to see the bar as the app draws it.
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -42,14 +41,7 @@ export function setupWindowChrome(bar, { native }) {
   }
 
   if (chrome === "mac") {
-    // fullscreen: the traffic lights hide until the pointer touches the top edge; the room for them follows
-    let hideTimer = 0;
-    const setFull = async () => { root.dataset.fullscreen = win && (await win.isFullscreen()) ? "true" : "false"; if (root.dataset.fullscreen !== "true") delete root.dataset.reveal; };
+    const setFull = async () => { root.dataset.fullscreen = win && (await win.isFullscreen()) ? "true" : "false"; };
     if (win) { win.onResized(setFull); setFull(); }
-    window.addEventListener("mousemove", (e) => {
-      if (root.dataset.fullscreen !== "true") return;
-      if (e.clientY <= 3) { clearTimeout(hideTimer); hideTimer = 0; root.dataset.reveal = "true"; }
-      else if (root.dataset.reveal && e.clientY > 60 && !hideTimer) hideTimer = setTimeout(() => { delete root.dataset.reveal; hideTimer = 0; }, 450);
-    });
   }
 }

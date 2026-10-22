@@ -55,11 +55,10 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 #toolbar { grid-area: bar; display: flex; align-items: center; gap: 14px; padding: 0 10px;
   background: var(--panel); border-bottom: 1px solid var(--border); }
 #toolbar .group { display: flex; gap: 6px; }
-/* The bar is the title bar (window-chrome.js). macOS: room on the left for the traffic lights; in fullscreen it closes and opens again
-   while macOS shows them. Windows: caption buttons on the right, full bar height, square, red close on hover. */
-:root[data-chrome=mac] #toolbar { padding-left: 82px; transition: padding-left .22s ease; }
+/* The bar is the title bar (window-chrome.js). macOS: room on the left for the traffic lights. In fullscreen macOS shows
+   them in its own strip, so the bar needs no room. Windows: caption buttons on the right, full bar height, square, red close on hover. */
+:root[data-chrome=mac] #toolbar { padding-left: 92px; }
 :root[data-chrome=mac][data-fullscreen=true] #toolbar { padding-left: 10px; }
-:root[data-chrome=mac][data-fullscreen=true][data-reveal=true] #toolbar { padding-left: 82px; }
 :root[data-chrome=windows] #toolbar { padding-right: 0; }
 .caption { display: flex; align-self: stretch; margin-left: 2px; }
 .caption button { width: 46px; height: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--text); display: grid; place-items: center; }
