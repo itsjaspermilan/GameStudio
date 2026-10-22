@@ -224,7 +224,8 @@ code { background: var(--bg); padding: 1px 4px; border-radius: 3px; }
 /* Folders inside a group: a row you can fold, a drop target while a file is dragged. The folder icon is drawn, not a glyph. */
 li.tree-folder { padding: 0; border-radius: 0; }
 li.tree-folder:hover { background: transparent; }
-.tree-folder > .tree-items { padding: 0 0 0 12px; }
+/* a folder's contents line up under its name, with a faint line down from its icon, so they never read as top-level files */
+.tree-folder > .tree-items { margin-left: 26px; padding: 0 0 0 4px; border-left: 1px solid var(--border); }
 .folder-row { padding: 4px 8px; border-radius: 5px; }
 .folder-row:hover { background: var(--panel-2); }
 .folder-row { justify-content: flex-start; cursor: pointer; }
