@@ -11,7 +11,7 @@ brew install cmake pkgconf     # once
 ./build/gs pack carts/breakout build/breakout.cart && ./build/gs build/breakout.cart
 ```
 
-Controls (keyboard): arrows, Z/X/A/S = A/B/X/Y, Q/W = L/R, Enter = Start, Right Shift = Select, E/R = L2/R2, D/F = L3/R3. Esc quits; on a handheld, HOTKEY + Start (the Menu / function button), or holding Start + Select for three seconds. Gamepads map by physical position; the left stick acts as the d-pad.
+Controls (keyboard): arrows, Z/X/A/S = A/B/X/Y, Q/W = L/R, Enter = Start, Right Shift = Select, E/R = L2/R2, D/F = L3/R3. Esc quits; on a handheld, HOTKEY + Start (the Menu / function button), or holding Start + Select for three seconds. While HOTKEY is held the game sees no buttons (HOTKEY combinations belong to the handheld). Gamepads map by physical position; the left stick acts as the d-pad.
 
 ## Games
 
@@ -118,7 +118,7 @@ cp scripts/device.env.example scripts/device.env   # then edit host/user/dir
 
 `build-aarch64.sh` needs zig, cmake and pkgconf, and downloads a small Debian header/library sysroot on first use (`scripts/fetch-sysroot.sh`, checksum-verified). The binary targets glibc 2.31; change it in `scripts/zig-cc-aarch64` if the firmware is older.
 
-On handhelds with no KMS/DRM (muOS and Knulli on the RG35XX Pro have only `/dev/fb0`) `gs` falls back to software rendering into the framebuffer. If a device's buttons come out wrong, run the `padsetup` cart once: it records raw button numbers in `padmap.txt` beside `gs`, and `gs.btn("a")` and friends follow it (`GS_DEBUG_INPUT=1` prints raw presses).
+On handhelds with no KMS/DRM (Knulli on the RG35XX Pro has only `/dev/fb0`) `gs` falls back to software rendering into the framebuffer. If a device's buttons come out wrong, run the `padsetup` cart once: it records raw button numbers in `padmap.txt` beside `gs`, and `gs.btn("a")` and friends follow it (`GS_DEBUG_INPUT=1` prints raw presses).
 
 **Knulli.** With `DEVICE_ROMS_DIR` set in `scripts/device.env`, `push.sh` makes each console (Dot, Dash, custom ones) its own EmulationStation system with its own launcher folder, and writes a `gamelist.xml` entry from the game's `meta/info.json` (title, description, developer, genre, players, box art). The studio's "Send to device" runs the same script. EmulationStation reads new systems at start-up, so restart it after the first push of a console. Confirmed by testing on one RG35XX Pro: framebuffer drawing, the d-pad and shoulder buttons, Breakout running from the Dot system. Not yet confirmed there: box art and descriptions in the list, and Dash.
 

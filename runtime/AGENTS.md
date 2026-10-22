@@ -49,7 +49,7 @@ convention; the engine passes the negative of `image_angle`) happen around the p
 
 ## Framebuffer output and measuring (devices with no display server)
 
-When SDL finds no video device (muOS and Knulli on the RG35XX Pro: no `/dev/dri`), `main` falls back to `fb_open` / `fb_present`: the software renderer draws at the **console's own size** into
+When SDL finds no video device (Knulli on the RG35XX Pro: no `/dev/dri`), `main` falls back to `fb_open` / `fb_present`: the software renderer draws at the **console's own size** into
 the top-left corner of a surface (viewport, no logical presentation), and `fb_present` enlarges it by a whole number into `/dev/fb0` (double buffered when the driver has two pages, centred, black bars).
 Drawing at 640x480 instead cost about 19 ms a frame; this costs about 2.6 ms. Environment switches (all optional):
 

@@ -18,6 +18,19 @@ export const PROJECTILES = [
     c.poly([[4 + ca, 4 + sa], [4 - sa * 0.3, 4 + ca * 0.3], [4, 4]], R.blue[3]);
     c.px(4, 4, W);
   } },
+  { id: "blade", w: 16, h: 16, frames: 4, draw(c, f) {
+    // a curved steel blade around a hub; four frames turn it a quarter, so it spins as it orbits
+    const a0 = (f / 4) * (Math.PI / 2);
+    for (let arm = 0; arm < 2; arm++) {
+      const a = a0 + arm * Math.PI;
+      const pt = (r, da) => [8 + Math.cos(a + da) * r, 8 + Math.sin(a + da) * r];
+      c.poly([pt(2, -0.9), pt(7.4, -0.15), pt(7.6, 0.25), pt(4.5, 0.7), pt(2, 0.9)], R.grey[2]);
+      c.poly([pt(2, -0.9), pt(7.4, -0.15), pt(4.6, -0.05)], R.grey[3]);
+      c.line(...pt(3, -0.6), ...pt(7, -0.1), W);
+    }
+    c.disc(8, 8, 2.2, R.blue[1]); c.disc(7.6, 7.6, 1, R.blue[3]);
+    c.outline(R.blue[0]);
+  } },
   { id: "mine", w: 8, h: 8, frames: 2, draw(c, f) {
     c.disc(4, 4, 2.6, R.grey[1]); c.px(3, 3, R.grey[3]); c.px(4, 3, R.grey[2]);
     [[4, 0], [4, 7], [0, 4], [7, 4], [1, 1], [6, 1], [1, 6], [6, 6]].forEach(([x, y]) => c.px(x, y, R.grey[2]));
@@ -81,30 +94,46 @@ export const FX = [
   } },
 ];
 
+// 12x12: big enough to spot in a crowd at a glance (they were 8x8 and easy to miss)
 export const PICKUPS = [
-  { id: "gem", w: 8, h: 8, frames: 6, draw(c, f) {
-    const kind = f >> 1, tw = f & 1, ramp = [R.teal, R.green, R.purple][kind];
-    if (kind === 0) { c.poly([[4, 1], [6.5, 4], [4, 7], [1.5, 4]], ramp[1]); c.poly([[4, 1], [4, 7], [1.5, 4]], ramp[2]); c.px(3, 3, ramp[3]); }
-    else if (kind === 1) { c.poly([[4, 0.5], [7, 4], [4, 7.5], [1, 4]], ramp[1]); c.poly([[4, 0.5], [4, 7.5], [1, 4]], ramp[2]); c.px(3, 2, ramp[3]); c.px(3, 3, ramp[3]); }
-    else { c.poly([[4, 0], [8, 4], [4, 8], [0, 4]], ramp[1]); c.poly([[4, 0], [4, 8], [0, 4]], ramp[2]); c.rect(2, 2, 2, 2, ramp[3]); }
-    if (tw) { c.px(kind === 2 ? 6 : 5, 2, W); }
+  { id: "gem", w: 12, h: 12, frames: 6, draw(c, f) {
+    // small, medium and large experience gems, each with a sparkle frame
+    const kind = f >> 1, tw = f & 1, ramp = [R.teal, R.green, R.purple][kind], r = [3.6, 4.6, 5.6][kind];
+    c.poly([[6, 6 - r], [6 + r * 0.8, 6], [6, 6 + r], [6 - r * 0.8, 6]], ramp[1]);
+    c.poly([[6, 6 - r], [6, 6 + r], [6 - r * 0.8, 6]], ramp[2]);
+    c.poly([[6, 6 - r], [6 - r * 0.8, 6], [6 - r * 0.25, 6 - r * 0.2]], ramp[3]);
+    c.line(6 - r * 0.8, 6, 6 + r * 0.8, 6, ramp[0]);
+    if (tw) { c.px(6 + r * 0.5, 6 - r * 0.6, W); c.px(6 + r * 0.5 + 1, 6 - r * 0.6, ramp[3]); c.px(6 + r * 0.5, 6 - r * 0.6 - 1, ramp[3]); }
     c.outline(ramp[0]);
   } },
-  { id: "coin", w: 8, h: 8, frames: 4, draw(c, f) {
-    const w = [3, 2, 1, 2][f];
-    c.ellipse(4, 4, w, 3.4, R.yellow[2]); c.ellipse(4, 4, Math.max(0.6, w - 1), 2.4, R.yellow[3]); if (w > 1) c.px(4, 4, R.yellow[1]);
+  { id: "coin", w: 12, h: 12, frames: 4, draw(c, f) {
+    const w = [4.6, 3, 1.2, 3][f]; // spinning: full face, turning, edge on, turning back
+    c.ellipse(6, 6, w, 5, R.yellow[1]);
+    c.ellipse(6 - (w > 2 ? 0.5 : 0), 6, Math.max(0.7, w - 1.2), 4, R.yellow[2]);
+    if (w > 2) { c.rect(6, 3, 1, 6, R.yellow[3]); c.px(5, 4, R.yellow[3]); c.px(5, 7, R.yellow[3]); c.px(4, 4, W); }
     c.outline(R.yellow[0]);
   } },
-  { id: "heart", w: 8, h: 8, frames: 2, draw(c, f) {
-    c.poly([[1, 2], [3, 1], [4, 2.5], [5, 1], [7, 2], [7, 4], [4, 7.5], [1, 4]], R.red[2]); c.px(2, 2, R.red[3]); c.px(2, 3, R.red[3]); if (f) c.px(3, 2, W);
+  { id: "heart", w: 12, h: 12, frames: 2, draw(c, f) {
+    const k = f ? 0.4 : 0; // a slow beat
+    c.disc(4 - k * 0.3, 4.5, 2.8 + k, R.red[2]); c.disc(8 + k * 0.3, 4.5, 2.8 + k, R.red[2]);
+    c.poly([[1.4 - k, 5.5], [10.6 + k, 5.5], [6, 10.8 + k]], R.red[2]);
+    c.disc(8.2, 5, 1.8, R.red[1]); c.poly([[6, 10.4], [10, 6], [8, 6]], R.red[1]);
+    c.rect(3, 3, 2, 2, R.red[3]); c.px(3, 3, W);
     c.outline(R.red[0]);
   } },
-  { id: "magnet", w: 8, h: 8, frames: 2, draw(c, f) {
-    c.rect(1, 1, 2, 5, R.red[2]); c.rect(5, 1, 2, 5, R.red[2]); c.rect(1, 5, 6, 2, R.red[1]); c.rect(1, 1, 2, 1, W); c.rect(5, 1, 2, 1, W); if (f) { c.px(3, 0, R.yellow[3]); c.px(4, 0, R.yellow[3]); }
+  { id: "magnet", w: 12, h: 12, frames: 2, draw(c, f) {
+    // a U with a wide gap (the outline must not close it), silver tips, and a spark between them
+    c.rect(1, 3, 3, 5, R.red[2]); c.rect(8, 3, 3, 5, R.red[2]); c.rect(1, 7, 10, 3, R.red[2]); c.rect(4, 7, 4, 1, R.red[1]);
+    c.rect(1, 3, 1, 6, R.red[3]); c.rect(2, 9, 8, 1, R.red[1]);
+    c.rect(1, 1, 3, 2, W); c.rect(8, 1, 3, 2, W); c.rect(3, 1, 1, 2, R.grey[2]); c.rect(10, 1, 1, 2, R.grey[2]);
     c.outline(R.red[0]);
+    if (f) { c.px(5, 2, R.yellow[3]); c.px(6, 3, R.yellow[3]); c.px(6, 1, R.yellow[2]); }
   } },
-  { id: "bomb", w: 8, h: 8, frames: 2, draw(c, f) {
-    c.sphere(4, 5, 3, R.grey, -0.5, -0.5); c.px(6, 1, f ? R.yellow[3] : R.orange[2]); c.line(5, 2, 6, 1, R.grey[3]); c.px(3, 4, W);
+  { id: "bomb", w: 12, h: 12, frames: 2, draw(c, f) {
+    c.sphere(5.5, 7, 4.5, R.grey, -0.5, -0.5);
+    c.rect(6, 1.5, 2, 2, R.grey[2]); c.line(8, 2, 9, 1, R.orange[1]);
+    c.px(10, 0, f ? R.yellow[3] : R.orange[2]); c.px(9, 0, f ? W : R.yellow[2]); if (f) c.px(10, 1, R.orange[3]);
+    c.px(4, 5, W); c.px(3, 6, R.grey[3]);
     c.outline(K);
   } },
 ];

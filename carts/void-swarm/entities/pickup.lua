@@ -6,7 +6,7 @@ local audio = require "lib.audio"
 local Pickup = gs.entity{
   tags = { "pickup" },
   depth = 80,
-  hitbox = { r = 3 },
+  hitbox = { r = 5 },
   kind = "gem",
   v = 1,                              -- a gem's experience, a heart's health
   t = 0,

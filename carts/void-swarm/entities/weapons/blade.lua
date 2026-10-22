@@ -5,7 +5,7 @@ local ui = require "lib.ui"
 local Blade = gs.entity{
   tags = { "blade" },
   depth = 19,
-  hitbox = { r = 5 },
+  hitbox = { r = 8 },
   dmg = 1,
   spin = 0,                           -- the angle it is at, for knocking enemies sideways
   look = 1,                           -- how big the blade is drawn (the hit area follows sx and sy)
@@ -19,7 +19,7 @@ function Blade:on_collide_enemy(e)
 end
 
 function Blade:draw()
-  ui.spr("spr_p_shard", gs.world.step_id / 3, self.x, self.y, self.look)
+  ui.spr("spr_p_blade", gs.world.step_id / 3, self.x, self.y, self.look)
 end
 
 return Blade

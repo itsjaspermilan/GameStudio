@@ -138,8 +138,12 @@ static const SDL_GamepadButton pad_map[B_COUNT] = {
     SDL_GAMEPAD_BUTTON_INVALID, SDL_GAMEPAD_BUTTON_INVALID, SDL_GAMEPAD_BUTTON_LEFT_STICK, SDL_GAMEPAD_BUTTON_RIGHT_STICK };
 static bool btn_now[B_COUNT], btn_prev[B_COUNT];
 static bool g_hotkey;               /* the hotkey is held (see g_raw_hotkey) */
+static bool g_start_raw;            /* START as pressed, before the hotkey hides it from the game */
+/* While the hotkey is held the game sees no buttons: HOTKEY + something is for the handheld (quit, volume, brightness), not the game.
+ * A button pressed during the hotkey stays hidden until it is let go, so releasing the hotkey first does not press it in the game. */
+static bool g_swallow[B_COUNT];
 
-/* muOS (and similar frontends) describe the handheld's buttons in SDL_GAMECONTROLLERCONFIG, but with an SDL2-style device id that SDL3
+/* Handheld frontends describe the handheld's buttons in SDL_GAMECONTROLLERCONFIG, but with an SDL2-style device id that SDL3
  * does not compute the same way, so SDL3 falls back to a guessed layout. Re-register that mapping under each joystick's real id, then
  * open the ones that are now gamepads. GS_DEBUG_INPUT=1 prints every joystick and button press to stderr, to find out what a device does. */
 static bool g_debug_input;
@@ -150,7 +154,7 @@ static bool g_debug_input;
 static int g_rawmap[B_COUNT];
 static int g_raw_last = -1;         /* last raw joystick button pressed, for the setup cart to read */
 /* The handheld's hotkey (Menu / function button) is not a game button: HOTKEY + START leaves the game, like every other app on Knulli and
- * muOS. The pad setup cart can record it as "hotkey" in padmap.txt; without an entry it is the gamepad's guide button. */
+ * Knulli. The pad setup cart can record it as "hotkey" in padmap.txt; without an entry it is the gamepad's guide button. */
 static int g_raw_hotkey = -1;
 static SDL_Joystick *g_joys[8]; static int g_njoys;
 
@@ -249,6 +253,12 @@ static void poll_buttons(void) {
         if (ay < -16000) btn_now[B_UP] = true;   if (ay > 16000) btn_now[B_DOWN] = true;
     }
     SDL_free(ids);
+    g_start_raw = btn_now[B_START];
+    for (int i = 0; i < B_COUNT; i++) {
+        if (g_hotkey && btn_now[i]) g_swallow[i] = true;
+        else if (!btn_now[i]) g_swallow[i] = false;
+        if (g_hotkey || g_swallow[i]) btn_now[i] = false;
+    }
 }
 
 /* ---------- Lua API: gs.* ---------- */
@@ -1187,9 +1197,9 @@ static int render_audio(const char *descpath, const char *outpath) {
 }
 
 /* ---------- framebuffer output (handhelds with no display server) ----------
- * muOS has no KMS/DRM and no window system: the screen is /dev/fb0, which only its own patched SDL2 knows how to drive. When SDL
- * finds no video device we draw with the software renderer into a plain surface and copy every frame to the framebuffer ourselves.
- * GS_FBDEV overrides the device path. Unverified on real hardware: the pixel format and page flipping follow what the driver reports. */
+ * Knulli on the RG35XX Pro has no KMS/DRM and no window system: the screen is /dev/fb0. When SDL finds no video device we draw with the
+ * software renderer into a plain surface and copy every frame to the framebuffer ourselves (checked on the device).
+ * GS_FBDEV overrides the device path; the pixel format and page flipping follow what the driver reports. */
 #ifdef __linux__
 static struct {
     int fd; unsigned char *map;
@@ -1574,7 +1584,7 @@ int main(int argc, char **argv) {
         const Uint64 t_buttons = SDL_GetTicksNS();
         /* HOTKEY + START leaves the game, as in every other app on the handheld. Holding START + SELECT for three seconds also does, a way out on a
          * device whose hotkey SDL cannot see (run pad setup to teach it); it is long so that games can use the two together. */
-        if (g_hotkey && btn_now[B_START]) g_quit = true;
+        if (g_hotkey && g_start_raw) g_quit = true;
 
         Uint64 now = SDL_GetTicksNS();
         double dt = (now - last) / 1e9; last = now;

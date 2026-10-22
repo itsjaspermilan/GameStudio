@@ -2,8 +2,8 @@
  "image": "sprites/spr_pk_gem.png",
  "frames": 6,
  "origin": [
-  4,
-  4
+  6,
+  6
  ],
  "mask": null,
  "fps": 6

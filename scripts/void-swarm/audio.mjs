@@ -55,6 +55,9 @@ const RHY = [
 ];
 export const empty = (n) => Array(n).fill("--");
 
+// Each song has a `level` (steps of 1.25x added to every track, from rendering them all) so moving between screens keeps the loudness even.
+const leveled = (vol, level = 0) => vol.map((v) => Math.max(-3, Math.min(3, v + level)));
+
 export class Song {
   constructor(o) { this.o = o; this.sc = SCALES[o.scale]; this.r = rng(o.seed); }
   note(deg, oct) { return this.o.root + oct * 12 + 12 * Math.floor(deg / 7) + this.sc[((deg % 7) + 7) % 7]; }
@@ -135,43 +138,44 @@ export class Song {
   build() {
     const o = this.o, patterns = o.sections.map((s) => this.pattern(s.prog, s));
     return {
-      format: "tracker", tempo: o.tempo, rows_per_beat: 4, tracks: 4, track_instruments: o.inst, reverb: o.reverb ?? 12, track_vol: o.vol ?? [0, -2, -1, -2],
+      format: "tracker", tempo: o.tempo, rows_per_beat: 4, tracks: 4, track_instruments: o.inst, reverb: o.reverb ?? 12, track_vol: leveled(o.vol ?? [0, -2, -1, -2], o.level),
       patterns, order: o.order, loop_to: o.loop === false ? -1 : 0, key: { root: o.root % 12, scale: o.scale === "harm" ? "minor" : o.scale === "dorian" || o.scale === "phrygian" || o.scale === "lydian" ? "minor" : o.scale },
     };
   }
 }
 
 const drumsI = "gm_drum_kit";
-// Ten different stage songs (one per sector), gentler than before: slower, fewer notes, soft instruments, long notes and rests.
+// Ten different stage songs (one per sector), each with a band of its own from the General MIDI SoundFont (the chip instruments sounded
+// whistly and harsh as leads), the melody in the middle octave: kalimba and nylon guitar, a sax over electric piano, steel drums, koto, ...
 const SONGS = {
-  msc_s1: { seed: 3, root: 4, scale: "dorian", tempo: 108, oct: 5, inst: ["flute", "pluck", "bass", drumsI], harmony: "arp8", bass: "half", drums: "soft", rhythms: [3, 1, 3, 0], rest: 0.3, calm: true, vol: [0, -3, -1, -4],
-    sections: [{ prog: [0, 3, 0, 4] }, { prog: [5, 4, 3, 0], oct: 5 }, { prog: [0, 6, 5, 4] }, { prog: [3, 0, 4, 0], drums: "four" }], order: [0, 1, 0, 2, 3, 1] },
-  msc_s2: { seed: 14, root: 9, scale: "minor", tempo: 96, oct: 5, inst: ["bell", "pad", "bass", drumsI], harmony: "pad", bass: "half", drums: "soft", rhythms: [3, 1], rest: 0.4, calm: true, reverb: 35, vol: [-1, -1, -1, -4], fill: false,
+  msc_s1: { level: 1, seed: 3, root: 4, scale: "dorian", tempo: 108, oct: 4, inst: ["gm_kalimba", "gm_nylon_guitar", "gm_finger_bass", drumsI], harmony: "arp8", bass: "half", drums: "soft", rhythms: [3, 1, 3, 0], rest: 0.3, calm: true, vol: [0, -3, -1, -4],
+    sections: [{ prog: [0, 3, 0, 4] }, { prog: [5, 4, 3, 0], oct: 4 }, { prog: [0, 6, 5, 4] }, { prog: [3, 0, 4, 0], drums: "four" }], order: [0, 1, 0, 2, 3, 1] },
+  msc_s2: { level: -1, seed: 14, root: 9, scale: "minor", tempo: 96, oct: 4, inst: ["gm_vibraphone", "gm_choir_pad", "gm_fretless_bass", drumsI], harmony: "pad", bass: "half", drums: "soft", rhythms: [3, 1], rest: 0.4, calm: true, reverb: 35, vol: [-1, -1, -1, -4], fill: false,
     sections: [{ prog: [0, 5, 2, 6] }, { prog: [3, 4, 0, 0] }, { prog: [5, 6, 0, 4] }], order: [0, 1, 0, 2] },
-  msc_s3: { seed: 21, root: 2, scale: "phrygian", tempo: 84, oct: 5, inst: ["strings", "pad", "bass", drumsI], harmony: "pad", bass: "half", drums: "none", rhythms: [3, 3, 1], rest: 0.4, calm: true, reverb: 40, vol: [-1, -1, -1, -4], fill: false,
+  msc_s3: { level: -2, seed: 21, root: 2, scale: "phrygian", tempo: 84, oct: 4, inst: ["gm_cello", "gm_bowed_pad", "gm_contrabass", drumsI], harmony: "pad", bass: "half", drums: "none", rhythms: [3, 3, 1], rest: 0.4, calm: true, reverb: 40, vol: [-1, -1, -1, -4], fill: false,
     sections: [{ prog: [0, 1, 0, 6] }, { prog: [3, 4, 1, 0] }, { prog: [0, 6, 5, 6] }], order: [0, 1, 0, 2] },
-  msc_s4: { seed: 33, root: 5, scale: "lydian", tempo: 104, oct: 5, inst: ["bell", "epiano", "bass", drumsI], harmony: "arp8", bass: "eighth", drums: "soft", rhythms: [3, 0, 1], rest: 0.35, calm: true, reverb: 30, vol: [-1, -2, -1, -4],
+  msc_s4: { level: 1, seed: 33, root: 5, scale: "lydian", tempo: 104, oct: 4, inst: ["gm_marimba", "gm_electric_piano_2", "gm_finger_bass", drumsI], harmony: "arp8", bass: "eighth", drums: "soft", rhythms: [3, 0, 1], rest: 0.35, calm: true, reverb: 30, vol: [-1, -2, -1, -4],
     sections: [{ prog: [0, 4, 5, 3] }, { prog: [1, 4, 0, 0] }, { prog: [3, 5, 4, 0] }], order: [0, 1, 0, 2] },
-  msc_s5: { seed: 41, root: 7, scale: "minor", tempo: 116, oct: 5, inst: ["organ", "pluck", "bass", drumsI], harmony: "arp8", bass: "pump", drums: "four", rhythms: [1, 3, 0], rest: 0.3, vol: [-2, -3, -1, -3],
+  msc_s5: { level: 2, seed: 41, root: 7, scale: "minor", tempo: 116, oct: 4, inst: ["gm_clean_guitar", "gm_pizzicato_strings", "gm_pick_bass", drumsI], harmony: "arp8", bass: "pump", drums: "four", rhythms: [1, 3, 0], rest: 0.3, vol: [-2, -3, -1, -3],
     sections: [{ prog: [0, 0, 5, 6] }, { prog: [3, 4, 0, 0] }, { prog: [5, 6, 0, 4] }], order: [0, 1, 0, 2] },
-  msc_s6: { seed: 57, root: 1, scale: "harm", tempo: 122, oct: 5, inst: ["lead", "epiano", "bass", drumsI], harmony: "arp8", bass: "eighth", drums: "drive", rhythms: [1, 3, 5], rest: 0.35, vol: [-2, -3, -1, -3],
+  msc_s6: { seed: 57, root: 1, scale: "harm", tempo: 122, oct: 4, inst: ["gm_alto_sax", "gm_electric_piano_1", "gm_slap_bass_1", drumsI], harmony: "arp8", bass: "eighth", drums: "drive", rhythms: [1, 3, 5], rest: 0.35, vol: [-2, -3, -1, -3],
     sections: [{ prog: [0, 3, 0, 4] }, { prog: [5, 4, 3, 4] }, { prog: [0, 6, 5, 4] }], order: [0, 1, 0, 2] },
-  msc_s7: { seed: 63, root: 11, scale: "dorian", tempo: 110, oct: 5, inst: ["flute", "epiano", "bass", drumsI], harmony: "arp8", bass: "eighth", drums: "break", rhythms: [3, 1, 5], rest: 0.3, calm: true, vol: [0, -3, -1, -3],
+  msc_s7: { level: 1, seed: 63, root: 11, scale: "dorian", tempo: 110, oct: 4, inst: ["gm_steel_drums", "gm_steel_guitar", "gm_finger_bass", drumsI], harmony: "arp8", bass: "eighth", drums: "break", rhythms: [3, 1, 5], rest: 0.3, calm: true, vol: [0, -3, -1, -3],
     sections: [{ prog: [0, 3, 0, 4] }, { prog: [5, 2, 3, 0] }, { prog: [0, 6, 4, 4] }], order: [0, 1, 0, 2] },
-  msc_s8: { seed: 77, root: 5, scale: "phrygian", tempo: 88, oct: 5, inst: ["strings", "pad", "bass", drumsI], harmony: "pad", bass: "half", drums: "soft", rhythms: [3, 3, 0], rest: 0.45, calm: true, reverb: 45, vol: [-1, -1, -1, -4], fill: false,
+  msc_s8: { seed: 77, root: 5, scale: "phrygian", tempo: 88, oct: 4, inst: ["gm_koto", "gm_new_age_pad", "gm_fretless_bass", drumsI], harmony: "pad", bass: "half", drums: "soft", rhythms: [3, 3, 0], rest: 0.45, calm: true, reverb: 45, vol: [-1, -1, -1, -4], fill: false,
     sections: [{ prog: [0, 1, 0, 1] }, { prog: [4, 3, 1, 0] }, { prog: [0, 6, 1, 0] }], order: [0, 1, 0, 2] },
-  msc_s9: { seed: 91, root: 2, scale: "minor", tempo: 120, oct: 5, inst: ["brass", "pluck", "bass", drumsI], harmony: "arp8", bass: "pump", drums: "four", rhythms: [0, 3, 1], rest: 0.3, vol: [-2, -3, -1, -3],
+  msc_s9: { level: -1, seed: 91, root: 2, scale: "minor", tempo: 120, oct: 4, inst: ["gm_french_horn", "gm_string_ensemble_1", "gm_contrabass", drumsI], harmony: "arp8", bass: "pump", drums: "four", rhythms: [0, 3, 1], rest: 0.3, vol: [-2, -3, -1, -3],
     sections: [{ prog: [0, 5, 3, 4] }, { prog: [2, 6, 5, 4] }, { prog: [0, 3, 5, 4] }], order: [0, 1, 0, 2] },
-  msc_s10: { seed: 105, root: 9, scale: "harm", tempo: 126, oct: 5, inst: ["organ", "strings", "bass", drumsI], harmony: "arp8", bass: "gallop", drums: "drive", rhythms: [1, 0, 5], rest: 0.3, reverb: 25, vol: [-2, -2, -1, -3],
+  msc_s10: { level: 1, seed: 105, root: 9, scale: "harm", tempo: 126, oct: 4, inst: ["gm_overdriven_guitar", "gm_rock_organ", "gm_pick_bass", drumsI], harmony: "arp8", bass: "gallop", drums: "drive", rhythms: [1, 0, 5], rest: 0.3, reverb: 25, vol: [-2, -2, -1, -3],
     sections: [{ prog: [0, 5, 6, 4] }, { prog: [0, 1, 0, 6] }, { prog: [5, 6, 4, 4] }, { prog: [0, 3, 4, 0] }], order: [0, 1, 2, 3, 0, 1] },
-  msc_title: { seed: 7, root: 9, scale: "minor", tempo: 96, oct: 5, inst: ["flute", "pad", "bass", drumsI], harmony: "pad", bass: "half", drums: "soft", rhythms: [3, 1], rest: 0.35, calm: true, reverb: 30, vol: [0, -1, -1, -4],
-    sections: [{ prog: [0, 5, 2, 6] }, { prog: [5, 3, 0, 4], oct: 5 }, { prog: [0, 5, 3, 4], drums: "four" }], order: [0, 1, 0, 2] },
-  msc_hub: { seed: 21, root: 2, scale: "dorian", tempo: 82, oct: 5, inst: ["bell", "pad", "bass", drumsI], harmony: "pad", bass: "half", drums: "none", rhythms: [3, 1, 3], rest: 0.45, calm: true, reverb: 35, vol: [-1, -1, -1, -4], fill: false,
+  msc_title: { level: -1, seed: 7, root: 9, scale: "minor", tempo: 96, oct: 4, inst: ["gm_vibraphone", "gm_warm_pad", "gm_fretless_bass", drumsI], harmony: "pad", bass: "half", drums: "soft", rhythms: [3, 1], rest: 0.35, calm: true, reverb: 30, vol: [0, -1, -1, -4],
+    sections: [{ prog: [0, 5, 2, 6] }, { prog: [5, 3, 0, 4], oct: 4 }, { prog: [0, 5, 3, 4], drums: "four" }], order: [0, 1, 0, 2] },
+  msc_hub: { level: -1, seed: 21, root: 2, scale: "dorian", tempo: 82, oct: 4, inst: ["gm_electric_piano_1", "gm_choir_pad", "gm_acoustic_bass", drumsI], harmony: "pad", bass: "half", drums: "none", rhythms: [3, 1, 3], rest: 0.45, calm: true, reverb: 35, vol: [-1, -1, -1, -4], fill: false,
     sections: [{ prog: [0, 3, 0, 4] }, { prog: [5, 4, 3, 0] }], order: [0, 1] },
-  msc_boss: { seed: 99, root: 4, scale: "harm", tempo: 148, oct: 5, inst: ["brass", "pluck", "bass", drumsI], harmony: "arp8", bass: "gallop", drums: "drive", rhythms: [1, 3, 0], rest: 0.3, arpOct: 4,
-    sections: [{ prog: [0, 0, 1, 0] }, { prog: [5, 4, 5, 4], oct: 6 }, { prog: [0, 6, 5, 4], reg: 8 }], order: [0, 1, 0, 2], vol: [-1, -3, -1, -3] },
-  msc_final: { seed: 123, root: 9, scale: "harm", tempo: 156, oct: 5, inst: ["lead", "organ", "bass", drumsI], harmony: "arp8", bass: "gallop", drums: "boss", rhythms: [1, 3, 5], rest: 0.25, arpOct: 4, reverb: 20,
-    sections: [{ prog: [0, 5, 6, 4] }, { prog: [0, 1, 0, 6], oct: 6 }, { prog: [5, 6, 4, 4], reg: 8 }, { prog: [0, 0, 0, 0], bass: "pump" }], order: [0, 1, 2, 3, 0, 1, 2, 3], vol: [-2, -3, -1, -3] },
+  msc_boss: { seed: 99, root: 4, scale: "harm", tempo: 148, oct: 4, inst: ["gm_brass_section", "gm_tremolo_strings", "gm_synth_bass_1", drumsI], harmony: "arp8", bass: "gallop", drums: "drive", rhythms: [1, 3, 0], rest: 0.3, arpOct: 4,
+    sections: [{ prog: [0, 0, 1, 0] }, { prog: [5, 4, 5, 4], oct: 5 }, { prog: [0, 6, 5, 4], reg: 8 }], order: [0, 1, 0, 2], vol: [-1, -3, -1, -3] },
+  msc_final: { level: -1, seed: 123, root: 9, scale: "harm", tempo: 156, oct: 4, inst: ["gm_distortion_guitar", "gm_string_ensemble_1", "gm_synth_bass_1", drumsI], harmony: "arp8", bass: "gallop", drums: "boss", rhythms: [1, 3, 5], rest: 0.25, arpOct: 4, reverb: 20,
+    sections: [{ prog: [0, 5, 6, 4] }, { prog: [0, 1, 0, 6], oct: 5 }, { prog: [5, 6, 4, 4], reg: 8 }, { prog: [0, 0, 0, 0], bass: "pump" }], order: [0, 1, 2, 3, 0, 1, 2, 3], vol: [-2, -3, -1, -3] },
 };
 
 export function jingle(name, spec) { // short one-shot songs, written by hand as degree lists
@@ -182,17 +186,17 @@ export function jingle(name, spec) { // short one-shot songs, written by hand as
   spec.pad.forEach(([r, d]) => { pad[r] = nm(s.note(d, 3)); pad2[r] = nm(s.note(d + 2, 3)); });
   (spec.drums || []).forEach(([r, n]) => { dr[r] = n; });
   const layers = Array.from({ length: 12 }, () => empty(spec.rows).join(" ")); layers[1] = pad2.join(" ");
-  return { format: "tracker", tempo: spec.tempo, rows_per_beat: 4, tracks: 4, track_instruments: spec.inst, reverb: 25, track_vol: [0, -1, -1, -2],
-    patterns: [{ rows: spec.rows, tracks: [lead.join(" "), pad.join(" "), bass.join(" "), dr.join(" ")], layers }], order: [0], loop_to: -1, key: { root: spec.root % 12, scale: spec.scale } };
+  return { format: "tracker", tempo: spec.tempo, rows_per_beat: 4, tracks: 4, track_instruments: spec.inst, reverb: 25,
+    patterns: [{ rows: spec.rows, tracks: [lead.join(" "), pad.join(" "), bass.join(" "), dr.join(" ")], layers }], order: [0], loop_to: -1, key: { root: spec.root % 12, scale: spec.scale }, track_vol: leveled([0, -1, -1, -2], spec.level) };
 }
 
 export function allMusic() {
   const out = {};
   for (const [name, o] of Object.entries(SONGS)) out[name] = new Song(o).build();
-  out.msc_victory = jingle("victory", { root: 0, scale: "major", tempo: 132, rows: 32, inst: ["brass", "strings", "bass", drumsI],
+  out.msc_victory = jingle("victory", { root: 0, scale: "major", tempo: 132, rows: 32, inst: ["gm_trumpet", "gm_string_ensemble_1", "gm_acoustic_bass", drumsI],
     lead: [[0, 0, 5], [2, 0, 5], [4, 0, 5], [6, 2, 5], [8, 4, 5], [10, 2, 5], [12, 4, 5], [16, 7, 5], [24, 9, 5], [31, "OFF"]].map(([r, d, o]) => [r, d === 0 && r < 8 ? 4 : d, o]),
     bass: [[0, 0], [8, 3], [16, 4], [24, 0]], pad: [[0, 0], [8, 3], [16, 4], [24, 0]], drums: [[0, "C3+C#4"], [8, "C3"], [16, "C3+D3"], [20, "D3"], [24, "C3+C#4"]] });
-  out.msc_gameover = jingle("gameover", { root: 9, scale: "minor", tempo: 70, rows: 32, inst: ["strings", "pad", "bass", drumsI],
-    lead: [[0, 4, 5], [4, 3, 5], [8, 2, 5], [12, 0, 5], [16, -1, 5], [24, 0, 4], [31, "OFF"]], bass: [[0, 0], [16, -3]], pad: [[0, 0], [16, -3]], drums: [[0, "C3"]] });
+  out.msc_gameover = jingle("gameover", { level: -2, root: 9, scale: "minor", tempo: 70, rows: 32, inst: ["gm_cello", "gm_choir_aahs", "gm_contrabass", drumsI],
+    lead: [[0, 4, 4], [4, 3, 4], [8, 2, 4], [12, 0, 4], [16, -1, 4], [24, 0, 3], [31, "OFF"]], bass: [[0, 0], [16, -3]], pad: [[0, 0], [16, -3]], drums: [[0, "C3"]] });
   return out;
 }

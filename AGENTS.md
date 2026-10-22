@@ -1,6 +1,6 @@
 # GameStudio: agent guide
 
-A cheap Linux handheld (Anbernic RG35XX Pro, aarch64, muOS/Knulli) becomes a "Playdate-like" console for small 2D games, plus a
+A cheap Linux handheld (Anbernic RG35XX Pro, aarch64, Knulli) becomes a "Playdate-like" console for small 2D games, plus a
 desktop **Studio** (Tauri 2 + Rust + plain JS) in the spirit of Game Maker 7 for making them. Two audiences matter when you change
 anything: **beginners** (the studio must stay simple: plain words, few choices, good defaults) and **the handheld** (small, fast,
 GBA-like limits). This file is the map; each folder has its own `AGENTS.md` with the details. Read only the one for the area you touch.

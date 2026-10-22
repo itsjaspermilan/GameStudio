@@ -6,7 +6,9 @@ Open items, newest thinking first. Cross things out (or delete them) when they a
 
 Housekeeping
 - [x] `main` (one fresh commit) is pushed to `git@github.com:itsjaspermilan/GameStudio.git`.
-- [ ] Void Swarm, Breakout, Panel Pop, Button test and Pad setup were pushed again on 2026-10-22 (plain launchers, new runtime with HOTKEY + Start, `.keys` files beside each launcher). Look at Void Swarm's new art and walk on the device. The old `stress.cart` test is deleted from the console.
+- [x] Void Swarm, Breakout, Panel Pop, Button test and Pad setup were pushed again on 2026-10-22 (plain launchers, new runtime with HOTKEY + Start, `.keys` files beside each launcher). Void Swarm's new art and walk look good on the device; HOTKEY + Start works. The old `stress.cart` test is deleted from the console.
+- [ ] Void Swarm, from the first look on the device: the orbit blades have a 16x16 sprite of their own and the pickups are 12x12 (hit circles grown to match); the music uses General MIDI bands instead of chip leads (kalimba, vibraphone, sax over electric piano, steel drums, koto, French horn, rock guitar, ...), one octave lower, loudness evened out. Listen on the device, and check the audio thread there with `GS_PERF=1` (on this Mac a callback takes about 0.2 ms).
+- [ ] Signing: the studio app needs your Developer ID certificate in your Mac's keychain, then `APPLE_SIGNING_IDENTITY` (and an App Store Connect API key for notarizing) set in your own shell; see the notes given on 2026-10-22.
 - [ ] Void Swarm was only measured on the device in short early sectors. Play a late sector (7+, past 5 minutes) with `GS_PERF=1` and read `last-run-void-swarm.log`.
 
 Games
@@ -31,8 +33,8 @@ Framework (`engine/gs/`)
 - [x] Particles: `gs.burst` (a pool capped by the console's `particles` limit, not entities).
 - [x] `gs.camera.zoom` (the runtime's `gs.zoom` scales world drawing; UI stays 1x).
 - [x] Small API gaps found while porting Void Swarm: `gs.in_radius` / `gs.in_rect` refill an optional list, `Entity:hit_radius()` (Void Swarm's enemies no longer copy `r`), `"#rrggbbaa"` colors. Fixed in passing: Void Swarm's comet kept its direction in `sx`/`sy` (the scale), so it flew down-right, stretched; check a comet sector on the device.
-- [ ] Live reload is desktop-only on purpose; decide if a device build should ever reload.
-- [ ] Collision broad phase is Lua (grid per tag, merged candidate lists): about 1.3x the cost of Void Swarm's hand-tuned tables on a desktop. Profile on the device if a game needs more.
+- [x] Live reload stays desktop-only (decided 2026-10-22).
+- [x] Collision broad phase stays in Lua (grid per tag, about 1.3x hand-tuned tables on a desktop); closed 2026-10-22, reopen if a game gets slow.
 
 ## Performance (measured on the RG35XX Pro, Breakout, `GS_PERF=1 scripts/push.sh`)
 
@@ -46,7 +48,7 @@ Done, in order of effect (frame times: 34 ms at the start, 16.9 ms now; slow fra
 
 Still open:
 - [ ] Measured on the device so far: Breakout, and Void Swarm in early sectors. Run a real Dash game, a late Void Swarm sector, and a game with many fades, big alpha sprites and General MIDI instruments: the software renderer costs by pixels drawn and the audio thread by voices.
-- [ ] The copy to the screen takes 3.1 ms; a copy thread would give that back at the price of one frame (17 ms) more input delay. Not done, not needed so far.
+- [x] A copy thread for the 3.1 ms screen copy: won't do (it would add a frame of input delay).
 - [x] Collisions: the new framework uses a spatial grid per tag (see Lua engine and studio above for what is still open).
 - [x] Limits and budgets tuned on the console (see `engine/consoles/README.md`): `instances_alive` 512, `particles` 300, `collision_tests` 1000, `draw_screens` 6. Not measured yet: scaled and rotated sprites (the software renderer's slow path), General MIDI voices, and a game with all of it at once.
 - [x] **Clock lock-in at 30 fps** (a heavy scene made the CPU sit at about 790 MHz and the game at 30 fps, console cool): fixed by the adaptive CPU floor (`runtime/AGENTS.md`). On the console: 500 moving objects 29.6 -> 58.1 fps, 1,200 collision checks 34 -> 54 fps, light scenes stay at 480 to 640 MHz, floor restored to 480 MHz after the run. It takes about a second to notice lateness, so a heavy scene starts with a second at 30 fps. Possible later: a second step up to the maximum clock if frames are still late after a few seconds (2,400 checks stays at 28 fps at 1.2 to 1.3 GHz; it is over the 1,000-check budget anyway).
@@ -57,7 +59,7 @@ Still open:
 
 - [ ] (paused) A Dash game end to end (e.g. Breakout on `console = "dash"`), seen on the console: Dash on the home screen, its list entry, playing it. The Dash system definition, logo and `knulli.conf` lines are on the console (an empty system stays hidden).
 - [x] Custom system logos and carousel art, checked on the console: `assets/console-logos/dot.svg` (plain white "DOT", the O a solid circle) and `assets/console-art/dot.png` (the dotted panel) are installed by `push.sh`; the theme's "System logos" and "System view artwork" are Custom and stayed Custom after a restart. **Set them in the menu (UI settings > theme configuration):** editing `themesettings/*.cfg` with `scripts/knulli-theme.sh on` did not make EmulationStation use them at start-up (the menu still said Default); choosing Custom in the menu did. The script is kept for `off` and for reference.
-- [ ] A steadier shared SSH connection. It drops when the console sleeps. Ideas: a launch agent on the Mac that reopens it, or a key that survives reboots (Knulli only keeps `/userdata`).
+- [ ] A steadier shared SSH connection. Key login cannot work on Knulli: root's home is `/userdata/system` on a FAT-style partition where every file is world-writable and cannot be chmod-ed, and dropbear refuses keys kept like that. Options: reopen the password connection from the Mac with the password in the Keychain (a script reading it needs your go-ahead), or set up the key on the console's own filesystem at boot (riskier).
 - [x] Debug launchers are off for Breakout, the button test and pad setup (checked on the console; `GS_DEBUG=1 scripts/push.sh` turns them on). The stress test's launcher has timing on until it has been run once; push it again without `GS_PERF` afterwards.
 
 ## Game info and the studio
@@ -68,11 +70,7 @@ Still open:
 - [ ] Check what the Knulli list shows for box art vs thumbnail on other themes (`<image>` and `<thumbnail>` are both written).
 - [x] "Send to device" says plainly when `node` is missing and when the device connection was closed (studio and `push.sh`).
 
-## muOS (parked)
-
-- [ ] The device went back to Knulli after muOS gave a blank screen. `scripts/muos-deploy.sh` and the muOS notes are untested beyond the first launch. Remove them if muOS is not coming back.
-
 ## Decisions waiting on you
 
 - [x] Console specs list L2 and R2 as well (the RG35XX Pro has A B X Y, L1 L2 R1 R2; no sticks).
-- [ ] HOTKEY + Start quits (runtime: padmap `hotkey=` or the gamepad's guide button; `push.sh` also writes a `<launcher>.keys` file for Knulli's evmapy). Start + Select now only quits when held 3 s. Check on the device: push a game, press HOTKEY + Start; if the runtime cannot see the hotkey, run Pad setup (it now asks for it).
+- [x] HOTKEY + Start quits, checked on the device; game buttons are hidden while HOTKEY is held (runtime: padmap `hotkey=` or the gamepad's guide button; `push.sh` also writes a `<launcher>.keys` file for Knulli's evmapy). Start + Select now only quits when held 3 s. Check on the device: push a game, press HOTKEY + Start; if the runtime cannot see the hotkey, run Pad setup (it now asks for it).
