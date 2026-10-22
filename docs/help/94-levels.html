@@ -5,7 +5,8 @@ order: 94
 summary: Rooms that are fun and fair: jump distances from your hero's numbers, pacing, landmarks, and layouts for each kind of game.
 -->
 <h1>Designing levels</h1>
-<p>A level is a room: <code>rooms/&lt;name&gt;.lua</code>, made in the room editor or written by hand (see <a href="help:rooms">Big levels</a>).
+<p>A level is a scene's layout (<code>scenes/&lt;name&gt;.layout.lua</code>, see <a href="help:layouts">Layouts</a>) or a room (<code>rooms/&lt;name&gt;.lua</code>, see <a href="help:rooms">Big levels</a>): the same data,
+made in the layout editor or written by hand.
 This page is about making it good to play.</p>
 
 <h2>Start from your hero</h2>
@@ -22,7 +23,7 @@ the full distance is for a deliberate challenge, never over a pit early in the g
 
 <h2>Sizes to work with</h2>
 <ul>
-<li>One screen is 20&times;15 tiles of 16 pixels on Dot (20&times;11 on Dash). The room editor shows one screen as a dashed box.</li>
+<li>One screen is 20&times;15 tiles of 16 pixels on Dot (20&times;11 on Dash). The layout editor shows one screen as a dashed box.</li>
 <li>A lively screen has 10 to 40 things in it. The handheld allows 512 alive at once, but crowds cost time each frame (see <a href="help:limits">the handheld's limits</a>).</li>
 <li>Two or three tile layers are plenty: a background (depth 100 or more), the solid ground (around 50), and a few decorations in front (around 10; keep them sparse, they can hide things).</li>
 </ul>
@@ -40,7 +41,7 @@ the full distance is for a deliberate challenge, never over a pit early in the g
 <h2>For each kind of game</h2>
 <ul>
 <li><strong>Platformer.</strong> Long and low: several screens wide, one or two high. The solid layer is what the hero stands on. Ground at least two tiles thick at the bottom.
-Moving platforms and patrolling enemies follow paths drawn in the room editor (<code>self:follow_path("lift", 40)</code>). A checkpoint every two or three screens. Coins in arcs that show where to jump.</li>
+Moving platforms and patrolling enemies follow paths drawn in the layout editor (<code>self:follow_path("lift", 40)</code>). A checkpoint every two or three screens. Coins in arcs that show where to jump.</li>
 <li><strong>Top-down adventure.</strong> Rooms of one to four screens joined by doors or open edges. Walls one or two tiles thick, corridors at least three tiles wide so the hero can dodge. A different floor for each area. Keep enemies away from doorways.</li>
 <li><strong>Lots of enemies (survivors).</strong> An open arena a few screens across, with a few obstacles that make the player steer, not walls that trap them. Enemies arrive from off screen in code; the room only holds obstacles, pickups and decoration.</li>
 <li><strong>Shoot-'em-up.</strong> A long strip the camera scrolls along; enemy waves enter from the edges along paths. Keep the player's lane clear of scenery.</li>
@@ -55,6 +56,6 @@ Moving platforms and patrolling enemies follow paths drawn in the room editor (<
 </ul>
 
 <h2>With an agent</h2>
-<p>An AI agent connected to GameStudio follows this page with its tools: <code>overview</code> for the entities and tilesets, <code>room_write</code> to build a room
-(a layer can be written as a text map of characters, one per tile), <code>room_view</code> to see it as a picture with counts per screen, <code>run</code> with button presses
+<p>An AI agent connected to GameStudio follows this page with its tools: <code>overview</code> for the entities and tilesets, <code>room_write</code> to build a room (for now its tools write <code>rooms/</code>, not scene layouts;
+a layer can be written as a text map of characters, one per tile), <code>room_view</code> to see it as a picture with counts per screen, <code>run</code> with button presses
 to play a stretch, and <code>check</code> and <code>inspect</code> for errors and costs.</p>

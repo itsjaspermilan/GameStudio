@@ -8,6 +8,8 @@ description: Designing levels (rooms) for GameStudio games, fitted to the kind o
 The craft lives in the studio's Help, so people and every agent read the same text. **First read the guide**: help('levels') with the
 `gamestudio` MCP server's `help` tool (or read `docs/help/94-levels.html`). Then work with its tools:
 `overview` the game, read the hero's entity file for its numbers (speed, jump, gravity), write the room with `room_write` (a layer can be a text map, one character a tile), look with `room_view`, play the route with `run` and `keys`, and finish with `check` and `inspect`.
+A level in the studio is usually a scene's layout (`scenes/<name>.layout.lua`), the same data as a room; the room tools write `rooms/`
+for now, so either build the level as a room the scene loads (`gs.load_room`), or write the layout file by hand in that format.
 
 The tool descriptions give the exact formats (palette places, drawing ops, map legends, the song generator's options). Any MCP client can
 start the same work from the server's prompts (`draw-art`, `design-level`, `compose-music`).

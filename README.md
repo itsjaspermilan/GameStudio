@@ -1,6 +1,6 @@
 # GameStudio
 
-A cheap Linux handheld (an Anbernic RG35XX Pro) becomes a small console for 2D games. This repository has the runtime (C + SDL3 + Lua 5.4), a Lua game framework (`gs`: entities, scenes, rooms, sound), the **Studio** (a desktop app with a Lua code editor, sprite, tileset and sound editors, live reload and in-app tutorials) and scripts to build everything, pack games into cartridges and push them to a device.
+A cheap Linux handheld (an Anbernic RG35XX Pro) becomes a small console for 2D games. This repository has the runtime (C + SDL3 + Lua 5.4), a Lua game framework (`gs`: entities, scenes with layouts, conversations, sound), the **Studio** (a desktop app with a Lua code editor, a layout editor, sprite, tileset and sound editors, the game running beside the code with live reload, and in-app tutorials) and scripts to build everything, pack games into cartridges and push them to a device.
 
 ## Quick start (desktop)
 
@@ -21,12 +21,15 @@ A game is a folder (or a packed `.cart`). The folder is the whole project: the s
 my-game/
   game.lua          the title, the console (dot or dash) and the first scene
   entities/         things in the game, one Lua file each (the player, an enemy, a bullet)
-  scenes/           screens: title, level, game over
-  rooms/            level data: tile layers and where things start
+  scenes/           screens and levels: each is its code (title.lua) and its layout (title.layout.lua: tiles, things,
+                    texts, pictures, panels, placed in the studio's layout editor), or just one of the two
+  rooms/            the older form of level data, built from code with gs.load_room
   lib/              shared code and state, loaded with require
   sprites/ tilesets/ sfx/ music/ instruments/ sounds/    art and sound, made in the studio's editors
   meta/info.json    title, description, console and box art for the device's game list (not packed into the cart)
 ```
+
+Every folder can have folders of its own, and the folder is part of the name: `sprites/ui/logo.json` is the sprite `"ui/logo"`, `entities/enemies/grub.lua` is `"enemies.grub"`. Moving something to another folder in the studio renames it and updates the code, layouts and sound files that name it.
 
 ```lua
 -- game.lua
@@ -50,7 +53,9 @@ return Main
 
 Entities are classes (a Lua file that returns `gs.entity{ ... }`, optionally building on another entity), scenes are screens, and `gs.spawn("player")` finds `entities/player.lua`. The engine moves entities by `vx` and `vy`, draws their
 sprites, finds collisions by tags with a spatial grid and calls `update`, `draw`, `on_collide_<tag>` and the other hooks. Timers, tweens and coroutines belong to the entity or scene that made them.
-Run a game from the studio (Run) and saving a Lua file or an asset updates the running game without a restart (`GS_DEV=1`, which the studio sets).
+Run a game from the studio (Run): it plays in the **Play panel** beside the code (or in a window of its own, in Settings), drawn by the runtime the handheld uses. Saving a Lua file or an asset updates the running game without a restart (`GS_DEV=1`, which the studio sets); saving a scene's layout starts that scene again with it.
+
+**Layouts.** A scene's layout is plain data the layout editor writes: tile layers, entities, texts, pictures, panels (a 3×3 block of tiles stretched to a size) and paths. It is built when the scene starts, and anything given a name is a field of the scene's code: a text named `prompt` is `self.prompt` (renaming it in the layout renames it in the code). Texts use the built-in 8×8 font or a sprite font (a frame a letter). `gs.say(name, text)` and `gs.ask(question, answers)` show a text box and wait for the player, styled by the layout's `dialogue_box`, `dialogue_text`, `dialogue_name` and `dialogue_cursor`. The Help window's "Layouts" and "Talking" pages walk through both.
 
 - The **full reference** is `engine/api/gs.d.lua` (typed notes the studio's editor, its Help window and the language server all read); the Help window turns it into the API page.
 - The **tutorials** are in `docs/help/` (Your first game, scenes and saving, collisions and tags, timers and tweens, a platformer, a survivors-style game, big levels and tile layers, sprites and sound, the handheld's limits,

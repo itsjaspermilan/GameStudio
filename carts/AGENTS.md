@@ -1,7 +1,7 @@
 # carts/: sample games (and the user's projects)
 
 The studio's workspace is the repo root, so everything the user makes also lands in `carts/<name>/`. Treat the folders as the user's data: don't rewrite, rename or "clean up" them unless asked.
-A game is a **framework cart** (`game.lua`, `entities/`, `scenes/`, `rooms/`, `lib/`, `sprites/ tilesets/ sfx/ music/ instruments/ sounds/`, `meta/info.json` for the game list) or a **raw Lua cart** (`main.lua` only, drawn at the runtime's own size). Details: `engine/AGENTS.md`.
+A game is a **framework cart** (`game.lua`, `entities/`, `scenes/` (code and `<name>.layout.lua` layouts), `rooms/`, `lib/`, `sprites/ tilesets/ sfx/ music/ instruments/ sounds/`, `meta/info.json` for the game list) or a **raw Lua cart** (`main.lua` only, drawn at the runtime's own size). Details: `engine/AGENTS.md`.
 
 | Cart | What |
 | --- | --- |

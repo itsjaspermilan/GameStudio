@@ -39,10 +39,11 @@ return Grub
 - **Lifecycle:** `create`, `update(dt)`, `draw`, `destroy`, plus `on_<event>` handlers (collision by tag, animation end, custom messages).
 - **Composition over deep inheritance:** `gs.entity(Parent, {...})` for "is a" and small **behaviours** (`gs.behavior`) for reusable
   pieces (health, knockback, flash, magnet) that an entity lists in `use = {...}`.
-- **Rooms/levels are data files**: `rooms/arena.lua` returns a plain table (size, tile layers, placed instances with overrides). The
-  level editor writes it in a stable, diff-friendly format; hand edits are fine. Logic for a level lives in an optional
-  `scenes/arena.lua` (`Scene:enter()`, `update`, `leave`). Data and logic stay in separate files, so the visual editor never has to
-  round-trip code.
+- **Levels and screens are data files**: a scene's layout, `scenes/arena.layout.lua`, returns a plain table (size, tile layers, placed
+  instances with overrides, texts, pictures, tile panels, paths); the layout editor writes it in a stable, diff-friendly format and hand
+  edits are fine. Its logic lives beside it in `scenes/arena.lua` (`Scene:enter()`, `update`, `leave`). Data and logic stay in separate
+  files, so the visual editor never has to round-trip code; what connects them is names (a thing named `door` is `self.door` in the code,
+  and renaming it in the layout renames it there). The older `rooms/arena.lua` is the same data built from code with `gs.load_room`.
 - **No hidden global state**: entities talk through `gs.send(target, "msg", ...)`, tags and the world, not through magic globals.
 
 ## 2. Project layout
@@ -52,7 +53,7 @@ mygame/
   game.lua            -- gs.game{ title, console = "dot", start = "scenes.title" }
   entities/           -- one file per kind of thing
   scenes/             -- screens and level logic
-  rooms/              -- level data (edited visually)
+  scenes/*.layout.lua -- what each scene places (edited visually); rooms/ is the older form
   lib/                -- your own modules, plus vendored libraries
   sprites/ tilesets/  -- png + small json (frames, animations, origin, hitbox)
   audio/  sfx/ music/ instruments/
@@ -75,7 +76,7 @@ editor can complete and explain every call.
 | Drawing | sprites, text, shapes, camera, layers, shake | `self:draw_sprite()`, `gs.text("hi", x, y, {color = ...})`, `gs.camera:follow(player)`, `gs.camera:shake(4, 0.2)` |
 | Input | buttons, pressed/released, axes, rebinding | `gs.input.held("left")`, `gs.input.pressed("a")`, `gs.input.axis("move")` |
 | Audio | sfx and music by name, volume, fades | `gs.sfx("hit")`, `gs.music("stage_a", {fade = 0.5})` |
-| UI | text boxes, menus, panels, wrapped text, lists | `gs.ui.menu{ "PLAY", "OPTIONS" }`, `gs.ui.panel(x, y, w, h)` |
+| UI | text boxes, menus, panels, wrapped text, lists | `gs.ui.menu({ "PLAY", "OPTIONS" }, { at = self.menu_text })`, `gs.say("OLD MAN", "...")`, `gs.ask("Take it?", { "YES", "NO" })`; panels are tiles (a 3x3 block stretched) and fonts are sprites, placed in a layout |
 | Data | save slots, settings, seeded random, math helpers, vectors | `gs.save.set("credits", 10)`, `gs.rng(seed)`, `gs.vec(x, y)`, `gs.lerp`, `gs.angle_to` |
 | Escape hatch | the raw low-level calls stay available | `gs.raw.tile(...)`, `gs.raw.sfx_play(...)` |
 
@@ -148,7 +149,7 @@ framework (`engine/gs/*.lua`: `entity`, `world`, `scene`, `timers`, `ui`, `camer
    Performance is the same as plain function tables: a method call is one table lookup. The only trap is a long inheritance chain, because
    every level adds a lookup. `gs.entity` therefore **flattens** a parent's methods into the child's table when the file loads, so any call is
    one lookup however deep the family tree is. Per-instance closures are avoided on purpose (they allocate); methods are shared by all instances.
-2. **Rooms are files.** Plain Lua data files (`rooms/arena.lua`), editable by the level editor or by hand.
+2. **Layouts are files.** Plain Lua data files (`scenes/arena.layout.lua`, and the older `rooms/arena.lua`), editable by the layout editor or by hand.
 3. **Language server: bundle LuaLS, keep our own helpers independent of it** (details below).
 4. **Live reload (proposal):** code changes apply instantly; changes to starting values apply to new things; `R` restarts the scene.
    Because instances keep their state in fields and look methods up in the class table, swapping a method body can be done while the game

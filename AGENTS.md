@@ -44,7 +44,7 @@ run without a build proves less than it looks: build first.
   does nothing for `build/gs` until you run `scripts/build.sh`. The studio imports `instruments.json` directly (Vite), so the studio sees
   edits at once but the runtime does not: a stale build gives "unknown instrument" style errors.
 - **The studio** is a file-tree project (see `studio/AGENTS.md`): sprite, tileset, sound, music and instrument editors, a Lua code editor with
-  project-aware completion and an optional language server, the Handheld tab and the Help window. A room editor (tiles, entities, paths) opens data-file rooms; the Inspector tab looks inside a running game. Open work is in `TODO.md`.
+  project-aware completion and an optional language server, the Handheld tab and the Help window. A scene is one tab with its Layout (the layout editor: tiles, entities, texts, pictures, tile panels, paths; also opens older `rooms/`) and its Code; Run plays the game in the Play panel beside the code (frames streamed from the runtime, `GS_EMBED`); the Inspector tab looks inside a running game. Every group of the side tree can have folders. Open work is in `TODO.md`.
 - **Python for patching.** If you edit files with a Python script, run `ASDF_PYTHON_VERSION=3.11.0 python3 -I - <<'EOF'` (plain `python3`
   has no version set here). Match literal characters in files exactly (×, ●, ♪ appear in UI strings).
 - **Port 1420** belongs to the user's `tauri dev`. To check UI in the built-in browser pane, navigate to `http://localhost:1420` (a mock

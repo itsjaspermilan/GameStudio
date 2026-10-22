@@ -2,11 +2,14 @@
 title: Big levels
 group: Tutorials
 order: 80
-summary: Rooms as data, a camera that follows within the level, and tile layers for art.
+summary: Levels bigger than the screen, a camera that follows within them, tile layers for art, and rooms built from code.
 -->
 <h1>Big levels: rooms, tiles and the camera</h1>
 <p>The Dot screen is 320x240 pixels. A level can be much bigger, and the <strong>camera</strong> decides which part of it you see. A <strong>room</strong> is a data file in <code>rooms/</code> that describes a level:
 how big it is, its background, its tile layers, and which entities start where. <code>gs.load_room("arena")</code> builds it.</p>
+<div class="note"><strong>Rooms or layouts?</strong> A scene's <a href="help:layouts">layout</a> holds the same data and is built when the scene starts, so for a new level that is all you need:
+set its size to <em>Bigger: it scrolls</em> on the layout's Layout tab. A room is for when one scene builds levels from code, picking which one to load
+(<code>gs.load_room("level" .. n)</code>). Both open in the same layout editor.</div>
 
 <h2>A room file</h2>
 <p>A room is plain Lua that returns a table, so you can write it by hand or generate it. Entities are <code>{ name, x, y }</code> (an optional fourth value is a table of values to set).</p>
@@ -20,14 +23,14 @@ how big it is, its background, its tile layers, and which entities start where. 
   },
 }</code></pre>
 
-<h2>The room editor</h2>
-<p>Click a room in the list and it opens in the <strong>room editor</strong> (a room with code in it, like a <code>local</code> or a sum, opens as text instead).
-<strong>Tiles</strong> paints the chosen layer (Shift-click fills, right-click picks a tile up, Alt-click erases), <strong>Things</strong> places the entity chosen on the left and lets you drag them about,
-and <strong>Paths</strong> draws routes. The room's width and height are the camera's limits; the dashed box shows one screen. Saving writes the same plain data you see here, so you can always
+<h2>The layout editor</h2>
+<p>Click a room in the list and it opens in the <strong>layout editor</strong>, the same one scenes use (a room with code in it, like a <code>local</code> or a sum, opens as text instead).
+<strong>Select</strong> picks things up and moves them, <strong>Tiles</strong> paints the chosen layer (Shift-click fills, right-click picks a tile up, Alt-click erases), <strong>Things</strong> places the entity chosen on the right,
+and <strong>Paths</strong> draws routes. The size (on the <em>Layout</em> tab) is the camera's limits; the dashed box shows one screen. Saving writes the same plain data you see here, so you can always
 switch to <em>Edit as text</em>.</p>
 
 <h2>Paths</h2>
-<p>A path is a list of points in the room, for a guard's patrol or a platform's route. Draw it in the room editor, or write it in the room file:</p>
+<p>A path is a list of points in the room, for a guard's patrol or a platform's route. Draw it in the layout editor, or write it in the room file:</p>
 <pre class="lua"><code>paths = {
   patrol = { { 40, 40 }, { 280, 40 }, { 280, 200 }, loop = true },
 },</code></pre>
