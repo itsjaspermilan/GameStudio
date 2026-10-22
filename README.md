@@ -60,6 +60,14 @@ Run a game from the studio (Run) and saving a Lua file or an asset updates the r
 
 Every game has a `game.lua`. (Plain `main.lua` games with `init`/`update`/`draw` are no longer run: move the code into a scene, which can still call the low-level functions below.)
 
+## For AI agents (MCP)
+
+`tools/mcp/` is an MCP server, so an agent such as Claude Code can work on GameStudio games with short answers instead of reading whole files:
+look up the `gs` API and the Help, get a one-page overview of a game, check it (lint plus a headless run), run it and see a screenshot, look inside
+with the inspector, view and draw sprites, and write and check sound effects and songs. A song check reads the notes like a musician (key, chords,
+whether the melody sits on the chords, clashes, shrill or muddy registers, melody shape) and measures the rendered sound (loudness, clipping,
+brightness). The repository's `.mcp.json` starts it; run `npm install` in `tools/mcp` once. See `tools/mcp/AGENTS.md`.
+
 ## Console limits
 
 A console (`engine/consoles/dot.json`, `dash.json`) says what a game made for it may use: screen size, palette, sprite and tile sizes, room size, limits and budgets. Built in: **Dot** (4:3, 320x240) and **Dash** (16:9, 320x180).

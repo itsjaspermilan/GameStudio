@@ -1,5 +1,5 @@
 // The ten sector bosses, 48x48. Frames are small animations (pulse, blink, flicker).
-import { R, K, W } from "./canvas.mjs";
+import { R, K, W } from "../lib/canvas.mjs";
 
 const tau = Math.PI * 2;
 

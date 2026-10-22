@@ -10,12 +10,6 @@
   "gm_drum_kit"
  ],
  "reverb": 25,
- "track_vol": [
-  0,
-  -1,
-  -1,
-  -2
- ],
  "patterns": [
   {
    "rows": 32,
@@ -48,5 +42,11 @@
  "key": {
   "root": 0,
   "scale": "major"
- }
+ },
+ "track_vol": [
+  0,
+  -1,
+  -1,
+  -2
+ ]
 }

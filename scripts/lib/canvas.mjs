@@ -85,9 +85,10 @@ export class Canvas {
   mirror() { for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w >> 1; x++) this.d[y * this.w + (this.w - 1 - x)] = this.d[y * this.w + x]; return this; }
   stamp(o, x0, y0) { for (let y = 0; y < o.h; y++) for (let x = 0; x < o.w; x++) { const v = o.d[y * o.w + x]; if (v !== -1) this.px(x0 + x, y0 + y, v); } return this; }
   replace(a, b) { for (let i = 0; i < this.d.length; i++) if (this.d[i] === a) this.d[i] = b; return this; }
-  rgba() {
+  // the pixels as RGBA, with the colour numbers looked up in `pal` (Dot's palette unless a console has another)
+  rgba(pal = PAL) {
     const out = new Uint8ClampedArray(this.w * this.h * 4);
-    this.d.forEach((v, i) => { if (v < 0) return; out[i * 4] = parseInt(PAL[v].slice(1, 3), 16); out[i * 4 + 1] = parseInt(PAL[v].slice(3, 5), 16); out[i * 4 + 2] = parseInt(PAL[v].slice(5, 7), 16); out[i * 4 + 3] = 255; });
+    this.d.forEach((v, i) => { if (v < 0 || !pal[v]) return; out[i * 4] = parseInt(pal[v].slice(1, 3), 16); out[i * 4 + 1] = parseInt(pal[v].slice(3, 5), 16); out[i * 4 + 2] = parseInt(pal[v].slice(5, 7), 16); out[i * 4 + 3] = 255; });
     return out;
   }
 }

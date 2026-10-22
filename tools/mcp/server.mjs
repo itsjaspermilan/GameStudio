@@ -1,0 +1,78 @@
+#!/usr/bin/env node
+// The GameStudio MCP server: lets an agent (Claude Code and the like) look things up, check, run, draw and compose for GameStudio games
+// with short answers and pictures instead of reading whole files. Speaks MCP over stdio. The work is in tools.mjs.
+//   node tools/mcp/server.mjs          (the repo's .mcp.json starts it for Claude Code)
+// GS_WORKSPACE points it at another workspace (a folder with carts/, build/gs and engine/); default: this repository.
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+import * as T from "./tools.mjs";
+
+const server = new McpServer({ name: "gamestudio", version: "1.0.0" }, {
+  instructions: "GameStudio makes small 2D Lua games for a handheld (games are folders in carts/; the engine API is gs.*). Prefer these tools over reading big files: " +
+    "api and help for the engine, overview to see a game, check after editing Lua, run to see it (a screenshot), inspect to look inside, sprite_view/sprite_write for art, " +
+    "song_check/song_write and sound_check/sound_write for sound (the checks read the notes with music theory and measure the rendered audio), push to send a game to the handheld.",
+});
+
+// every tool answers with text, plus pictures when there are any; mistakes come back as readable errors, not crashes
+function tool(name, title, description, shape, fn) {
+  server.registerTool(name, { title, description, inputSchema: shape }, async (args) => {
+    try {
+      const r = await fn(args || {});
+      return { content: [{ type: "text", text: r.text }, ...(r.images || []).map((data) => ({ type: "image", data, mimeType: "image/png" }))] };
+    } catch (e) {
+      return { isError: true, content: [{ type: "text", text: String(e && e.message ? e.message : e) }] };
+    }
+  });
+}
+
+const game = z.string().describe("A game: a folder name in carts/ (see games)");
+
+tool("api", "Look up the gs API", "Find gs.* functions, Entity methods and fields by name or by words in their description (e.g. 'spawn', 'collide', 'camera', 'burst', 'follow_path'). Empty query lists the groups.",
+  { query: z.string().default("") }, T.api);
+tool("help", "Read a Help page", "The studio's Help pages (tutorials and guides). No topic lists them; a topic (like 'survivors', 'limits', 'sizes', 'rooms') returns that page as text with its example files.",
+  { topic: z.string().default("") }, T.help);
+tool("games", "List the games", "Every game in the workspace with its title and console.", {}, T.games);
+tool("overview", "Overview of a game", "One compact page about a game: console, entities (sprite, tags, methods), scenes, rooms, code files, sprites with sizes and animations, sounds, songs with their instruments, Lua size. Read this before reading files.",
+  { game }, T.overview);
+tool("check", "Check a game", "After editing: the editor's own warnings for every Lua file (unknown names with suggestions, missing returns, tables made every step), files whose indentation is off, then a headless run reporting errors, warnings and the numbers at the end.",
+  { game, seconds: z.number().min(0.5).max(60).default(4).describe("How long to run it") }, T.check);
+tool("run", "Run a game and look", "Runs the game without a window for some seconds (optionally pressing buttons, or with a random bot) and returns what it printed, its stats and a screenshot of the last frame.",
+  {
+    game, seconds: z.number().min(0.1).max(120).default(3),
+    keys: z.string().optional().describe("Button script, comma separated: 'a' (press), 'right*30' (hold 30 steps), 'wait*60'. Buttons: up down left right a b x y l r l2 r2 start select"),
+    bot: z.boolean().default(false).describe("Play with the random bot instead"),
+    scale: z.number().int().min(1).max(4).optional().describe("Enlarge the screenshot"),
+  }, T.run);
+tool("inspect", "Look inside a running game", "Runs the game for some seconds and reports every kind of entity with its count and cost (update/draw/collision ms a step); a kind's entities with positions; one entity's values; and Lua watch expressions (e is the chosen entity).",
+  { game, seconds: z.number().min(1).max(120).default(3), kind: z.string().optional().describe("e.g. 'entities.enemy'"), entity: z.number().int().optional(), watch: z.array(z.string()).default([]) }, T.inspect);
+tool("sprite_view", "See a sprite", "Shows a sprite (all frames) as a picture. as_text also returns it as rows of palette letters ('.' see-through) that sprite_write takes back exactly.",
+  { game, name: z.string(), scale: z.number().int().min(1).max(16).optional(), as_text: z.boolean().default(false) }, T.sprite_view);
+tool("sprite_write", "Draw a sprite", "Writes sprites/<name>.png and .json and returns a picture. Each frame is rows of palette letters (as sprite_view shows; '.' see-through) and/or drawing ops: " +
+  "['rect',x,y,w,h,c] ['frame',x,y,w,h,c] ['px',x,y,c] ['line',x0,y0,x1,y1,c] ['disc',cx,cy,r,c] ['ellipse',cx,cy,rx,ry,c] ['ring',cx,cy,r,thick,c] ['poly',[[x,y],...],c] " +
+  "['sphere',cx,cy,r,[dark,mid,light,highlight]] ['dither',x,y,w,h,c] ['outline',c] ['mirror'] (copies the left half to the right) ['erase',x,y,w,h]. Colours are the console's palette places (numbers, or letters as sprite_view lists them). " +
+  "Sizes for a 320x240 screen: hero 24-32, common enemy 16-24, boss 48-64, bullet/pickup 8-12, multiples of 8 up to 64. Origin defaults to the centre.",
+  {
+    game, name: z.string(), w: z.number().int(), h: z.number().int(),
+    frames: z.array(z.object({ rows: z.array(z.string()).optional(), ops: z.array(z.array(z.any())).optional() })),
+    origin: z.array(z.number()).length(2).optional(), fps: z.number().optional(),
+    animations: z.record(z.string(), z.object({ from: z.number().int(), to: z.number().int(), fps: z.number(), loop: z.boolean() })).optional().describe("Named clips, frames counted from 0: { walk: { from: 2, to: 7, fps: 12, loop: true } }"),
+    outline: z.union([z.number(), z.string()]).optional().describe("Outline every frame in this colour"),
+  }, T.sprite_write);
+tool("instruments", "List instruments", "The built-in instruments (chip wavetables, and the General MIDI SoundFont: pianos, guitars, strings, brass, pads, drum kit...), optionally filtered by a word.",
+  { filter: z.string().default("") }, T.instruments);
+tool("song_check", "Listen to a song", "Reads a song like a musician (key, chords by bar, whether the melody sits on the chords, semitone clashes, shrill or muddy registers, melody shape and repetition, how busy each part is) and renders it to measure loudness, clipping and brightness.",
+  { game, name: z.string() }, T.song_check);
+tool("song_write", "Write a song", "Writes music/<name>.json and checks it. spec is either a finished tracker song ({ format: 'tracker', ... }) or options for the generator: " +
+  "{ seed, root (0=C..11=B), scale ('major'|'minor'|'dorian'|'phrygian'|'lydian'|'harm'), tempo, oct (melody octave, 4 = middle; 5+ gets shrill), inst: [melody, harmony, bass, drums] (instrument names; 'gm_drum_kit' for drums), " +
+  "harmony ('pad'|'arp8'|'arp16'), bass ('half'|'eighth'|'pump'|'gallop'|'groove'), drums ('none'|'soft'|'four'|'drive'|'break'|'boss'), rhythms: [0-5 melody rhythm ids], rest (0-1), calm (true = notes ring), " +
+  "reverb (0-100), vol: [4 track volumes -3..3], level (whole-song steps), sections: [{ prog: [scale degrees, one a bar, 0 = home chord], oct?, drums?, bass?, reg? }], order: [section indexes], loop (default true) }.",
+  { game, name: z.string(), spec: z.record(z.string(), z.any()) }, T.song_write);
+tool("sound_check", "Listen to a sound effect", "Renders a sound effect and reports its notes, length, loudness and brightness.",
+  { game, name: z.string() }, T.sound_check);
+tool("sound_write", "Write a sound effect", "Writes sfx/<name>.json and checks it. sound: { speed (ticks a step, 1-8), tracks: [{ instrument, steps: [[pitch, volume 0-7, effect], ...] }] } where pitch 48 = C5 and effects are 0 none, 1 slide, 2 vibrato, 3 drop, 4 fade in, 5 fade out, 6 arpeggio, 7 hold.",
+  { game, name: z.string(), sound: z.record(z.string(), z.any()) }, T.sound_write);
+tool("push", "Send to the handheld", "Packs a game and sends it to the handheld with scripts/push.sh (needs scripts/device.env and an open device connection).",
+  { game }, T.push);
+
+await server.connect(new StdioServerTransport());

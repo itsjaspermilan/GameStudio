@@ -1,7 +1,7 @@
 // The ten pilots: 24x24 (a hero is about a tenth of the Dot's screen height), drawn at that size pixel for pixel. Eight frames each: 0-1 idle (breathing),
 // 2-7 a walk cycle. They stand three-quarters turned to the right (the game mirrors them when they walk left): a shared little spacesuit body
 // whose legs stride, arms swing against the legs and body bobs, with a different helmet and extras per pilot.
-import { R, K, W } from "./canvas.mjs";
+import { R, K, W } from "../lib/canvas.mjs";
 
 export const FRAMES = 8;
 export const CLIPS = { idle: { from: 0, to: 1, fps: 3, loop: true }, walk: { from: 2, to: 7, fps: 12, loop: true } };

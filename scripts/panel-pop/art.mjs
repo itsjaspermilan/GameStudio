@@ -1,5 +1,5 @@
-// Pixel art for Panel Pop & Doc Capsule, drawn in code (see scripts/void-swarm/canvas.mjs for the canvas). Every sprite is { w, h, frames, draw(canvas, frame) }.
-import { Canvas, R, K, W } from "../void-swarm/canvas.mjs";
+// Pixel art for Panel Pop & Doc Capsule, drawn in code (see scripts/lib/canvas.mjs for the canvas). Every sprite is { w, h, frames, draw(canvas, frame) }.
+import { Canvas, R, K, W } from "../lib/canvas.mjs";
 
 // ---------------------------------------------------------------- panels (16x16)
 // frames per colour: 0 normal, 1 squashed (just landed), 2 flash, 3 happy face (being cleared), 4 dim (still rising in), 5 dead (game over)

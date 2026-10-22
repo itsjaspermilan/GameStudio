@@ -1,5 +1,5 @@
 // The 24 ordinary enemies. Everything faces right (the game mirrors it when they walk left). Frames: see `frames`.
-import { R, K, W } from "./canvas.mjs";
+import { R, K, W } from "../lib/canvas.mjs";
 
 const tau = Math.PI * 2;
 const sin = (f, n, a = 1, p = 0) => Math.sin((f / n) * tau + p) * a;

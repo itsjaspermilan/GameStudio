@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync, rmSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { png } from "../png.mjs";
-import { Canvas, strip } from "./canvas.mjs";
+import { Canvas, strip } from "../lib/canvas.mjs";
 import { PILOTS, CLIPS as PILOT_CLIPS } from "./pilots.mjs";
 import { ENEMIES } from "./enemies.mjs";
 import { BOSSES } from "./bosses.mjs";

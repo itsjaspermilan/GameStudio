@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, existsSync
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { png } from "./png.mjs";
-import { Canvas, strip, PAL, R } from "./void-swarm/canvas.mjs";
+import { Canvas, strip, PAL, R } from "./lib/canvas.mjs";
 import { PANELS, GARBAGE, CHARS, PILLS, VIRUSES, BIG_VIRUSES, DOC, ICONS, bgTile, PANEL_STATES, GARBAGE_PIECES } from "./panel-pop/art.mjs";
 import { SFX, allMusic } from "./panel-pop/audio.mjs";
 

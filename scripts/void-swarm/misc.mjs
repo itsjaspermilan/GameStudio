@@ -1,5 +1,5 @@
 // Projectiles, effects, pickups, UI icons and planets. Things that fly face right; the game turns them.
-import { Canvas, R, K, W, rng } from "./canvas.mjs";
+import { Canvas, R, K, W, rng } from "../lib/canvas.mjs";
 
 const tau = Math.PI * 2;
 

@@ -1,5 +1,5 @@
-// Sound effects and songs for Panel Pop & Doc Capsule. Same helpers as Void Swarm (scripts/void-swarm/audio.mjs).
-import { S, sfx, Song, jingle } from "../void-swarm/audio.mjs";
+// Sound effects and songs for Panel Pop & Doc Capsule. Written with scripts/lib/music.mjs, like Void Swarm.
+import { S, sfx, Song, jingle } from "../lib/music.mjs";
 
 const POP = [50, 53, 57, 60, 62, 65, 69, 72]; // each panel of a combo pops a step higher
 export const SFX = {

@@ -13,6 +13,7 @@ GBA-like limits). This file is the map; each folder has its own `AGENTS.md` with
 | `engine/` | The `gs` Lua framework (`engine/gs/`), built-in instruments, console specs. Embedded into `gs` | `engine/AGENTS.md` |
 | `studio/` | The app: Vite + vanilla JS front end, Rust (Tauri) back end | `studio/AGENTS.md` |
 | `tests/` | Headless engine fixtures and `run.sh` | `tests/AGENTS.md` |
+| `tools/mcp/` | The MCP server for agents (`.mcp.json` starts it): API lookup, game overview, check, run with screenshots, inspect, sprites, sound and songs with a music-theory reading, push | `tools/mcp/AGENTS.md` |
 | `scripts/` | Desktop/aarch64 builds, push to the device | `scripts/AGENTS.md` |
 | `carts/` | Sample games (and the user's own projects live here too) | `carts/AGENTS.md` |
 | `third_party/`, `assets/` | Vendored libraries, the General MIDI SoundFont | `third_party/AGENTS.md`, `assets/AGENTS.md` |
@@ -28,6 +29,7 @@ There is a git repository: one branch, `main`, whose history starts with the Lua
 ./tests/run.sh                     # headless engine tests (needs build/gs)
 cd studio && npm test              # studio logic + the synth rendered through build/gs (node --test, ~165 tests, about 40 s: the Help tests play every tutorial)
 cd studio && npm run tauri dev     # the app (the user usually has this running on port 1420)
+cd tools/mcp && npm test           # the MCP server end to end (npm install there once)
 cd studio/src-tauri && cargo check # Rust compile check
 ./scripts/build-aarch64.sh         # device runtime (zig cc) -> build-aarch64/gs
 ```
