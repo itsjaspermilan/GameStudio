@@ -1,0 +1,216 @@
+<!--
+title: Lots of enemies
+group: Tutorials
+order: 60
+summary: A survivors-style game: auto-aiming, waves that speed up, pickups, and keeping an eye on the handheld's limits.
+-->
+<h1>Lots of enemies: a survivors-style game</h1>
+<p>One hero, a growing swarm, no aiming button: the hero shoots the nearest enemy on its own and you only move. It is a good test of an engine, because the game gets harder by adding <em>more things</em>,
+and the handheld has a limit on that. This page builds the core and shows how to stay inside the limit.</p>
+
+<h2>The shared numbers</h2>
+<pre class="lua" data-path="lib/state.lua"><code>local M = { hp = 5, xp = 0, kills = 0, time = 0 }
+
+function M.reset()
+  M.hp, M.xp, M.kills, M.time = 5, 0, 0, 0
+end
+
+return M</code></pre>
+
+<h2>The hero</h2>
+<p><code>gs.nearest(x, y, tag, max_distance)</code> finds the closest entity with a tag, without looping over all of them yourself (the engine keeps a grid for each tag). <code>angle_to</code> gives the direction to it.
+Getting hurt starts a short <code>after</code> timer that ends the protection.</p>
+<pre class="lua" data-path="entities/hero.lua"><code>local state = require "lib.state"
+
+local Hero = gs.entity{
+  tags = { "hero" },
+  hitbox = { r = 6 },
+  speed = 90,
+  cooldown = 0,                      -- seconds until the next shot
+  invulnerable = false,
+}
+
+function Hero:update(dt)
+  local dx, dy = gs.input.dir()
+  self.x = self.x + dx * self.speed * dt
+  self.y = self.y + dy * self.speed * dt
+
+  self.cooldown = self.cooldown - dt
+  if self.cooldown &lt;= 0 then
+    local enemy = gs.nearest(self.x, self.y, "enemy", 140)
+    if enemy then
+      local shot = gs.spawn("shot", self.x, self.y)
+      shot:set_velocity(self:angle_to(enemy), 240)
+      self.cooldown = 0.35
+    end
+  end
+end
+
+function Hero:hurt(amount)
+  if self.invulnerable then return end
+  state.hp = state.hp - amount
+  self.invulnerable = true
+  self:after(0.8, function() self.invulnerable = false end)
+end
+
+function Hero:on_collide_gem(gem)
+  state.xp = state.xp + 1
+  gem:destroy()
+end
+
+function Hero:draw()
+  gs.draw.circle(self.x, self.y, 6, self.invulnerable and "#ffffff" or "#ffa38c")
+end
+
+return Hero</code></pre>
+
+<h2>Enemies, shots and gems</h2>
+<p>Chasing is one line: <code>self:move_toward(target, speed)</code> sets <code>vx</code> and <code>vy</code> toward the target, and the engine does the moving. An enemy remembers who to chase in <code>create</code>,
+so it does not search every step.</p>
+<pre class="lua" data-path="entities/enemy.lua"><code>local state = require "lib.state"
+
+local Enemy = gs.entity{
+  tags = { "enemy" },
+  hitbox = { r = 6 },
+  hp = 2,
+  speed = 30,
+}
+
+function Enemy:create()
+  self.speed = self.speed + gs.random(0, 20)
+  self.target = gs.first("hero")
+end
+
+function Enemy:update(dt)
+  local target = self.target
+  if target and target:is_alive() then
+    self:move_toward(target, self.speed)
+  end
+end
+
+function Enemy:hurt(amount)
+  self.hp = self.hp - amount
+  if self.hp &lt;= 0 then
+    state.kills = state.kills + 1
+    gs.spawn("gem", self.x, self.y)
+    self:destroy()
+  end
+end
+
+function Enemy:on_collide_hero(hero)
+  hero:hurt(1)
+end
+
+function Enemy:draw()
+  gs.draw.circle(self.x, self.y, 6, "#6ccf4f")
+end
+
+return Enemy</code></pre>
+<pre class="lua" data-path="entities/shot.lua"><code>local Shot = gs.entity{
+  tags = { "shot" },
+  hitbox = { r = 3 },
+}
+
+function Shot:create()
+  self:after(1.2, function() self:destroy() end)    -- shots do not live forever
+end
+
+function Shot:on_collide_enemy(enemy)
+  enemy:hurt(1)
+  self:destroy()
+end
+
+function Shot:draw()
+  gs.draw.circle(self.x, self.y, 3, "#ffd08a")
+end
+
+return Shot</code></pre>
+<pre class="lua" data-path="entities/gem.lua"><code>local Gem = gs.entity{
+  tags = { "gem" },
+  hitbox = { r = 4 },
+}
+
+function Gem:update(dt)
+  local hero = gs.first("hero")
+  if hero and self:distance_to(hero) &lt; 50 then
+    self:move_toward(hero, 120)                    -- drawn in when the hero is close
+  end
+end
+
+function Gem:draw()
+  gs.draw.circle(self.x, self.y, 3, "#45d1c5")
+end
+
+return Gem</code></pre>
+
+<h2>A ground to move over</h2>
+<p>The camera follows the hero through an endless world, so something must show movement. An entity with a large <code>depth</code> is drawn behind everything. It draws dots on a grid, but only the ones the camera can see:</p>
+<pre class="lua" data-path="entities/ground.lua"><code>local Ground = gs.entity{
+  depth = 100,                       -- bigger numbers are drawn further back
+}
+
+function Ground:draw()
+  local cam = gs.camera
+  local x0 = math.floor(cam.x / 32) * 32
+  local y0 = math.floor(cam.y / 32) * 32
+  for x = x0, x0 + 352, 32 do
+    for y = y0, y0 + 272, 32 do
+      gs.draw.rect(x, y, 2, 2, "#2a3560")
+    end
+  end
+end
+
+return Ground</code></pre>
+
+<h2>The director</h2>
+<p>The scene is the game's director: it decides when enemies appear. The line that matters for the handheld is <code>gs.count("enemy") &lt; 150</code>: it never lets the swarm grow past what the handheld can move.</p>
+<pre class="lua" data-path="scenes/main.lua"><code>local state = require "lib.state"
+
+local Main = gs.scene{}
+
+function Main:enter()
+  state.reset()
+  gs.spawn("ground", 0, 0)
+  local hero = gs.spawn("hero", 0, 0)
+  gs.camera:follow(hero, { smooth = 0.15 })
+  self.next_spawn = 0
+end
+
+function Main:update(dt)
+  state.time = state.time + dt
+  self.next_spawn = self.next_spawn - dt
+  if self.next_spawn &lt;= 0 then
+    self.next_spawn = math.max(0.15, 1 - state.time * 0.01)        -- faster and faster
+    if gs.count("enemy") &lt; 150 then
+      local hero = gs.first("hero")
+      local a = math.rad(gs.random(0, 359))                          -- somewhere on a ring around the hero
+      gs.spawn("enemy", hero.x + math.cos(a) * 200, hero.y + math.sin(a) * 200)
+    end
+  end
+  if state.hp &lt;= 0 then
+    gs.goto_scene("scenes.main", { fade = 0.5 })
+  end
+end
+
+function Main:draw_ui()
+  gs.draw.text("HP " .. state.hp, 8, 6, "#ffa38c")
+  gs.draw.text("XP " .. state.xp, 8, 18, "#45d1c5")
+  gs.draw.text_right("KILLS " .. state.kills, 312, 6, "#ffffff")
+  gs.draw.text_right(gs.count("enemy") .. " ENEMIES", 312, 18, "#8a90a8")
+end
+
+return Main</code></pre>
+
+<h2>Keeping it fast</h2>
+<p>Open the <strong>Handheld</strong> tab under the editor while the game runs. "Things alive at once" shows how many entities exist against the console's limit, and the time per frame shows how much work the game does.
+What to remember:</p>
+<ul>
+<li><strong>Count things.</strong> Cap the swarm like the director does. The console has a hard limit; past it, new entities are ignored with a warning.</li>
+<li><strong>Find things with tags</strong> (<code>gs.nearest</code>, <code>gs.in_radius</code>), not by looping over everything and measuring. The engine keeps a list per tag (and a grid per tag for collisions).</li>
+<li><strong>Remember what you looked up.</strong> The enemy finds the hero once in <code>create</code> and keeps it.</li>
+<li><strong>Do not make tables in <code>update</code>.</strong> A new table every step for every enemy is garbage for the collector, and the handheld notices. The editor warns about it.</li>
+<li><strong>Everything that goes away needs a way to go away.</strong> The shot has a timer, the gem is collected. A game that never removes things slowly stops fitting.</li>
+</ul>
+<p>For a complete version of the same idea, open <strong>Void Swarm</strong> in <code>carts/void-swarm</code>: ten pilots, ten weapons, 24 kinds of enemy (each a small file that builds on one shared <code>enemy.lua</code>), ten bosses, upgrades that last between runs, and a director that pauses the world for level-up choices with <code>gs.pause()</code>.
+It is the engine's biggest test game, and a good place to read how a large project is laid out.</p>
+<p>Ideas: level up when <code>state.xp</code> reaches a number and let the player pick a stronger shot, or more speed. Make a second enemy that is a bigger child of this one (see <a href="help:best-practices">Best practices</a>).</p>

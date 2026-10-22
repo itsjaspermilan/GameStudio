@@ -1,0 +1,131 @@
+<!--
+title: A platformer
+group: Tutorials
+order: 50
+summary: Gravity, jumping, solid blocks, a level drawn as text, and a camera that follows the hero.
+-->
+<h1>A platformer</h1>
+<p>Run, jump, and follow the hero across a level wider than the screen. The first version of anything is simple: this one moves in two small steps and steps back if it ended up inside a block.
+It is easy to read, and it is good enough for a lot of games.</p>
+
+<h2>The level, as text</h2>
+<p>A level can be a picture made of letters. Each <code>#</code> is a block. It is easy to see and to edit, and when you want tiles with art you can switch to a tile layer (see
+<a href="help:rooms">Big levels</a>) without changing the rest of the game.</p>
+<pre class="lua" data-path="lib/level.lua"><code>-- 40 columns of 16 pixel tiles = 640 pixels wide, 15 rows = 240 tall
+return {
+  "                                        ",
+  "                                        ",
+  "                                        ",
+  "                                        ",
+  "                                        ",
+  "                                        ",
+  "                                        ",
+  "                   ####                 ",
+  "                               ####     ",
+  "            ####                        ",
+  "                         ###            ",
+  "      ####                              ",
+  "#                                      #",
+  "#                                      #",
+  "##############   ############   ########"
+}</code></pre>
+
+<h2>A block</h2>
+<p>Blocks only need a tag and a hitbox. The hitbox starts at the block's position: <code>{ 0, 0, 16, 16 }</code>.</p>
+<pre class="lua" data-path="entities/block.lua"><code>local Block = gs.entity{
+  tags = { "block" },
+  hitbox = { 0, 0, 16, 16 },
+}
+
+function Block:draw()
+  gs.draw.rect(self.x, self.y, 16, 16, "#6b5a14")
+  gs.draw.rect(self.x, self.y, 16, 3, "#6ccf4f")
+end
+
+return Block</code></pre>
+
+<h2>The hero</h2>
+<p>The engine can move an entity by <code>vx</code> and <code>vy</code> on its own, but for a platformer you want to move it yourself and undo the move if it hit something, so this entity keeps its own
+vertical speed in <code>dy</code>. <code>self:touching("block")</code> asks: is anything with that tag overlapping me right now?</p>
+<ol>
+<li>Move sideways. If that put us inside a block, undo it.</li>
+<li>Add gravity to <code>dy</code>, move up or down. If that put us inside a block, undo it; if we were falling, we are standing on something.</li>
+<li>If we are standing and A was pressed, jump: a strong upward speed.</li>
+</ol>
+<pre class="lua" data-path="entities/hero.lua"><code>local Hero = gs.entity{
+  tags = { "hero" },
+  hitbox = { -6, -14, 12, 14 },      -- the position is at the feet
+  speed = 110,                       -- pixels a second
+  jump = 300,
+  gravity = 800,                     -- pixels a second, every second
+  dy = 0,
+  grounded = false,
+}
+
+function Hero:update(dt)
+  -- 1. sideways
+  local dx = gs.input.dir()
+  self.x = self.x + dx * self.speed * dt
+  if self:touching("block") then self.x = self.x - dx * self.speed * dt end
+  if dx ~= 0 then self.flip = dx &lt; 0 end
+
+  -- 2. gravity
+  self.dy = self.dy + self.gravity * dt
+  self.y = self.y + self.dy * dt
+  self.grounded = false
+  if self:touching("block") then
+    self.y = self.y - self.dy * dt
+    if self.dy &gt; 0 then self.grounded = true end
+    self.dy = 0
+  end
+
+  -- 3. jump
+  if self.grounded and gs.input.pressed("a") then
+    self.dy = -self.jump
+  end
+
+  -- fell out of the world: start again
+  if self.y &gt; 300 then self.x, self.y, self.dy = 40, 100, 0 end
+end
+
+function Hero:draw()
+  gs.draw.rect(self.x - 6, self.y - 14, 12, 14, "#ffa38c")
+  local eye = self.flip and self.x - 4 or self.x + 1
+  gs.draw.rect(eye, self.y - 11, 3, 3, "#000000")
+end
+
+return Hero</code></pre>
+
+<h2>The scene</h2>
+<p>The scene reads the level and makes a block for every <code>#</code>, then tells the camera to follow the hero. <code>bounds</code> keeps the camera inside the level. <code>smooth</code> makes it lag a little, which feels good.</p>
+<pre class="lua" data-path="scenes/main.lua"><code>local level = require "lib.level"
+
+local Main = gs.scene{}
+
+function Main:enter()
+  for row, line in ipairs(level) do
+    for col = 1, #line do
+      if line:sub(col, col) == "#" then
+        gs.spawn("block", (col - 1) * 16, (row - 1) * 16)
+      end
+    end
+  end
+  local hero = gs.spawn("hero", 40, 100)
+  gs.camera:follow(hero, { smooth = 0.1, bounds = { 0, 0, 640, 240 } })
+end
+
+function Main:draw_ui()
+  gs.draw.text("ARROWS MOVE, Z JUMPS", 8, 6, "#ffffff")
+end
+
+return Main</code></pre>
+<p>The screen behind everything is black. A room file can set a background color (see <a href="help:rooms">Big levels</a>), or draw a big rectangle from an entity with a high <code>depth</code> (bigger numbers are drawn further back).</p>
+
+<h2>Improving it</h2>
+<ul>
+<li><strong>Variable jump height.</strong> When A is released while going up, cut the speed: <code>if self.dy &lt; 0 and not gs.input.held("a") then self.dy = self.dy * 0.5 end</code>.</li>
+<li><strong>Coyote time.</strong> Let the hero jump for 0.1 seconds after walking off a ledge: remember when it was last grounded and compare.</li>
+<li><strong>Enemies.</strong> Give them the <code>enemy</code> tag and a <code>Hero:on_collide_enemy</code> handler. Tell stomping from being hit by checking <code>self.dy &gt; 0 and self.y &lt; enemy.y</code>.</li>
+<li><strong>Fast things.</strong> If something moves more than its own size in one step it can pass through a block. Move it in a few smaller steps.</li>
+</ul>
+<p>Next: <a href="help:survivors">Lots of enemies</a>.</p>

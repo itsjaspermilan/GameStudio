@@ -1,0 +1,16 @@
+build/
+build-aarch64/
+third_party/sysroot-aarch64/
+scripts/device.env
+# OS images, dependencies and build output
+*.img.gz
+*.img
+.DS_Store
+studio/node_modules/
+studio/dist/
+studio/src-tauri/target/
+studio/src-tauri/gen/
+node_modules/
+last-run-*.log
+.claude/settings.local.json
+third_party/luals/

@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_e_reaper.png",
+ "frames": 3,
+ "origin": [
+  16,
+  16
+ ],
+ "mask": null,
+ "fps": 6
+}

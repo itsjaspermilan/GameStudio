@@ -1,0 +1,7 @@
+{
+  "type": "noise",
+  "noise": "metallic",
+  "decay": 60,
+  "sustain": 0,
+  "release": 20
+}

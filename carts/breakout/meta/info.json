@@ -1,0 +1,9 @@
+{
+  "title": "Breakout",
+  "description": "Bounce the ball off your paddle and smash every brick. Higher bricks ring higher and score more. Do not let the ball fall: you have three lives.",
+  "developer": "GameStudio",
+  "genre": "Arcade",
+  "players": 1,
+  "console": "dot",
+  "box_art": "meta/box_art.png"
+}

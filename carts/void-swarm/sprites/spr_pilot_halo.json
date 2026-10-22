@@ -1,0 +1,24 @@
+{
+ "image": "sprites/spr_pilot_halo.png",
+ "frames": 8,
+ "origin": [
+  12,
+  12
+ ],
+ "mask": null,
+ "fps": 6,
+ "animations": {
+  "idle": {
+   "from": 0,
+   "to": 1,
+   "fps": 3,
+   "loop": true
+  },
+  "walk": {
+   "from": 2,
+   "to": 7,
+   "fps": 12,
+   "loop": true
+  }
+ }
+}

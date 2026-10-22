@@ -1,0 +1,20 @@
+{
+  "patterns": [
+    [
+      "blip",
+      null,
+      null,
+      "hum"
+    ],
+    [
+      "blip",
+      "hum",
+      null,
+      null
+    ]
+  ],
+  "loop": {
+    "from": 0,
+    "to": 1
+  }
+}

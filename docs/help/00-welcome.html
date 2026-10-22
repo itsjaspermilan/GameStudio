@@ -1,0 +1,52 @@
+<!--
+title: Welcome
+group: Start here
+order: 0
+summary: How GameStudio works, in two minutes.
+-->
+<h1>Welcome to GameStudio</h1>
+<p>GameStudio makes small 2D games for a cheap handheld (an Anbernic RG35XX Pro running muOS or Knulli) and runs them on your computer while you work. You write the game in
+<strong>Lua</strong>, a small, friendly language. You draw the sprites and make the sound and music in editors built into this window.</p>
+
+<h2>The folder is the game</h2>
+<p>A game is just a folder. Everything you see in the list on the left is a file in it, so you can also use git, your own text editor, or move files around outside the studio.</p>
+<table>
+<tr><th>Folder / file</th><th>What it holds</th></tr>
+<tr><td><code>game.lua</code></td><td>The game's title, the console it is made for, and the first scene.</td></tr>
+<tr><td><code>entities/</code></td><td>Things in your game: the player, enemies, bullets. <em>One Lua file for each kind of thing.</em></td></tr>
+<tr><td><code>scenes/</code></td><td>Screens: the title, the level, game over. They decide what exists and what happens.</td></tr>
+<tr><td><code>rooms/</code></td><td>Level data: tile layers and where things start.</td></tr>
+<tr><td><code>lib/</code></td><td>Shared code and game state you load with <code>require</code>.</td></tr>
+<tr><td><code>sprites/</code>, <code>tilesets/</code></td><td>Pictures, drawn in the sprite editor.</td></tr>
+<tr><td><code>sfx/</code>, <code>music/</code>, <code>instruments/</code>, <code>sounds/</code></td><td>Sound effects and songs, made in the sound editors; imported WAV samples.</td></tr>
+</table>
+
+<h2>Run it, change it, watch it change</h2>
+<p>Press <strong>Run</strong> (or Cmd/Ctrl+Enter). The game opens in its own window. While it runs, change a Lua file and save: the game picks up the new code <em>without restarting</em> and
+keeps its state, so you can tune a jump or an enemy while you play. If you make a mistake the game shows the error on screen and carries on when you fix it.</p>
+<p>The keys: arrow keys move, <kbd>Z</kbd> is <strong>A</strong>, <kbd>X</kbd> is <strong>B</strong>, <kbd>A</kbd> is <strong>X</strong>, <kbd>S</kbd> is <strong>Y</strong>, <kbd>Q</kbd> and <kbd>W</kbd> are the shoulder buttons <strong>L</strong> and <strong>R</strong>,
+<kbd>Enter</kbd> is <strong>Start</strong>, right <kbd>Shift</kbd> is <strong>Select</strong>, <kbd>E</kbd> and <kbd>R</kbd> are <strong>L2</strong> and <strong>R2</strong>, and <kbd>Esc</kbd> closes the game.
+On the handheld, <strong>HOTKEY + Start</strong> closes it, as in every other app.</p>
+
+<h2>Helpers in the editor</h2>
+<ul>
+<li><strong>Completion.</strong> Type <code>gs.</code> and pick from the list. Inside quotes the list shows what your game has: <code>gs.spawn("</code> lists your entities, <code>gs.sfx("</code> your sound effects.</li>
+<li><strong>Hover.</strong> Rest the mouse on <code>gs.draw.rect</code> (or any name from the game) to see what it does.</li>
+<li><strong>Warnings.</strong> A red mark means a name does not exist (with a "did you mean"). Amber is worth a look.</li>
+<li><strong>Ctrl-click</strong> (Cmd-click on a Mac) a name like <code>"enemy"</code> in <code>gs.spawn("enemy")</code> to open its file. <kbd>F12</kbd> jumps to where a name is defined, <kbd>Shift+F12</kbd> lists everywhere it is used, <kbd>F2</kbd> renames it everywhere.</li>
+<li><strong>Find in game</strong> (Ctrl/Cmd+Shift+F) searches every Lua file and can replace. <strong>Tidy</strong> (Shift+Alt+F) puts the indentation right; <strong>Go to…</strong> lists the functions in the file.</li>
+<li><strong>The Inspector tab</strong> looks inside the running game: pause it, step one frame, slow it down, see each kind of thing with what it costs, and watch values.</li>
+<li><strong>The Handheld tab</strong> under the editor shows how your game compares with what the handheld can do: size, sprite sizes, and, while the game runs, how many things are alive.</li>
+</ul>
+
+<h2>Finished examples</h2>
+<p>Three complete games come with the studio. Open one, press Run, then read its files: everything they do is in plain Lua you can change.</p>
+<ul>
+<li><a href="open:breakout">Open Breakout</a>: the smallest complete game. A paddle, a ball, bricks that burst into sparks, a score that is saved.</li>
+<li><a href="open:void-swarm">Open Void Swarm</a>: a big one. Ten pilots, two dozen enemies, bosses, upgrades, a director scene that spawns waves.</li>
+<li><a href="open:panel-pop">Open Panel Pop</a>: two puzzle games in one, with computer opponents. Its boards are plain tables of cells, not entities.</li>
+</ul>
+
+<h2>Where next</h2>
+<p>Make a new game with <strong>New game</strong>, then follow <a href="help:first-game">Your first game</a>: a few small files and you have something playable. When you want to understand the limits of the handheld, read
+<a href="help:limits">Working inside the handheld's limits</a>. The <a href="help:api">API reference</a> lists everything the engine gives you.</p>

@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_b_stormeye.png",
+ "frames": 3,
+ "origin": [
+  24,
+  24
+ ],
+ "mask": null,
+ "fps": 4
+}

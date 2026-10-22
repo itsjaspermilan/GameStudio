@@ -1,0 +1,81 @@
+<!--
+title: Timers, tweens and coroutines
+group: Tutorials
+order: 40
+summary: Do something later, again and again, smoothly over time, or as a little script that can wait.
+-->
+<h1>Timers, tweens and coroutines</h1>
+<p>Games are full of "in two seconds, do this". You could count down in <code>update</code>, and sometimes that is right. For the rest, GameStudio has four tools. All of them stop by themselves when
+the entity (or scene) that made them goes away, so you never get a timer that fires on something that no longer exists.</p>
+
+<table>
+<tr><th>Tool</th><th>Use it for</th></tr>
+<tr><td><code>self:after(seconds, fn)</code></td><td>Once, later: remove a bullet, end a power-up, show a message.</td></tr>
+<tr><td><code>self:every(seconds, fn)</code></td><td>Again and again: spawn, shoot, blink.</td></tr>
+<tr><td><code>self:tween({ x = 100, alpha = 0 }, 0.5, "out_quad")</code></td><td>Change numbers smoothly: slide, fade, grow.</td></tr>
+<tr><td><code>self:go(function() ... gs.wait(1) ... end)</code></td><td>A little script that reads top to bottom and can pause: cutscenes, boss attack patterns.</td></tr>
+</table>
+<p>The same four exist on <code>gs</code> (<code>gs.after</code>, <code>gs.tween</code>...) for a scene to use. Each returns a timer you can stop with <code>timer:cancel()</code>.
+Easings are <code>linear</code>, <code>in_quad</code>, <code>out_quad</code>, <code>in_out_quad</code>, <code>in_cubic</code>, <code>out_cubic</code>, <code>in_out_cubic</code>, <code>out_back</code> and <code>out_bounce</code>.</p>
+
+<h2>A small light show</h2>
+<p>This orb blinks on a timer, floats up with a tween, then a coroutine fades it out and removes it.</p>
+<pre class="lua" data-path="entities/orb.lua"><code>local Orb = gs.entity{
+  tags = { "orb" },
+  color = "#ffd08a",
+}
+
+function Orb:create()
+  -- every half second, flip between two colors
+  self.lit = true
+  self:every(0.5, function() self.lit = not self.lit end)
+
+  -- float up over 2 seconds, slowing down at the end
+  self:tween({ y = self.y - 80 }, 2, "out_quad")
+
+  -- a script: wait, then fade out, then go away
+  self:go(function()
+    gs.wait(1.5)
+    self:tween({ alpha = 0 }, 0.5)
+    gs.wait(0.5)
+    self:destroy()
+  end)
+end
+
+function Orb:draw()
+  local r, g, b = gs.color(self.color)
+  gs.draw.circle(self.x, self.y, 8, { r, g, b, math.floor(255 * self.alpha) })
+  if self.lit then gs.draw.circle(self.x, self.y, 3, "#ffffff") end
+end
+
+return Orb</code></pre>
+<p>A coroutine is an ordinary function that may call <code>gs.wait(seconds)</code> (or <code>gs.wait_until(function() return something end)</code>) to pause. The game goes on while it waits, and it
+continues exactly where it stopped. That makes sequences easy to read, compared with a pile of timers and flags.</p>
+<pre class="lua" data-path="scenes/main.lua"><code>local Main = gs.scene{}
+
+function Main:enter()
+  -- the scene runs its own script: spawn an orb, wait, spawn another...
+  gs.go(function()
+    for i = 1, 3 do
+      gs.spawn("orb", 60 + i * 80, 180)
+      gs.wait(0.7)
+    end
+    gs.wait(3)
+    gs.goto_scene("scenes.main")           -- and again
+  end)
+end
+
+function Main:draw_ui()
+  gs.draw.text_centered("LIGHT SHOW", 20, "#8a90a8")
+end
+
+return Main</code></pre>
+
+<h2>Tips</h2>
+<ul>
+<li>Use <code>dt</code> in <code>update</code> for steady movement; use timers for events. Both are measured in real seconds, however fast the machine is.</li>
+<li>A timer made by an entity is cleaned up when it is destroyed. A <code>gs.after</code> made in a scene lasts until the scene changes.</li>
+<li>Tweening <code>x</code> or <code>y</code> while the entity also has a <code>vx</code> makes them fight. Pick one.</li>
+<li>For a repeating enemy pattern a coroutine in a loop (<code>while true do ... gs.wait(1) end</code>) is often clearer than a state machine.</li>
+</ul>
+<p>Next: <a href="help:platformer">A platformer</a>.</p>

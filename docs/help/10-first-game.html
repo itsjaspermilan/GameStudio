@@ -1,0 +1,122 @@
+<!--
+title: Your first game
+group: Tutorials
+order: 10
+summary: Catch falling stars with a basket. Entities, input, collisions, scenes and shared state in five small files.
+-->
+<h1>Your first game: Star Catcher</h1>
+<p>Stars fall from the top. Slide a basket left and right to catch them. Miss three and the game starts again. It is five small files, and each one is one idea.
+Press <strong>Make this game</strong> at the bottom to get all of it as a ready-made game, or make a new game and type the files in yourself.</p>
+
+<h2>1. The game file</h2>
+<p><code>game.lua</code> says what the game is called, which console it is made for (the console decides the screen size, colours and limits) and which scene starts first.</p>
+<pre class="lua" data-path="game.lua"><code>return gs.game{
+  title = "Star Catcher",
+  console = "dot",            -- 320x240, the Dot handheld
+  start = "scenes.main",      -- the file scenes/main.lua
+}</code></pre>
+
+<h2>2. The player</h2>
+<p>Each kind of thing in the game is an <strong>entity</strong>: one file in <code>entities/</code> that ends with <code>return</code>. The table in <code>gs.entity{ ... }</code> holds its starting values.
+<code>tags</code> are names you use to find and collide things. The <code>hitbox</code> is the area that counts as touching: <code>{ x, y, width, height }</code>, measured from the entity's position.</p>
+<p>The engine calls <code>update</code> every step (60 times a second) with <code>dt</code>, the seconds since the last step. Moving by <code>speed * dt</code> makes the speed the same on every machine.
+Until you draw a sprite for it, you can draw an entity yourself in a <code>draw</code> method.</p>
+<pre class="lua" data-path="entities/player.lua"><code>-- The player: a basket that slides left and right.
+local Player = gs.entity{
+  tags = { "player" },
+  hitbox = { -16, -6, 32, 12 },
+  speed = 160,                       -- pixels a second
+}
+
+function Player:update(dt)
+  local dx = gs.input.dir()          -- -1 for left, 0 for still, 1 for right
+  self.x = gs.clamp(self.x + dx * self.speed * dt, 16, 304)
+end
+
+function Player:draw()
+  gs.draw.rect(self.x - 16, self.y - 6, 32, 12, "#ffa38c")
+end
+
+-- A method named on_collide_<tag> runs when this entity touches something with that tag.
+function Player:on_collide_star(star)
+  local state = require "lib.state"
+  state.score = state.score + 1
+  star:destroy()
+end
+
+return Player</code></pre>
+
+<h2>3. The stars</h2>
+<p>Every entity has <code>vx</code> and <code>vy</code>, its speed in pixels a second. The engine moves it for you, so a star only needs a downward speed. <code>create</code> runs once when the entity is made.</p>
+<pre class="lua" data-path="entities/star.lua"><code>local state = require "lib.state"
+
+local Star = gs.entity{
+  tags = { "star" },
+  hitbox = { r = 6 },                -- a circle with a radius of 6
+}
+
+function Star:create()
+  self.vy = 70 + gs.random(0, 40)    -- falls at a slightly different speed each time
+end
+
+function Star:update(dt)
+  if self.y > 250 then               -- fell past the bottom: a life lost
+    state.lives = state.lives - 1
+    self:destroy()
+  end
+end
+
+function Star:draw()
+  gs.draw.circle(self.x, self.y, 6, "#ffd08a")
+end
+
+return Star</code></pre>
+
+<h2>4. Shared state</h2>
+<p>Several files need the score and lives, so they live in one small file that any of them can load with <code>require</code>. Lua loads a file once and gives everybody the same table.</p>
+<pre class="lua" data-path="lib/state.lua"><code>local M = { score = 0, lives = 3 }
+
+function M.reset()
+  M.score, M.lives = 0, 3
+end
+
+return M</code></pre>
+
+<h2>5. The scene</h2>
+<p>A <strong>scene</strong> is a screen of your game. <code>enter</code> runs when it starts and is where you create things. <code>update</code> runs every step. <code>draw_ui</code> draws on top of everything, fixed to the screen: the place for the score.</p>
+<pre class="lua" data-path="scenes/main.lua"><code>local state = require "lib.state"
+
+local Main = gs.scene{}
+
+function Main:enter()
+  state.reset()
+  gs.spawn("player", 160, 220)       -- the name of the file in entities/, and where to put it
+  self.next_star = 0
+end
+
+function Main:update(dt)
+  self.next_star = self.next_star - dt
+  if self.next_star &lt;= 0 then
+    gs.spawn("star", gs.random(10, 310), -10)
+    self.next_star = 0.8
+  end
+  if state.lives &lt;= 0 then
+    gs.goto_scene("scenes.main", { fade = 0.4 })    -- start over with a fade
+  end
+end
+
+function Main:draw_ui()
+  gs.draw.text("SCORE " .. state.score, 8, 6, "#ffffff")
+  gs.draw.text("LIVES " .. state.lives, 248, 6, "#ffffff")
+end
+
+return Main</code></pre>
+
+<h2>Things to try</h2>
+<ul>
+<li>Run the game, then change <code>0.8</code> to <code>0.3</code> in <code>scenes/main.lua</code> and save. The stars come faster, and the game kept running.</li>
+<li>Draw a sprite for the star in the sprite editor, name it <code>star</code>, add <code>sprite = "star"</code> to the entity's table and delete its <code>draw</code> method.</li>
+<li>Make a sound effect called <code>catch</code> and play it with <code>gs.sfx("catch")</code> in <code>on_collide_star</code>.</li>
+<li>Make some stars worth more: give them a <code>points</code> value in the table and use <code>star.points</code> in the player.</li>
+</ul>
+<p>Next: <a href="help:scenes">Scenes, menus and saving</a>.</p>

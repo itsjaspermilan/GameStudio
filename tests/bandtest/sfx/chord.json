@@ -1,0 +1,4 @@
+{ "speed": 6, "loop": null, "tracks": [
+  { "instrument": "piano", "steps": [[36, 7, 0], [40, 7, 0]] },
+  { "instrument": "bass", "steps": [[28, 6, 0], [28, 0, 0]] },
+  { "instrument": "gm_trumpet", "steps": [[40, 0, 0], [40, 7, 0]] } ] }

@@ -1,0 +1,129 @@
+// The project is its folder. There is no index file: what the tree shows is found by scanning the file list, so a file added outside the studio
+// (or by git) appears at once. This module knows the folders, how names map to files and Lua module names, and the starter text of new files.
+
+// kind: how the studio opens it ("code" = the Lua editor, otherwise the named editor). nested: names may contain folders (entities/enemies/grub).
+export const GROUPS = [
+  { key: "entities", title: "Entities", dir: "entities", ext: "lua", kind: "code", nested: true, single: "entity", tip: "Things in your game: the player, enemies, bullets. One Lua file each." },
+  { key: "scenes", title: "Scenes", dir: "scenes", ext: "lua", kind: "code", nested: true, single: "scene", tip: "Screens of your game: title, play, game over." },
+  { key: "rooms", title: "Rooms", dir: "rooms", ext: "lua", kind: "code", nested: true, single: "room", tip: "Level data: tile layers and where things start." },
+  { key: "lib", title: "Code", dir: "lib", ext: "lua", kind: "code", nested: true, single: "code file", tip: "Shared code and game state you load with require." },
+  { key: "sprites", title: "Sprites", dir: "sprites", ext: "json", pair: "png", kind: "sprite", single: "sprite" },
+  { key: "tilesets", title: "Tilesets", dir: "tilesets", ext: "json", pair: "png", kind: "tileset", single: "tileset" },
+  { key: "sfx", title: "Sound effects", dir: "sfx", ext: "json", kind: "sfx", single: "sound effect" },
+  { key: "music", title: "Music", dir: "music", ext: "json", kind: "music", single: "song" },
+  { key: "instruments", title: "Instruments", dir: "instruments", ext: "json", kind: "instrument", single: "instrument" },
+  { key: "sounds", title: "Samples", dir: "sounds", ext: "wav", kind: "sample", single: "sample", importFile: true },
+];
+export const group = (key) => GROUPS.find((g) => g.key === key);
+
+const SEGMENT = /^[A-Za-z0-9_-]{1,64}$/;
+// Names are letters, digits, - and _. Code groups may put files in folders: "enemies/grub".
+export function validName(name, nested = false) {
+  if (typeof name !== "string" || !name) return false;
+  const parts = name.split("/");
+  if (parts.length > 1 && !nested) return false;
+  return parts.length <= 4 && parts.every((p) => SEGMENT.test(p) && !p.startsWith("."));
+}
+
+// The files that make up one resource (a sprite is a JSON and a PNG).
+export function resourceFiles(g, name) {
+  const files = [`${g.dir}/${name}.${g.ext}`];
+  if (g.pair) files.push(`${g.dir}/${name}.${g.pair}`);
+  return files;
+}
+
+// What a Lua file calls this resource: "entities/enemies/grub" is required as entities.enemies.grub and spawned as "enemies.grub".
+export const moduleName = (g, name) => `${g.dir}.${name.replace(/\//g, ".")}`;
+export const refName = (g, name) => (g.key === "entities" || g.key === "rooms" ? name.replace(/\//g, ".") : moduleName(g, name));
+
+// Sort the file list into the tree: { hasGame, groups: {key: [names]}, other: [files that belong to no group] }.
+export function scanProject(files) {
+  const groups = Object.fromEntries(GROUPS.map((g) => [g.key, []]));
+  const claimed = new Set();
+  for (const g of GROUPS) {
+    const prefix = g.dir + "/", suffix = "." + g.ext;
+    for (const f of files) {
+      if (!f.startsWith(prefix) || !f.endsWith(suffix)) continue;
+      const name = f.slice(prefix.length, f.length - suffix.length);
+      if (!validName(name, !!g.nested)) continue;
+      groups[g.key].push(name); claimed.add(f);
+      if (g.pair) claimed.add(`${g.dir}/${name}.${g.pair}`);
+    }
+    groups[g.key].sort();
+  }
+  const other = files.filter((f) => !claimed.has(f) && !f.startsWith("meta/") && f !== "game.lua").sort();
+  return { hasGame: files.includes("game.lua"), groups, other };
+}
+
+// The console named in a game's meta/info.json (new games write it there; game.lua says the same in code). Defaults to Dot.
+export function consoleIdOf(infoJson) {
+  const id = infoJson && typeof infoJson === "object" ? infoJson.console : null;
+  return typeof id === "string" && /^[a-z0-9_-]{1,40}$/.test(id) ? id : "dot";
+}
+
+// Change the console in game.lua's `console = "dot"`. Returns the new text, or null when the file doesn't say it in the plain way (the user edits it).
+export function setConsoleInGame(text, id) {
+  const re = /(\bconsole\s*=\s*)(["'])[A-Za-z0-9_-]*\2/;
+  return re.test(text) ? text.replace(re, `$1"${id}"`) : null;
+}
+
+const pascal = (name) => name.split(/[\/_-]/).filter(Boolean).map((s) => s[0].toUpperCase() + s.slice(1)).join("") || "Thing";
+
+export const TEMPLATES = {
+  entities: (name) => `local ${pascal(name.split("/").pop())} = gs.entity{
+  -- sprite = "name of a file in sprites/",
+  tags = {},
+}
+
+function ${pascal(name.split("/").pop())}:create()
+end
+
+function ${pascal(name.split("/").pop())}:update(dt)
+end
+
+return ${pascal(name.split("/").pop())}
+`,
+  scenes: () => `local Scene = gs.scene{}
+
+function Scene:enter()
+end
+
+function Scene:update(dt)
+end
+
+function Scene:draw_ui()
+end
+
+return Scene
+`,
+  rooms: (name, screen) => `-- A room is plain data: gs.load_room("${name.replace(/\//g, ".")}") builds it.
+return {
+  width = ${screen.width}, height = ${screen.height},
+  background = "#101220",
+  layers = {},
+  entities = {
+    -- { "player", 160, 120 },
+  },
+}
+`,
+  lib: () => "local M = {}\n\nreturn M\n",
+};
+
+// Starter files of a new game.
+export function newGameFiles(title, consoleId) {
+  const safe = String(title).replace(/[\\"]/g, "");
+  return {
+    "game.lua": `-- ${safe}\nreturn gs.game{\n  title = "${safe}",\n  console = "${consoleId}",\n  start = "scenes.main",\n}\n`,
+    "scenes/main.lua": `local Main = gs.scene{}\n\nfunction Main:enter()\n  gs.spawn("player", 160, 120)\nend\n\nreturn Main\n`,
+    "entities/player.lua": `-- The player moves with the D-pad. Save the file while the game runs and the change shows at once.\nlocal Player = gs.entity{\n  tags = { "player" },\n  speed = 90,                     -- pixels a second\n}\n\nfunction Player:update(dt)\n  local dx, dy = gs.input.dir()\n  self.x = self.x + dx * self.speed * dt\n  self.y = self.y + dy * self.speed * dt\nend\n\nfunction Player:draw()\n  gs.draw.rect(self.x - 8, self.y - 8, 16, 16, "#ea5a4b")\nend\n\nreturn Player\n`,
+    "meta/info.json": JSON.stringify({ title, console: consoleId }, null, 2) + "\n",
+  };
+}
+
+// Why a rename can't happen, or null if it can.
+export function renameProblem(names, g, from, to) {
+  if (!validName(to, !!g.nested)) return g.nested ? "Use letters, digits, - and _ (and / for folders)." : "Use letters, digits, - and _ for names.";
+  if (to === from) return "That is already its name.";
+  if ((names || []).includes(to)) return `There is already a ${g.single} called '${to}'.`;
+  return null;
+}

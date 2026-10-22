@@ -1,0 +1,18 @@
+{
+ "image": "sprites/spr_char_puff.png",
+ "frames": 4,
+ "origin": [
+  16,
+  16
+ ],
+ "mask": null,
+ "fps": 0,
+ "animations": {
+  "idle": {
+   "from": 0,
+   "to": 1,
+   "fps": 2,
+   "loop": true
+  }
+ }
+}

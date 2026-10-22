@@ -1,0 +1,15 @@
+{
+  "type": "pulse",
+  "duty": 1,
+  "volume": 90,
+  "pan": -20,
+  "attack": 5,
+  "decay": 120,
+  "sustain": 60,
+  "release": 80,
+  "vibrato": {
+    "depth": 0.3,
+    "rate": 5,
+    "delay": 100
+  }
+}

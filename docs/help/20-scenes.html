@@ -1,0 +1,108 @@
+<!--
+title: Scenes, menus and saving
+group: Tutorials
+order: 20
+summary: A title screen, the game, a results screen, passing values between scenes and remembering a high score.
+-->
+<h1>Scenes, menus and saving</h1>
+<p>A game is a chain of <strong>scenes</strong>: title, play, results. Each is a file in <code>scenes/</code>. This page builds a tiny three-scene game, "Button Masher": press A as often as you can for five seconds.</p>
+
+<h2>Moving between scenes</h2>
+<p><code>gs.goto_scene("scenes.play")</code> ends the current scene at the end of the step and starts the other. Everything the old scene made (entities, timers) is cleared. Two options make it nicer:</p>
+<ul>
+<li><code>{ fade = 0.3 }</code> fades the screen out and back in over 0.3 seconds.</li>
+<li>Anything after the options is handed to the next scene's <code>enter</code>: <code>gs.goto_scene("scenes.over", { fade = 0.3 }, score)</code> arrives as <code>function Over:enter(score)</code>.</li>
+</ul>
+
+<h2>The title screen</h2>
+<p><code>gs.ui.menu</code> makes a list you move through with up and down and pick with A. Its <code>update</code> returns the number of the item that was picked, or <code>nil</code>. Saved values come back with <code>gs.save.get(key, default)</code>.</p>
+<pre class="lua" data-path="scenes/title.lua"><code>local Title = gs.scene{}
+
+function Title:enter()
+  self.menu = gs.ui.menu({ "PLAY", "RESET BEST SCORE" })
+  self.best = gs.save.get("best", 0)
+end
+
+function Title:update(dt)
+  local pick = self.menu:update()
+  if pick == 1 then
+    gs.goto_scene("scenes.play", { fade = 0.3 })
+  elseif pick == 2 then
+    gs.save.set("best", 0)
+    self.best = 0
+  end
+end
+
+function Title:draw_ui()
+  gs.draw.text_centered("BUTTON MASHER", 50, "#ffd08a", 2)
+  gs.draw.text_centered("BEST " .. self.best, 90, "#8a90a8")
+  self.menu:draw(110, 140)
+end
+
+return Title</code></pre>
+
+<h2>The game</h2>
+<p>Scenes are tables, so a scene can keep its own values in <code>self</code>. <code>gs.draw.bar</code> draws a bar that shows a value out of a maximum.</p>
+<pre class="lua" data-path="scenes/play.lua"><code>local Play = gs.scene{}
+
+function Play:enter()
+  self.score = 0
+  self.time_left = 5
+end
+
+function Play:update(dt)
+  if gs.input.pressed("a") then
+    self.score = self.score + 1
+  end
+  self.time_left = self.time_left - dt
+  if self.time_left &lt;= 0 then
+    gs.goto_scene("scenes.over", { fade = 0.3 }, self.score)    -- hand the score on
+  end
+end
+
+function Play:draw_ui()
+  gs.draw.text_centered("PRESS A!", 60, "#ffffff", 2)
+  gs.draw.text_centered(tostring(self.score), 110, "#ffa38c", 4)
+  gs.draw.bar(60, 200, 200, 10, self.time_left, 5, { color = "#6ccf4f" })
+end
+
+return Play</code></pre>
+
+<h2>The results, and remembering a high score</h2>
+<p><code>gs.save.set</code> keeps a value in the game's save file, so it is still there next time the game starts, on your computer and on the handheld. Values can be numbers, text, true/false, or tables of those.
+Keys use letters, digits and <code>_</code>. For several players or save files, <code>gs.save.slot(2).set("best", 10)</code> keeps a separate set.</p>
+<pre class="lua" data-path="scenes/over.lua"><code>local Over = gs.scene{}
+
+function Over:enter(score)                  -- the value that play.lua handed on
+  self.score = score
+  self.new_best = score &gt; gs.save.get("best", 0)
+  if self.new_best then gs.save.set("best", score) end
+end
+
+function Over:update(dt)
+  if gs.input.pressed("a") or gs.input.pressed("start") then
+    gs.goto_scene("scenes.title", { fade = 0.3 })
+  end
+end
+
+function Over:draw_ui()
+  gs.draw.text_centered("TIME!", 60, "#ffd08a", 2)
+  gs.draw.text_centered("SCORE " .. self.score, 110, "#ffffff", 2)
+  if self.new_best then gs.draw.text_centered("NEW BEST!", 150, "#6ccf4f") end
+  gs.draw.text_centered("PRESS A", 200, "#8a90a8")
+end
+
+return Over</code></pre>
+
+<pre class="lua" data-path="game.lua"><code>return gs.game{
+  title = "Button Masher",
+  console = "dot",
+  start = "scenes.title",
+}</code></pre>
+
+<div class="note"><strong>Scenes are not entities.</strong> A scene runs once and owns the screen; entities are the many things inside it. A scene's <code>update</code> and <code>draw_ui</code> are the right place for rules that belong to no one entity: spawning waves, the score, ending the level.</div>
+
+<h2>Sharing state between scenes</h2>
+<p>Arguments are good for one value. For things that last the whole game (lives, collected items, the current level), keep a table in <code>lib/state.lua</code> and <code>require</code> it from anywhere, as in <a href="help:first-game">Your first game</a>.
+Keep what must survive closing the game in <code>gs.save</code>.</p>
+<p>Next: <a href="help:collisions">Collisions and tags</a>.</p>

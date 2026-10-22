@@ -1,0 +1,2102 @@
+{
+ "basic": [
+  {
+   "name": "tri",
+   "label": "Triangle"
+  },
+  {
+   "name": "saw",
+   "label": "Saw"
+  },
+  {
+   "name": "square",
+   "label": "Square"
+  },
+  {
+   "name": "pulse",
+   "label": "Pulse 25%"
+  },
+  {
+   "name": "sine",
+   "label": "Sine"
+  },
+  {
+   "name": "noise",
+   "label": "Noise"
+  }
+ ],
+ "instruments": [
+  {
+   "name": "piano",
+   "label": "Piano",
+   "group": "Keys",
+   "type": "wave",
+   "wave": "8CFFEDCCBBAA99888776655443321003",
+   "volume": 100,
+   "attack": 0,
+   "decay": 1500,
+   "sustain": 8,
+   "release": 180,
+   "set": "chip",
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "epiano",
+   "label": "Electric piano",
+   "group": "Keys",
+   "type": "wave",
+   "wave": "8BDDDEEEDCDEFEC98631012321112224",
+   "volume": 90,
+   "attack": 0,
+   "decay": 1000,
+   "sustain": 25,
+   "release": 200,
+   "vibrato": {
+    "depth": 0.06,
+    "rate": 5,
+    "delay": 200
+   },
+   "set": "chip",
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "organ",
+   "label": "Organ",
+   "group": "Keys",
+   "type": "wave",
+   "wave": "8DFECBAAA99898878877676655543102",
+   "volume": 75,
+   "attack": 6,
+   "decay": 0,
+   "sustain": 100,
+   "release": 50,
+   "set": "chip",
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "bell",
+   "label": "Bell",
+   "group": "Keys",
+   "type": "wave",
+   "wave": "8EFCBCCCEFEDDA537CA5221013334301",
+   "volume": 85,
+   "attack": 0,
+   "decay": 1800,
+   "sustain": 0,
+   "release": 500,
+   "vibrato": {
+    "depth": 0.08,
+    "rate": 6,
+    "delay": 0
+   },
+   "set": "chip",
+   "range": [
+    60,
+    95
+   ]
+  },
+  {
+   "name": "strings",
+   "label": "Strings",
+   "group": "Orchestra",
+   "type": "wave",
+   "wave": "8EFDCDCBBBA999888776665444323201",
+   "volume": 70,
+   "attack": 240,
+   "decay": 300,
+   "sustain": 80,
+   "release": 380,
+   "vibrato": {
+    "depth": 0.12,
+    "rate": 5,
+    "delay": 300
+   },
+   "set": "chip",
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "flute",
+   "label": "Flute",
+   "group": "Orchestra",
+   "type": "wave",
+   "wave": "8ABDEFFFFEEDCBA98654321100001245",
+   "volume": 90,
+   "attack": 70,
+   "decay": 0,
+   "sustain": 100,
+   "release": 140,
+   "vibrato": {
+    "depth": 0.25,
+    "rate": 5,
+    "delay": 250
+   },
+   "set": "chip",
+   "range": [
+    60,
+    95
+   ]
+  },
+  {
+   "name": "brass",
+   "label": "Brass",
+   "group": "Orchestra",
+   "type": "wave",
+   "wave": "8DFECBAAA99998878877666655543102",
+   "volume": 75,
+   "attack": 55,
+   "decay": 220,
+   "sustain": 72,
+   "release": 110,
+   "vibrato": {
+    "depth": 0.1,
+    "rate": 5,
+    "delay": 150
+   },
+   "set": "chip",
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "lead",
+   "label": "Chip lead",
+   "group": "Synth",
+   "type": "pulse",
+   "duty": 1,
+   "volume": 85,
+   "attack": 3,
+   "decay": 150,
+   "sustain": 70,
+   "release": 60,
+   "vibrato": {
+    "depth": 0.25,
+    "rate": 5.5,
+    "delay": 120
+   },
+   "set": "chip",
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "pluck",
+   "label": "Pluck",
+   "group": "Synth",
+   "type": "pulse",
+   "duty": 0,
+   "volume": 85,
+   "attack": 0,
+   "decay": 240,
+   "sustain": 0,
+   "release": 60,
+   "set": "chip",
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "bass",
+   "label": "Bass",
+   "group": "Synth",
+   "type": "wave",
+   "wave": "0123456789ABCDEFFEDCBA9876543210",
+   "volume": 100,
+   "attack": 0,
+   "decay": 120,
+   "sustain": 75,
+   "release": 50,
+   "set": "chip",
+   "range": [
+    24,
+    47
+   ]
+  },
+  {
+   "name": "pad",
+   "label": "Pad",
+   "group": "Synth",
+   "type": "wave",
+   "wave": "8ACDEFFFEEDCCBA98654332110001235",
+   "volume": 70,
+   "attack": 380,
+   "decay": 300,
+   "sustain": 70,
+   "release": 550,
+   "vibrato": {
+    "depth": 0.1,
+    "rate": 4,
+    "delay": 400
+   },
+   "set": "chip",
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "kick",
+   "label": "Kick drum",
+   "group": "Drums",
+   "type": "wave",
+   "wave": "89ACDEEFFFEEDCA98653211000112356",
+   "volume": 100,
+   "attack": 0,
+   "decay": 170,
+   "sustain": 0,
+   "release": 15,
+   "fixed_note": 24,
+   "sweep": {
+    "semitones": 36,
+    "ms": 90
+   },
+   "set": "chip",
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "snare",
+   "label": "Snare drum",
+   "group": "Drums",
+   "type": "noise",
+   "noise": "hiss",
+   "volume": 90,
+   "attack": 0,
+   "decay": 130,
+   "sustain": 0,
+   "release": 25,
+   "fixed_note": 66,
+   "set": "chip",
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "hihat",
+   "label": "Hi-hat",
+   "group": "Drums",
+   "type": "noise",
+   "noise": "metallic",
+   "volume": 70,
+   "attack": 0,
+   "decay": 45,
+   "sustain": 0,
+   "release": 10,
+   "fixed_note": 84,
+   "set": "chip",
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "openhat",
+   "label": "Open hi-hat",
+   "group": "Drums",
+   "type": "noise",
+   "noise": "metallic",
+   "volume": 70,
+   "attack": 0,
+   "decay": 240,
+   "sustain": 0,
+   "release": 60,
+   "fixed_note": 84,
+   "set": "chip",
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "tom",
+   "label": "Tom",
+   "group": "Drums",
+   "type": "wave",
+   "wave": "89BCDEFFFEEDCBA98654321100012346",
+   "volume": 95,
+   "attack": 0,
+   "decay": 320,
+   "sustain": 0,
+   "release": 20,
+   "fixed_note": 36,
+   "sweep": {
+    "semitones": 14,
+    "ms": 120
+   },
+   "set": "chip",
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "clap",
+   "label": "Clap",
+   "group": "Drums",
+   "type": "noise",
+   "noise": "hiss",
+   "volume": 85,
+   "attack": 0,
+   "decay": 95,
+   "sustain": 0,
+   "release": 30,
+   "fixed_note": 72,
+   "set": "chip",
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_acoustic_grand_piano",
+   "label": "Acoustic grand piano",
+   "group": "Piano",
+   "set": "gm",
+   "type": "gm",
+   "program": 0,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_bright_acoustic_piano",
+   "label": "Bright acoustic piano",
+   "group": "Piano",
+   "set": "gm",
+   "type": "gm",
+   "program": 1,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_electric_grand_piano",
+   "label": "Electric grand piano",
+   "group": "Piano",
+   "set": "gm",
+   "type": "gm",
+   "program": 2,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_honky_tonk_piano",
+   "label": "Honky-tonk piano",
+   "group": "Piano",
+   "set": "gm",
+   "type": "gm",
+   "program": 3,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_electric_piano_1",
+   "label": "Electric piano 1",
+   "group": "Piano",
+   "set": "gm",
+   "type": "gm",
+   "program": 4,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_electric_piano_2",
+   "label": "Electric piano 2",
+   "group": "Piano",
+   "set": "gm",
+   "type": "gm",
+   "program": 5,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_harpsichord",
+   "label": "Harpsichord",
+   "group": "Piano",
+   "set": "gm",
+   "type": "gm",
+   "program": 6,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_clavinet",
+   "label": "Clavinet",
+   "group": "Piano",
+   "set": "gm",
+   "type": "gm",
+   "program": 7,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_celesta",
+   "label": "Celesta",
+   "group": "Chromatic percussion",
+   "set": "gm",
+   "type": "gm",
+   "program": 8,
+   "volume": 100,
+   "range": [
+    60,
+    95
+   ]
+  },
+  {
+   "name": "gm_glockenspiel",
+   "label": "Glockenspiel",
+   "group": "Chromatic percussion",
+   "set": "gm",
+   "type": "gm",
+   "program": 9,
+   "volume": 100,
+   "range": [
+    60,
+    95
+   ]
+  },
+  {
+   "name": "gm_music_box",
+   "label": "Music box",
+   "group": "Chromatic percussion",
+   "set": "gm",
+   "type": "gm",
+   "program": 10,
+   "volume": 100,
+   "range": [
+    60,
+    95
+   ]
+  },
+  {
+   "name": "gm_vibraphone",
+   "label": "Vibraphone",
+   "group": "Chromatic percussion",
+   "set": "gm",
+   "type": "gm",
+   "program": 11,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_marimba",
+   "label": "Marimba",
+   "group": "Chromatic percussion",
+   "set": "gm",
+   "type": "gm",
+   "program": 12,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_xylophone",
+   "label": "Xylophone",
+   "group": "Chromatic percussion",
+   "set": "gm",
+   "type": "gm",
+   "program": 13,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_tubular_bells",
+   "label": "Tubular bells",
+   "group": "Chromatic percussion",
+   "set": "gm",
+   "type": "gm",
+   "program": 14,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_dulcimer",
+   "label": "Dulcimer",
+   "group": "Chromatic percussion",
+   "set": "gm",
+   "type": "gm",
+   "program": 15,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_drawbar_organ",
+   "label": "Drawbar organ",
+   "group": "Organ",
+   "set": "gm",
+   "type": "gm",
+   "program": 16,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_percussive_organ",
+   "label": "Percussive organ",
+   "group": "Organ",
+   "set": "gm",
+   "type": "gm",
+   "program": 17,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_rock_organ",
+   "label": "Rock organ",
+   "group": "Organ",
+   "set": "gm",
+   "type": "gm",
+   "program": 18,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_church_organ",
+   "label": "Church organ",
+   "group": "Organ",
+   "set": "gm",
+   "type": "gm",
+   "program": 19,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_reed_organ",
+   "label": "Reed organ",
+   "group": "Organ",
+   "set": "gm",
+   "type": "gm",
+   "program": 20,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_accordion",
+   "label": "Accordion",
+   "group": "Organ",
+   "set": "gm",
+   "type": "gm",
+   "program": 21,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_harmonica",
+   "label": "Harmonica",
+   "group": "Organ",
+   "set": "gm",
+   "type": "gm",
+   "program": 22,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_tango_accordion",
+   "label": "Tango accordion",
+   "group": "Organ",
+   "set": "gm",
+   "type": "gm",
+   "program": 23,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_nylon_guitar",
+   "label": "Nylon guitar",
+   "group": "Guitar",
+   "set": "gm",
+   "type": "gm",
+   "program": 24,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_steel_guitar",
+   "label": "Steel guitar",
+   "group": "Guitar",
+   "set": "gm",
+   "type": "gm",
+   "program": 25,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_jazz_guitar",
+   "label": "Jazz guitar",
+   "group": "Guitar",
+   "set": "gm",
+   "type": "gm",
+   "program": 26,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_clean_guitar",
+   "label": "Clean guitar",
+   "group": "Guitar",
+   "set": "gm",
+   "type": "gm",
+   "program": 27,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_muted_guitar",
+   "label": "Muted guitar",
+   "group": "Guitar",
+   "set": "gm",
+   "type": "gm",
+   "program": 28,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_overdriven_guitar",
+   "label": "Overdriven guitar",
+   "group": "Guitar",
+   "set": "gm",
+   "type": "gm",
+   "program": 29,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_distortion_guitar",
+   "label": "Distortion guitar",
+   "group": "Guitar",
+   "set": "gm",
+   "type": "gm",
+   "program": 30,
+   "volume": 100,
+   "range": [
+    24,
+    59
+   ]
+  },
+  {
+   "name": "gm_guitar_harmonics",
+   "label": "Guitar harmonics",
+   "group": "Guitar",
+   "set": "gm",
+   "type": "gm",
+   "program": 31,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_acoustic_bass",
+   "label": "Acoustic bass",
+   "group": "Bass",
+   "set": "gm",
+   "type": "gm",
+   "program": 32,
+   "volume": 100,
+   "range": [
+    24,
+    47
+   ]
+  },
+  {
+   "name": "gm_finger_bass",
+   "label": "Finger bass",
+   "group": "Bass",
+   "set": "gm",
+   "type": "gm",
+   "program": 33,
+   "volume": 100,
+   "range": [
+    24,
+    47
+   ]
+  },
+  {
+   "name": "gm_pick_bass",
+   "label": "Pick bass",
+   "group": "Bass",
+   "set": "gm",
+   "type": "gm",
+   "program": 34,
+   "volume": 100,
+   "range": [
+    24,
+    47
+   ]
+  },
+  {
+   "name": "gm_fretless_bass",
+   "label": "Fretless bass",
+   "group": "Bass",
+   "set": "gm",
+   "type": "gm",
+   "program": 35,
+   "volume": 100,
+   "range": [
+    24,
+    47
+   ]
+  },
+  {
+   "name": "gm_slap_bass_1",
+   "label": "Slap bass 1",
+   "group": "Bass",
+   "set": "gm",
+   "type": "gm",
+   "program": 36,
+   "volume": 100,
+   "range": [
+    24,
+    47
+   ]
+  },
+  {
+   "name": "gm_slap_bass_2",
+   "label": "Slap bass 2",
+   "group": "Bass",
+   "set": "gm",
+   "type": "gm",
+   "program": 37,
+   "volume": 100,
+   "range": [
+    24,
+    47
+   ]
+  },
+  {
+   "name": "gm_synth_bass_1",
+   "label": "Synth bass 1",
+   "group": "Bass",
+   "set": "gm",
+   "type": "gm",
+   "program": 38,
+   "volume": 100,
+   "range": [
+    24,
+    47
+   ]
+  },
+  {
+   "name": "gm_synth_bass_2",
+   "label": "Synth bass 2",
+   "group": "Bass",
+   "set": "gm",
+   "type": "gm",
+   "program": 39,
+   "volume": 100,
+   "range": [
+    24,
+    47
+   ]
+  },
+  {
+   "name": "gm_violin",
+   "label": "Violin",
+   "group": "Strings",
+   "set": "gm",
+   "type": "gm",
+   "program": 40,
+   "volume": 100,
+   "range": [
+    55,
+    90
+   ]
+  },
+  {
+   "name": "gm_viola",
+   "label": "Viola",
+   "group": "Strings",
+   "set": "gm",
+   "type": "gm",
+   "program": 41,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_cello",
+   "label": "Cello",
+   "group": "Strings",
+   "set": "gm",
+   "type": "gm",
+   "program": 42,
+   "volume": 100,
+   "range": [
+    24,
+    59
+   ]
+  },
+  {
+   "name": "gm_contrabass",
+   "label": "Contrabass",
+   "group": "Strings",
+   "set": "gm",
+   "type": "gm",
+   "program": 43,
+   "volume": 100,
+   "range": [
+    24,
+    47
+   ]
+  },
+  {
+   "name": "gm_tremolo_strings",
+   "label": "Tremolo strings",
+   "group": "Strings",
+   "set": "gm",
+   "type": "gm",
+   "program": 44,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_pizzicato_strings",
+   "label": "Pizzicato strings",
+   "group": "Strings",
+   "set": "gm",
+   "type": "gm",
+   "program": 45,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_orchestral_harp",
+   "label": "Orchestral harp",
+   "group": "Strings",
+   "set": "gm",
+   "type": "gm",
+   "program": 46,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_timpani",
+   "label": "Timpani",
+   "group": "Strings",
+   "set": "gm",
+   "type": "gm",
+   "program": 47,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_string_ensemble_1",
+   "label": "String ensemble 1",
+   "group": "Ensemble",
+   "set": "gm",
+   "type": "gm",
+   "program": 48,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_string_ensemble_2",
+   "label": "String ensemble 2",
+   "group": "Ensemble",
+   "set": "gm",
+   "type": "gm",
+   "program": 49,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_synth_strings_1",
+   "label": "Synth strings 1",
+   "group": "Ensemble",
+   "set": "gm",
+   "type": "gm",
+   "program": 50,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_synth_strings_2",
+   "label": "Synth strings 2",
+   "group": "Ensemble",
+   "set": "gm",
+   "type": "gm",
+   "program": 51,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_choir_aahs",
+   "label": "Choir aahs",
+   "group": "Ensemble",
+   "set": "gm",
+   "type": "gm",
+   "program": 52,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_voice_oohs",
+   "label": "Voice oohs",
+   "group": "Ensemble",
+   "set": "gm",
+   "type": "gm",
+   "program": 53,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_synth_voice",
+   "label": "Synth voice",
+   "group": "Ensemble",
+   "set": "gm",
+   "type": "gm",
+   "program": 54,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_orchestra_hit",
+   "label": "Orchestra hit",
+   "group": "Ensemble",
+   "set": "gm",
+   "type": "gm",
+   "program": 55,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_trumpet",
+   "label": "Trumpet",
+   "group": "Brass",
+   "set": "gm",
+   "type": "gm",
+   "program": 56,
+   "volume": 100,
+   "range": [
+    52,
+    87
+   ]
+  },
+  {
+   "name": "gm_trombone",
+   "label": "Trombone",
+   "group": "Brass",
+   "set": "gm",
+   "type": "gm",
+   "program": 57,
+   "volume": 100,
+   "range": [
+    40,
+    75
+   ]
+  },
+  {
+   "name": "gm_tuba",
+   "label": "Tuba",
+   "group": "Brass",
+   "set": "gm",
+   "type": "gm",
+   "program": 58,
+   "volume": 100,
+   "range": [
+    24,
+    47
+   ]
+  },
+  {
+   "name": "gm_muted_trumpet",
+   "label": "Muted trumpet",
+   "group": "Brass",
+   "set": "gm",
+   "type": "gm",
+   "program": 59,
+   "volume": 100,
+   "range": [
+    52,
+    87
+   ]
+  },
+  {
+   "name": "gm_french_horn",
+   "label": "French horn",
+   "group": "Brass",
+   "set": "gm",
+   "type": "gm",
+   "program": 60,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_brass_section",
+   "label": "Brass section",
+   "group": "Brass",
+   "set": "gm",
+   "type": "gm",
+   "program": 61,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_synth_brass_1",
+   "label": "Synth brass 1",
+   "group": "Brass",
+   "set": "gm",
+   "type": "gm",
+   "program": 62,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_synth_brass_2",
+   "label": "Synth brass 2",
+   "group": "Brass",
+   "set": "gm",
+   "type": "gm",
+   "program": 63,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_soprano_sax",
+   "label": "Soprano sax",
+   "group": "Reed",
+   "set": "gm",
+   "type": "gm",
+   "program": 64,
+   "volume": 100,
+   "range": [
+    56,
+    91
+   ]
+  },
+  {
+   "name": "gm_alto_sax",
+   "label": "Alto sax",
+   "group": "Reed",
+   "set": "gm",
+   "type": "gm",
+   "program": 65,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_tenor_sax",
+   "label": "Tenor sax",
+   "group": "Reed",
+   "set": "gm",
+   "type": "gm",
+   "program": 66,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_baritone_sax",
+   "label": "Baritone sax",
+   "group": "Reed",
+   "set": "gm",
+   "type": "gm",
+   "program": 67,
+   "volume": 100,
+   "range": [
+    24,
+    59
+   ]
+  },
+  {
+   "name": "gm_oboe",
+   "label": "Oboe",
+   "group": "Reed",
+   "set": "gm",
+   "type": "gm",
+   "program": 68,
+   "volume": 100,
+   "range": [
+    58,
+    93
+   ]
+  },
+  {
+   "name": "gm_english_horn",
+   "label": "English horn",
+   "group": "Reed",
+   "set": "gm",
+   "type": "gm",
+   "program": 69,
+   "volume": 100,
+   "range": [
+    52,
+    87
+   ]
+  },
+  {
+   "name": "gm_bassoon",
+   "label": "Bassoon",
+   "group": "Reed",
+   "set": "gm",
+   "type": "gm",
+   "program": 70,
+   "volume": 100,
+   "range": [
+    24,
+    59
+   ]
+  },
+  {
+   "name": "gm_clarinet",
+   "label": "Clarinet",
+   "group": "Reed",
+   "set": "gm",
+   "type": "gm",
+   "program": 71,
+   "volume": 100,
+   "range": [
+    50,
+    85
+   ]
+  },
+  {
+   "name": "gm_piccolo",
+   "label": "Piccolo",
+   "group": "Pipe",
+   "set": "gm",
+   "type": "gm",
+   "program": 72,
+   "volume": 100,
+   "range": [
+    72,
+    95
+   ]
+  },
+  {
+   "name": "gm_flute",
+   "label": "Flute",
+   "group": "Pipe",
+   "set": "gm",
+   "type": "gm",
+   "program": 73,
+   "volume": 100,
+   "range": [
+    60,
+    95
+   ]
+  },
+  {
+   "name": "gm_recorder",
+   "label": "Recorder",
+   "group": "Pipe",
+   "set": "gm",
+   "type": "gm",
+   "program": 74,
+   "volume": 100,
+   "range": [
+    60,
+    95
+   ]
+  },
+  {
+   "name": "gm_pan_flute",
+   "label": "Pan flute",
+   "group": "Pipe",
+   "set": "gm",
+   "type": "gm",
+   "program": 75,
+   "volume": 100,
+   "range": [
+    60,
+    95
+   ]
+  },
+  {
+   "name": "gm_blown_bottle",
+   "label": "Blown bottle",
+   "group": "Pipe",
+   "set": "gm",
+   "type": "gm",
+   "program": 76,
+   "volume": 100,
+   "range": [
+    60,
+    95
+   ]
+  },
+  {
+   "name": "gm_shakuhachi",
+   "label": "Shakuhachi",
+   "group": "Pipe",
+   "set": "gm",
+   "type": "gm",
+   "program": 77,
+   "volume": 100,
+   "range": [
+    60,
+    95
+   ]
+  },
+  {
+   "name": "gm_whistle",
+   "label": "Whistle",
+   "group": "Pipe",
+   "set": "gm",
+   "type": "gm",
+   "program": 78,
+   "volume": 100,
+   "range": [
+    60,
+    95
+   ]
+  },
+  {
+   "name": "gm_ocarina",
+   "label": "Ocarina",
+   "group": "Pipe",
+   "set": "gm",
+   "type": "gm",
+   "program": 79,
+   "volume": 100,
+   "range": [
+    72,
+    95
+   ]
+  },
+  {
+   "name": "gm_square_lead",
+   "label": "Square lead",
+   "group": "Synth lead",
+   "set": "gm",
+   "type": "gm",
+   "program": 80,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_saw_lead",
+   "label": "Saw lead",
+   "group": "Synth lead",
+   "set": "gm",
+   "type": "gm",
+   "program": 81,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_calliope_lead",
+   "label": "Calliope lead",
+   "group": "Synth lead",
+   "set": "gm",
+   "type": "gm",
+   "program": 82,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_chiff_lead",
+   "label": "Chiff lead",
+   "group": "Synth lead",
+   "set": "gm",
+   "type": "gm",
+   "program": 83,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_charang_lead",
+   "label": "Charang lead",
+   "group": "Synth lead",
+   "set": "gm",
+   "type": "gm",
+   "program": 84,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_voice_lead",
+   "label": "Voice lead",
+   "group": "Synth lead",
+   "set": "gm",
+   "type": "gm",
+   "program": 85,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_fifths_lead",
+   "label": "Fifths lead",
+   "group": "Synth lead",
+   "set": "gm",
+   "type": "gm",
+   "program": 86,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_bass_and_lead",
+   "label": "Bass and lead",
+   "group": "Synth lead",
+   "set": "gm",
+   "type": "gm",
+   "program": 87,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_new_age_pad",
+   "label": "New age pad",
+   "group": "Synth pad",
+   "set": "gm",
+   "type": "gm",
+   "program": 88,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_warm_pad",
+   "label": "Warm pad",
+   "group": "Synth pad",
+   "set": "gm",
+   "type": "gm",
+   "program": 89,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_polysynth_pad",
+   "label": "Polysynth pad",
+   "group": "Synth pad",
+   "set": "gm",
+   "type": "gm",
+   "program": 90,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_choir_pad",
+   "label": "Choir pad",
+   "group": "Synth pad",
+   "set": "gm",
+   "type": "gm",
+   "program": 91,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_bowed_pad",
+   "label": "Bowed pad",
+   "group": "Synth pad",
+   "set": "gm",
+   "type": "gm",
+   "program": 92,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_metallic_pad",
+   "label": "Metallic pad",
+   "group": "Synth pad",
+   "set": "gm",
+   "type": "gm",
+   "program": 93,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_halo_pad",
+   "label": "Halo pad",
+   "group": "Synth pad",
+   "set": "gm",
+   "type": "gm",
+   "program": 94,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_sweep_pad",
+   "label": "Sweep pad",
+   "group": "Synth pad",
+   "set": "gm",
+   "type": "gm",
+   "program": 95,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_rain",
+   "label": "Rain",
+   "group": "Synth effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 96,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_soundtrack",
+   "label": "Soundtrack",
+   "group": "Synth effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 97,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_crystal",
+   "label": "Crystal",
+   "group": "Synth effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 98,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_atmosphere",
+   "label": "Atmosphere",
+   "group": "Synth effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 99,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_brightness",
+   "label": "Brightness",
+   "group": "Synth effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 100,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_goblins",
+   "label": "Goblins",
+   "group": "Synth effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 101,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_echoes",
+   "label": "Echoes",
+   "group": "Synth effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 102,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_sci_fi",
+   "label": "Sci-fi",
+   "group": "Synth effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 103,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_sitar",
+   "label": "Sitar",
+   "group": "Ethnic",
+   "set": "gm",
+   "type": "gm",
+   "program": 104,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_banjo",
+   "label": "Banjo",
+   "group": "Ethnic",
+   "set": "gm",
+   "type": "gm",
+   "program": 105,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_shamisen",
+   "label": "Shamisen",
+   "group": "Ethnic",
+   "set": "gm",
+   "type": "gm",
+   "program": 106,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_koto",
+   "label": "Koto",
+   "group": "Ethnic",
+   "set": "gm",
+   "type": "gm",
+   "program": 107,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_kalimba",
+   "label": "Kalimba",
+   "group": "Ethnic",
+   "set": "gm",
+   "type": "gm",
+   "program": 108,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_bagpipe",
+   "label": "Bagpipe",
+   "group": "Ethnic",
+   "set": "gm",
+   "type": "gm",
+   "program": 109,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_fiddle",
+   "label": "Fiddle",
+   "group": "Ethnic",
+   "set": "gm",
+   "type": "gm",
+   "program": 110,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_shanai",
+   "label": "Shanai",
+   "group": "Ethnic",
+   "set": "gm",
+   "type": "gm",
+   "program": 111,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_tinkle_bell",
+   "label": "Tinkle bell",
+   "group": "Percussive",
+   "set": "gm",
+   "type": "gm",
+   "program": 112,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_agogo",
+   "label": "Agogo",
+   "group": "Percussive",
+   "set": "gm",
+   "type": "gm",
+   "program": 113,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_steel_drums",
+   "label": "Steel drums",
+   "group": "Percussive",
+   "set": "gm",
+   "type": "gm",
+   "program": 114,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_woodblock",
+   "label": "Woodblock",
+   "group": "Percussive",
+   "set": "gm",
+   "type": "gm",
+   "program": 115,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_taiko_drum",
+   "label": "Taiko drum",
+   "group": "Percussive",
+   "set": "gm",
+   "type": "gm",
+   "program": 116,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_melodic_tom",
+   "label": "Melodic tom",
+   "group": "Percussive",
+   "set": "gm",
+   "type": "gm",
+   "program": 117,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_synth_drum",
+   "label": "Synth drum",
+   "group": "Percussive",
+   "set": "gm",
+   "type": "gm",
+   "program": 118,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_reverse_cymbal",
+   "label": "Reverse cymbal",
+   "group": "Percussive",
+   "set": "gm",
+   "type": "gm",
+   "program": 119,
+   "volume": 100,
+   "range": [
+    48,
+    83
+   ]
+  },
+  {
+   "name": "gm_guitar_fret_noise",
+   "label": "Guitar fret noise",
+   "group": "Sound effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 120,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_breath_noise",
+   "label": "Breath noise",
+   "group": "Sound effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 121,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_seashore",
+   "label": "Seashore",
+   "group": "Sound effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 122,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_bird_tweet",
+   "label": "Bird tweet",
+   "group": "Sound effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 123,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_telephone_ring",
+   "label": "Telephone ring",
+   "group": "Sound effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 124,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_helicopter",
+   "label": "Helicopter",
+   "group": "Sound effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 125,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_applause",
+   "label": "Applause",
+   "group": "Sound effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 126,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_gunshot",
+   "label": "Gunshot",
+   "group": "Sound effects",
+   "set": "gm",
+   "type": "gm",
+   "program": 127,
+   "volume": 100,
+   "range": [
+    36,
+    71
+   ]
+  },
+  {
+   "name": "gm_drum_kit",
+   "label": "Drum kit",
+   "group": "Drum kit",
+   "set": "gm",
+   "type": "gm",
+   "program": 0,
+   "drum": true,
+   "volume": 100,
+   "kit": [
+    {
+     "key": 49,
+     "label": "Crash"
+    },
+    {
+     "key": 51,
+     "label": "Ride"
+    },
+    {
+     "key": 46,
+     "label": "Open hi-hat"
+    },
+    {
+     "key": 42,
+     "label": "Closed hi-hat"
+    },
+    {
+     "key": 54,
+     "label": "Tambourine"
+    },
+    {
+     "key": 56,
+     "label": "Cowbell"
+    },
+    {
+     "key": 50,
+     "label": "High tom"
+    },
+    {
+     "key": 45,
+     "label": "Low tom"
+    },
+    {
+     "key": 39,
+     "label": "Clap"
+    },
+    {
+     "key": 37,
+     "label": "Side stick"
+    },
+    {
+     "key": 38,
+     "label": "Snare"
+    },
+    {
+     "key": 36,
+     "label": "Kick"
+    }
+   ]
+  }
+ ],
+ "sets": [
+  {
+   "id": "chip",
+   "label": "Chip sounds"
+  },
+  {
+   "id": "gm",
+   "label": "General MIDI"
+  }
+ ]
+}

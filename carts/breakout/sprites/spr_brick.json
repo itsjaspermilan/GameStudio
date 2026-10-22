@@ -1,0 +1,10 @@
+{
+  "image": "sprites/spr_brick.png",
+  "frames": 6,
+  "origin": [
+    0,
+    0
+  ],
+  "mask": null,
+  "fps": 0
+}

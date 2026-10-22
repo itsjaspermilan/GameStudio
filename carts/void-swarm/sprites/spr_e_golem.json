@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_e_golem.png",
+ "frames": 4,
+ "origin": [
+  16,
+  16
+ ],
+ "mask": null,
+ "fps": 6
+}

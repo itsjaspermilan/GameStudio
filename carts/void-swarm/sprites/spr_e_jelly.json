@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_e_jelly.png",
+ "frames": 4,
+ "origin": [
+  8,
+  8
+ ],
+ "mask": null,
+ "fps": 6
+}

@@ -1,0 +1,106 @@
+{
+  "id": "tiny",
+  "name": "Tiny",
+  "description": "A test console: 240x160, a GBA screen.",
+  "based_on": "dot",
+  "screen": {
+    "width": 240,
+    "height": 160,
+    "scale": "integer"
+  },
+  "room_speed": 60,
+  "palette": {
+    "mode": "fixed",
+    "colors": [
+      "#000000",
+      "#3b3f55",
+      "#8a90a8",
+      "#ffffff",
+      "#4a1424",
+      "#b0293a",
+      "#ea5a4b",
+      "#ffa38c",
+      "#4b2a1d",
+      "#9a5324",
+      "#e8913a",
+      "#ffd08a",
+      "#6b5a14",
+      "#c9a227",
+      "#f5d94a",
+      "#fff6a8",
+      "#123b2a",
+      "#2f8a3f",
+      "#6ccf4f",
+      "#c4f28a",
+      "#0f3b4a",
+      "#1f8a96",
+      "#45d1c5",
+      "#a6f4e6",
+      "#14234f",
+      "#2a56c4",
+      "#4f9bf0",
+      "#a8d4ff",
+      "#2d1a4f",
+      "#6a3fb5",
+      "#a56be0",
+      "#d9b3ff"
+    ]
+  },
+  "graphics": {
+    "sprite_size": {
+      "multiple_of": 8,
+      "max_width": 64,
+      "max_height": 64
+    },
+    "tile_sizes": [
+      8,
+      16
+    ],
+    "tileset_max": {
+      "width": 256,
+      "height": 256
+    }
+  },
+  "rooms": {
+    "max_width": 1024,
+    "max_height": 1024,
+    "views": 1,
+    "tile_layers": 4,
+    "parallax": true
+  },
+  "audio": {
+    "sample_rate": 22050,
+    "sample_max_seconds": 4,
+    "style": "gba",
+    "music_tracks": 4,
+    "sfx_channels": 4
+  },
+  "input": [
+    "up",
+    "down",
+    "left",
+    "right",
+    "a",
+    "b",
+    "x",
+    "y",
+    "l",
+    "r",
+    "start",
+    "select",
+    "l2",
+    "r2"
+  ],
+  "limits": {
+    "instances_per_room": 512,
+    "instances_alive": 512,
+    "particles": 300
+  },
+  "budgets": {
+    "visible_sprites": 128,
+    "cart_kb": 16384,
+    "frames_per_sprite": 32,
+    "collision_tests": 1000,
+    "draw_screens": 6
+  }
+}

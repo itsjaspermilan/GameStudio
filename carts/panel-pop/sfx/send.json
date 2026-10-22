@@ -1,0 +1,37 @@
+{
+ "speed": 2,
+ "loop": null,
+ "tracks": [
+  {
+   "instrument": "saw",
+   "steps": [
+    [
+     48,
+     4,
+     1
+    ],
+    [
+     60,
+     4,
+     5
+    ]
+   ]
+  },
+  {
+   "instrument": "square",
+   "steps": [
+    [
+     36,
+     3,
+     0
+    ],
+    [
+     36,
+     0,
+     0
+    ]
+   ]
+  }
+ ],
+ "key": false
+}

@@ -1,0 +1,56 @@
+<!--
+title: Working inside the handheld's limits
+group: Guides
+order: 90
+summary: What Dot and Dash allow, the Handheld tab, and how to keep a game fast on cheap hardware.
+-->
+<h1>Working inside the handheld's limits</h1>
+<p>The handheld is a small, cheap computer. Games made for old consoles (the Game Boy Advance is the model here) worked within tight limits and were better for it: limits make you decide what matters.
+GameStudio tells you where the limits are and warns you before a game stops fitting.</p>
+
+<h2>Consoles</h2>
+<p>A game is made <em>for</em> a console, named in <code>game.lua</code>. It decides the screen, the palette and the limits. Two come with GameStudio, and they differ only in the screen:</p>
+<table>
+<tr><th></th><th>Dot</th><th>Dash</th></tr>
+<tr><td>Screen</td><td>320&times;240 (4:3)</td><td>320&times;180 (16:9)</td></tr>
+<tr><td>Colours</td><td colspan="2">32 fixed colours (seven ramps of four, plus four neutrals)</td></tr>
+<tr><td>Sprites</td><td colspan="2">multiples of 8 pixels, up to 64&times;64</td></tr>
+<tr><td>Tiles</td><td colspan="2">8&times;8 or 16&times;16</td></tr>
+<tr><td>Music / sound effects</td><td colspan="2">4 music tracks and 4 sound effect channels at once</td></tr>
+<tr><td>Room size</td><td colspan="2">up to 1024&times;1024, four tile layers</td></tr>
+</table>
+<p>Change the console with <em>Change console&hellip;</em> in the sidebar: it shows what would no longer fit before you commit to it.</p>
+
+<h2>Hard limits and budgets</h2>
+<ul>
+<li><strong>Hard limits</strong> are enforced. At most <strong>512 entities alive at once</strong>: more are ignored, with one warning in the Output. Sprites must be the right sizes and colours.</li>
+<li><strong>Budgets</strong> are soft: a game can go over them, and the Handheld tab shows where it stands. Game size (16 MB, like a GBA cartridge) and frames in a sprite are measured from your files. The console spec also lists 1000 collision checks a step and about six screens of drawing a frame, from tests on the device; the Handheld tab measures both while the game runs (the busiest step and frame of each second), exactly the same as on the device.</li>
+</ul>
+<p>The limits are ceilings, not targets. A typical GBA-style game has 20 to 100 things alive and a few hundred collision checks a step; the handheld holds more than that, so you have room for modern touches, but a game that stays near the typical numbers never worries.
+Particles are entities too, so they count toward the 512: make them short-lived and cap how many you spawn.</p>
+
+<h2>The Handheld tab</h2>
+<p>Under the editor, next to <em>Output</em>. It shows:</p>
+<ul>
+<li><strong>Size</strong> of the game against the budget.</li>
+<li><strong>Art</strong>: your biggest sprite and tileset against what the console allows, frames per sprite, and any pixels outside the palette.</li>
+<li><strong>Sound</strong>: how many songs and effects you have, and the most tracks any song uses.</li>
+<li><strong>While it runs</strong>: how many things are alive now and at most, how long a frame takes on <em>your computer</em>, the frame rate, and the memory the code uses.</li>
+</ul>
+<div class="note"><strong>Your computer is faster than the handheld.</strong> The time per frame is measured on your computer, which is several times faster than the device. Use it as a guide (aim for a few milliseconds at most) and trust the entity count, which is exactly the same everywhere.
+When a game on the device cannot keep up with 60 frames a second, the runtime says so once in its log, with where the time went.</div>
+
+<h2>Keeping a game fast</h2>
+<ol>
+<li><strong>Count what you make.</strong> Everything with a lifetime needs an end: bullets leave the screen or time out, effects clean themselves up. Cap enemies with <code>gs.count("enemy") &lt; 150</code>.</li>
+<li><strong>Find things by tag.</strong> <code>gs.nearest</code>, <code>gs.in_radius</code>, <code>gs.each</code> and <code>gs.count</code> only look at things with that tag, which the engine keeps in a list of their own; collisions use a spatial grid per tag on top. A loop over everything that measures distances is slow.</li>
+<li><strong>Let collisions be handled by tags.</strong> Writing <code>on_collide_enemy</code> costs nothing until something with that tag is near.</li>
+<li><strong>Do not make garbage every step.</strong> A new table or closure per entity per step ({ x, y } for a position, a function in <code>update</code>) adds up to a lot of memory churn. Make it once, reuse it, or use two numbers instead. A see-through color can be a string, <code>"#ff000080"</code> (the last two digits: 00 invisible, ff solid), instead of a new <code>{ r, g, b, a }</code>. A search every step can refill one list: <code>self.near = gs.in_radius(x, y, 60, "enemy", self.near)</code>. The editor points these out in <code>update</code> and <code>draw</code>.</li>
+<li><strong>Check collisions less often when you can.</strong> A crowd that only needs to push apart does not need a check every step: <code>collide_every = { enemy = 4 }</code> in an entity's table runs that <code>on_collide_enemy</code> every fourth step, spread over the crowd (and you make the push four times as strong). In Void Swarm this halved the cost of the enemy crowd.</li>
+<li><strong>Remember lookups.</strong> <code>self.target = gs.first("hero")</code> in <code>create</code>, not every step.</li>
+<li><strong>Draw less.</strong> Entities off screen are skipped when they use their sprite. Tile layers are drawn from one picture each. Big see-through areas that cover the screen several times are the thing that costs: on the device about six screens' worth of painting in one frame was the most that kept 60 frames a second.</li>
+<li><strong>Short update methods.</strong> Put the rare, expensive work (path finding, a search) on a timer that runs a few times a second instead of every step.</li>
+<li><strong>Use <code>dt</code>.</strong> Movement by <code>speed * dt</code> stays the same speed if the frame rate dips.</li>
+</ol>
+<p>How inheritance affects speed: when an entity builds on another (<code>gs.entity(Parent, { ... })</code>), the engine copies the parent's methods into the child when the file loads, so calling a method is one lookup however long the family tree is.</p>
+<p>See also <a href="help:sizes">Sprite and tile sizes</a> and <a href="help:best-practices">Best practices</a>.</p>

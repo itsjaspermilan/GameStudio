@@ -1,0 +1,37 @@
+{
+ "speed": 3,
+ "loop": null,
+ "tracks": [
+  {
+   "instrument": "tri",
+   "steps": [
+    [
+     36,
+     5,
+     0
+    ],
+    [
+     32,
+     4,
+     5
+    ]
+   ]
+  },
+  {
+   "instrument": null,
+   "steps": [
+    [
+     36,
+     0,
+     0
+    ],
+    [
+     36,
+     0,
+     0
+    ]
+   ]
+  }
+ ],
+ "key": false
+}

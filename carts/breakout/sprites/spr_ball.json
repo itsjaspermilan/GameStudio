@@ -1,0 +1,10 @@
+{
+  "image": "sprites/spr_ball.png",
+  "frames": 1,
+  "origin": [
+    0,
+    0
+  ],
+  "mask": null,
+  "fps": 0
+}

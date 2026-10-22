@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_garbage.png",
+ "frames": 28,
+ "origin": [
+  8,
+  8
+ ],
+ "mask": null,
+ "fps": 0
+}

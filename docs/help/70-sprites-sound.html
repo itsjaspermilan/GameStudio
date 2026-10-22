@@ -1,0 +1,69 @@
+<!--
+title: Sprites, animation and sound
+group: Tutorials
+order: 70
+summary: Drawing art in the sprite editor, putting it in the game, and making sound effects and music.
+-->
+<h1>Sprites, animation and sound</h1>
+<p>Every game starts with rectangles and circles, and that is a fine way to make it work. When you are ready for art and sound, the editors in the studio write plain files into your game's folders and the engine finds them by name.
+Nothing has to be listed or registered anywhere.</p>
+
+<h2>A sprite</h2>
+<ol>
+<li>In the list on the left, press <strong>+</strong> next to <em>Sprites</em> and type a name such as <code>hero</code>. The pixel editor opens with a blank 32x32 picture.
+(Not sure about the size? See <a href="help:sizes">Sprite and tile sizes</a>.)</li>
+<li>Draw. The palette on the left holds the console's colours: Dot has 32 of them, so every game made for it shares one look. A picture with colours outside the palette is flagged, and <em>Snap to palette</em> fixes it.</li>
+<li>Add frames with <em>+ New</em> or <em>Copy</em> (copying the last frame and changing a little is the quick way to animate). The preview plays them at the speed you set.</li>
+<li>Set the <strong>origin</strong>: the point of the picture that sits on the entity's position. For a character that walks on the ground, put it between the feet. For a ball, the middle.</li>
+<li>Leave the <strong>collision box</strong> alone, and the whole picture is the hitbox. Make it smaller (just the body, not the sword) for collisions that feel fair.</li>
+</ol>
+<p>The files are <code>sprites/hero.png</code> (all the frames side by side) and <code>sprites/hero.json</code>. Now use it:</p>
+<pre class="lua"><code>local Hero = gs.entity{
+  sprite = "hero",              -- sprites/hero.json
+  tags = { "hero" },
+}</code></pre>
+<p>An entity with a sprite is drawn automatically at its position, and its hitbox is the sprite's collision box. Entities off the edge of the screen are skipped, so they cost nothing.</p>
+
+<h2>Animation clips</h2>
+<p>Under <em>Animations</em> in the sprite editor, name a run of frames, give it a speed and say whether it loops: <code>idle</code> is frames 0-1, <code>run</code> is 2-5, <code>die</code> is 6-9 and does not loop.</p>
+<pre class="lua"><code>function Hero:update(dt)
+  local dx = gs.input.dir()
+  self.x = self.x + dx * 80 * dt
+  if dx ~= 0 then
+    self:play("run")             -- does nothing if "run" is already playing
+    self.flip = dx &lt; 0           -- mirror the picture to face left
+  else
+    self:play("idle")
+  end
+end
+
+-- a clip that does not loop tells you when it reached its last frame
+function Hero:on_animation_end(name)
+  if name == "die" then self:destroy() end
+end</code></pre>
+<p>Without clips the whole sprite loops at its speed. <code>self.frame</code> is the frame being shown and <code>self.anim_speed</code> speeds the animation up or slows it down (1 is normal).
+Other things every entity has for its looks: <code>alpha</code> (0 invisible to 1), <code>sx</code> and <code>sy</code> (scale, negative mirrors), <code>angle</code> (degrees), <code>visible</code>, and <code>depth</code> (bigger is further back).
+<code>self:set_sprite("hero_hurt")</code> switches to another picture. In code that is not an entity, <code>gs.draw.sprite("star", x, y, { frame = 1, scale = 2 })</code> draws one.</p>
+
+<h2>Tilesets</h2>
+<p>A tileset is a sheet of small square pictures. In the tileset editor you set the tile size (8 or 16 on Dot), then draw tiles on the sheet. The tiles are numbered left to right, top to bottom.
+They are drawn into a map with a <em>tile layer</em>: see <a href="help:rooms">Big levels</a>.</p>
+
+<h2>Sound effects</h2>
+<p>A sound effect is a short tune made of steps. In the sound effect editor, press <strong>+</strong> next to <em>Sound effects</em>, name it (<code>jump</code>), and drag an instrument onto a lane. Click in the lane to place notes;
+press play to hear it. It is rendered by the same synthesizer the game uses, so it sounds the same on the handheld.</p>
+<pre class="lua"><code>gs.sfx("jump")          -- plays sfx/jump.json
+gs.sfx("jump", 0.5)     -- at half volume
+gs.sfx_stop()           -- stop all sound effects</code></pre>
+
+<h2>Music</h2>
+<p>A song has four tracks (the console's limit), each with an instrument. Songs are patterns of notes in a grid; the music editor can also suggest a melody, a drum beat or a chord to start from.</p>
+<pre class="lua"><code>gs.music("title_theme")         -- starts music/title_theme.json, replacing what played
+gs.music_stop(1.5)              -- fade out over one and a half seconds</code></pre>
+<p>Sound effects and music use separate voices, so a sound effect never cuts a note out of the song. The handheld's speaker is small: bright, short sounds carry better than deep ones.</p>
+
+<h2>Instruments and samples</h2>
+<p>Instruments are the sounds that songs and effects are played with. A set of ready-made ones (pulse waves, noise drums, a General MIDI piano and more) is always available. To change one, copy it into <em>Instruments</em> and edit the copy.
+You can also import a short <code>.wav</code> recording as a sample (up to 4 seconds on Dot) and use it as an instrument.</p>
+<div class="note"><strong>Missing sounds are errors on purpose.</strong> <code>gs.sfx("jmup")</code> stops with "unknown sound effect 'jmup'" instead of staying silent, and the editor underlines it before you even run. Typos should not hide.</div>
+<p>Next: <a href="help:limits">Working inside the handheld's limits</a>.</p>

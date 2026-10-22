@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_ico_s_engine.png",
+ "frames": 1,
+ "origin": [
+  8,
+  8
+ ],
+ "mask": null,
+ "fps": 0
+}

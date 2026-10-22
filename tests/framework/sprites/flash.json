@@ -1,0 +1,2 @@
+{ "image": "sprites/flash.png", "frames": 6, "origin": [0, 0], "fps": 6,
+  "animations": { "flash": { "from": 0, "to": 2, "fps": 10, "loop": true }, "once": { "from": 3, "to": 5, "fps": 20, "loop": false } } }

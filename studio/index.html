@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GameStudio</title>
+  </head>
+  <body>
+    <div id="app" class="welcome-mode">
+      <header id="toolbar">
+        <div class="group">
+          <button id="btn-save" title="Save (Cmd/Ctrl+S)">Save</button>
+        </div>
+        <div class="group">
+          <button id="btn-run" class="primary" title="Run the game from its first room (Cmd/Ctrl+Enter)">&#9654; Run</button>
+          <button id="btn-stop" title="Stop the preview" disabled>&#9632; Stop</button>
+        </div>
+        <div class="group">
+          <button id="btn-pack" title="Pack into build/&lt;name&gt;.cart">Pack</button>
+          <button id="btn-push" title="Pack and copy to the device over SSH">Send to device</button>
+        </div>
+        <span id="status"></span>
+        <div class="spacer"></div>
+        <button id="btn-help" title="Tutorials and the API reference (F1)">Help</button>
+        <button id="btn-settings">Settings</button>
+      </header>
+
+      <aside id="sidebar">
+        <div id="project-head">
+          <div><div id="project-title"></div><div id="project-kind"></div><button id="btn-console" class="link" title="See what would change on another console, and switch">Change console…</button><button id="btn-info" class="link" title="The title, description and box art your device's game list shows">Game info…</button></div>
+          <button id="btn-close" class="small" title="Close this project and return to the start screen">Close</button>
+        </div>
+        <div id="project-size" class="size-meter" hidden>
+          <div class="size-text"></div>
+          <div class="meter"><div class="meter-fill"></div></div>
+        </div>
+        <input type="file" id="wav-input" accept=".wav,audio/wav,audio/x-wav" hidden>
+        <section id="tree-section" hidden>
+          <div id="game-file" class="tree-item game-file" title="Your game's start: its title, console and first scene" hidden><span class="name">game.lua</span></div>
+          <div id="tree"></div>
+        </section>
+        <details id="raw-files">
+          <summary>Other files</summary>
+          <div class="section-head"><span></span><button id="btn-new-file" class="small" title="New file">+</button></div>
+          <ul id="files"></ul>
+        </details>
+      </aside>
+
+      <section id="welcome">
+        <div class="welcome-card">
+          <h1>GameStudio</h1>
+          <p class="welcome-sub">Make small 2D games for your handheld.</p>
+          <div class="welcome-actions">
+            <button id="btn-new-project" class="primary" title="A game with a Lua starter: one scene and one entity">New game</button>
+          </div>
+          <div id="new-project" class="newproj" hidden>
+            <h2>New game</h2>
+            <input id="np-name" placeholder="game name" spellcheck="false">
+            <div class="np-label">Console</div>
+            <div id="np-consoles" class="np-consoles"></div>
+            <p id="np-error" class="np-error"></p>
+            <div class="np-actions"><button id="np-cancel">Cancel</button><button id="np-create" class="primary">Create</button></div>
+          </div>
+          <div id="first-steps" class="first-steps" hidden></div>
+          <h2>Open a game</h2>
+          <ul id="games"></ul>
+          <h2>Consoles</h2>
+          <ul id="consoles"></ul>
+          <div class="welcome-actions"><button id="btn-new-console" title="Start from Dot and change its screen, colours and limits">New console</button></div>
+        </div>
+      </section>
+
+      <main id="editor-wrap">
+        <div id="editor-bar">
+          <div id="tabs"></div>
+          <div class="eb-row">
+            <span id="editor-title"></span>
+            <span class="eb-tools">
+              <select id="outline" title="Go to a function in this file (Ctrl/Cmd+Shift+O)" hidden></select>
+              <button id="btn-tidy" class="small" title="Put the indentation right (Shift+Alt+F)" hidden>Tidy</button>
+              <button id="btn-split" class="small" title="Show a second file beside this one" hidden>Split</button>
+              <button id="btn-find" class="small" title="Find (and replace) in every file of the game (Ctrl/Cmd+Shift+F)">Find in game</button>
+            </span>
+          </div>
+        </div>
+        <div id="code-area">
+          <div id="editor"></div>
+          <div id="split" hidden>
+            <div class="split-bar"><select id="split-file" title="The file shown on this side"></select><span id="split-dirty"></span><button id="split-close" class="small" title="Close this side (it is saved first)">×</button></div>
+            <div id="split-editor"></div>
+          </div>
+        </div>
+        <div id="sprite-editor" class="se" hidden></div>
+        <div id="tileset-editor" class="se" hidden></div>
+        <div id="room-editor" class="se re" hidden></div>
+        <div id="sfx-editor" class="sfx" hidden></div>
+        <div id="music-editor" class="mus" hidden></div>
+        <div id="instrument-editor" class="ins" hidden></div>
+      </main>
+
+      <section id="log-wrap">
+        <div class="section-head"><h2><button id="tab-log" class="tab on">Output</button><button id="tab-hh" class="tab" title="What your game uses compared with what the handheld can do">Handheld</button><button id="tab-insp" class="tab" title="Look inside the running game: pause it, step it, see every kind of thing and what it costs">Inspector</button> <span id="log-new" hidden title="New output while hidden">●</span></h2><span class="head-btns"><button id="btn-clear-log" class="small">Clear</button><button id="btn-toggle-log" class="small" title="Hide or show the output">Hide</button></span></div>
+        <pre id="log"></pre>
+        <div id="handheld" hidden></div>
+        <div id="inspector" hidden></div>
+      </section>
+    </div>
+
+    <dialog id="help-dialog"></dialog>
+
+    <dialog id="console-dialog" class="wide-dialog"></dialog>
+
+    <dialog id="info-dialog" class="wide-dialog">
+      <h2>Game info</h2>
+      <p class="hint">This is what the game list on your device shows for this game. Everything here is optional.</p>
+      <div class="info-grid">
+        <div class="info-fields">
+          <label>Title <input id="info-title" maxlength="60" spellcheck="false" /></label>
+          <label>Description <textarea id="info-desc" rows="6" maxlength="600"></textarea><small id="info-left" class="hint"></small></label>
+          <label>Made by <input id="info-dev" maxlength="60" spellcheck="false" /></label>
+          <div class="info-row">
+            <label>Genre <select id="info-genre"></select></label>
+            <label>Players <select id="info-players"></select></label>
+          </div>
+        </div>
+        <div class="info-art">
+          <div id="info-pics" class="info-pics"></div>
+          <div class="info-art-frame"><img id="info-art" alt="" hidden /><span id="info-art-none">No picture yet</span></div>
+          <div id="info-art-size" class="hint"></div>
+          <div id="info-shot-row" class="info-shot-row">
+            <button id="info-shot" title="Runs the game without a window and keeps the picture it shows at that moment">Take a screenshot</button>
+            <label title="How long the game runs before the picture is taken">after <input id="info-shot-secs" type="number" min="0.5" max="30" step="0.5" value="2" /> s</label>
+          </div>
+          <select id="info-sprite" title="Use the first picture of one of this game's sprites"></select>
+          <button id="info-use-sprite" title="Copy that sprite, enlarged">Use this sprite</button>
+          <button id="info-import" title="Pick a PNG picture from your computer">Import a PNG…</button>
+          <button id="info-clear">Remove this picture</button>
+          <input type="file" id="info-png" accept="image/png" hidden />
+        </div>
+      </div>
+      <div class="actions"><button id="info-cancel">Cancel</button><button id="info-save" class="primary">Save</button></div>
+    </dialog>
+
+    <dialog id="console-change">
+      <h2>Change console</h2>
+      <p class="hint">Pick a console to see what would no longer fit. Nothing is changed until you press Apply, and your art and rooms are never edited.</p>
+      <select id="cc-select"></select>
+      <div id="cc-report" class="cc-report"></div>
+      <div class="actions"><button id="cc-cancel">Cancel</button><button id="cc-apply" class="primary">Apply</button></div>
+    </dialog>
+
+    <dialog id="find-dialog" class="find-dialog">
+      <div class="fd-head"><h2 id="fd-title">Find in game</h2><button id="fd-close" class="small">Close</button></div>
+      <input id="fd-query" placeholder="Find" spellcheck="false" />
+      <div class="fd-row"><input id="fd-replace" placeholder="Replace with" spellcheck="false" /><button id="fd-replace-all" class="small" title="Replace every match in every Lua file">Replace all</button></div>
+      <div class="fd-row fd-opts">
+        <label title="Upper and lower case must match"><input type="checkbox" id="fd-case"> Aa</label>
+        <label title="Only whole words (speed, not speedy)"><input type="checkbox" id="fd-word"> Whole word</label>
+        <label title="A regular expression (for experts)"><input type="checkbox" id="fd-regex"> .*</label>
+      </div>
+      <div id="fd-summary" class="hint"></div>
+      <div id="fd-results"></div>
+    </dialog>
+
+    <dialog id="settings">
+      <form method="dialog">
+        <h2>Settings</h2>
+        <label>Workspace folder <small>(contains carts/ and build/)</small>
+          <input id="set-workspace" spellcheck="false" />
+        </label>
+        <label>Look <select id="set-theme"><option value="dark">Dark</option><option value="light">Light</option></select></label>
+        <h3>Device (SSH)</h3>
+        <label>Host <input id="set-host" placeholder="192.168.1.50" spellcheck="false" /></label>
+        <label>User <input id="set-user" placeholder="root" spellcheck="false" /></label>
+        <label>Folder on device <input id="set-dir" placeholder="/mnt/sdcard/gs" spellcheck="false" /></label>
+        <p class="hint">Sending uses your system <code>ssh</code>/<code>scp</code> with key authentication
+          (no password prompts). Set up a key first: <code>ssh-copy-id user@host</code>.</p>
+        <div class="actions">
+          <button value="cancel">Cancel</button>
+          <button id="set-save" value="save" class="primary">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

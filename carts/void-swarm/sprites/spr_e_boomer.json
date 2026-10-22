@@ -1,0 +1,24 @@
+{
+ "image": "sprites/spr_e_boomer.png",
+ "frames": 4,
+ "origin": [
+  8,
+  8
+ ],
+ "mask": null,
+ "fps": 6,
+ "animations": {
+  "walk": {
+   "from": 0,
+   "to": 1,
+   "fps": 4,
+   "loop": true
+  },
+  "fuse": {
+   "from": 2,
+   "to": 3,
+   "fps": 16,
+   "loop": true
+  }
+ }
+}

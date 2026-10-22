@@ -1,0 +1,30 @@
+<!--
+title: Sprite and tile sizes
+group: Guides
+order: 91
+summary: How big to draw heroes, enemies, bullets and tiles on a 320x240 screen.
+-->
+<h1>Sprite and tile sizes</h1>
+<p>Dot is 320&times;240 pixels, twice a Game Boy Advance in each direction that matters. Art drawn at GBA sizes looks small on it, and tiny sprites are hard to read on a small screen. These sizes feel right:</p>
+<table>
+<tr><th>What</th><th>Suggested size</th><th>Why</th></tr>
+<tr><td>Hero or main character</td><td>24&times;24 or 32&times;32</td><td>10 to 13% of the screen height: room for a face and for animation.</td></tr>
+<tr><td>Common enemy</td><td>16&times;16 to 24&times;24</td><td>Still readable when there are many.</td></tr>
+<tr><td>Big enemy or mini-boss</td><td>32&times;32 to 48&times;48</td><td>Clearly bigger than the common ones.</td></tr>
+<tr><td>Boss</td><td>48&times;48 to 64&times;64</td><td>64 is the limit.</td></tr>
+<tr><td>Bullet, pickup, particle</td><td>8&times;8 (up to 16&times;16)</td><td>Small but visible.</td></tr>
+<tr><td>Tile</td><td>16&times;16 (32&times;32 is not allowed: use 16)</td><td>Tiles are 8&times;8 or 16&times;16.</td></tr>
+<tr><td>Icon</td><td>16&times;16</td><td></td></tr>
+<tr><td>Text</td><td>8&times;8 letters</td><td>The built-in font. Text wants to be small.</td></tr>
+</table>
+<h2>The rules</h2>
+<ul>
+<li>Sprites are <strong>multiples of 8</strong> in width and height, up to 64&times;64 on Dot and Dash.</li>
+<li>A sprite is a strip: all frames are the same size, side by side.</li>
+<li>Frames in a sprite: up to 32 (a soft budget).</li>
+<li>A tileset sheet is up to 256&times;256.</li>
+</ul>
+<h2>Judging size</h2>
+<p>A 16&times;16 hero is 7% of the height of Dot: a crowd of them reads as a swarm, but a lone hero looks small. The Handheld tab shows your biggest sprite against the limit. When unsure, draw the hero at 24&times;24 and an ordinary enemy at 16&times;16:
+the hero should be bigger than what it fights, and the player's eye finds it first.</p>
+<p>Keep the screen at the console's size. A smaller screen is not recommended: the display is not an even multiple of it, and uneven pixels look worse than slightly small sprites.</p>

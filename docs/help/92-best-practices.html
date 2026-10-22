@@ -1,0 +1,105 @@
+<!--
+title: Best practices
+group: Guides
+order: 92
+summary: Layout, naming, state, reuse with inheritance, and habits that keep a game easy to change.
+-->
+<h1>Best practices</h1>
+<p>Small habits that make a game still easy to change after a month.</p>
+
+<h2>Layout</h2>
+<ul>
+<li><strong>One kind of thing, one file.</strong> <code>entities/grub.lua</code> holds everything about grubs. When something is wrong with grubs you know where to look.</li>
+<li><strong>Scenes decide, entities act.</strong> A scene spawns, counts and ends things. An entity moves itself and reacts to what it touches. Rules that belong to nobody (score, waves, win and lose) go in the scene.</li>
+<li><strong>Shared state in <code>lib/</code>.</strong> A small table in <code>lib/state.lua</code>, not global variables. A <code>require</code> at the top of a file shows what the file depends on.</li>
+<li><strong>Folders for families.</strong> <code>entities/enemies/grub.lua</code> is spawned as <code>gs.spawn("enemies.grub")</code>.</li>
+<li><strong>Data that designers change is data.</strong> Numbers at the top of the entity table (<code>hp = 3, speed = 40</code>), not buried in the middle of a function. Rooms, wave lists and item tables are plain Lua tables in their own file.</li>
+</ul>
+
+<h2>Name things for what they are</h2>
+<p>Tags are nouns (<code>enemy</code>, <code>pickup</code>), methods are verbs (<code>hurt</code>, <code>collect</code>), and booleans read as questions (<code>grounded</code>, <code>invulnerable</code>).
+Tags are how entities talk to each other, so spend a minute to choose them.</p>
+
+<h2>Reuse with inheritance</h2>
+<p><code>gs.entity(Parent, { ... })</code> builds a new kind of thing on an existing one. The child has all the parent's methods and starting values, and the table you give replaces the ones that differ. Override a method by
+defining it again; call the parent's version with <code>Parent.method(self, ...)</code>.</p>
+<pre class="lua" data-path="entities/enemy.lua"><code>local Enemy = gs.entity{
+  tags = { "enemy" },
+  hp = 3,
+  speed = 40,
+  size = 6,
+}
+
+function Enemy:update(dt)
+  self.x = self.x + self.speed * dt
+  if self.x &gt; 340 then self.x = -20 end
+end
+
+function Enemy:hurt(amount)
+  self.hp = self.hp - amount
+  if self.hp &lt;= 0 then self:destroy() end
+end
+
+function Enemy:draw()
+  gs.draw.circle(self.x, self.y, self.size, "#6ccf4f")
+end
+
+return Enemy</code></pre>
+<pre class="lua" data-path="entities/boss.lua"><code>local Enemy = require "entities.enemy"
+
+-- A boss is an enemy with more of everything, and a flash when it is hurt.
+local Boss = gs.entity(Enemy, {
+  hp = 30,
+  speed = 15,
+  size = 16,
+})
+
+function Boss:hurt(amount)
+  Enemy.hurt(self, amount)                 -- the enemy's version does the counting
+  self:tween({ alpha = 0.3 }, 0.05)        -- then ours adds a flash
+  self:after(0.1, function() self.alpha = 1 end)
+end
+
+return Boss</code></pre>
+<pre class="lua" data-path="scenes/main.lua"><code>local Main = gs.scene{}
+
+function Main:enter()
+  gs.spawn("enemy", -20, 60)
+  gs.spawn("boss", -40, 140)
+  self:hit_something()
+end
+
+function Main:hit_something()
+  -- both are "enemy"-tagged, so code that looks for enemies finds the boss too
+  gs.each("enemy", function(e) e:hurt(1) end)
+end
+
+function Main:update(dt)
+  if gs.count("enemy") &lt; 2 then
+    gs.spawn("enemy", -20, gs.random(20, 220))
+  end
+end
+
+function Main:draw_ui()
+  gs.draw.text("ENEMIES: " .. gs.count("enemy"), 8, 6, "#ffffff")
+end
+
+return Main</code></pre>
+<p>Prefer a shallow family (an enemy, a few kinds of enemy) to a deep one. When two things only share a little, give them a shared function in <code>lib/</code> instead of a parent.</p>
+
+<h2>Sparks, dust and smoke</h2>
+<p>For little effects use <code>gs.burst(x, y, { count = 10, color = "#ffd08a", gravity = 160 })</code> instead of spawning entities: particles fly, fall and fade by themselves, never collide, and do not count toward the 512 entities.
+The console caps them (300 on Dot). Breakout's bricks use it.</p>
+
+<h2>While you work</h2>
+<ul>
+<li><strong>Keep the game running.</strong> Change a file and save: the game reloads that code and keeps its state. It is the fastest way to tune jumps, speeds and timings. Starting values in an entity's table apply to <em>new</em> entities; go to the scene again (<code>gs.goto_scene</code>) to see them on everything.</li>
+<li><strong>Listen to the editor.</strong> Red underlines are real mistakes; amber ones are worth a look. The Handheld tab is there so a problem is a number you can see, not a surprise on the device.</li>
+<li><strong>Use git.</strong> The game is plain files, so commit when it works and experiment freely.</li>
+<li><strong>Small steps.</strong> Make the player move, then one enemy, then collisions. A game that runs after every step is easy to fix.</li>
+</ul>
+
+<h2>Test it without playing it</h2>
+<p>The runtime can play a game by itself for a while, which finds crashes you would meet on the third level. From the GameStudio folder in a terminal:</p>
+<pre class="shell"><code>GS_BOT_LUA=tests/random-bot.lua GS_FF=20 GS_MAX_FRAMES=300 build/gs carts/mygame</code></pre>
+<p>The bot presses buttons at random, fast-forwarded twenty times, for 300 frames; any Lua error is printed. The tutorials on this page run the same way in the studio's own tests.</p>

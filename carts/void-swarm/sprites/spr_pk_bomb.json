@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_pk_bomb.png",
+ "frames": 2,
+ "origin": [
+  4,
+  4
+ ],
+ "mask": null,
+ "fps": 6
+}

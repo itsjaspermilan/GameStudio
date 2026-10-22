@@ -1,0 +1,37 @@
+{
+ "speed": 2,
+ "loop": null,
+ "tracks": [
+  {
+   "instrument": "square",
+   "steps": [
+    [
+     50,
+     4,
+     0
+    ],
+    [
+     57,
+     3,
+     5
+    ]
+   ]
+  },
+  {
+   "instrument": "bell",
+   "steps": [
+    [
+     62,
+     3,
+     5
+    ],
+    [
+     36,
+     0,
+     0
+    ]
+   ]
+  }
+ ],
+ "key": false
+}

@@ -1,0 +1,4 @@
+{ "format": "tracker", "tempo": 140, "rows_per_beat": 4, "tracks": 6, "reverb": 10,
+  "track_instruments": ["lead", "nopiano", "bass", "kick", "snare", "hihat"],
+  "patterns": [ { "rows": 16, "tracks": ["C4,12 -- E4 -- G4,15,3,4 -- OFF -- -- -- -- -- -- -- -- --", "-- C3 -- -- -- -- -- -- -- -- -- -- -- -- -- --", "C2 -- -- -- C2 -- -- -- -- -- -- -- -- -- -- --", "C2 -- -- -- -- -- -- -- C2 -- -- -- -- -- -- --", "-- -- -- -- C2 -- -- -- -- -- -- -- C2 -- -- --", "C2 -- C2 -- C2 -- C2 -- C2 -- C2 -- C2 -- C2 --"] } ],
+  "order": [0], "loop_to": 0 }

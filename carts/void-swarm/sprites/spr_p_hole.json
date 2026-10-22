@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_p_hole.png",
+ "frames": 4,
+ "origin": [
+  16,
+  16
+ ],
+ "mask": null,
+ "fps": 6
+}

@@ -1,0 +1,56 @@
+-- The hangar: where a run starts and where credits are spent.
+local data = require "lib.data"
+local save = require "lib.save"
+local audio = require "lib.audio"
+local ui = require "lib.ui"
+local menu = require "lib.menu"
+
+local floor = math.floor
+local spr, txt, box = ui.spr, ui.txt, ui.box
+
+local Hub = gs.scene{}
+
+local ITEMS = { "LAUNCH", "PILOTS", "SHIP UPGRADES", "WEAPON UPGRADES" }
+
+function Hub:enter(cur)
+  self.cur, self.tick = cur or 1, 0
+  audio.music("msc_hub")
+end
+
+function Hub:update(dt)
+  menu.tick(self)
+  self.cur = menu.move(self.cur, #ITEMS)
+  if gs.input.pressed("b") then audio.sfx("sfx_back", 1); gs.goto_scene("scenes.title") end
+  if gs.input.pressed("a") then
+    audio.sfx("sfx_ok", 1)
+    if self.cur == 1 then gs.goto_scene("scenes.stages", { fade = 0.2 }, math.min(save.data.cleared + 1, #data.STAGES))
+    elseif self.cur == 2 then gs.goto_scene("scenes.pilots", { fade = 0.2 }, save.data.sel)
+    elseif self.cur == 3 then gs.goto_scene("scenes.ship", { fade = 0.2 })
+    else gs.goto_scene("scenes.weapons", { fade = 0.2 }) end
+  end
+end
+
+function Hub:draw_ui()
+  ui.menu_background("belt", self.tick, 0.3)
+  menu.header(self, "HANGAR")
+  local p = data.PILOTS[save.data.sel]
+  box(176, 36, 136, 152, 0, 22, 190)
+  spr("spr_pilot_" .. p.id, 2 + floor(self.tick / 5) % 6, 244, 76, 3)
+  txt(p.name, 176 + (136 - #p.name * 16) / 2, 114, 14, 2, 310)
+  spr("spr_ico_" .. data.WEAPONS[p.weapon].icon, 0, 190, 146)
+  local wy = 134
+  for _, l in ipairs(ui.wrap(data.WEAPONS[p.weapon].name, 13)) do txt(l, 202, wy, 3, 1, 310); wy = wy + 9 end
+  for _, l in ipairs(ui.wrap(p.blurb, 13)) do txt(l, 202, wy + 2, 2, 1, 310); wy = wy + 9 end
+  for i, name in ipairs(ITEMS) do
+    local y = 42 + (i - 1) * 30
+    local on = (i == self.cur)
+    box(10, y, 156, 24, on and 25 or 0, on and 26 or 1, 220)
+    txt(name, 20, y + 8, on and 3 or 2)
+    if on then spr("spr_ico_cursor", self.tick / 8, 12, y + 12) end
+  end
+  txt("SECTORS CLEARED " .. save.data.cleared .. "/" .. #data.STAGES, 10, 170, 22)
+  txt("RUNS " .. save.data.runs .. "   KO " .. save.data.kills, 10, 182, 2)
+  menu.footer(self, "A: SELECT")
+end
+
+return Hub

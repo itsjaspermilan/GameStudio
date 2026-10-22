@@ -1,0 +1,157 @@
+<!--
+title: Collisions and tags
+group: Tutorials
+order: 30
+summary: Shoot enemies with bullets: tags, on_collide handlers, finding things, aiming.
+-->
+<h1>Collisions and tags</h1>
+<p>Games are mostly about things touching things. GameStudio makes that short to write: give entities <strong>tags</strong>, and write a method called <code>on_collide_&lt;tag&gt;</code> on the one that cares.
+This page builds "Space Pop": fly a ship, shoot drifting rocks.</p>
+
+<h2>Tags and hitboxes</h2>
+<p>A <code>tags = { "enemy" }</code> list gives every entity of that kind the tag. An entity has a hitbox if you give it one (<code>hitbox = { x, y, w, h }</code> from its position, or <code>{ r = radius }</code> for a circle) or if it has a sprite (then the sprite's collision box is used).
+Entities without a hitbox never collide.</p>
+<p>When two hitboxes overlap, the engine calls <code>on_collide_<em>tag</em>(other)</code> on any entity that has such a method, for every overlapping entity with that tag. The engine only checks pairs somebody asked about, so a method you never write costs nothing.</p>
+
+<h2>The ship</h2>
+<p><code>gs.input.pressed("a")</code> is true for exactly one step when A goes down. <code>gs.spawn</code> returns the entity it made, and its third argument can set values on it: here the bullet's starting speed.</p>
+<pre class="lua" data-path="entities/ship.lua"><code>local state = require "lib.state"
+
+local Ship = gs.entity{
+  tags = { "ship" },
+  hitbox = { -7, -7, 14, 14 },
+  speed = 130,
+}
+
+function Ship:update(dt)
+  local dx, dy = gs.input.dir()
+  self.x = gs.clamp(self.x + dx * self.speed * dt, 8, 312)
+  self.y = gs.clamp(self.y + dy * self.speed * dt, 8, 232)
+  if gs.input.pressed("a") then
+    gs.spawn("bullet", self.x, self.y - 8)
+  end
+end
+
+function Ship:draw()
+  gs.draw.rect(self.x - 7, self.y - 7, 14, 14, "#4f9bf0")
+  gs.draw.rect(self.x - 2, self.y - 11, 4, 5, "#a8d4ff")
+end
+
+-- a rock hit the ship
+function Ship:on_collide_rock(rock)
+  rock:destroy()
+  gs.camera:shake(4, 0.2)
+  state.hits = state.hits + 1
+end
+
+return Ship</code></pre>
+
+<h2>The bullet</h2>
+<p><code>set_velocity(angle, speed)</code> sets <code>vx</code> and <code>vy</code> from a direction. Angles are in degrees <em>clockwise</em>: 0 is right, 90 is down, 180 is left, 270 is up.
+Bullets that leave the screen must be destroyed, or they pile up forever.</p>
+<pre class="lua" data-path="entities/bullet.lua"><code>local Bullet = gs.entity{
+  tags = { "bullet" },
+  hitbox = { -2, -4, 4, 8 },
+}
+
+function Bullet:create()
+  self:set_velocity(270, 260)        -- straight up
+end
+
+function Bullet:update(dt)
+  if self.y &lt; -10 then self:destroy() end
+end
+
+function Bullet:draw()
+  gs.draw.rect(self.x - 2, self.y - 4, 4, 8, "#ffd08a")
+end
+
+function Bullet:on_collide_rock(rock)
+  rock:hurt(1)
+  self:destroy()
+end
+
+return Bullet</code></pre>
+
+<h2>The rock</h2>
+<p>Entities can have their own methods. <code>rock:hurt(1)</code> above calls this one. Every rock has the same methods, and each keeps its own <code>hp</code>.</p>
+<pre class="lua" data-path="entities/rock.lua"><code>local state = require "lib.state"
+
+local Rock = gs.entity{
+  tags = { "rock" },
+  hitbox = { r = 9 },
+  hp = 2,
+}
+
+function Rock:create()
+  self.vy = gs.random(25, 55)
+  self.vx = gs.random(-20, 20)
+end
+
+function Rock:hurt(amount)
+  self.hp = self.hp - amount
+  if self.hp &lt;= 0 then
+    state.score = state.score + 10
+    self:destroy()
+  end
+end
+
+function Rock:update(dt)
+  if self.y &gt; 260 then self:destroy() end
+end
+
+function Rock:draw()
+  gs.draw.circle(self.x, self.y, 9, self.hp == 1 and "#ffa38c" or "#8a90a8")
+end
+
+return Rock</code></pre>
+
+<h2>The scene and the shared score</h2>
+<p>The ship and the rocks both change the score, so it lives in a small shared file (see <a href="help:first-game">Your first game</a>).</p>
+<pre class="lua" data-path="lib/state.lua"><code>local M = { score = 0, hits = 0 }
+
+function M.reset()
+  M.score, M.hits = 0, 0
+end
+
+return M</code></pre>
+<pre class="lua" data-path="scenes/main.lua"><code>local state = require "lib.state"
+
+local Main = gs.scene{}
+
+function Main:enter()
+  state.reset()
+  self.next_rock = 0.5
+  gs.spawn("ship", 160, 210)
+end
+
+function Main:update(dt)
+  self.next_rock = self.next_rock - dt
+  if self.next_rock &lt;= 0 then
+    gs.spawn("rock", gs.random(10, 310), -10)
+    self.next_rock = 0.6
+  end
+end
+
+function Main:draw_ui()
+  gs.draw.text("SCORE " .. state.score, 8, 6, "#ffffff")
+  gs.draw.text("HITS " .. state.hits, 260, 6, "#ffa38c")
+end
+
+return Main</code></pre>
+
+<h2>Finding things</h2>
+<p>You often need an entity that you did not just create. Tags are how you find them:</p>
+<table>
+<tr><th>Call</th><th>Gives you</th></tr>
+<tr><td><code>gs.first("ship")</code></td><td>The first entity with the tag (or <code>nil</code>).</td></tr>
+<tr><td><code>gs.count("rock")</code></td><td>How many there are.</td></tr>
+<tr><td><code>gs.each("rock", function(r) ... end)</code></td><td>Runs a function for each.</td></tr>
+<tr><td><code>gs.nearest(x, y, "rock", 120)</code></td><td>The closest one within 120 pixels.</td></tr>
+<tr><td><code>gs.in_radius(x, y, 50, "rock")</code></td><td>A list of those within 50 pixels (an explosion).</td></tr>
+<tr><td><code>self:touching("wall")</code></td><td>The first <code>wall</code> overlapping this entity right now, for checks outside a collide method.</td></tr>
+<tr><td><code>self:distance_to(other)</code>, <code>self:angle_to(other)</code></td><td>For chasing and aiming. <code>self:move_toward(other, 60)</code> sets the speed toward it.</td></tr>
+</table>
+<p>Try: make a turret entity that shoots the nearest rock. Every second it does <code>local rock = gs.nearest(self.x, self.y, "rock", 150)</code>, and if there is one, spawns a bullet and calls <code>bullet:set_velocity(self:angle_to(rock), 220)</code>.</p>
+<div class="note"><strong>Why tags and not names?</strong> The code in the ship does not need to know about every kind of rock you add later. Give a new <code>BigRock</code> the tag <code>"rock"</code> and everything already works.</div>
+<p>Next: <a href="help:timers">Timers, tweens and coroutines</a>.</p>

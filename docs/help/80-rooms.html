@@ -1,0 +1,98 @@
+<!--
+title: Big levels
+group: Tutorials
+order: 80
+summary: Rooms as data, a camera that follows within the level, and tile layers for art.
+-->
+<h1>Big levels: rooms, tiles and the camera</h1>
+<p>The Dot screen is 320x240 pixels. A level can be much bigger, and the <strong>camera</strong> decides which part of it you see. A <strong>room</strong> is a data file in <code>rooms/</code> that describes a level:
+how big it is, its background, its tile layers, and which entities start where. <code>gs.load_room("arena")</code> builds it.</p>
+
+<h2>A room file</h2>
+<p>A room is plain Lua that returns a table, so you can write it by hand or generate it. Entities are <code>{ name, x, y }</code> (an optional fourth value is a table of values to set).</p>
+<pre class="lua" data-path="rooms/arena.lua"><code>return {
+  width = 640, height = 480,           -- bigger than the screen: the camera will scroll
+  background = "#14234f",
+  entities = {
+    { "walker", 320, 240 },
+    { "tree", 100, 100 }, { "tree", 520, 90 }, { "tree", 300, 380 },
+    { "tree", 80, 400 },  { "tree", 560, 420 }, { "tree", 450, 250, { size = 14 } },
+  },
+}</code></pre>
+
+<h2>The room editor</h2>
+<p>Click a room in the list and it opens in the <strong>room editor</strong> (a room with code in it, like a <code>local</code> or a sum, opens as text instead).
+<strong>Tiles</strong> paints the chosen layer (Shift-click fills, right-click picks a tile up, Alt-click erases), <strong>Things</strong> places the entity chosen on the left and lets you drag them about,
+and <strong>Paths</strong> draws routes. The room's width and height are the camera's limits; the dashed box shows one screen. Saving writes the same plain data you see here, so you can always
+switch to <em>Edit as text</em>.</p>
+
+<h2>Paths</h2>
+<p>A path is a list of points in the room, for a guard's patrol or a platform's route. Draw it in the room editor, or write it in the room file:</p>
+<pre class="lua"><code>paths = {
+  patrol = { { 40, 40 }, { 280, 40 }, { 280, 200 }, loop = true },
+},</code></pre>
+<p>An entity walks it with <code>self:follow_path("patrol", 60)</code> (60 pixels a second). A path that does not loop ends by calling the entity's <code>on_path_end</code>;
+<code>self:stop_path()</code> stops early. <code>gs.path("patrol")</code> gives the points if you want to use them yourself.</p>
+
+<h2>The things in it</h2>
+<pre class="lua" data-path="entities/tree.lua"><code>local Tree = gs.entity{
+  size = 10,
+  depth = 5,
+}
+
+function Tree:draw()
+  gs.draw.rect(self.x - 2, self.y, 4, self.size, "#9a5324")
+  gs.draw.circle(self.x, self.y - 2, self.size, "#2f8a3f")
+end
+
+return Tree</code></pre>
+<pre class="lua" data-path="entities/walker.lua"><code>local Walker = gs.entity{
+  speed = 100,
+}
+
+function Walker:update(dt)
+  local dx, dy = gs.input.dir()
+  self.x = gs.clamp(self.x + dx * self.speed * dt, 8, 632)
+  self.y = gs.clamp(self.y + dy * self.speed * dt, 8, 472)
+end
+
+function Walker:draw()
+  gs.draw.circle(self.x, self.y, 7, "#ffa38c")
+end
+
+return Walker</code></pre>
+
+<h2>The camera</h2>
+<p><code>gs.load_room</code> already tells the camera the size of the level, so it never shows the empty space outside. All that is left is whom to follow. <code>smooth</code> is how lazily the camera catches up
+(0 is stiff, 0.1 a little soft, 0.3 floaty). <code>gs.camera:shake(amount, seconds)</code> is for hits and explosions; <code>gs.camera:set(x, y)</code> moves it directly (for a cutscene).</p>
+<pre class="lua" data-path="scenes/main.lua"><code>local Main = gs.scene{}
+
+function Main:enter()
+  gs.load_room("arena")
+  gs.camera:follow(gs.first("walker") or gs.spawn("walker", 320, 240), { smooth = 0.1 })
+end
+
+function Main:draw_ui()
+  gs.draw.text("THE ARENA IS 640x480", 8, 6, "#ffffff")
+end
+
+return Main</code></pre>
+<p>Things the camera cares about: anything drawn in <code>draw</code> of an entity is in <em>world</em> coordinates, so it scrolls. Anything drawn in a scene's <code>draw_ui</code> (and an entity with <code>screen = true</code>) is in <em>screen</em> coordinates and stays put, like a score.</p>
+<p><strong>Zoom.</strong> <code>gs.camera.zoom = 2</code> shows the world twice as big (a quarter of it fits on the screen); the camera still keeps to the level's edges. Whole numbers keep pixel art crisp.
+<code>draw_ui</code> is never zoomed, so the score stays the same size. Going to another scene puts the zoom back to 1.</p>
+
+<h2>Tile layers</h2>
+<p>Real levels are made of tiles drawn in the tileset editor: a picture sheet where each tile is 8 or 16 pixels square. A layer is a grid of tile numbers (counting from 0, left to right then down; <code>-1</code> is empty).
+Add layers in a room file, or by hand with <code>gs.add_layer</code>:</p>
+<pre class="lua"><code>-- in rooms/arena.lua
+layers = {
+  { tileset = "ground", depth = 100, data = {
+      { 0, 0, 1, 0 },
+      { 0, 1, 1, 0 },
+    } },
+  -- a far-away layer that moves at half the camera's speed and repeats sideways
+  { tileset = "clouds", depth = 90, scroll_x = 0.5, wrap_x = true, data = { { 0, 1, 2, 1 } } },
+},</code></pre>
+<p>A layer is drawn from one picture that the engine builds once, so a big map costs almost nothing per frame. Ask a layer what is at a spot with <code>gs.tile_at(layer, x, y)</code> (for walls and floors),
+and change it with <code>gs.set_tile</code>. Dot allows four tile layers in a room. Names go with the files: <code>"ground"</code> is <code>tilesets/ground.json</code>.</p>
+<p>Next: <a href="help:sprites-sound">Sprites, animation and sound</a>.</p>

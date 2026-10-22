@@ -1,0 +1,4 @@
+{ "format": "tracker", "tempo": 140, "rows_per_beat": 4, "tracks": 6, "reverb": 10,
+  "track_instruments": ["lead", "gm_acoustic_grand_piano", "gm_acoustic_bass", "gm_drum_kit", "snare", "hihat"],
+  "patterns": [ { "rows": 16, "tracks": ["C4,12 -- E4 -- G4,15,3,4 -- OFF -- -- -- -- -- -- -- -- --", "-- C3 -- -- -- -- -- -- -- -- -- -- -- -- -- --", "C2 -- -- -- C2 -- -- -- -- -- -- -- -- -- -- --", "C3+F#3 -- -- -- D3+F#3 -- -- -- C3+F#3 -- -- -- D3+F#3 -- F#3 --", "-- -- -- -- C2 -- -- -- -- -- -- -- C2 -- -- --", "C2 -- C2 -- C2 -- C2 -- C2 -- C2 -- C2 -- C2 --"] } ],
+  "order": [0], "loop_to": 0 }
