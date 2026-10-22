@@ -57,12 +57,13 @@ function M.wait_until(fn) coroutine.yield(fn) end
 
 local function alive(t) return not t.dead and not (t.owner and t.owner._dead) end
 
-function M.update(dt)
+-- only_talk: the world stands still for a conversation (talk.lua), so only the scripts that are talking go on
+function M.update(dt, only_talk)
   for i = 1, #pending do list[#list + 1] = pending[i]; pending[i] = nil end
   local count = #list
   for i = 1, count do
     local t = list[i]
-    if alive(t) then
+    if alive(t) and (not only_talk or t.talk) then
       if t.tween then
         t.time = t.time + dt
         local k = math.min(1, t.time / t.total)
@@ -75,7 +76,9 @@ function M.update(dt)
         if t.cond then ready = t.cond() else t.left = t.left - dt; ready = t.left <= 0 end
         if ready then
           t.cond = nil
+          M.current = t -- the script that is running, so gs.say can mark it as talking
           local ok, res = coroutine.resume(t.co)
+          M.current = nil
           if not ok then t.dead = true; error(res, 0) end
           if coroutine.status(t.co) == "dead" then t.dead = true
           elseif type(res) == "function" then t.cond = res

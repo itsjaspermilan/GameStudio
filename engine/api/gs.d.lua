@@ -320,6 +320,18 @@ function gs.wait(seconds) end
 ---Pause a coroutine until a function returns true.
 ---@param fn fun(): boolean
 function gs.wait_until(fn) end
+---Show a text box and wait until the player has read it (A goes on). The world stands still meanwhile. Use it inside gs.go or self:go.
+---The box's look comes from the scene's layout: a panel named dialogue_box, texts named dialogue_text and dialogue_name, a picture
+---named dialogue_cursor. Without them it is a plain box at the bottom.
+---@param name string Who speaks (leave out for no name: gs.say("A locked door."))
+---@param text? string What they say; long text wraps and runs onto more pages
+function gs.say(name, text) end
+---Ask a question in the text box and wait for an answer (up and down choose, A picks). Use it inside gs.go or self:go.
+---@param question string
+---@param answers string[] e.g. { "YES", "NO" }
+---@param name? string Who asks
+---@return integer The number of the answer picked
+function gs.ask(question, answers, name) end
 
 -- ------------------------------------------------------------------ maths and helpers
 ---Keep a number between a low and a high value.

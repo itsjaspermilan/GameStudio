@@ -14,6 +14,7 @@ local timers = require("gs.timers")
 local camera = require("gs.camera")
 local draw = require("gs.draw")
 local particles = require("gs.particles")
+local talk = require("gs.talk")
 
 -- checks: hitbox comparisons so far this step (the collision pass and touching()); checks_last: the whole of the last step. The studio
 -- compares the busiest step with the console's collision_tests budget.
@@ -429,6 +430,7 @@ local function build(data, where, scene)
   local function named(item, e)
     local n = item.name
     if not (n and scene and e) then return end
+    if talk.pattern[n] then e.visible = false end -- the look of gs.say's box: a pattern, not something on the screen
     if TAKEN[n] or type(scene[n]) == "function" then error(where .. ": '" .. n .. "' is the name of something every scene has; give it another name", 0) end
     scene[n] = e
   end
@@ -723,6 +725,7 @@ local function enter_scene(name, args)
   W.paused = false
   W.bg, W.room_w, W.room_h = "#000000", nil, nil
   timers.clear()
+  talk.active = nil
   particles.clear()
   W.paths = {}
   camera:reset()
@@ -780,6 +783,8 @@ function W.step(dt)
   end
   W.checks_last, W.checks = W.checks, 0
   if W.paused then -- frozen: no entity moves or thinks, no timer runs; only the scene hears about the step (so a pause menu can read buttons)
+    talk.update(dt) -- and a conversation, with the script it belongs to
+    timers.update(dt, true)
     local scene = W.scene
     if scene and scene.update then scene.update(scene, dt) end
     return
@@ -889,6 +894,7 @@ function W.draw()
   if #screen_list > 1 then table.sort(screen_list, by_depth) end
   for i = 1, #screen_list do screen_list[i]:draw() end
   if scene and scene.draw_ui then scene.draw_ui(scene) end
+  talk.draw()
   if W.fade > 0 then draw.rect(0, 0, W.view_w, W.view_h, { 0, 0, 0, math.floor(255 * W.fade) }) end
 end
 

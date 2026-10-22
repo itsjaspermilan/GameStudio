@@ -1,0 +1,56 @@
+<!--
+title: Talking: text boxes and choices
+group: Tutorials
+order: 27
+summary: gs.say shows a text box that types itself out, gs.ask asks a question with answers to pick; their look comes from the layout.
+-->
+<h1>Talking: text boxes and choices</h1>
+<p>Two calls do conversations. <code>gs.say(name, text)</code> shows a text box, types the words out and waits until the player presses A.
+<code>gs.ask(question, answers)</code> asks a question with answers to pick with up and down, and gives back the number of the one picked.
+While a box is up the world stands still: nothing moves, nothing hits the player.</p>
+<p>Both wait for the player, so they go inside a little script that can wait: <code>gs.go(function() ... end)</code> in a scene, <code>self:go(...)</code> in an entity
+(see <a href="help:timers">Timers</a>). Inside it the conversation reads from top to bottom, like a script for a play.</p>
+
+<h2>A conversation</h2>
+<pre class="lua" data-path="scenes/village.lua"><code>local Village = gs.scene{}
+
+function Village:enter()
+  gs.go(function()
+    gs.say("OLD MAN", "It's dangerous to go alone. The cave to the north is full of bats.")
+    local pick = gs.ask("Will you take my lamp?", { "YES", "NO" }, "OLD MAN")
+    if pick == 1 then
+      gs.say("OLD MAN", "Good. Bring it back when you are done.")
+      self.lamp = true
+    else
+      gs.say("OLD MAN", "Then be careful in the dark.")
+    end
+  end)
+end
+
+function Village:draw()
+  gs.draw.rect(0, 0, 320, 240, "#14234f")
+  gs.draw.text(self.lamp and "YOU HAVE A LAMP" or "A QUIET VILLAGE", 8, 8, "#ffffff")
+end
+
+return Village</code></pre>
+<pre class="lua" data-path="game.lua"><code>return gs.game{
+  title = "Village",
+  console = "dot",
+  start = "scenes.village",
+}</code></pre>
+<p>Long text wraps to the box and runs onto more pages; a blinking arrow says there is more. A press of A while it is still typing shows the whole page at once.</p>
+
+<h2>The box's look</h2>
+<p>Without anything else the box is plain: white letters in a dark box at the bottom. To give it your game's look, put these in the scene's layout (<a href="help:layouts">Layouts</a>):</p>
+<ul>
+<li>a <strong>panel</strong> named <code>dialogue_box</code>: where the box is, and the tiles it is made of;</li>
+<li>a <strong>text</strong> named <code>dialogue_text</code>: where the words start, and their font, colour and size;</li>
+<li>a <strong>text</strong> named <code>dialogue_name</code> (if you want the speaker's name in a place of its own, over the box for example);</li>
+<li>a <strong>picture</strong> named <code>dialogue_cursor</code>: the arrow in front of the chosen answer and at the end of a page.</li>
+</ul>
+<p>They are only a pattern: the game does not show them by itself, only when something is said. The words keep the same distance from the box's right and bottom edges as from its left and top.</p>
+
+<h2>Menus the same way</h2>
+<p><code>gs.ui.menu</code> can take its look from the layout too: <code>gs.ui.menu({ "PLAY", "QUIT" }, { at = self.menu_text, cursor = self.menu_cursor })</code> puts the list where that text is,
+in its font and colour, with that picture as the cursor. Then <code>menu:update()</code> in <code>update</code> and <code>menu:draw()</code> in <code>draw_ui</code>, as in <a href="help:scenes">Scenes, menus and saving</a>.</p>
+<p>Next: <a href="help:collisions">Collisions and tags</a>.</p>

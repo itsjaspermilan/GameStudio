@@ -381,7 +381,9 @@ export function createRoomEditor(root, hooks = {}) {
     $(".re-selinfo").textContent = k === "entities" ? `${item[0]} at ${x}, ${y}` : k === "texts" ? `Text at ${x}, ${y}` : k === "panels" ? `Panel ${item.w} × ${item.h}` : `Picture of ${item.sprite} at ${x}, ${y}`;
     const keep = (el, v) => { if (document.activeElement !== el) el.value = v; };
     keep($(".re-name"), nameOf(k, item) || "");
-    $(".re-name-hint").textContent = nameOf(k, item) ? `In the code: self.${nameOf(k, item)}` : kind === "layout" ? "Give it a name to use it in the scene's code." : "";
+    const nm = nameOf(k, item);
+    $(".re-name-hint").textContent = /^dialogue_(box|text|name|cursor)$/.test(nm || "") ? `The look of gs.say and gs.ask's box (${nm.slice(9)}): the game does not show it by itself.`
+      : nm ? `In the code: self.${nm}` : kind === "layout" ? "Give it a name to use it in the scene's code. dialogue_box, dialogue_text, dialogue_name and dialogue_cursor give gs.say its look." : "";
     $(".re-sel-entity").hidden = k !== "entities"; $(".re-sel-text").hidden = k !== "texts"; $(".re-sel-picture").hidden = k !== "pictures"; $(".re-sel-panel").hidden = k !== "panels";
     $(".re-screen-row").hidden = k === "entities";
     if (k === "entities") keep($(".re-props"), item[3] ? R.luaInline(item[3]) : "");

@@ -3,6 +3,8 @@
 --   function Title:update(dt) local pick = menu:update(); if pick == 1 then ... end end
 --   function Title:draw_ui() menu:draw(100, 120) end
 -- menu:update() moves the cursor with up/down and returns the number of the item when A is pressed (otherwise nil).
+-- Its look can come from the scene's layout: gs.ui.menu(items, { at = self.menu_text, cursor = self.menu_cursor }) puts the list where
+-- that text is, in its font, colour and size (the text itself is only the pattern and is hidden), with that picture as the cursor.
 local draw = require("gs.draw")
 local input = require("gs.input")
 
@@ -28,11 +30,25 @@ function Menu:update()
 end
 
 function Menu:draw(x, y)
-  local style, scale = M.style, self.opts.scale or 1
-  local step = self.opts.line or style.line * scale
+  local style, o = M.style, self.opts
+  local at = o.at
+  if at then at.visible = false; x, y = x or at.x, y or at.y end
+  local scale = o.scale or (at and at.size) or 1
+  local font = at and at.font
+  local fh = font and require("gs.assets").sprite(font, 2).fh or 8
+  local step = o.line or (at and (fh + 4) * scale) or style.line * scale
+  local cw = font and require("gs.assets").sprite(font, 2).fw * scale or 8 * scale
   for i, text in ipairs(self.items) do
     local on = i == self.cur
-    draw.text((on and style.cursor or " ") .. " " .. tostring(text), x, y + (i - 1) * step, on and style.selected or style.color, scale)
+    local ly = y + (i - 1) * step
+    if font then draw.font_text(font, tostring(text), x + cw * 2, ly, scale)
+    else draw.text(tostring(text), x + 16 * scale, ly, on and style.selected or (at and at.color) or style.color, scale) end
+    if on then
+      local c = o.cursor
+      if c then c.visible = false; require("gs.assets").draw(require("gs.assets").sprite(c.sprite, 2), c.frame, x + cw / 2, ly + fh * scale / 2, 0, c.sx, c.sy, 1, false)
+      elseif font then draw.font_text(font, style.cursor, x, ly, scale)
+      else draw.text(style.cursor, x, ly, style.selected, scale) end
+    end
   end
 end
 

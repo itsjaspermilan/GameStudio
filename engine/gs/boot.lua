@@ -42,6 +42,8 @@ gs.every = function(seconds, fn) return timers.every(nil, seconds, fn) end
 gs.go = function(fn) return timers.go(nil, fn) end
 gs.tween = function(target, props, seconds, easing, on_done) return timers.tween(nil, target, props, seconds, easing, on_done) end
 gs.wait, gs.wait_until = timers.wait, timers.wait_until
+local talk = require("gs.talk")
+gs.say, gs.ask = talk.say, talk.ask
 gs.color = dr.color
 gs.dev = DEV
 
