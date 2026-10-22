@@ -9,6 +9,7 @@ import { lua } from "@codemirror/legacy-modes/mode/lua";
 import { oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
 import { syntaxHighlighting } from "@codemirror/language";
 import { lookChoice, setLook, scheme, onLookChange } from "./theme.js";
+import { setupWindowChrome } from "./window-chrome.js";
 import { luaIntel } from "./lua-editor.js";
 import { createLuaServer } from "./lua-server.js";
 import { createHelp } from "./help.js";
@@ -1565,9 +1566,11 @@ $("settings").addEventListener("close", async () => {
 
 // ---------- boot ----------
 (async function boot() {
-  if (import.meta.env.DEV && !window.__TAURI_INTERNALS__) {
+  const native = !!window.__TAURI_INTERNALS__; // the real app (the mock below fakes the commands, not the window)
+  if (import.meta.env.DEV && !native) {
     await import("./mock-backend.js"); // plain-browser development: in-memory fake of the Rust commands
   }
+  setupWindowChrome($("toolbar"), { native });
   listen("log", (e) => {
     const line = e.payload.line;
     const look = parseInspectLine(line); // the Inspector's answer, not for the Output
