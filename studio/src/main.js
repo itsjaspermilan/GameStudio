@@ -838,7 +838,9 @@ function treeItem(g, n) {
     li.addEventListener("dragstart", (e) => { dragging = { g, name: n }; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n); li.classList.add("dragging"); });
     li.addEventListener("dragend", () => { dragging = null; li.classList.remove("dragging"); });
   }
-  const rn = document.createElement("button"); rn.className = "x"; rn.textContent = "✎"; rn.title = "Rename";
+  // a drawn pencil: the ✎ glyph comes out heavier than × and in another font on each system
+  const rn = document.createElement("button"); rn.className = "x"; rn.title = "Rename";
+  rn.innerHTML = '<svg class="ico" viewBox="0 0 12 12" aria-hidden="true"><path d="M8.2 1.8l2 2L4 10H2v-2z M7 3l2 2" /></svg>';
   rn.onclick = (e) => {
     e.stopPropagation();
     const input = document.createElement("input"); input.value = n; input.spellcheck = false;

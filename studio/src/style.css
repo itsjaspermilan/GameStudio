@@ -212,12 +212,14 @@ code { background: var(--bg); padding: 1px 4px; border-radius: 3px; }
 .tree-head h2 { margin: 0; flex: 1; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .tree-head .count { color: var(--muted); font-size: 11px; }
 .tree-items { padding-left: 14px; }
-.tree-item { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.tree-item { display: flex; align-items: center; gap: 2px; }
 .tree-item .x { visibility: hidden; padding: 0 6px; line-height: 18px; background: transparent; border-color: transparent; color: var(--muted); }
 .tree-item:hover .x, .tree-item.active .x { visibility: visible; }
 .tree-item.active .x { color: var(--accent-text); }
 .tree-item .x.armed { background: var(--danger); color: #fff; visibility: visible; }
-.tree-item .name { overflow: hidden; text-overflow: ellipsis; }
+.tree-item .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tree-item .x { flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 18px; }
+.tree-item .x .ico { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; stroke-linecap: round; }
 .tree-empty { color: var(--muted); padding: 2px 8px; font-size: 12px; }
 /* Folders inside a group: a row you can fold, a drop target while a file is dragged. The folder icon is drawn, not a glyph. */
 li.tree-folder { padding: 0; border-radius: 0; }
