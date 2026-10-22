@@ -22,7 +22,8 @@ npx vite build                # quick syntax/bundle check of the front end
 - Rust is reached only through `invoke(...)` in `main.js` (and a few hooks); every command has a twin in `src/mock-backend.js`.
 - Browser-only convenience state (collapsed groups, recent games, output hidden, the Look override) uses `localStorage` inside try/catch and must never be required.
 - **Colours come from the theme.** CSS uses the variables at the top of `style.css` (`--bg`, `--panel`, `--text`, `--muted`, `--accent`, `--surface`, `--ink`, ...), never a fixed colour for interface parts; canvas code uses `theme.js`. Fixed colours are only for content (the game's palette, a room's background, instrument lane colours, the mock game screen). Check new UI in both modes (the browser pane can emulate light and dark).
-- **Run** starts the game with `GS_DEV=1`: saving a Lua file or an asset updates the running game (live reload, see `../engine/AGENTS.md`).
+- **Run** starts the game with `GS_DEV=1`: saving a Lua file or an asset updates the running game (live reload, see `../engine/AGENTS.md`). By default the game shows in the Play panel beside the code
+  (`play-panel.js`: the runtime sends frames over a local socket, `run_preview` relays them through a Tauri `Channel`); Settings can keep it in a window of its own.
 
 ## Checklists
 

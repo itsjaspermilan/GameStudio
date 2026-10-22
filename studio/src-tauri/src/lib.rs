@@ -4,7 +4,8 @@
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    io::{BufRead, BufReader, Read},
+    io::{BufRead, BufReader, Read, Write},
+    net::{Shutdown, TcpListener, TcpStream},
     path::{Component, Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{atomic::{AtomicU64, Ordering}, Mutex},
@@ -13,7 +14,7 @@ use std::{
 };
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 mod lsp;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{ipc::{Channel, InvokeResponseBody}, AppHandle, Emitter, Manager, State};
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 struct Settings {
@@ -42,6 +43,15 @@ struct AppState {
     generation: Mutex<u64>,
     /// Process id (and group id) of a running `scripts/push.sh`, so the Stop button can cancel a send.
     push_pid: Mutex<Option<u32>>,
+    /// The connection to a game running in the studio's own preview panel (GS_EMBED), for sending it the buttons held.
+    embed: Mutex<Option<TcpStream>>,
+}
+
+/// The console's screen, for a game shown inside the studio.
+#[derive(Deserialize)]
+struct EmbedSize {
+    width: u32,
+    height: u32,
 }
 
 // ---------- settings ----------
@@ -394,9 +404,11 @@ fn run_logged(app: &AppHandle, cmd: &mut Command) -> Result<bool, String> {
     Ok(status.success())
 }
 
+/// Runs the game with live reload (GS_DEV): saving a Lua file or an asset changes the running game. With `embed` it has no window: it draws
+/// at the console's size and sends its frames to `on_frame` (runtime/main.c, "embedded preview"), and `preview_buttons` passes it the
+/// buttons held. Without, it opens a window of its own (and `on_frame` stays unused).
 #[tauri::command]
-/// Runs the game in a window with live reload (GS_DEV): saving a Lua file or an asset changes the running game.
-fn run_preview(app: AppHandle, state: State<'_, AppState>, cart: String) -> Result<(), String> {
+fn run_preview(app: AppHandle, state: State<'_, AppState>, cart: String, embed: Option<EmbedSize>, on_frame: Channel) -> Result<(), String> {
     let ws = workspace(&app);
     let bin = desktop_bin(&ws);
     if !bin.is_file() {
@@ -414,6 +426,15 @@ fn run_preview(app: AppHandle, state: State<'_, AppState>, cart: String) -> Resu
     let insp = inspect_file();
     let _ = fs::write(&insp, "");
     cmd.env("GS_INSPECT", &insp);
+    let listener = match &embed {
+        Some(size) => {
+            let l = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("could not open the preview connection: {e}"))?;
+            cmd.env("GS_EMBED", l.local_addr().map_err(|e| e.to_string())?.port().to_string());
+            cmd.env("GS_EMBED_SIZE", format!("{}x{}", size.width.clamp(64, 2048), size.height.clamp(64, 2048)));
+            Some(l)
+        }
+        None => None,
+    };
     let mut child = cmd
         .arg(&dir)
         .current_dir(&ws)
@@ -431,6 +452,9 @@ fn run_preview(app: AppHandle, state: State<'_, AppState>, cart: String) -> Resu
         *g
     };
     let _ = app.emit("preview-state", true);
+    if let Some(l) = listener {
+        relay_frames(app.clone(), l, on_frame, gen);
+    }
 
     // Watch for the game exiting by itself (window closed, Esc, crash).
     let app2 = app.clone();
@@ -460,12 +484,60 @@ fn run_preview(app: AppHandle, state: State<'_, AppState>, cart: String) -> Resu
 
 fn stop_locked(app: &AppHandle, state: &AppState, notify: bool) {
     *state.generation.lock().unwrap() += 1;
+    if let Some(s) = state.embed.lock().unwrap().take() {
+        let _ = s.shutdown(Shutdown::Both);
+    }
     if let Some(mut child) = state.preview.lock().unwrap().take() {
         let _ = child.kill();
         let _ = child.wait();
     }
     if notify {
         let _ = app.emit("preview-state", false);
+    }
+}
+
+/// Waits for the game to connect, then passes each frame message on to the page whole ('F', u16 width, u16 height, u32 length, the pixel runs).
+fn relay_frames(app: AppHandle, listener: TcpListener, ch: Channel, gen: u64) {
+    thread::spawn(move || {
+        let _ = listener.set_nonblocking(true);
+        let started = std::time::Instant::now();
+        let stream = loop {
+            if *app.state::<AppState>().generation.lock().unwrap() != gen {
+                return; // stopped before it connected
+            }
+            match listener.accept() {
+                Ok((s, _)) => break s,
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock && started.elapsed() < Duration::from_secs(20) => thread::sleep(Duration::from_millis(20)),
+                Err(_) => return, // the game failed to start; its stderr says why
+            }
+        };
+        let _ = stream.set_nonblocking(false);
+        let _ = stream.set_nodelay(true);
+        if let Ok(w) = stream.try_clone() {
+            *app.state::<AppState>().embed.lock().unwrap() = Some(w);
+        }
+        let mut r = BufReader::with_capacity(1 << 20, stream);
+        let mut head = [0u8; 9];
+        while r.read_exact(&mut head).is_ok() {
+            let len = u32::from_le_bytes([head[5], head[6], head[7], head[8]]) as usize;
+            if head[0] != b'F' || len > 2048 * 2048 * 5 {
+                break; // not a frame: the connection is out of step
+            }
+            let mut msg = Vec::with_capacity(9 + len);
+            msg.extend_from_slice(&head);
+            msg.resize(9 + len, 0);
+            if r.read_exact(&mut msg[9..]).is_err() || ch.send(InvokeResponseBody::Raw(msg)).is_err() {
+                break;
+            }
+        }
+    });
+}
+
+/// The buttons held in the preview panel (bit i = the runtime's button i: up, down, left, right, a, b, x, y, l, r, start, select, l2, r2, l3, r3).
+#[tauri::command]
+fn preview_buttons(state: State<'_, AppState>, mask: u16) {
+    if let Some(s) = state.embed.lock().unwrap().as_mut() {
+        let _ = s.write_all(&[b'B', mask as u8, (mask >> 8) as u8]);
     }
 }
 
@@ -706,6 +778,7 @@ pub fn run() {
             lsp::lsp_stop,
             get_settings,
             save_settings,
+            preview_buttons,
             runtime_status,
             list_carts,
             list_games,

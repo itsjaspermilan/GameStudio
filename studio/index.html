@@ -110,6 +110,9 @@
         <div id="instrument-editor" class="ins" hidden></div>
       </main>
 
+      <div id="gut-play" class="gutter gx" title="Drag to make the game panel wider or narrower (double-click: usual size)"></div>
+      <section id="play" hidden></section>
+
       <section id="log-wrap">
         <div id="gut-log" class="gutter gy" title="Drag to make this panel taller or shorter (double-click: usual size)"></div>
         <div class="section-head"><h2><button id="tab-log" class="tab on">Output</button><button id="tab-hh" class="tab" title="What your game uses compared with what the handheld can do">Handheld</button><button id="tab-insp" class="tab" title="Look inside the running game: pause it, step it, see every kind of thing and what it costs">Inspector</button> <span id="log-new" hidden title="New output while hidden">●</span></h2><span class="head-btns"><button id="btn-clear-log" class="small">Clear</button><button id="btn-toggle-log" class="small" title="Hide or show the output">Hide</button></span></div>
@@ -181,6 +184,7 @@
         <label>Workspace folder <small>(contains carts/ and build/)</small>
           <input id="set-workspace" spellcheck="false" />
         </label>
+        <label>Run games <select id="set-run-in" title="Where Run shows the game"><option value="studio">In the studio, beside the code</option><option value="window">In a window of their own</option></select></label>
         <label>Look <select id="set-theme"><option value="system">Match the system</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
         <h3>Device (SSH)</h3>
         <label>Host <input id="set-host" placeholder="192.168.1.50" spellcheck="false" /></label>

@@ -89,9 +89,10 @@ const handlers = {
   delete_console: ({ id }) => { delete window.__mockConsoles[id]; return null; },
   cart_size: ({ cart }) => Object.values(carts[cart].files).reduce((n, f) => n + (f.text ? f.text.length : Math.floor((f.b64 || "").length * 0.75)), 0),
   // a pretend game: the stats line and the inspector's answers once a second, so the Handheld and Inspector tabs can be tried
-  run_preview: () => {
+  run_preview: ({ embed, onFrame }) => {
     stopFake();
     emit("preview-state", true);
+    if (embed && onFrame) fakeScreen(embed, onFrame);
     let step = 0, paused = false;
     fake = setInterval(() => {
       const cmd = (() => { try { return JSON.parse(inspectText || "{}"); } catch { return {}; } })();
@@ -108,6 +109,7 @@ const handlers = {
     return null;
   },
   stop_preview: () => { stopFake(); emit("preview-state", false); return null; },
+  preview_buttons: ({ mask }) => { fakeButtons = mask; fakeTapped |= mask; return null; },
   cancel_push: () => false,
   lsp_start: () => { throw 'mock: no language server in the browser'; },
   lsp_stop: () => null,
@@ -129,7 +131,26 @@ window.__mockConsoles = {}; // id -> the console file text // handy for inspecti
 // events: the studio's listen() registers a callback; emit() calls the ones for an event
 const callbacks = {}, listeners = {};
 let fake = null, inspectText = "";
-const stopFake = () => { if (fake) clearInterval(fake); fake = null; };
+let fakeFrames = null, fakeButtons = 0, fakeTapped = 0;
+const stopFake = () => { if (fake) clearInterval(fake); if (fakeFrames) clearInterval(fakeFrames); fake = fakeFrames = null; };
+// The Play panel's stand-in game: a dark screen with a square the arrow keys move (bits 0-3) and A recolours (bit 4), sent as the runtime
+// sends frames (play-core.js decodeFrame), 30 times a second.
+function fakeScreen({ width: w, height: h }, ch) {
+  let x = w / 2, y = h / 2;
+  fakeFrames = setInterval(() => {
+    const b = fakeButtons | fakeTapped; fakeTapped = 0;
+    x = Math.max(0, Math.min(w - 16, x + ((b >> 3) & 1) * 3 - ((b >> 2) & 1) * 3)); y = Math.max(0, Math.min(h - 16, y + ((b >> 1) & 1) * 3 - (b & 1) * 3));
+    const col = b & 16 ? [234, 90, 75] : [79, 155, 240], out = [0x46, w & 255, w >> 8, h & 255, h >> 8, 0, 0, 0, 0];
+    const run = (n, c) => { while (n > 0) { const k = Math.min(256, n); out.push(k - 1, c[0], c[1], c[2], 255); n -= k; } };
+    for (let r = 0; r < h; r++) {
+      const inRow = r >= y && r < y + 16, bg = [20, 24, 40];
+      if (!inRow) { run(w, bg); continue; }
+      const sx = Math.round(x); run(sx, bg); run(16, col); run(w - sx - 16, bg);
+    }
+    const len = out.length - 9; out[5] = len & 255; out[6] = (len >> 8) & 255; out[7] = (len >> 16) & 255; out[8] = len >>> 24;
+    ch.onmessage(new Uint8Array(out).buffer);
+  }, 33);
+}
 function emit(event, payload) { for (const id of listeners[event] || []) callbacks[id] && callbacks[id]({ event, payload, id }); }
 window.__mockEmit = emit;
 window.__TAURI_INTERNALS__ = {

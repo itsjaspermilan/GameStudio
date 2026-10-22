@@ -60,6 +60,7 @@ Drawing at 640x480 instead cost about 19 ms a frame; this costs about 2.6 ms. En
 | `GS_DEBUG_INPUT=1` | Prints joysticks, raw evdev key codes and presses (flushed with `fsync`) |
 | `GS_MAX_SECONDS=N`, `GS_MAX_FRAMES=N` | Leave after N seconds / frames |
 | `GS_DUMP_FRAME=file.bmp` | Saves the last frame (tests compare drawing paths with it) |
+| `GS_EMBED=port`, `GS_EMBED_SIZE=WxH` | No window: draw with the software renderer at the console's size and send changed frames to the studio's Play panel on 127.0.0.1:port; take its buttons back (protocol in the "embedded preview" comment in `main.c`; `studio/src/play-core.js` reads it) |
 | `GS_FBDEV=path`, `GS_AUDIO_FRAMES=N` | Another framebuffer device; a device audio buffer of N frames (default: SDL's) |
 
 Frame times within 3 ms of 1/60 s are taken as exactly 1/60 so the engine's fixed steps do not alternate between zero and two a frame. `scripts/push.sh` can generate test launchers: `GS_PERF=1`, `GS_DEBUG=1`, `GS_GOVERNOR=performance` (see its header comments).

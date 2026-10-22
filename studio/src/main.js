@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, Channel } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { basicSetup, EditorView } from "codemirror";
 import { EditorState, Compartment } from "@codemirror/state";
@@ -39,6 +39,7 @@ import { SPEEDS, parseInspectLine, commandText, classRows, fmtMs } from "./inspe
 import { createRoomEditor } from "./room-editor.js";
 import { GROUPS, group, validName, folderTree, movedName, resourceFiles, scanProject, consoleIdOf, setConsoleInGame, TEMPLATES, newGameFiles, renameProblem } from "./project-core.js";
 import { setupPanels } from "./panels.js";
+import { createPlayPanel } from "./play-panel.js";
 import "./style.css";
 
 const $ = (id) => document.getElementById(id);
@@ -58,6 +59,7 @@ const luaApi = parseApi(apiText);
 let luaIndex = buildIndex({}, {});
 let help = null; // the Help window
 let luaServer = null; // the Lua language server (optional), created at boot
+let play = null; // the Play panel (the game inside the studio), created at boot
 const luaTexts = {}; // every Lua file of the open game, for completion and warnings
 let consoleEditor;
 let view, spriteEditor, tilesetEditor, sfxEditor, musicEditor, instrumentEditor, roomEditor;
@@ -340,6 +342,7 @@ async function closeProject() {
   if (state.running) await invoke("stop_preview").catch(fail);
   if (split.file) await closeSplit();
   state.cart = null; state.files = []; state.scan = null; state.info = null; state.tabs = []; state.newFolders = {};
+  showPlay(false);
   if ($("find-dialog").open) $("find-dialog").close();
   if (luaServer) await luaServer.stop();
   clearOpen();
@@ -1197,10 +1200,15 @@ window.addEventListener("keydown", (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (split.view && split.view.hasFocus) saveSplit(); else save(); }
   if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); $("btn-run").click(); }
 });
+// Run shows the game in the Play panel beside the code (the runtime sends its frames: play-panel.js), or in a window of its own (Settings).
+const runInStudio = () => { try { return localStorage.getItem("gs.runIn") !== "window"; } catch { return true; } };
+function showPlay(on) { $("play").hidden = !on; $("app").classList.toggle("playing", on); window.dispatchEvent(new Event("resize")); }
 $("btn-run").onclick = () => run("run", async () => {
   await save();
   await syncConsoleCopy();
-  await invoke("run_preview", { cart: state.cart });
+  const embed = runInStudio(), screen = conInfo().screen, frames = new Channel();
+  if (embed) { frames.onmessage = (m) => play.frame(m); showPlay(true); play.start(screen, conInfo().name); }
+  await invoke("run_preview", { cart: state.cart, embed: embed ? { width: screen.width, height: screen.height } : null, onFrame: frames });
   stepDone("run");
 });
 $("btn-stop").onclick = () => (state.pushing ? invoke("cancel_push") : invoke("stop_preview")).catch(fail);
@@ -1648,11 +1656,13 @@ $("btn-settings").onclick = async () => {
   const s = await invoke("get_settings");
   $("set-workspace").value = s.workspace; $("set-host").value = s.device_host;
   $("set-theme").value = lookChoice();
+  $("set-run-in").value = runInStudio() ? "studio" : "window";
   $("set-user").value = s.device_user; $("set-dir").value = s.device_dir;
   $("settings").showModal();
 };
 $("settings").addEventListener("close", async () => {
   if ($("settings").returnValue !== "save") return;
+  try { localStorage.setItem("gs.runIn", $("set-run-in").value); } catch { /* stays in the studio */ }
   try {
     await invoke("save_settings", { settings: {
       workspace: $("set-workspace").value.trim(), device_host: $("set-host").value.trim(),
@@ -1669,9 +1679,15 @@ $("settings").addEventListener("close", async () => {
     await import("./mock-backend.js"); // plain-browser development: in-memory fake of the Rust commands
   }
   setupWindowChrome($("toolbar"), { native });
+  play = createPlayPanel($("play"), {
+    sendButtons: (mask) => { invoke("preview_buttons", { mask }).catch(() => { /* the game has just ended */ }); },
+    popOut: () => { try { localStorage.setItem("gs.runIn", "window"); } catch { /* not remembered */ } showPlay(false); if (state.running) $("btn-run").click(); },
+    close: () => { showPlay(false); if (state.running) invoke("stop_preview").catch(fail); },
+  });
   setupPanels([
     { handle: $("gut-side"), target: $("app"), prop: "--side-w", axis: "x", from: "start", unit: "px", min: 160, max: () => Math.min(520, innerWidth * 0.45) },
     { handle: $("gut-log"), target: $("app"), prop: "--log-h", axis: "y", from: "end", unit: "px", min: 90, max: () => innerHeight - 220 },
+    { handle: $("gut-play"), target: $("app"), prop: "--play-w", axis: "x", from: "end", unit: "px", min: 240, max: () => innerWidth * 0.6 },
     { handle: $("gut-split"), target: $("code-area"), prop: "--split-w", axis: "x", from: "start", unit: "%", min: 200, max: () => $("code-area").clientWidth - 200 },
   ]);
   listen("log", (e) => {
@@ -1684,7 +1700,7 @@ $("settings").addEventListener("close", async () => {
     log(line, /^warning:/.test(line) ? "warn" : e.payload.stream === "stderr" ? "err" : "");
   });
   listen("preview-state", (e) => {
-    state.running = e.payload; if (!e.payload) state.live = null;
+    state.running = e.payload; if (!e.payload) { state.live = null; play.stopped(); }
     // a new run starts unpaused with the inspector's view as it was
     insp.paused = false; insp.report = null; inspSent = ""; if (e.payload) sendInspect();
     render(); if (state.logTab === "hh") renderHandheld(); renderInspector();

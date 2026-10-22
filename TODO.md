@@ -28,7 +28,8 @@ Studio
 - [ ] Studio's Handheld tab: the 3 ms-per-frame guide (computer time) is a guess; calibrate it against device measurements.
 - [x] Folders in the side tree (code groups): they fold, have their own + and "new folder", and files drag between them. They are real folders (decided 2026-10-22): a move is a rename, and the plain places code names the file (module strings, `gs.spawn`, `gs.goto_scene`, `gs.load_room`, room entity lists) are rewritten; other mentions are reported. An empty folder made in the tree lasts until the game closes.
 - [x] Panels resize: the side bar, the output and the split view (drag the line, double-click for the usual size, remembered). The editors' own side panels (sprite, room) are still fixed.
-- [ ] We should figure out how to get an embedded live preview within the studio. Is there a way we can simulate a console in there? 1 GB RAM etc.
+- [x] Embedded live preview: Run shows the game in a Play panel beside the code (Settings > Run games can keep the old window). The runtime runs without a window (`GS_EMBED`), draws with the software renderer the handheld uses at the console's size, and sends changed frames as colour runs over a local socket; keys go back the same way, sound plays from the runtime. Check it in the real app (only the mock and the runtime's side were tested here).
+- [ ] Simulating the console further in the Play panel: handheld speed (the computer is many times faster; slow the game by the measured device/desktop ratio, see the Handheld tab's 3 ms guess) and memory (Lua memory against what the console has). Not started.
 - [x] Long lines wrap in the code editor (both sides of a split); Tidy wraps whole-line comments at 100 characters (the sample games and tutorials pass it).
 - [x] On macOS the editor tabs have their close button on the left, shown on hover.
 

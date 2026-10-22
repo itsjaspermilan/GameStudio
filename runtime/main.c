@@ -27,6 +27,24 @@
 #include <linux/input.h>
 #endif
 
+/* the studio's embedded preview talks to the runtime over a local socket (see "embedded preview" below) */
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+typedef SOCKET embed_sock;
+#define EMBED_NONE INVALID_SOCKET
+#else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
+typedef int embed_sock;
+#define EMBED_NONE (-1)
+#endif
+
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #include "../third_party/stb/stb_image.h"
@@ -137,6 +155,8 @@ static const SDL_GamepadButton pad_map[B_COUNT] = {
     SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, SDL_GAMEPAD_BUTTON_START, SDL_GAMEPAD_BUTTON_BACK,
     SDL_GAMEPAD_BUTTON_INVALID, SDL_GAMEPAD_BUTTON_INVALID, SDL_GAMEPAD_BUTTON_LEFT_STICK, SDL_GAMEPAD_BUTTON_RIGHT_STICK };
 static bool btn_now[B_COUNT], btn_prev[B_COUNT];
+static Uint16 g_embed_buttons; /* buttons held in the studio's embedded preview (bit i = button i), see "embedded preview" */
+static Uint16 g_embed_tapped;  /* buttons pressed there since the last frame: a tap shorter than a frame still counts once */
 static bool g_hotkey;               /* the hotkey is held (see g_raw_hotkey) */
 static bool g_start_raw;            /* START as pressed, before the hotkey hides it from the game */
 /* While the hotkey is held the game sees no buttons: HOTKEY + something is for the handheld (quit, volume, brightness), not the game.
@@ -231,7 +251,7 @@ static void poll_buttons(void) {
     const bool *keys = SDL_GetKeyboardState(NULL);
     int n = 0; SDL_JoystickID *ids = SDL_GetGamepads(&n);
     for (int i = 0; i < B_COUNT; i++) {
-        bool down = keys[key_map[i]];
+        bool down = keys[key_map[i]] || ((g_embed_buttons | g_embed_tapped) >> i & 1);
         if (g_rawmap[i] >= 0) for (int j = 0; j < g_njoys && !down; j++) if (SDL_GetJoystickButton(g_joys[j], g_rawmap[i])) down = true;
         for (int g = 0; g < n && !down && g_rawmap[i] < 0; g++) {
             SDL_Gamepad *pad = SDL_GetGamepadFromID(ids[g]);
@@ -253,6 +273,7 @@ static void poll_buttons(void) {
         if (ay < -16000) btn_now[B_UP] = true;   if (ay > 16000) btn_now[B_DOWN] = true;
     }
     SDL_free(ids);
+    g_embed_tapped = 0;
     g_start_raw = btn_now[B_START];
     for (int i = 0; i < B_COUNT; i++) {
         if (g_hotkey && btn_now[i]) g_swallow[i] = true;
@@ -1355,7 +1376,123 @@ static long read_sysfs_long(const char *path) {
 }
 #endif
 
+/* ---------- embedded preview (the studio shows the game inside its own window) ----------
+ * GS_EMBED=<port> (and GS_EMBED_SIZE=<w>x<h>, the console's screen): no window. The game is drawn by the software renderer, the same one the handheld
+ * uses, into a surface at the console's size, and every frame that changed is sent to the studio on 127.0.0.1:<port>. Sound plays from here as usual.
+ *   to the studio:   'F' u16 width, u16 height, u32 length, then the pixels (RGBA bytes) as runs: u8 count-1, 4 bytes of colour
+ *   from the studio: 'B' u16 the buttons held (bit i = btn_names[i]), 'Q' leave
+ * All numbers are little-endian. When the studio goes away the game ends. */
+static embed_sock g_embed = EMBED_NONE;
+static SDL_Surface *g_embed_surf;
+static Uint32 *g_embed_prev; static size_t g_embed_prev_len; static int g_embed_prev_w, g_embed_prev_h;
+static unsigned char *g_embed_out; static size_t g_embed_out_cap;
+static unsigned char g_embed_in[64]; static int g_embed_in_len;
+
+static void embed_close(void) {
+    if (g_embed == EMBED_NONE) return;
+#ifdef _WIN32
+    closesocket(g_embed);
+#else
+    close(g_embed);
+#endif
+    g_embed = EMBED_NONE;
+}
+
+static bool embed_open(const char *port, const char *size) {
+    int w = 320, h = 240;
+    if (size) sscanf(size, "%dx%d", &w, &h);
+    if (w < 64 || h < 64 || w > 2048 || h > 2048) { fprintf(stderr, "embed: bad size %s\n", size); return false; }
+#ifdef _WIN32
+    WSADATA wsa; if (WSAStartup(MAKEWORD(2, 2), &wsa)) { fprintf(stderr, "embed: no sockets\n"); return false; }
+#endif
+    g_embed = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (g_embed == EMBED_NONE) { fprintf(stderr, "embed: socket failed\n"); return false; }
+    struct sockaddr_in a = { 0 };
+    a.sin_family = AF_INET; a.sin_port = htons((unsigned short)atoi(port)); a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (connect(g_embed, (struct sockaddr *)&a, sizeof a) != 0) { fprintf(stderr, "embed: could not reach the studio on port %s\n", port); embed_close(); return false; }
+    int one = 1; setsockopt(g_embed, IPPROTO_TCP, TCP_NODELAY, (const char *)&one, sizeof one); /* a frame goes out at once, not with the next one */
+#ifdef _WIN32
+    u_long nb = 1; ioctlsocket(g_embed, FIONBIO, &nb);
+#else
+    fcntl(g_embed, F_SETFL, fcntl(g_embed, F_GETFL, 0) | O_NONBLOCK);
+#endif
+    g_embed_surf = SDL_CreateSurface(w, h, SDL_PIXELFORMAT_ABGR8888); /* RGBA in memory: the bytes a canvas wants */
+    if (!g_embed_surf) { fprintf(stderr, "embed surface: %s\n", SDL_GetError()); return false; }
+    /* no window means no focus: a gamepad plugged into the computer must still count */
+    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+    return true;
+}
+
+/* Sends everything, waiting while the socket is full (the studio reads all the time, so it is short). False: the studio is gone. */
+static bool embed_send(const unsigned char *p, size_t n) {
+    while (n > 0) {
+        const long k = (long)send(g_embed, (const char *)p, (int)SDL_min(n, (size_t)1 << 30), 0);
+        if (k > 0) { p += k; n -= (size_t)k; continue; }
+#ifdef _WIN32
+        if (k < 0 && WSAGetLastError() == WSAEWOULDBLOCK) { SDL_DelayNS(200000); continue; }
+#else
+        if (k < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) { SDL_DelayNS(200000); continue; }
+#endif
+        return false;
+    }
+    return true;
+}
+
+/* What the studio sent since the last frame: the buttons held, or that the game should end. */
+static void embed_poll(void) {
+    if (g_embed == EMBED_NONE) return;
+    for (;;) {
+        const long k = (long)recv(g_embed, (char *)g_embed_in + g_embed_in_len, (int)(sizeof g_embed_in - (size_t)g_embed_in_len), 0);
+        if (k == 0) { g_quit = true; return; } /* the studio closed the connection */
+        if (k < 0) break; /* nothing more for now */
+        g_embed_in_len += (int)k;
+        int i = 0;
+        while (i < g_embed_in_len) {
+            if (g_embed_in[i] == 'B') { if (g_embed_in_len - i < 3) break; g_embed_buttons = (Uint16)(g_embed_in[i + 1] | g_embed_in[i + 2] << 8); g_embed_tapped |= g_embed_buttons; i += 3; }
+            else if (g_embed_in[i] == 'Q') { g_quit = true; i++; }
+            else i++; /* not ours: skip it */
+        }
+        memmove(g_embed_in, g_embed_in + i, (size_t)(g_embed_in_len - i)); g_embed_in_len -= i;
+    }
+}
+
+static void put_u16(unsigned char *p, unsigned v) { p[0] = (unsigned char)v; p[1] = (unsigned char)(v >> 8); }
+static void put_u32(unsigned char *p, Uint32 v) { put_u16(p, v & 0xffff); put_u16(p + 2, v >> 16); }
+
+/* The game's corner of the surface, sent when it changed. Pixel art is mostly runs of one colour, so a frame is usually a few tens of KB. */
+static double g_embed_copy_last;
+static void embed_present(void) {
+    const Uint64 t0 = SDL_GetTicksNS();
+    const int w = SDL_min(g_screen_w, g_embed_surf->w), h = SDL_min(g_screen_h, g_embed_surf->h);
+    const size_t npx = (size_t)w * h;
+    if (g_embed_prev_len < npx) { g_embed_prev = SDL_realloc(g_embed_prev, npx * 4); g_embed_prev_len = npx; g_embed_prev_w = 0; }
+    const unsigned char *base = g_embed_surf->pixels; const size_t pitch = (size_t)g_embed_surf->pitch;
+    bool same = w == g_embed_prev_w && h == g_embed_prev_h;
+    for (int y = 0; y < h && same; y++) same = !memcmp(g_embed_prev + (size_t)y * w, base + (size_t)y * pitch, (size_t)w * 4);
+    if (same) { g_embed_copy_last = (SDL_GetTicksNS() - t0) * 1e-6; return; }
+    for (int y = 0; y < h; y++) memcpy(g_embed_prev + (size_t)y * w, base + (size_t)y * pitch, (size_t)w * 4);
+    g_embed_prev_w = w; g_embed_prev_h = h;
+    const size_t cap = 9 + npx * 5;
+    if (g_embed_out_cap < cap) { g_embed_out = SDL_realloc(g_embed_out, cap); g_embed_out_cap = cap; }
+    unsigned char *o = g_embed_out + 9;
+    for (size_t i = 0; i < npx;) {
+        const Uint32 c = g_embed_prev[i]; size_t n = 1;
+        while (i + n < npx && n < 256 && g_embed_prev[i + n] == c) n++;
+        *o++ = (unsigned char)(n - 1); memcpy(o, &c, 4); o += 4; i += n;
+    }
+    const size_t len = (size_t)(o - g_embed_out) - 9;
+    g_embed_out[0] = 'F'; put_u16(g_embed_out + 1, (unsigned)w); put_u16(g_embed_out + 3, (unsigned)h); put_u32(g_embed_out + 5, (Uint32)len);
+    if (!embed_send(g_embed_out, len + 9)) g_quit = true;
+    g_embed_copy_last = (SDL_GetTicksNS() - t0) * 1e-6;
+}
+
 static void screen_logical(int w, int h, SDL_RendererLogicalPresentation mode) {
+    if (g_embed_surf) { /* 1:1 into the corner of the surface; the studio enlarges it */
+        SDL_SetRenderLogicalPresentation(g_ren, 0, 0, SDL_LOGICAL_PRESENTATION_DISABLED);
+        SDL_Rect r = { 0, 0, SDL_min(w, g_embed_surf->w), SDL_min(h, g_embed_surf->h) };
+        SDL_SetRenderViewport(g_ren, &r);
+        return;
+    }
 #ifdef __linux__
     if (g_use_fb) {
         /* draw 1:1 into the corner of the framebuffer-sized surface; fb_present enlarges it */
@@ -1498,6 +1635,13 @@ int main(int argc, char **argv) {
 #endif
     init_savedir(argv[1]);
     init_audio();
+    const char *embed_port = getenv("GS_EMBED");
+    if (embed_port && !use_fb) {
+        if (!embed_open(embed_port, getenv("GS_EMBED_SIZE"))) return 1;
+        g_ren = SDL_CreateSoftwareRenderer(g_embed_surf);
+        if (!g_ren) { fprintf(stderr, "software renderer: %s\n", SDL_GetError()); return 1; }
+        screen_logical(g_screen_w, g_screen_h, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+    } else
 #ifdef __linux__
     if (use_fb) {
         g_ren = SDL_CreateSoftwareRenderer(g_fb.surf);
@@ -1579,6 +1723,7 @@ int main(int argc, char **argv) {
             }
             if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_ESCAPE) g_quit = true;
         }
+        embed_poll();
         const Uint64 t_events = SDL_GetTicksNS();
         poll_buttons();
         const Uint64 t_buttons = SDL_GetTicksNS();
@@ -1606,6 +1751,12 @@ int main(int argc, char **argv) {
         SDL_RenderPresent(g_ren);
         const Uint64 t_pres = SDL_GetTicksNS();
         Uint64 t_fb = t_pres;
+        if (g_embed_surf) { /* no window, so no vsync: hold the game to 60 frames a second ourselves, as on the handheld */
+            embed_present();
+            t_fb = SDL_GetTicksNS();
+            Uint64 want = now + 16666667ULL;
+            if (t_fb < want) SDL_DelayNS(want - t_fb);
+        }
 #ifdef __linux__
         if (use_fb) { /* no vsync from SDL here, so hold the game to 60 frames a second ourselves */
             fb_present();
@@ -1675,6 +1826,7 @@ int main(int argc, char **argv) {
             if (shot) { SDL_SaveBMP(shot, dump); SDL_DestroySurface(shot); } else fprintf(stderr, "frame dump: %s\n", SDL_GetError());
         }
     }
+    embed_close();
     boost_restore(); /* the CPU's lowest clock goes back to what it was */
     if (g_perf_on) perf_log("sound commands carried out: %ld\n", g_sound_ran);
     perf_flush();
