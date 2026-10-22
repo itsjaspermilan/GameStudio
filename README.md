@@ -66,7 +66,9 @@ Every game has a `game.lua`. (Plain `main.lua` games with `init`/`update`/`draw`
 look up the `gs` API and the Help, get a one-page overview of a game, check it (lint plus a headless run), run it and see a screenshot, look inside
 with the inspector, view and draw sprites, and write and check sound effects and songs. A song check reads the notes like a musician (key, chords,
 whether the melody sits on the chords, clashes, shrill or muddy registers, melody shape) and measures the rendered sound (loudness, clipping,
-brightness). The repository's `.mcp.json` starts it; run `npm install` in `tools/mcp` once. See `tools/mcp/AGENTS.md`.
+brightness). Rooms can be built as text maps and seen as pictures. The repository's `.mcp.json` starts it; run `npm install` in `tools/mcp`
+once. Three project skills in `.claude/skills/` (`pixel-art`, `room-design`, `game-music`) give an agent the craft for the kind of game being
+made: sizes and palettes by genre, jump distances and level pacing, bands and tempos by mood. See `tools/mcp/AGENTS.md`.
 
 ## Console limits
 

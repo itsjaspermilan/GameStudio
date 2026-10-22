@@ -11,7 +11,7 @@ import { parseApi, buildIndex, diagnose } from "../../studio/src/lua-intel-core.
 import { scanProject, consoleIdOf } from "../../studio/src/project-core.js";
 import { parseSong, serializeSong, normalizeSfx, renderSongDesc, renderSfxWith, setBuiltinInstruments, builtinInstruments, songSeconds } from "../../studio/src/audio-core.js";
 import { analyzeSong, describeAnalysis } from "../../studio/src/music-core.js";
-import { parseRoom } from "../../studio/src/room-core.js";
+import { parseRoom, normalizeRoom, serializeRoom, fitLayer } from "../../studio/src/room-core.js";
 import { parsePage } from "../../studio/src/help-core.js";
 import { reindent } from "../../studio/src/search-core.js";
 import { Canvas, strip } from "../../scripts/lib/canvas.mjs";
@@ -299,7 +299,8 @@ export function sprite_view({ game, name, scale, as_text = false }) {
 }
 
 // frames: each { rows: ["..aa..", ...] } (letters = palette places, as sprite_view shows them) or { ops: [["rect", x, y, w, h, c], ...] }
-export function sprite_write({ game, name, w, h, frames, origin, fps, animations, outline }) {
+// With tileset = { cols }, the frames are tiles: written to tilesets/<name>.png in rows of `cols` with a .json giving the tile size.
+export function sprite_write({ game, name, w, h, frames, origin, fps, animations, outline, tileset }) {
   const dir = gameDir(game), n = resName(name), pal = palOf(consoleOf(dir));
   if (!(w >= 1 && w <= 256 && h >= 1 && h <= 256)) throw new Error("w and h must be 1 to 256");
   if (!Array.isArray(frames) || !frames.length || frames.length > 64) throw new Error("frames is a list of 1 to 64 frames");
@@ -333,6 +334,17 @@ export function sprite_write({ game, name, w, h, frames, origin, fps, animations
     if (outline !== undefined) c.outline(colour(outline));
     return c;
   });
+  if (tileset) {
+    const cols = Math.max(1, Math.min(canvases.length, tileset.cols || 8)), rows = Math.ceil(canvases.length / cols);
+    if (cols * w > 256 || rows * h > 256) throw new Error(`a tileset sheet is at most 256x256 (this would be ${cols * w}x${rows * h})`);
+    const sheet = new Canvas(cols * w, rows * h);
+    canvases.forEach((c, i) => sheet.stamp(c, (i % cols) * w, Math.floor(i / cols) * h));
+    const rgba = sheet.rgba(pal);
+    mkdirSync(join(dir, "tilesets", dirname(n)), { recursive: true });
+    writeFileSync(join(dir, "tilesets", `${n}.png`), png(sheet.w, sheet.h, rgba));
+    writeFileSync(join(dir, "tilesets", `${n}.json`), JSON.stringify({ image: `tilesets/${n}.png`, tile_w: w, tile_h: h }, null, 2) + "\n");
+    return { text: `wrote tilesets/${n}.png and .json: ${canvases.length} tiles of ${w}x${h} in rows of ${cols} (tile numbers count from 0, left to right then down)`, images: [picture(sheet.w, sheet.h, rgba, fit(sheet.w, sheet.h))] };
+  }
   const s = strip(canvases), rgba = s.rgba(pal);
   mkdirSync(join(dir, "sprites", dirname(n)), { recursive: true });
   writeFileSync(join(dir, "sprites", `${n}.png`), png(s.w, s.h, rgba));
@@ -380,6 +392,159 @@ export function sound_write({ game, name, sound }) {
   mkdirSync(join(dir, "sfx", dirname(n)), { recursive: true });
   writeFileSync(join(dir, "sfx", `${n}.json`), JSON.stringify(d, null, 1) + "\n");
   return { text: `wrote sfx/${n}.json\n${sound_check({ game, name: n }).text}` };
+}
+
+// ---------- rooms ----------
+function tilesetOf(dir, name) {
+  const meta = readJson(join(dir, `tilesets/${resName(name)}.json`));
+  const img = decodePng(readFileSync(join(dir, meta.image || `tilesets/${name}.png`)));
+  const tw = meta.tile_w || 16, th = meta.tile_h || 16, cols = Math.max(1, Math.floor(img.width / tw));
+  return { img, tw, th, cols, count: cols * Math.max(1, Math.floor(img.height / th)) };
+}
+// what an entity looks like: the first frame of the sprite its file names, or null
+function lookOf(dir, name) {
+  try {
+    const t = read(join(dir, `entities/${name}.lua`));
+    const m = t.match(/\bsprite\s*=\s*["']([\w/-]+)["']/);
+    if (!m) return null;
+    const meta = readJson(join(dir, `sprites/${m[1]}.json`)), img = decodePng(readFileSync(join(dir, meta.image || `sprites/${m[1]}.png`)));
+    const f = meta.frames || 1, o = meta.origin || [0, 0];
+    return { img, fw: Math.floor(img.width / f), fh: img.height, ox: o[0], oy: o[1] };
+  } catch { return null; }
+}
+const hexRgb = (h) => (/^#[0-9a-fA-F]{6}$/.test(h || "") ? [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) : [0, 0, 0]);
+
+// The whole room as one picture at its real size: tiles (back to front by depth), entities as their sprites (or a marked dot), paths as
+// yellow lines, and a dashed box the size of one screen at the top left.
+function drawRoom(dir, room, con) {
+  const W = room.width, H = room.height, px = new Uint8ClampedArray(W * H * 4), bg = hexRgb(room.background || "#000000");
+  for (let i = 0; i < W * H; i++) { px[i * 4] = bg[0]; px[i * 4 + 1] = bg[1]; px[i * 4 + 2] = bg[2]; px[i * 4 + 3] = 255; }
+  const blend = (x, y, r, g, b, a) => {
+    x = Math.round(x); y = Math.round(y);
+    if (x < 0 || y < 0 || x >= W || y >= H || a <= 0) return;
+    const i = (y * W + x) * 4, k = a / 255;
+    px[i] = r * k + px[i] * (1 - k); px[i + 1] = g * k + px[i + 1] * (1 - k); px[i + 2] = b * k + px[i + 2] * (1 - k);
+  };
+  const blit = (img, sx, sy, sw, sh, dx, dy) => { for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) { const s = ((sy + y) * img.width + sx + x) * 4; blend(dx + x, dy + y, img.data[s], img.data[s + 1], img.data[s + 2], img.data[s + 3]); } };
+  const line = (x0, y0, x1, y1, c) => { const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0))); for (let i = 0; i <= n; i++) blend(x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n, ...c, 255); };
+  const tiles = {};
+  for (const l of [...room.layers].sort((a, b) => (b.depth ?? 100) - (a.depth ?? 100))) {
+    if (l.visible === false) continue;
+    let t = tiles[l.tileset];
+    if (t === undefined) { try { t = tilesetOf(dir, l.tileset); } catch { t = null; } tiles[l.tileset] = t; }
+    if (!t) continue;
+    l.data.forEach((row, r) => row.forEach((v, c) => { if (v >= 0 && v < t.count) blit(t.img, (v % t.cols) * t.tw, Math.floor(v / t.cols) * t.th, t.tw, t.th, c * t.tw, r * t.th); }));
+  }
+  const looks = {};
+  for (const [n, x, y] of room.entities) {
+    const lk = n in looks ? looks[n] : (looks[n] = lookOf(dir, n));
+    if (lk) blit(lk.img, 0, 0, lk.fw, lk.fh, x - lk.ox, y - lk.oy);
+    else { for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (dx * dx + dy * dy <= 5) blend(x + dx, y + dy, 255, 120, 200, 255); }
+  }
+  for (const p of Object.values(room.paths)) {
+    const pts = p.points;
+    for (let i = 1; i < pts.length; i++) line(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1], [245, 217, 74]);
+    if (p.loop && pts.length > 2) line(pts[pts.length - 1][0], pts[pts.length - 1][1], pts[0][0], pts[0][1], [245, 217, 74]);
+    for (const [x, y] of pts) for (let d = -1; d <= 1; d++) { blend(x + d, y, 255, 255, 255, 255); blend(x, y + d, 255, 255, 255, 255); }
+  }
+  const sw = Math.min(W, con.screen.width), sh = Math.min(H, con.screen.height);
+  for (let x = 0; x < sw; x++) if ((x >> 2) % 2 === 0) { blend(x, 0, 255, 255, 255, 140); blend(x, sh - 1, 255, 255, 255, 140); }
+  for (let y = 0; y < sh; y++) if ((y >> 2) % 2 === 0) { blend(0, y, 255, 255, 255, 140); blend(sw - 1, y, 255, 255, 255, 140); }
+  return px;
+}
+function roomText(name, room, con) {
+  const counts = {};
+  for (const [n] of room.entities) counts[n] = (counts[n] || 0) + 1;
+  const screens = (room.width / con.screen.width) * (room.height / con.screen.height);
+  const L = [`${name}: ${room.width}x${room.height} (${(room.width / con.screen.width).toFixed(1)} x ${(room.height / con.screen.height).toFixed(1)} screens), background ${room.background || "#000000"}`];
+  for (const l of room.layers) {
+    const filled = l.data.reduce((n, row) => n + row.filter((v) => v >= 0).length, 0), cells = l.data.reduce((n, row) => n + row.length, 0);
+    L.push(`  layer ${l.name || "?"}: tileset ${l.tileset}, depth ${l.depth ?? 100}${l.solid ? ", solid" : ""}${l.visible === false ? ", hidden" : ""}, ${filled} of ${cells} cells filled`);
+  }
+  L.push(`  things: ${room.entities.length ? Object.entries(counts).map(([n, c]) => `${n} x${c}`).join(", ") : "none"} (${(room.entities.length / Math.max(1, screens)).toFixed(1)} a screen; this console allows ${(con.limits || {}).instances_alive || "?"} alive at once)`);
+  const ps = Object.entries(room.paths);
+  if (ps.length) L.push(`  paths: ${ps.map(([k, p]) => `${k} (${p.points.length} points${p.loop ? ", loops" : ""})`).join(", ")}`);
+  return L.join("\n");
+}
+export function room_view({ game, name, scale }) {
+  const dir = gameDir(game), n = resName(name), r = parseRoom(read(join(dir, `rooms/${n}.lua`)));
+  if (r.error) return { text: `rooms/${n}.lua has code in it, so it is not drawn (${r.error}); read it as text.` };
+  const con = consoleOf(dir), px = drawRoom(dir, r.room, con);
+  return { text: roomText(n, r.room, con), images: [picture(r.room.width, r.room.height, px, scale || Math.max(1, Math.min(4, Math.floor(1280 / Math.max(r.room.width, r.room.height)))), [0, 0, 0])] };
+}
+
+// Build or change a room. Every part is optional:
+//   size: { width, height, background }
+//   layers: [{ name, tileset?, depth?, solid?, visible?, map?: { legend: { "#": 3, ".": -1 }, rows: ["....###", ...], at?: [col, row] },
+//             paint?: [["fill", tile], ["rect", col, row, w, h, tile], ["clear"]], remove?: true }]   (tiles in tile units; -1 is empty)
+//   entities: { clear?: true, remove?: [names], add?: [[name, x, y, { values }?], ...] }      (pixels)
+//   paths: { name: { points: [[x, y], ...], loop } | null }
+export function room_write({ game, name, size, layers = [], entities, paths }) {
+  const dir = gameDir(game), n = resName(name), file = join(dir, `rooms/${n}.lua`);
+  let room;
+  if (existsSync(file)) {
+    const r = parseRoom(read(file));
+    if (r.error) throw new Error(`rooms/${n}.lua has code in it (${r.error}); edit it as text instead`);
+    room = r.room;
+  } else room = normalizeRoom({ width: 320, height: 240, background: "#101220" });
+  const con = consoleOf(dir), notes = [];
+  if (size) {
+    if (size.width) room.width = Math.max(16, Math.min(8192, Math.round(size.width)));
+    if (size.height) room.height = Math.max(16, Math.min(8192, Math.round(size.height)));
+    if (size.background) room.background = size.background;
+  }
+  for (const spec of layers) {
+    let l = room.layers.find((x) => x.name === spec.name);
+    if (spec.remove) { room.layers = room.layers.filter((x) => x !== l); continue; }
+    if (!l) {
+      if (!spec.tileset) throw new Error(`layer '${spec.name}' is new: give its tileset`);
+      l = { name: spec.name, tileset: spec.tileset, depth: spec.depth ?? 100, data: [] };
+      room.layers.push(l);
+    }
+    for (const k of ["tileset", "depth", "solid", "visible"]) if (spec[k] !== undefined) l[k] = spec[k];
+  }
+  // every layer as big as the room in its own tiles, then painted
+  room.layers = room.layers.map((l) => { try { const t = tilesetOf(dir, l.tileset); return Object.assign(fitLayer(l, room, t.tw, t.th), { _t: t }); } catch { notes.push(`tileset ${l.tileset} of layer ${l.name} could not be read`); return l; } });
+  for (const spec of layers) {
+    const l = room.layers.find((x) => x.name === spec.name);
+    if (!l || !l.data.length) continue;
+    const set = (c, r, v) => { if (l.data[r] && c >= 0 && c < l.data[r].length) l.data[r][c] = v; };
+    for (const [op, ...a] of spec.paint || []) {
+      if (op === "fill") l.data.forEach((row) => row.fill(a[0]));
+      else if (op === "clear") l.data.forEach((row) => row.fill(-1));
+      else if (op === "rect") for (let r = a[1]; r < a[1] + a[3]; r++) for (let c = a[0]; c < a[0] + a[2]; c++) set(c, r, a[4]);
+      else throw new Error(`layer ${spec.name}: unknown paint '${op}' (fill, rect, clear)`);
+    }
+    if (spec.map) {
+      const legend = spec.map.legend || {}, [c0, r0] = spec.map.at || [0, 0];
+      spec.map.rows.forEach((row, r) => [...row].forEach((ch, c) => {
+        if (!(ch in legend)) { if (ch !== " ") throw new Error(`layer ${spec.name}: '${ch}' is not in the legend`); return; }
+        set(c0 + c, r0 + r, legend[ch]);
+      }));
+    }
+    const t = l._t;
+    if (t) for (const row of l.data) for (const v of row) if (v >= t.count) { notes.push(`layer ${l.name} uses tile ${v}, but ${l.tileset} has ${t.count} tiles`); break; }
+  }
+  room.layers.forEach((l) => { delete l._t; });
+  if (entities) {
+    if (entities.clear) room.entities = [];
+    if (entities.remove) room.entities = room.entities.filter(([e]) => !entities.remove.includes(e));
+    for (const e of entities.add || []) {
+      if (!existsSync(join(dir, `entities/${e[0]}.lua`))) notes.push(`there is no entities/${e[0]}.lua yet`);
+      room.entities.push([String(e[0]), Number(e[1]) || 0, Number(e[2]) || 0, e[3] && typeof e[3] === "object" ? e[3] : undefined]);
+    }
+    const out = room.entities.filter(([, x, y]) => x < 0 || y < 0 || x > room.width || y > room.height).length;
+    if (out) notes.push(`${out} thing${out === 1 ? " is" : "s are"} outside the room`);
+  }
+  for (const [k, p] of Object.entries(paths || {})) {
+    if (!/^[A-Za-z_]\w*$/.test(k)) throw new Error(`path name '${k}': letters, digits and _`);
+    if (p === null) delete room.paths[k];
+    else room.paths[k] = { points: (p.points || []).map(([x, y]) => [Number(x) || 0, Number(y) || 0]), loop: !!p.loop };
+  }
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, serializeRoom(room, `A room: gs.load_room("${n.replace(/\//g, ".")}") builds it. Plain data; the studio's room editor opens it.`));
+  const view = room_view({ game, name: n });
+  return { text: `wrote rooms/${n}.lua\n${view.text}${notes.length ? "\nnote: " + notes.join("; ") : ""}`, images: view.images };
 }
 
 // ---------- the handheld ----------

@@ -17,7 +17,7 @@ test("the GameStudio MCP server answers", { skip, timeout: 120000 }, async () =>
   await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(here, "../server.mjs")] }));
   try {
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
-    assert.deepEqual(names, ["api", "check", "games", "help", "inspect", "instruments", "overview", "push", "run", "song_check", "song_write", "sound_check", "sound_write", "sprite_view", "sprite_write"]);
+    assert.deepEqual(names, ["api", "check", "games", "help", "inspect", "instruments", "overview", "push", "room_view", "room_write", "run", "song_check", "song_write", "sound_check", "sound_write", "sprite_view", "sprite_write"]);
     const call = async (name, args) => { const r = await client.callTool({ name, arguments: args }); assert.ok(!r.isError, `${name}: ${r.content[0].text}`); return r; };
     assert.match((await call("api", { query: "spawn" })).content[0].text, /gs\.spawn/);
     assert.match((await call("overview", { game: "breakout" })).content[0].text, /entities \(3\)/);
@@ -48,5 +48,20 @@ test("writing: a sprite, a sound and a song land in a game and come back checked
     const song = await call("song_write", { game: "breakout", name: "msc_test", spec: { root: 0, scale: "major", tempo: 100, oct: 4, inst: ["gm_vibraphone", "gm_warm_pad", "gm_finger_bass", "gm_drum_kit"], harmony: "pad", bass: "half", drums: "soft", rhythms: [3, 1], sections: [{ prog: [0, 3, 4, 0] }], order: [0, 0] } });
     assert.match(song.content[0].text, /key C major[\s\S]*chords by bar: C/);
     assert.ok(JSON.parse(readFileSync(join(ws, "carts/breakout/music/msc_test.json"), "utf8")).format === "tracker");
+    // a level written as a text map, with things and a path, comes back as a picture and as plain room data
+    const room = await call("room_write", { game: "breakout", name: "level1", size: { width: 640, height: 240, background: "#14234f" },
+      layers: [{ name: "ground", tileset: "ts_bg", depth: 50, solid: true, map: { legend: { "#": 1, ".": -1 }, at: [0, 12], rows: ["########....########################", "######################################", "######################################"] } }],
+      entities: { add: [["paddle", 40, 180], ["ball", 300, 120], ["ghost", 9999, 0]] }, paths: { patrol: { points: [[100, 60], [500, 60]], loop: true } } });
+    assert.match(room.content[0].text, /640x240 \(2\.0 x 1\.0 screens\)/);
+    assert.match(room.content[0].text, /layer ground: tileset ts_bg, depth 50, solid, \d+ of \d+ cells filled/);
+    assert.match(room.content[0].text, /no entities\/ghost\.lua[\s\S]*outside the room/);
+    assert.equal(room.content[1].type, "image");
+    const lua = readFileSync(join(ws, "carts/breakout/rooms/level1.lua"), "utf8");
+    assert.match(lua, /patrol = \{ \{ 100, 60 \}, \{ 500, 60 \}, loop = true \}/);
+    const ts = await call("sprite_write", { game: "breakout", name: "ts_cave", w: 16, h: 16, tileset: { cols: 2 }, frames: [{ ops: [["rect", 0, 0, 16, 16, 9]] }, { ops: [["rect", 0, 0, 16, 16, 17]] }, { ops: [["rect", 0, 4, 16, 12, 1]] }] });
+    assert.match(ts.content[0].text, /3 tiles of 16x16 in rows of 2/);
+    assert.deepEqual(JSON.parse(readFileSync(join(ws, "carts/breakout/tilesets/ts_cave.json"), "utf8")), { image: "tilesets/ts_cave.png", tile_w: 16, tile_h: 16 });
+    const changed = await call("room_write", { game: "breakout", name: "level1", entities: { remove: ["ghost"] }, layers: [{ name: "ground", paint: [["rect", 8, 12, 4, 1, 1]] }] });
+    assert.match(changed.content[0].text, /paddle x1, ball x1 \(/);
   } finally { await client.close(); rmSync(ws, { recursive: true, force: true }); }
 });
