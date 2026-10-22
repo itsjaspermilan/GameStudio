@@ -26,6 +26,11 @@ Studio
 - [x] Help: `open:<game>` links ("Open Breakout" on the Welcome page), a First steps checklist on the welcome screen in place of the old tour, "More in Help" in the editor's hover tips.
 - [x] "Make this game" has a console picker (Dot by default; the tutorials are laid out for 320x240).
 - [ ] Studio's Handheld tab: the 3 ms-per-frame guide (computer time) is a guess; calibrate it against device measurements.
+- [ ] Folders should be shown in the side tree nav. They don't have to mean anything to the code and editor but they should be visible and items should be draggable between folders of code.
+- [ ] The different panels should be able to be resized
+- [ ] We should figure out how to get an embedded live preview within the studio. Is there a way we can simulate a console in there? 1 GB RAM etc.
+- [ ] Code wrapping in the editor and when we Tidy we should make the comments fit within a column
+- [ ] On MacOS, the editor tabs should have the close button on the left
 
 Framework (`engine/gs/`)
 - [x] `collision_tests` and `draw_screens` are measured while a game runs (`GS_STATS`: busiest step and frame each second) and shown in the Handheld tab.
