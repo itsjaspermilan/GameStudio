@@ -53,6 +53,7 @@ const state = {
   name: null,         // the resource open in the editor of `view` (not for code)
   dirty: false,       // the code editor has unsaved changes
   collapsed: {},      // resource tree groups and folders ("entities/enemies") the user collapsed
+  scenePart: {},      // which half of each scene ("layout" or "code") its tab opens on
   newFolders: {},     // folders made in the tree that have no file yet: { group key: [paths] }, forgotten when the game closes
 };
 const luaApi = parseApi(apiText);
@@ -695,7 +696,7 @@ async function openData(kind, name, skipConfirm) {
 const openRoom = (name, skipConfirm) => openData("room", name, skipConfirm);
 const openLayout = (name, skipConfirm) => openData("layout", name, skipConfirm);
 // a scene opens on its layout when it has one
-const openScene = (name) => (state.scan.layouts.includes(name) ? openLayout(name) : openFile(`scenes/${name}.lua`));
+const openScene = (name) => { state.sceneLink = null; return openScenePart(name, state.scenePart[name] || (state.scan.layouts.includes(name) ? "layout" : "code")); };
 
 async function saveRoom() {
   const name = roomEditor.getName(); if (!name) return;
@@ -720,42 +721,28 @@ function codeOf(scene) {
   const parsed = luaTexts[layoutFile(scene)] ? parseRoom(luaTexts[layoutFile(scene)]) : null;
   return (parsed && parsed.room && parsed.room.code) || scene;
 }
-function renderSceneSwitch() {
-  const scene = state.scan && state.scan.hasGame ? currentScene() : null, sw = $("scene-switch");
-  sw.hidden = !scene;
-  if (!scene) return;
-  const code = codeOf(scene), parts = { layout: state.scan.layouts.includes(scene), code: state.scan.code.includes(code) };
-  for (const b of sw.querySelectorAll("button")) {
-    const part = b.dataset.part;
-    b.classList.toggle("on", part === "layout" ? state.view === "room" : state.view === "code");
-    b.classList.toggle("missing", !parts[part]);
-    b.textContent = parts[part] ? (part === "layout" ? "Layout" : code !== scene ? `Code (${code})` : "Code") : part === "layout" ? "+ Layout" : "+ Code";
+// Open a scene's layout or its code (the scene's tab has both), making the half it does not have yet.
+async function openScenePart(scene, part) {
+  if (part === "layout") {
+    if (!state.scan.layouts.includes(scene)) {
+      await confirmDiscard();
+      await invoke("write_file", { cart: state.cart, rel: layoutFile(scene), content: LAYOUT_TEMPLATE(conInfo().screen) });
+      await refreshFiles();
+      info(`Added a layout to ${scene}: drag things in, and give them names to use them in the code as self.<name>.`);
+    }
+    await openLayout(scene);
+  } else {
+    const code = codeOf(scene), rel = `scenes/${code}.lua`;
+    if (!state.scan.code.includes(code)) {
+      await confirmDiscard();
+      await invoke("write_file", { cart: state.cart, rel, content: TEMPLATES.scenes(code) });
+      await refreshFiles();
+    }
+    await openFile(rel);
+    state.sceneLink = code !== scene ? { layout: scene, code } : null; // this code belongs to that scene's tab while it is open
+    render();
   }
 }
-$("scene-switch").onclick = (e) => {
-  const b = e.target.closest("button"); if (!b) return;
-  const scene = currentScene(); if (!scene) return;
-  run("open", async () => {
-    if (b.dataset.part === "layout") {
-      if (!state.scan.layouts.includes(scene)) {
-        await confirmDiscard();
-        await invoke("write_file", { cart: state.cart, rel: layoutFile(scene), content: LAYOUT_TEMPLATE(conInfo().screen) });
-        await refreshFiles();
-        info(`Added a layout to ${scene}: drag things in, and give them names to use them in the code as self.<name>.`);
-      }
-      await openLayout(scene);
-    } else {
-      const code = codeOf(scene), rel = `scenes/${code}.lua`;
-      if (!state.scan.code.includes(code)) {
-        await confirmDiscard();
-        await invoke("write_file", { cart: state.cart, rel, content: TEMPLATES.scenes(code) });
-        await refreshFiles();
-      }
-      state.sceneLink = code !== scene ? { layout: scene, code } : null;
-      await openFile(rel);
-    }
-  });
-};
 
 // A new scene has both halves, and opens on its layout.
 async function createScene(g, name) {
@@ -1536,9 +1523,17 @@ async function makeHelpGame(title, files, consoleId = "dot") {
 $("set-theme").onchange = () => setLook($("set-theme").value);
 
 // ---------- tabs (what was open lately, to go back to with a click) ----------
-const tabKey = () => (state.view === "code" ? (state.file ? "file:" + state.file : null) : state.name ? `${state.view === "room" ? state.layoutKind : state.view}:${state.name}` : null);
+// A scene is one tab with its two halves in it, Layout and Code; the tab remembers which was open last.
+const openSceneNow = () => (state.scan && state.scan.hasGame ? currentScene() : null);
+const tabKey = () => {
+  const scene = openSceneNow();
+  if (scene) return "scene:" + scene;
+  return state.view === "code" ? (state.file ? "file:" + state.file : null) : state.name ? `${state.view === "room" ? state.layoutKind : state.view}:${state.name}` : null;
+};
 function noteTab() {
   const k = tabKey(); if (!k) return;
+  const scene = openSceneNow();
+  if (scene) state.scenePart[scene] = state.view === "room" ? "layout" : "code";
   if (!state.tabs.includes(k)) { state.tabs.push(k); if (state.tabs.length > 8) state.tabs.splice(state.tabs.findIndex((t) => t !== k), 1); }
 }
 async function openTab(k) {
@@ -1546,6 +1541,7 @@ async function openTab(k) {
   if (kind === "file") return openFile(name);
   if (kind === "room") return openRoom(name);
   if (kind === "layout") return openLayout(name);
+  if (kind === "scene") return openScene(name);
   const g = GROUPS.find((x) => x.kind === kind);
   if (g) return openers[kind](g, name);
 }
@@ -1556,25 +1552,41 @@ function renderTabs() {
     const [kind, ...rest] = k.split(":"), name = rest.join(":");
     if (kind === "file") return state.files.includes(name);
     if (kind === "layout") return !!state.scan && state.scan.layouts.includes(name);
+    if (kind === "scene") return !!state.scan && state.scan.groups.scenes.includes(name);
     const g = kind === "room" ? group("rooms") : GROUPS.find((x) => x.kind === kind);
     return g && state.scan && state.scan.groups[g.key].includes(name);
   });
-  if (state.tabs.length < 2) return;
   const cur = tabKey();
+  // one tab alone is not worth the room, unless it is a scene: its tab is where Layout and Code are
+  if (state.tabs.length < 2 && !(cur && cur.startsWith("scene:"))) return;
   for (const k of state.tabs) {
     const label = k.split(":").slice(1).join(":").split("/").pop() + (k.startsWith("layout:") ? " · layout" : "");
     const t = document.createElement("div"); t.className = "tab-item" + (k === cur ? " on" : ""); t.title = k.replace(":", ": ");
     const x = document.createElement("button"); x.textContent = "\u00D7"; x.title = "Close this tab";
     x.onclick = (e) => { e.stopPropagation(); state.tabs = state.tabs.filter((y) => y !== k); renderTabs(); };
     t.append(label, x);
+    if (k.startsWith("scene:")) t.appendChild(sceneParts(k.slice(6), k === cur));
     t.onclick = () => run("open", () => openTab(k));
     box.appendChild(t);
   }
 }
 
+// Layout and Code inside a scene's tab: the open half lit while the tab is open; a half the scene does not have yet says + and makes it.
+function sceneParts(scene, open) {
+  const box = document.createElement("span"); box.className = "tab-parts";
+  const code = codeOf(scene), has = { layout: state.scan.layouts.includes(scene), code: state.scan.code.includes(code) };
+  const now = open ? (state.view === "room" ? "layout" : "code") : null;
+  for (const [part, label, tip] of [["layout", "Layout", "What is placed where: drag things in, name them to use them in the code"], ["code", code !== scene ? `Code (${code})` : "Code", "What the scene does: enter, update, draw"]]) {
+    const b = document.createElement("button"); b.className = "tab-part" + (now === part ? " on" : "") + (has[part] ? "" : " missing");
+    b.textContent = has[part] ? label : "+ " + label; b.title = has[part] ? tip : `This scene has no ${part} yet: click to add one`;
+    b.onclick = (e) => { e.stopPropagation(); run("open", () => openScenePart(scene, part)); };
+    box.appendChild(b);
+  }
+  return box;
+}
+
 // ---------- outline and tidy (the code editor's bar) ----------
 function renderCodeTools() {
-  renderSceneSwitch();
   const lua = state.view === "code" && state.file && state.file.endsWith(".lua");
   $("outline").hidden = $("btn-tidy").hidden = !lua;
   if (!$("outline").options.length) $("outline").appendChild(new Option("Go to…", "")); // filled when it is opened

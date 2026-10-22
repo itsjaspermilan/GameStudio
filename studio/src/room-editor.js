@@ -13,6 +13,7 @@ import { settleRenames } from "./rename-core.js";
 import { FONT8, FONT8_FIRST } from "./font8.js";
 
 const TOOLS = [
+  ["select", "Select", "Click a thing to select it; drag to move it (Shift: in a straight line), drag a panel's handles to resize it. Arrow keys nudge, Delete removes. The other tools only place. (V, or Escape)", "v"],
   ["tiles", "Tiles", "Paint tiles on the chosen layer. Shift-click fills an area, Alt-click erases, right-click picks a tile up. (T)", "t"],
   ["entities", "Things", "Click to place the chosen entity; drag one to move it; Delete removes the selected one. (N)", "n"],
   ["texts", "Text", "Click to put a text; drag one to move it; Delete removes the selected one. (X)", "x"],
@@ -132,7 +133,7 @@ export function createRoomEditor(root, hooks = {}) {
     </div>`;
   const $ = (sel) => root.querySelector(sel);
   const canvas = $(".re-canvas"), ctx = canvas.getContext("2d"), wrap = $(".re-wrap");
-  let room = null, name = "", kind = "room", dirty = false, tool = "tiles", zoom = 2;
+  let room = null, name = "", kind = "room", dirty = false, tool = "select", zoom = 2;
   let layerIx = 0, tile = 0, entName = "", spriteName = "", sel = null, pathName = "", pointIx = -1;
   let hover = null; // { kind, i } under the pointer
   let panelTs = "", panelTile = 0; // what a new panel is made of: a tileset and the top-left tile of a 3x3 block
@@ -186,6 +187,9 @@ export function createRoomEditor(root, hooks = {}) {
     if (!look) return [p.x - 6, p.y - 6, p.x + 6, p.y + 6];
     return [p.x - look.ox * s, p.y - look.oy * s, p.x + (look.fw - look.ox) * s, p.y + (look.fh - look.oy) * s];
   }
+  // a panel's resize handles: corners and edge middles, with which sides each moves ([x, y, left, top, right, bottom])
+  const handlesOf = (b) => [[0, 0, 1, 1, 0, 0], [0.5, 0, 0, 1, 0, 0], [1, 0, 0, 1, 1, 0], [1, 0.5, 0, 0, 1, 0], [1, 1, 0, 0, 1, 1], [0.5, 1, 0, 0, 0, 1], [0, 1, 1, 0, 0, 1], [0, 0.5, 1, 0, 0, 0]]
+    .map(([fx, fy, ...sides]) => [b.x + b.w * fx, b.y + b.h * fy, ...sides]);
   // drawn again only when it changes (the list is rebuilt with every drawing)
   function setHover(h) {
     if ((h && h.kind) === (hover && hover.kind) && (h && h.i) === (hover && hover.i)) return;
@@ -250,19 +254,23 @@ export function createRoomEditor(root, hooks = {}) {
     ctx.setLineDash([]);
     const labels = []; // names drawn last, above everything: [text, x, y]
     const ring = (x0, y0, x1, y1) => { ctx.strokeStyle = themeColor("accent"); ctx.lineWidth = 2; ctx.strokeRect(x0 * zoom - 2, y0 * zoom - 2, (x1 - x0) * zoom + 4, (y1 - y0) * zoom + 4); };
-    const isSel = (k, i) => (sel && sel.kind === k && sel.i === i) || (hover && hover.kind === k && hover.i === i && !drag);
+    // only the Select tool selects and shows what is under the pointer; the others place things
+    const selecting = tool === "select";
+    const isSel = (k, i) => selecting && ((sel && sel.kind === k && sel.i === i) || (hover && hover.kind === k && hover.i === i && !drag));
+    const dim = (k, faint) => (selecting || KIND_OF[tool] === k ? 1 : faint);
     // panels, then pictures, then texts: the order the game builds them in
     room.panels.forEach((b, i) => {
-      ctx.globalAlpha = tool === "panels" ? 1 : 0.9;
+      ctx.globalAlpha = dim("panels", 0.9);
       drawPanel(b);
       ctx.globalAlpha = 1;
       if (isSel("panels", i)) ring(b.x, b.y, b.x + b.w, b.y + b.h);
+      if (selecting && sel && sel.kind === "panels" && sel.i === i) for (const [hx, hy] of handlesOf(b)) { ctx.fillStyle = "#ffffff"; ctx.strokeStyle = themeColor("accent"); ctx.lineWidth = 1; ctx.fillRect(hx * zoom - 4, hy * zoom - 4, 8, 8); ctx.strokeRect(hx * zoom - 3.5, hy * zoom - 3.5, 7, 7); }
       if (b.name) labels.push([`self.${b.name}`, b.x + b.w / 2, b.y + 14, "panels", i]);
     });
     // pictures
     room.pictures.forEach((p, i) => {
       const look = pics[p.sprite], s = Number(p.scale) || 1;
-      ctx.globalAlpha = tool === "pictures" ? 1 : 0.75;
+      ctx.globalAlpha = dim("pictures", 0.75);
       if (look) {
         const fr = Math.max(0, Math.floor(p.frame || 0)) % Math.max(1, Math.floor(look.img.width / look.fw));
         ctx.drawImage(look.img, fr * look.fw, 0, look.fw, look.fh, (p.x - look.ox * s) * zoom, (p.y - look.oy * s) * zoom, look.fw * s * zoom, look.fh * s * zoom);
@@ -276,7 +284,7 @@ export function createRoomEditor(root, hooks = {}) {
     ctx.font = "11px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
     room.entities.forEach(([n, x, y, , nm], i) => {
       const look = looks[n], px = x * zoom, py = y * zoom;
-      ctx.globalAlpha = tool === "entities" ? 1 : 0.6;
+      ctx.globalAlpha = dim("entities", 0.6);
       if (look) ctx.drawImage(look.img, 0, 0, look.fw, look.fh, px - look.ox * zoom, py - look.oy * zoom, look.fw * zoom, look.fh * zoom);
       else { ctx.fillStyle = "#ffa38c"; ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.fill(); }
       ctx.globalAlpha = 1;
@@ -287,7 +295,7 @@ export function createRoomEditor(root, hooks = {}) {
     // texts: a sprite font as the game draws it; the built-in font in its size (8 pixels a letter), the Play panel shows its real letters
     room.texts.forEach((t, i) => {
       const size = Number(t.size) || 1, [x0, y0, x1, y1] = textBoxOf(t), font = t.font && pics[t.font];
-      ctx.globalAlpha = tool === "texts" ? 1 : 0.8;
+      ctx.globalAlpha = dim("texts", 0.8);
       ctx.imageSmoothingEnabled = false;
       ctx.fillStyle = colorOf(t.color);
       const s = String(t.text ?? "");
@@ -324,7 +332,7 @@ export function createRoomEditor(root, hooks = {}) {
     // names, the way the code reaches them: the selected thing's first, then the one under the pointer, then the current tool's kind;
     // a label that would cover one already drawn is left out
     ctx.font = "11px ui-monospace, Menlo, monospace"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-    const rank = (l) => (isSel(l[3], l[4]) ? 0 : hover && hover.kind === l[3] && hover.i === l[4] ? 1 : KIND_OF[tool] === l[3] ? 2 : 9);
+    const rank = (l) => (isSel(l[3], l[4]) ? 0 : selecting || KIND_OF[tool] === l[3] ? 2 : 9);
     const placed = [];
     for (const l of labels.filter((l) => rank(l) < 9).sort((a, b) => rank(a) - rank(b))) {
       const [text, x, y] = l, w = ctx.measureText(text).width + 8, lx = x * zoom - w / 2, ly = y * zoom - 18;
@@ -338,7 +346,9 @@ export function createRoomEditor(root, hooks = {}) {
 
   function renderSide() {
     root.querySelectorAll(".re-tools button").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
-    $(".re-tiles-panel").hidden = tool !== "tiles"; $(".re-add-panel").hidden = tool !== "entities" && tool !== "pictures"; $(".re-paths-panel").hidden = tool !== "paths";
+    $(".re-tiles-panel").hidden = tool !== "tiles"; $(".re-add-panel").hidden = !["select", "entities", "pictures"].includes(tool);
+    // the pointer says what a click will do: move something, select, or place
+    canvas.style.cursor = tool === "select" ? (hover ? "move" : "default") : "crosshair"; $(".re-paths-panel").hidden = tool !== "paths";
     $(".re-texts-panel").hidden = tool !== "texts"; $(".re-panels-panel").hidden = tool !== "panels";
     if (tool === "panels") drawBlockPicker();
     renderOutline();
@@ -348,7 +358,7 @@ export function createRoomEditor(root, hooks = {}) {
     $("[data-act=addlayer]").disabled = !names.length;
     drawTilePalette();
     // things to place
-    if (tool === "entities" || tool === "pictures") {
+    if (["select", "entities", "pictures"].includes(tool)) {
       const q = $(".re-search").value.trim().toLowerCase(), match = (n) => !q || n.toLowerCase().includes(q);
       pickList($(".re-entlist"), "entity", (hooks.getEntities ? hooks.getEntities() : []).filter(match), tool === "entities" ? entName : "", q ? "No entity matches." : "No entities in this game yet.", (n) => { entName = n; tool = "entities"; });
       pickList($(".re-spritelist"), "sprite", (hooks.getSprites ? hooks.getSprites() : []).filter(match), tool === "pictures" ? spriteName : "", q ? "No sprite matches." : "No sprites in this game yet.", (n) => { spriteName = n; tool = "pictures"; });
@@ -394,13 +404,13 @@ export function createRoomEditor(root, hooks = {}) {
           row.appendChild(b);
         }
         row.onclick = it.pick;
-        if (it.hover) { row.onmouseenter = () => setHover(it.hover); row.onmouseleave = () => setHover(null); }
+        if (it.hover) { row.onmouseenter = () => { if (tool === "select") setHover(it.hover); }; row.onmouseleave = () => setHover(null); }
         box.appendChild(row);
       }
     };
     const del = (k, i) => ["×", "Delete", () => commit(() => { room[k].splice(i, 1); if (sel && sel.kind === k) sel = null; })];
-    const choose = (k, i, t) => () => { tool = t; sel = { kind: k, i }; render(); };
-    const isOn = (k, i) => !!(sel && sel.kind === k && sel.i === i);
+    const choose = (k, i) => () => { tool = "select"; sel = { kind: k, i }; render(); };
+    const isOn = (k, i) => tool === "select" && !!(sel && sel.kind === k && sel.i === i);
     group("Tile layers", room.layers.map((l, i) => {
       const eye = document.createElement("input"); eye.type = "checkbox"; eye.checked = l.visible !== false; eye.title = "Show this layer (in the game too)";
       eye.onclick = (e) => { e.stopPropagation(); commit(() => { if (eye.checked) delete l.visible; else l.visible = false; }); };
@@ -408,10 +418,10 @@ export function createRoomEditor(root, hooks = {}) {
         pick: () => { tool = "tiles"; layerIx = i; tile = 0; render(); },
         buttons: [["×", "Delete this layer", () => commit(() => { room.layers.splice(i, 1); layerIx = Math.max(0, Math.min(layerIx, room.layers.length - 1)); })]] };
     }));
-    group("Panels", room.panels.map((p, i) => ({ label: p.name ? `self.${p.name}` : "panel", detail: `${p.w} × ${p.h}`, on: isOn("panels", i), pick: choose("panels", i, "panels"), hover: { kind: "panels", i }, buttons: [del("panels", i)] })));
-    group("Pictures", room.pictures.map((p, i) => ({ label: p.name ? `self.${p.name}` : p.sprite, detail: p.name ? p.sprite : "", on: isOn("pictures", i), pick: choose("pictures", i, "pictures"), hover: { kind: "pictures", i }, buttons: [del("pictures", i)] })));
-    group("Things", room.entities.map((e, i) => ({ label: e[4] ? `self.${e[4]}` : e[0], detail: e[4] ? e[0] : `${e[1]}, ${e[2]}`, on: isOn("entities", i), pick: choose("entities", i, "entities"), hover: { kind: "entities", i }, buttons: [del("entities", i)] })));
-    group("Texts", room.texts.map((t, i) => ({ label: t.name ? `self.${t.name}` : `"${t.text}"`, detail: t.name ? `"${t.text}"` : "", on: isOn("texts", i), pick: choose("texts", i, "texts"), hover: { kind: "texts", i }, buttons: [del("texts", i)] })));
+    group("Panels", room.panels.map((p, i) => ({ label: p.name ? `self.${p.name}` : "panel", detail: `${p.w} × ${p.h}`, on: isOn("panels", i), pick: choose("panels", i), hover: { kind: "panels", i }, buttons: [del("panels", i)] })));
+    group("Pictures", room.pictures.map((p, i) => ({ label: p.name ? `self.${p.name}` : p.sprite, detail: p.name ? p.sprite : "", on: isOn("pictures", i), pick: choose("pictures", i), hover: { kind: "pictures", i }, buttons: [del("pictures", i)] })));
+    group("Things", room.entities.map((e, i) => ({ label: e[4] ? `self.${e[4]}` : e[0], detail: e[4] ? e[0] : `${e[1]}, ${e[2]}`, on: isOn("entities", i), pick: choose("entities", i), hover: { kind: "entities", i }, buttons: [del("entities", i)] })));
+    group("Texts", room.texts.map((t, i) => ({ label: t.name ? `self.${t.name}` : `"${t.text}"`, detail: t.name ? `"${t.text}"` : "", on: isOn("texts", i), pick: choose("texts", i), hover: { kind: "texts", i }, buttons: [del("texts", i)] })));
     group("Paths", Object.entries(room.paths).map(([k, p]) => ({ label: k, detail: `${p.points.length} point${p.points.length === 1 ? "" : "s"}`, on: tool === "paths" && k === pathName,
       pick: () => { tool = "paths"; pathName = k; pointIx = -1; render(); },
       buttons: [["✎", "Rename", () => {
@@ -453,7 +463,7 @@ export function createRoomEditor(root, hooks = {}) {
 
   function renderSelected() {
     const item = selected(), k = sel && sel.kind;
-    $(".re-selected").hidden = !(item && KIND_OF[tool] === k);
+    $(".re-selected").hidden = !(item && tool === "select");
     if (!item) return;
     const [x, y] = posOf(k, item);
     $(".re-selinfo").textContent = k === "entities" ? `${item[0]} at ${x}, ${y}` : k === "texts" ? `Text at ${x}, ${y}` : k === "panels" ? `Panel ${item.w} × ${item.h}` : `Picture of ${item.sprite} at ${x}, ${y}`;
@@ -640,8 +650,8 @@ export function createRoomEditor(root, hooks = {}) {
     placeAt(what, n, x, y);
   });
   function placeAt(what, n, x, y) {
-    if (what === "entity") { entName = n; tool = "entities"; commit(() => { room.entities.push([n, snapped(x), snapped(y)]); sel = { kind: "entities", i: room.entities.length - 1 }; }); }
-    else { spriteName = n; tool = "pictures"; commit(() => { room.pictures.push({ sprite: n, x: snapped(x), y: snapped(y), name: freshName(n) }); sel = { kind: "pictures", i: room.pictures.length - 1 }; }); }
+    if (what === "entity") { entName = n; tool = "select"; commit(() => { room.entities.push([n, snapped(x), snapped(y)]); sel = { kind: "entities", i: room.entities.length - 1 }; }); }
+    else { spriteName = n; tool = "select"; commit(() => { room.pictures.push({ sprite: n, x: snapped(x), y: snapped(y), name: freshName(n) }); sel = { kind: "pictures", i: room.pictures.length - 1 }; }); }
     loadAssets();
     root.focus({ preventScroll: true });
   }
@@ -662,9 +672,18 @@ export function createRoomEditor(root, hooks = {}) {
       const before = snapshot();
       drag = { kind: "paint", before, erase: ev.button === 2 || ev.altKey };
       paintAt(x, y, drag.erase, ev.shiftKey); render();
+    } else if (tool === "select") {
+      // a handle of the selected panel first, then the topmost thing under the pointer; empty space selects nothing
+      const p = sel && sel.kind === "panels" ? selected() : null;
+      const h = p && handlesOf(p).find(([hx, hy]) => Math.abs(hx - x) * zoom <= 5 && Math.abs(hy - y) * zoom <= 5);
+      if (h) { drag = { kind: "resize", before: snapshot(), sides: h.slice(2), from: { x: p.x, y: p.y, w: p.w, h: p.h } }; return; }
+      const hit = thingAt(x, y);
+      if (!hit) { sel = null; render(); return; }
+      const [ix, iy] = posOf(hit.kind, room[hit.kind][hit.i]);
+      sel = hit; drag = { kind: "move", before: snapshot(), dx: ix - x, dy: iy - y, x0: ix, y0: iy };
+      render();
     } else if (k) {
-      const hit = hitAt(k, x, y);
-      if (hit >= 0) { const [ix, iy] = posOf(k, room[k][hit]); sel = { kind: k, i: hit }; drag = { kind: "move", before: snapshot(), dx: ix - x, dy: iy - y }; render(); return; }
+      // placing tools only place; texts and panels go on to Select, to type their words or set their size
       if (k === "entities") {
         if (!entName) { status("Pick an entity on the left first."); return; }
         commit(() => { room.entities.push([entName, snapped(x), snapped(y)]); sel = { kind: k, i: room.entities.length - 1 }; });
@@ -673,10 +692,10 @@ export function createRoomEditor(root, hooks = {}) {
         const before = snapshot();
         room.panels.push({ x: snapped(x), y: snapped(y), w: 1, h: 1, tileset: panelTs, tile: panelTile, name: freshName("panel") });
         sel = { kind: k, i: room.panels.length - 1 };
-        drag = { kind: "draw", before, x0: snapped(x), y0: snapped(y) };
+        drag = { kind: "draw", before, x0: snapped(x), y0: snapped(y), then: "select" };
         render();
       } else if (k === "texts") {
-        commit(() => { room.texts.push({ text: "TEXT", x: snapped(x), y: snapped(y), name: freshName("text"), size: 1 }); sel = { kind: k, i: room.texts.length - 1 }; });
+        commit(() => { room.texts.push({ text: "TEXT", x: snapped(x), y: snapped(y), name: freshName("text"), size: 1 }); sel = { kind: k, i: room.texts.length - 1 }; tool = "select"; });
         requestAnimationFrame(() => { $(".re-text").focus(); $(".re-text").select(); });
       } else {
         if (!spriteName) { status("Pick a sprite on the left first."); return; }
@@ -695,10 +714,7 @@ export function createRoomEditor(root, hooks = {}) {
     const [x, y] = worldAt(ev);
     if (ev.target === canvas) status(`${Math.floor(x)}, ${Math.floor(y)}` + (layer() && ts(layer()) ? `  ·  tile ${Math.floor(x / ts(layer()).tw)}, ${Math.floor(y / ts(layer()).th)}` : ""));
     // what is under the pointer: its name is shown, and its row in the list lights up
-    if (!drag) {
-      const over = ev.target === canvas ? thingAt(x, y) : null;
-      setHover(over);
-    }
+    if (!drag) setHover(tool === "select" && ev.target === canvas ? thingAt(x, y) : null);
     if (!drag) return;
     if (drag.kind === "paint") { paintAt(x, y, drag.erase, false); render(); }
     else if (drag.kind === "draw" && selected()) {
@@ -706,13 +722,24 @@ export function createRoomEditor(root, hooks = {}) {
       b.x = Math.min(drag.x0, x1); b.y = Math.min(drag.y0, y1); b.w = Math.max(1, Math.abs(x1 - drag.x0)); b.h = Math.max(1, Math.abs(y1 - drag.y0));
       render();
     }
-    else if (drag.kind === "move" && selected()) { setPos(sel.kind, selected(), snapped(x + drag.dx), snapped(y + drag.dy)); render(); }
+    else if (drag.kind === "move" && selected()) {
+      let nx = snapped(x + drag.dx), ny = snapped(y + drag.dy);
+      if (ev.shiftKey) { if (Math.abs(nx - drag.x0) >= Math.abs(ny - drag.y0)) ny = drag.y0; else nx = drag.x0; } // in a straight line
+      setPos(sel.kind, selected(), nx, ny); render();
+    }
+    else if (drag.kind === "resize" && selected()) {
+      const b = selected(), f = drag.from, [l, t, r, bt] = drag.sides, px = snapped(x), py = snapped(y);
+      const x0 = l ? Math.min(px, f.x + f.w - 1) : f.x, y0 = t ? Math.min(py, f.y + f.h - 1) : f.y;
+      const x1 = r ? Math.max(px, f.x + 1) : f.x + f.w, y1 = bt ? Math.max(py, f.y + 1) : f.y + f.h;
+      b.x = x0; b.y = y0; b.w = x1 - x0; b.h = y1 - y0; render();
+    }
     else if (drag.kind === "point") { const p = room.paths[pathName]; if (p && p.points[pointIx]) { p.points[pointIx] = [snapped(x), snapped(y)]; render(); } }
   });
   window.addEventListener("mouseup", () => {
     if (!drag) return;
     // a click without a drag makes a panel three tiles square
     if (drag.kind === "draw" && selected() && selected().w < 4 && selected().h < 4) { const t = tilesets[selected().tileset]; selected().w = 3 * (t ? t.tw : 8); selected().h = 3 * (t ? t.th : 8); }
+    if (drag.then) tool = drag.then;
     if (snapshot() !== drag.before) { history.record(drag.before); markDirty(); }
     drag = null; render();
   });
@@ -721,18 +748,19 @@ export function createRoomEditor(root, hooks = {}) {
     const key = ev.key.toLowerCase();
     if ((ev.metaKey || ev.ctrlKey) && key === "z") { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
     if (ev.key === "Delete" || ev.key === "Backspace") {
-      if (selected() && KIND_OF[tool] === sel.kind) deleteSelected();
+      if (selected() && tool === "select") deleteSelected();
       else if (tool === "paths" && room.paths[pathName] && pointIx >= 0) commit(() => { room.paths[pathName].points.splice(pointIx, 1); pointIx = -1; });
       ev.preventDefault(); return;
     }
     // arrow keys nudge what is selected by a pixel (or the grid with shift)
     const arrows = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] }[key];
-    if (arrows && selected() && KIND_OF[tool] === sel.kind) {
+    if (arrows && selected() && tool === "select") {
       ev.preventDefault();
       const step = ev.shiftKey ? grid() : 1, [x, y] = posOf(sel.kind, selected());
       commit(() => setPos(sel.kind, selected(), x + arrows[0] * step, y + arrows[1] * step));
       return;
     }
+    if (ev.key === "Escape") { tool = "select"; render(); return; }
     const t = TOOLS.find((x) => x[3] === key);
     if (t && !ev.metaKey && !ev.ctrlKey) { tool = t[0]; render(); }
   });

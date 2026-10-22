@@ -316,6 +316,14 @@ dialog.modal { width: 540px; }
 .re-swatch.re-none { background: var(--control); color: var(--muted); font-size: 10px; line-height: 1; }
 .re-alpha { width: 110px; vertical-align: middle; }
 /* Layout | Code: the two halves of a scene, in the editor's bar */
+/* a scene's tab holds its two halves: a small switch inside the tab */
+.tab-parts { display: inline-flex; margin-left: 6px; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+.tab-item .tab-part { opacity: 1; padding: 0 7px; line-height: 16px; border-radius: 0; font-size: 11px; color: var(--muted); }
+.tab-item .tab-part + .tab-part { border-left: 1px solid var(--border); }
+.tab-item .tab-part:hover { background: var(--hover); color: var(--text); }
+.tab-item .tab-part.on { background: var(--accent); color: var(--accent-text); }
+.tab-item .tab-part.missing { font-style: italic; }
+:root[data-os=mac] .tab-item .tab-part { order: 0; }
 .seg { display: inline-flex; border: 1px solid var(--control-border); border-radius: 6px; overflow: hidden; flex: none; }
 .seg button { border: none; border-radius: 0; padding: 2px 12px; font-size: 12px; background: var(--control); }
 .seg button + button { border-left: 1px solid var(--control-border); }
