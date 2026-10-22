@@ -102,3 +102,11 @@ test("a scene layout keeps texts, pictures, names and the code it runs", () => {
   assert.match(nameProblem("2fast", room), /letters/);
   assert.deepEqual(textBox({ text: "ABCD", x: 100, y: 10, size: 2, align: "center" }), [68, 10, 132, 26]);
 });
+
+test("the sample games' layouts are exactly what the layout editor writes", () => {
+  for (const rel of ["carts/void-swarm/scenes/title.layout.lua"]) {
+    const text = readFileSync(join(root, rel), "utf8");
+    const first = text.split("\n")[0].replace(/^-- /, "");
+    assert.equal(serializeRoom(parseRoom(text).room, first), text, rel);
+  }
+});

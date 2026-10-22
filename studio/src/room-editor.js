@@ -116,6 +116,8 @@ export function createRoomEditor(root, hooks = {}) {
   function commit(fn) { const before = snapshot(); fn(); if (snapshot() !== before) { history.record(before); markDirty(); } render(); }
   function markDirty() { dirty = true; hooks.onChange && hooks.onChange(); }
   const layer = () => room.layers[layerIx];
+  // a layer sized to the room, so painting reaches every edge; one that repeats (wrap) keeps its own size: it is a pattern, not a map
+  const fitted = (l) => { const t = tilesets[l.tileset]; return t && !l.wrap_x && !l.wrap_y ? R.fitLayer(l, room, t.tw, t.th) : l; };
   const ts = (l) => l && tilesets[l.tileset];
   const grid = () => { const t = ts(layer()); return t ? t.tw : 16; };
   const BASIC = ["#000000", "#ffffff", "#8a90a8", "#ea5a4b", "#e8913a", "#f5d94a", "#6ccf4f", "#45d1c5", "#4f9bf0", "#a56be0"];
@@ -170,9 +172,12 @@ export function createRoomEditor(root, hooks = {}) {
       const l = room.layers[i], t = ts(l);
       if (!t || l.visible === false) continue;
       ctx.globalAlpha = tool === "tiles" && i !== layerIx ? 0.45 : 1;
-      l.data.forEach((row, r) => row.forEach((v, c) => {
+      // a repeating layer is drawn as often as it takes to fill the layout, as the game shows it
+      const pw = (l.data[0] || []).length * t.tw, ph = l.data.length * t.th;
+      const nx = l.wrap_x && pw ? Math.ceil(room.width / pw) : 1, ny = l.wrap_y && ph ? Math.ceil(room.height / ph) : 1;
+      for (let ky = 0; ky < ny; ky++) for (let kx = 0; kx < nx; kx++) l.data.forEach((row, r) => row.forEach((v, c) => {
         if (v < 0 || v >= t.count) return;
-        ctx.drawImage(t.img, (v % t.cols) * t.tw, Math.floor(v / t.cols) * t.th, t.tw, t.th, c * t.tw * zoom, r * t.th * zoom, t.tw * zoom, t.th * zoom);
+        ctx.drawImage(t.img, (v % t.cols) * t.tw, Math.floor(v / t.cols) * t.th, t.tw, t.th, (kx * pw + c * t.tw) * zoom, (ky * ph + r * t.th) * zoom, t.tw * zoom, t.th * zoom);
       }));
     }
     ctx.globalAlpha = 1;
@@ -528,7 +533,7 @@ export function createRoomEditor(root, hooks = {}) {
   const resize = () => commit(() => {
     room.width = Math.max(16, Math.min(8192, Math.round(Number($(".re-w").value) || room.width)));
     room.height = Math.max(16, Math.min(8192, Math.round(Number($(".re-h").value) || room.height)));
-    room.layers = room.layers.map((l) => { const t = tilesets[l.tileset]; return t ? R.fitLayer(l, room, t.tw, t.th) : l; });
+    room.layers = room.layers.map(fitted);
   });
   $(".re-w").onchange = resize; $(".re-h").onchange = resize;
   $(".re-props").onchange = () => {
@@ -572,7 +577,7 @@ export function createRoomEditor(root, hooks = {}) {
       render();
       await loadAssets();
       // layers written by hand may be smaller than the room: grow them so every cell can be painted
-      room.layers = room.layers.map((l) => { const t = tilesets[l.tileset]; return t ? R.fitLayer(l, room, t.tw, t.th) : l; });
+      room.layers = room.layers.map(fitted);
       requestAnimationFrame(fit);
     },
     getDef: () => room,

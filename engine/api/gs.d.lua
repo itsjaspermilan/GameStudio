@@ -256,7 +256,8 @@ function gs.load_room(name) end
 ---@param name string
 ---@return number[][]
 function gs.path(name) end
----Add a tile layer: { tileset = "name", data = { {0, 1}, {2, 3} }, depth = 100, scroll_x = 1, wrap_x = false, ... }.
+---Add a tile layer: { tileset = "name", data = { {0, 1}, {2, 3} }, depth = 100, scroll_x = 1, wrap_x = false, ... }. A layer's x, y is where its
+---top-left corner is in the world (0, 0): change them every step to slide it, e.g. a sky that drifts on a title screen.
 ---@param spec table
 ---@return table
 function gs.add_layer(spec) end

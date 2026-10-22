@@ -163,7 +163,7 @@ export function serializeRoom(room, comment) {
     for (const l of room.layers) {
       const attrs = [...LAYER_ORDER.filter((k) => l[k] !== undefined && l[k] !== null), ...Object.keys(l).filter((k) => !LAYER_ORDER.includes(k) && k !== "data" && l[k] !== undefined)];
       L.push(`    { ${attrs.map((k) => `${luaKey(k)} = ${luaInline(l[k])}`).join(", ")}, data = {`);
-      for (const row of l.data || []) L.push(`        { ${row.map(luaNum).join(", ")} },`);
+      for (const row of l.data || []) L.push(`      { ${row.map(luaNum).join(", ")} },`); // as Tidy indents it
       L.push("    } },");
     }
     L.push("  },");

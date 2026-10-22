@@ -148,7 +148,7 @@ return {
   lib: () => "local M = {}\n\nreturn M\n",
 };
 
-export const LAYOUT_COMMENT = "The scene's layout, built when it starts. Anything with a name is a field of the scene's code: self.<name>.";
+export const LAYOUT_COMMENT = "The scene's layout, built when it starts. Named things are fields of its code: self.<name>.";
 export const LAYOUT_TEMPLATE = (screen) => `-- ${LAYOUT_COMMENT}
 return {
   width = ${screen.width}, height = ${screen.height},

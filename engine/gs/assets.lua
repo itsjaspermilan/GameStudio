@@ -88,6 +88,7 @@ function M.make_layer(spec)
     cell = spec.cell or { ts.tw, ts.th }, data = data, depth = spec.depth or 100, visible = spec.visible ~= false,
     scroll_x = spec.scroll_x or 1, scroll_y = spec.scroll_y or 1, wrap_x = spec.wrap_x == true, wrap_y = spec.wrap_y == true,
     solid = spec.solid, dirty = true,
+    x = spec.x or 0, y = spec.y or 0, -- where the layer's top-left corner is in the world: change them to slide a layer (a drifting sky)
   }
 end
 
@@ -109,7 +110,7 @@ function M.draw_layer(l, cam_x, cam_y, view_w, view_h)
   local cols = 0
   for _, row in ipairs(l.data) do if #row > cols then cols = #row end end
   if cols == 0 then return end
-  local ex, ey = floor(cam_x * l.scroll_x + 0.5), floor(cam_y * l.scroll_y + 0.5)
+  local ex, ey = floor(cam_x * l.scroll_x - l.x + 0.5), floor(cam_y * l.scroll_y - l.y + 0.5)
   gs.raw.camera(ex, ey)
   local cw, ch = l.cell[1], l.cell[2]
   local pic = use_pictures and picture(l, cols, rows)
@@ -147,11 +148,11 @@ end
 
 -- The tile at a world position (nil outside the layer), and changing it.
 function M.tile_at(l, x, y)
-  local row = l.data[floor(y / l.cell[2]) + 1]
-  return row and row[floor(x / l.cell[1]) + 1]
+  local row = l.data[floor((y - l.y) / l.cell[2]) + 1]
+  return row and row[floor((x - l.x) / l.cell[1]) + 1]
 end
 function M.set_tile(l, x, y, v)
-  local r, c = floor(y / l.cell[2]) + 1, floor(x / l.cell[1]) + 1
+  local r, c = floor((y - l.y) / l.cell[2]) + 1, floor((x - l.x) / l.cell[1]) + 1
   if l.data[r] and l.data[r][c] ~= nil then l.data[r][c] = v; l.dirty = true end
 end
 
