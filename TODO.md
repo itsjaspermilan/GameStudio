@@ -8,7 +8,6 @@ Housekeeping
 - [x] `main` (one fresh commit) is pushed to `git@github.com:itsjaspermilan/GameStudio.git`.
 - [x] Void Swarm, Breakout, Panel Pop, Button test and Pad setup were pushed again on 2026-10-22 (plain launchers, new runtime with HOTKEY + Start, `.keys` files beside each launcher). Void Swarm's new art and walk look good on the device; HOTKEY + Start works. The old `stress.cart` test is deleted from the console.
 - [ ] Void Swarm, from the first look on the device: the orbit blades have a 16x16 sprite of their own and the pickups are 12x12 (hit circles grown to match); the music uses General MIDI bands instead of chip leads (kalimba, vibraphone, sax over electric piano, steel drums, koto, French horn, rock guitar, ...), one octave lower, loudness evened out. Listen on the device, and check the audio thread there with `GS_PERF=1` (on this Mac a callback takes about 0.2 ms).
-- [ ] Signing: the studio app needs your Developer ID certificate in your Mac's keychain, then `APPLE_SIGNING_IDENTITY` (and an App Store Connect API key for notarizing) set in your own shell; see the notes given on 2026-10-22.
 - [ ] Void Swarm was only measured on the device in short early sectors. Play a late sector (7+, past 5 minutes) with `GS_PERF=1` and read `last-run-void-swarm.log`.
 
 Games
@@ -18,7 +17,7 @@ Games
 Studio
 - [x] Room editor for `rooms/<name>.lua` (tile layers, entities, room size = camera bounds, paths; rooms with code open as text) and paths as plain data (`paths = { name = { {x, y}, ..., loop = true } }`, `Entity:follow_path`).
 - [x] The app bundle carries the Lua language server (Tauri resources; the build fetches it for the target processor, arm64 or x64).
-- [ ] Signing and notarizing the app (and the bundled `lua-language-server` binary inside it) for other Macs: needs your Apple developer certificate.
+- [ ] (paused) Signing and notarizing the app (and the bundled `lua-language-server` inside it) for other Macs. When picked up: create a Developer ID Application certificate (Xcode > Settings > Accounts > Manage Certificates) and an App Store Connect API key (.p8, kept private); the build reads `APPLE_SIGNING_IDENTITY`, `APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_KEY_PATH` from your own shell, never from the repo. The bundled server binary must be signed too.
 - [x] Editor extras: Tidy (our own Lua re-indenter; every Lua file in the repo already passes it), Go to symbol, Find in game with replace, LuaLS rename (F2) and references (Shift+F12) with fallbacks, tabs of recent files, a light theme.
 - [x] Split view: a second Lua file beside the first (its own completion and save; the same file is never open on both sides).
 - [x] Inspector tab: pause / step / slow motion, every kind with its count and update/draw/collision time, a kind's entities and one entity's values, watch expressions (engine/gs/inspect.lua over GS_INSPECT). Per Lua function stays with `GS_PROF=1`.
