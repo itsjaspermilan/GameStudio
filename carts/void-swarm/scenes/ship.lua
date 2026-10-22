@@ -1,4 +1,5 @@
--- Permanent ship upgrades: four paths of five ranks each, paid for with credits.
+-- Permanent ship upgrades: four paths of five ranks each, paid for with credits. The bars, the
+-- title, the bottom panel and the background are in its layout (ship.layout.lua).
 local data = require "lib.data"
 local save = require "lib.save"
 local audio = require "lib.audio"
@@ -11,7 +12,8 @@ local spr, txt, txtr, box = ui.spr, ui.txt, ui.txtr, ui.box
 local Ship = gs.scene{}
 
 function Ship:enter()
-  self.cur, self.tick = 1, 0
+  self.cur, self.tick, self.drift = 1, 0, 0.2
+  ui.drift(0, self.drift)
 end
 
 local function cost(path, rank) return floor(path.cost * 1.8 ^ rank + 0.5) end
@@ -34,8 +36,7 @@ end
 
 function Ship:draw_ui()
   local s = save.data
-  ui.menu_background("reef", self.tick, 0.2)
-  menu.header(self, "SHIP UPGRADES")
+  menu.credits(self)
   for i, path in ipairs(data.SHIP_PATHS) do
     local y = 30 + (i - 1) * 36
     local rank, on = s.ship[i], (i == self.cur)
@@ -52,8 +53,6 @@ function Ship:draw_ui()
     else txt("MAXED OUT", 106, y + 11, 22) end
   end
   local path = data.SHIP_PATHS[self.cur]
-  box(6, 178, 308, 44, 0, 22, 200)
-  txt("YOU HAVE:", 12, 184, 1)
   local owned = {}
   for r = 1, s.ship[self.cur] do owned[#owned + 1] = path.ranks[r][1] end
   local line = #owned > 0 and table.concat(owned, ", ") or "NOTHING YET"

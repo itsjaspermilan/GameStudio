@@ -70,6 +70,16 @@ function M.dot(x, y, w, h, ci, alpha) gs.draw.rect(x, y, w, h, tint(ci, alpha)) 
 function M.line(x1, y1, x2, y2, ci, alpha) gs.draw.line(x1, y1, x2, y2, tint(ci, alpha)) end
 function M.rgba(r, g, b, a) return { r, g, b, a } end
 
+-- The menus' scrolling starfield. In a scene with a layout it is two repeating tile layers there,
+-- "far" and "dust", and drift slides them to where they are at this tick; menu_background draws the
+-- same picture itself, for the screens whose background changes (the sector list, the results).
+function M.drift(tick, speed)
+  local t = tick * (speed or 0.3)
+  local far, dust = gs.layer("far"), gs.layer("dust")
+  far.x, far.y = floor(-t * 0.5), floor(-t * 0.2)
+  dust.x, dust.y = floor(-t * 1.2), floor(-t * 0.5)
+end
+
 -- a scrolling starfield for the menus: a far layer and a nearer dust layer, both 256 pixels square
 -- and repeating
 function M.menu_background(bg, tick, speed)

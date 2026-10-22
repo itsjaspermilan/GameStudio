@@ -1,5 +1,6 @@
--- Pieces the menu scenes share: moving a cursor, the header with the credits, the footer with hints
--- and short messages.
+-- Pieces the menu scenes share: moving a cursor, the credits in the header, the footer's hint and
+-- short messages. The bars themselves, the screen's title and the background are in each menu's
+-- layout (scenes/<menu>.layout.lua).
 local audio = require "lib.audio"
 local save = require "lib.save"
 local ui = require "lib.ui"
@@ -16,23 +17,22 @@ end
 -- a message at the bottom for about two and a half seconds ("not enough credits")
 function M.say(scene, msg) scene.note, scene.note_t = msg, 150 end
 
--- call at the start of every update
+-- call at the start of every update; scene.drift is how fast its layout's background drifts
 function M.tick(scene)
   scene.tick = scene.tick + 1
   if scene.note_t and scene.note_t > 0 then scene.note_t = scene.note_t - 1 end
+  if scene.drift then ui.drift(scene.tick, scene.drift) end
 end
 
-function M.header(scene, title)
-  ui.box(0, 0, ui.SW, 22, 0, nil, 200)
-  ui.box(0, 22, ui.SW, 1, 22)
-  ui.txt(title, 8, 7, 14, 1)
+-- the credits, in the header bar
+function M.credits(scene)
   local credits = save.data.credits
   ui.spr("spr_pk_coin", scene.tick / 8, ui.SW - 10 - #tostring(credits) * 8 - 4, 11)
   ui.txtr(tostring(credits), ui.SW - 6, 7, 14)
 end
 
+-- the hint in the footer bar, or a short message while there is one
 function M.footer(scene, text)
-  ui.box(0, 226, ui.SW, 14, 0, nil, 210)
   if scene.note_t and scene.note_t > 0 then ui.txt(scene.note, 6, 230, 6, 1, 314) else ui.txt(text, 6, 230, 2, 1, 314) end
 end
 

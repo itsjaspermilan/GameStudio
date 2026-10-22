@@ -1,4 +1,5 @@
--- The hangar: where a run starts and where credits are spent.
+-- The hangar: where a run starts and where credits are spent. The bars, the title, the pilot's
+-- panel and the background are in its layout (hub.layout.lua).
 local data = require "lib.data"
 local save = require "lib.save"
 local audio = require "lib.audio"
@@ -13,7 +14,8 @@ local Hub = gs.scene{}
 local ITEMS = { "LAUNCH", "PILOTS", "SHIP UPGRADES", "WEAPON UPGRADES" }
 
 function Hub:enter(cur)
-  self.cur, self.tick = cur or 1, 0
+  self.cur, self.tick, self.drift = cur or 1, 0, 0.3
+  ui.drift(0, self.drift)
   audio.music("msc_hub")
 end
 
@@ -31,10 +33,8 @@ function Hub:update(dt)
 end
 
 function Hub:draw_ui()
-  ui.menu_background("belt", self.tick, 0.3)
-  menu.header(self, "HANGAR")
+  menu.credits(self)
   local p = data.PILOTS[save.data.sel]
-  box(176, 36, 136, 152, 0, 22, 190)
   spr("spr_pilot_" .. p.id, 2 + floor(self.tick / 5) % 6, 244, 76, 3)
   txt(p.name, 176 + (136 - #p.name * 16) / 2, 114, 14, 2, 310)
   spr("spr_ico_" .. data.WEAPONS[p.weapon].icon, 0, 190, 146)

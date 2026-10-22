@@ -16,10 +16,11 @@ const TOOLS = [
   ["entities", "Things", "Click to place the chosen entity; drag one to move it; Delete removes the selected one. (N)", "n"],
   ["texts", "Text", "Click to put a text; drag one to move it; Delete removes the selected one. (X)", "x"],
   ["pictures", "Pictures", "Click to put the chosen sprite as a picture (no code of its own); drag one to move it; Delete removes it. (I)", "i"],
+  ["boxes", "Boxes", "Drag to draw a box: a panel or a bar behind texts and pictures. Drag one to move it; Delete removes it. (B)", "b"],
   ["paths", "Paths", "Click to add a point to the chosen path; drag a point to move it; Delete removes the selected point. (P)", "p"],
 ];
 // what each tool places and selects
-const KIND_OF = { entities: "entities", texts: "texts", pictures: "pictures" };
+const KIND_OF = { entities: "entities", texts: "texts", pictures: "pictures", boxes: "boxes" };
 
 export function createRoomEditor(root, hooks = {}) {
   root.innerHTML = `
@@ -46,6 +47,10 @@ export function createRoomEditor(root, hooks = {}) {
         <h3>Sprite to place</h3>
         <div class="re-spritelist"></div>
         <p class="se-hint">A picture is a sprite with no code of its own: a logo, a sign, a decoration. The code can move it: <code>self.logo.y = 40</code>.</p>
+      </div>
+      <div class="re-panel re-boxes-panel">
+        <h3>Boxes</h3>
+        <p class="se-hint">Drag to draw a panel or a bar. Boxes are drawn first, so pictures and texts sit on top of them. Its colour, edge and how see-through it is are on the right.</p>
       </div>
       <div class="re-panel re-paths-panel">
         <h3>Paths</h3>
@@ -75,6 +80,17 @@ export function createRoomEditor(root, hooks = {}) {
             <label title="Where the text sits against its point">Align <select class="re-align"><option value="left">left</option><option value="center">centre</option><option value="right">right</option></select></label>
           </div>
           <div class="re-colors" title="The text's colour, from the console's palette"></div>
+        </div>
+        <div class="re-sel-box">
+          <div class="se-row se-fields">
+            <label>X <input type="number" class="re-bx" step="1"></label><label>Y <input type="number" class="re-by" step="1"></label>
+            <label>W <input type="number" class="re-bw" min="1" step="1"></label><label>H <input type="number" class="re-bh" min="1" step="1"></label>
+          </div>
+          <div class="se-hint">Fill</div>
+          <div class="re-colors re-box-fill" title="The box's colour"></div>
+          <label class="se-field" title="0 is invisible, 255 solid">See-through <input type="range" class="re-alpha" min="0" max="255" step="5"> <span class="re-alpha-v"></span></label>
+          <div class="se-hint">Edge</div>
+          <div class="re-colors re-box-edge" title="A one-pixel line around the box, or none"></div>
         </div>
         <div class="re-sel-picture">
           <label class="se-field">Sprite <select class="re-sprite"></select></label>
@@ -154,7 +170,7 @@ export function createRoomEditor(root, hooks = {}) {
   }
   function hitAt(k, x, y) {
     if (k === "entities") { const i = R.entityAt(room, x, y, 12 / Math.min(zoom, 2) + 4); return i; }
-    const list = room[k], box = k === "texts" ? R.textBox : pictureBox;
+    const list = room[k], box = k === "texts" ? R.textBox : k === "boxes" ? (b) => [b.x, b.y, b.x + b.w, b.y + b.h] : pictureBox;
     for (let i = list.length - 1; i >= 0; i--) { const [x0, y0, x1, y1] = box(list[i]); if (x >= x0 - 2 && x <= x1 + 2 && y >= y0 - 2 && y <= y1 + 2) return i; }
     return -1;
   }
@@ -196,6 +212,16 @@ export function createRoomEditor(root, hooks = {}) {
     const labels = []; // names drawn last, above everything: [text, x, y]
     const ring = (x0, y0, x1, y1) => { ctx.strokeStyle = themeColor("accent"); ctx.lineWidth = 2; ctx.strokeRect(x0 * zoom - 2, y0 * zoom - 2, (x1 - x0) * zoom + 4, (y1 - y0) * zoom + 4); };
     const isSel = (k, i) => sel && sel.kind === k && sel.i === i;
+    // boxes, then pictures, then texts: the order the game builds them in
+    room.boxes.forEach((b, i) => {
+      ctx.globalAlpha = (b.alpha ?? 255) / 255 * (tool === "boxes" ? 1 : 0.85);
+      ctx.fillStyle = colorOf(b.color ?? 0); ctx.fillRect(b.x * zoom, b.y * zoom, b.w * zoom, b.h * zoom);
+      ctx.globalAlpha = tool === "boxes" ? 1 : 0.85;
+      if (b.edge !== undefined && b.edge !== null) { ctx.strokeStyle = colorOf(b.edge); ctx.lineWidth = zoom; ctx.strokeRect((b.x + 0.5) * zoom, (b.y + 0.5) * zoom, (b.w - 1) * zoom, (b.h - 1) * zoom); }
+      ctx.globalAlpha = 1;
+      if (isSel("boxes", i)) ring(b.x, b.y, b.x + b.w, b.y + b.h);
+      if (b.name) labels.push([`self.${b.name}`, b.x + b.w / 2, b.y + 14]);
+    });
     // pictures
     room.pictures.forEach((p, i) => {
       const look = pics[p.sprite], s = Number(p.scale) || 1;
@@ -262,7 +288,7 @@ export function createRoomEditor(root, hooks = {}) {
   function renderSide() {
     root.querySelectorAll(".re-tools button").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
     $(".re-tiles-panel").hidden = tool !== "tiles"; $(".re-ents-panel").hidden = tool !== "entities"; $(".re-paths-panel").hidden = tool !== "paths";
-    $(".re-texts-panel").hidden = tool !== "texts"; $(".re-pics-panel").hidden = tool !== "pictures";
+    $(".re-texts-panel").hidden = tool !== "texts"; $(".re-pics-panel").hidden = tool !== "pictures"; $(".re-boxes-panel").hidden = tool !== "boxes";
     // layers
     const lbox = $(".re-layers"); lbox.replaceChildren();
     if (!room.layers.length) { const p = document.createElement("p"); p.className = "se-hint"; p.textContent = "No tile layers yet. Pick a tileset and add one."; lbox.appendChild(p); }
@@ -342,24 +368,24 @@ export function createRoomEditor(root, hooks = {}) {
     $(".re-selected").hidden = !(item && KIND_OF[tool] === k);
     if (!item) return;
     const [x, y] = posOf(k, item);
-    $(".re-selinfo").textContent = k === "entities" ? `${item[0]} at ${x}, ${y}` : k === "texts" ? `Text at ${x}, ${y}` : `Picture of ${item.sprite} at ${x}, ${y}`;
+    $(".re-selinfo").textContent = k === "entities" ? `${item[0]} at ${x}, ${y}` : k === "texts" ? `Text at ${x}, ${y}` : k === "boxes" ? `Box ${item.w} × ${item.h}` : `Picture of ${item.sprite} at ${x}, ${y}`;
     const keep = (el, v) => { if (document.activeElement !== el) el.value = v; };
     keep($(".re-name"), nameOf(k, item) || "");
     $(".re-name-hint").textContent = nameOf(k, item) ? `In the code: self.${nameOf(k, item)}` : kind === "layout" ? "Give it a name to use it in the scene's code." : "";
-    $(".re-sel-entity").hidden = k !== "entities"; $(".re-sel-text").hidden = k !== "texts"; $(".re-sel-picture").hidden = k !== "pictures";
+    $(".re-sel-entity").hidden = k !== "entities"; $(".re-sel-text").hidden = k !== "texts"; $(".re-sel-picture").hidden = k !== "pictures"; $(".re-sel-box").hidden = k !== "boxes";
     $(".re-screen-row").hidden = k === "entities";
     if (k === "entities") keep($(".re-props"), item[3] ? R.luaInline(item[3]) : "");
     if (k === "texts") {
       keep($(".re-text"), item.text ?? "");
       $(".re-size").value = String(item.size || 1); $(".re-align").value = item.align || "left";
-      const box = $(".re-colors"); box.replaceChildren();
-      palette().forEach((c, i) => {
-        const fixed = pal().fixed, value = fixed ? i : c;
-        const b = document.createElement("button"); b.className = "re-swatch" + (item.color === value || (item.color == null && c === "#ffffff") ? " active" : ""); b.style.background = c;
-        b.title = fixed ? `palette colour ${i} (${c})` : c;
-        b.onclick = () => commit(() => { item.color = value; });
-        box.appendChild(b);
-      });
+      swatches($(".re-sel-text .re-colors"), item.color ?? (pal().fixed ? palette().indexOf("#ffffff") : "#ffffff"), (v) => { item.color = v; });
+    }
+    if (k === "boxes") {
+      for (const [cls, f] of [[".re-bx", "x"], [".re-by", "y"], [".re-bw", "w"], [".re-bh", "h"]]) keep($(cls), item[f]);
+      swatches($(".re-box-fill"), item.color ?? 0, (v) => { item.color = v; });
+      swatches($(".re-box-edge"), item.edge, (v) => { if (v === undefined) delete item.edge; else item.edge = v; }, true);
+      if (document.activeElement !== $(".re-alpha")) $(".re-alpha").value = item.alpha ?? 255;
+      $(".re-alpha-v").textContent = item.alpha ?? 255;
     }
     if (k === "pictures") {
       const sprites = hooks.getSprites ? hooks.getSprites() : [];
@@ -369,6 +395,24 @@ export function createRoomEditor(root, hooks = {}) {
       keep($(".re-frame"), item.frame || 0); keep($(".re-scale"), item.scale || 1);
     }
     $(".re-screen").checked = !!item.screen;
+  }
+
+  // the palette as buttons: a click sets the colour (a place in the palette when the console has a fixed one); `none` adds a "no colour" first
+  function swatches(box, current, set, none) {
+    box.replaceChildren();
+    const fixed = pal().fixed;
+    if (none) {
+      const b = document.createElement("button"); b.className = "re-swatch re-none" + (current === undefined || current === null ? " active" : ""); b.title = "none"; b.textContent = "∅";
+      b.onclick = () => commit(() => set(undefined));
+      box.appendChild(b);
+    }
+    palette().forEach((c, i) => {
+      const value = fixed ? i : c;
+      const b = document.createElement("button"); b.className = "re-swatch" + (current === value ? " active" : ""); b.style.background = c;
+      b.title = fixed ? `palette colour ${i} (${c})` : c;
+      b.onclick = () => commit(() => set(value));
+      box.appendChild(b);
+    });
   }
 
   function drawTilePalette() {
@@ -436,6 +480,12 @@ export function createRoomEditor(root, hooks = {}) {
       if (k === "entities") {
         if (!entName) { status("Pick an entity on the left first."); return; }
         commit(() => { room.entities.push([entName, snapped(x), snapped(y)]); sel = { kind: k, i: room.entities.length - 1 }; });
+      } else if (k === "boxes") {
+        const before = snapshot();
+        room.boxes.push({ x: snapped(x), y: snapped(y), w: 1, h: 1, name: freshName("box"), color: pal().fixed ? 0 : "#000000", alpha: 200 });
+        sel = { kind: k, i: room.boxes.length - 1 };
+        drag = { kind: "draw", before, x0: snapped(x), y0: snapped(y) };
+        render();
       } else if (k === "texts") {
         commit(() => { room.texts.push({ text: "TEXT", x: snapped(x), y: snapped(y), name: freshName("text"), size: 1 }); sel = { kind: k, i: room.texts.length - 1 }; });
         requestAnimationFrame(() => { $(".re-text").focus(); $(".re-text").select(); });
@@ -457,11 +507,18 @@ export function createRoomEditor(root, hooks = {}) {
     if (ev.target === canvas) status(`${Math.floor(x)}, ${Math.floor(y)}` + (layer() && ts(layer()) ? `  ·  tile ${Math.floor(x / ts(layer()).tw)}, ${Math.floor(y / ts(layer()).th)}` : ""));
     if (!drag) return;
     if (drag.kind === "paint") { paintAt(x, y, drag.erase, false); render(); }
+    else if (drag.kind === "draw" && selected()) {
+      const b = selected(), x1 = snapped(x), y1 = snapped(y);
+      b.x = Math.min(drag.x0, x1); b.y = Math.min(drag.y0, y1); b.w = Math.max(1, Math.abs(x1 - drag.x0)); b.h = Math.max(1, Math.abs(y1 - drag.y0));
+      render();
+    }
     else if (drag.kind === "move" && selected()) { setPos(sel.kind, selected(), snapped(x + drag.dx), snapped(y + drag.dy)); render(); }
     else if (drag.kind === "point") { const p = room.paths[pathName]; if (p && p.points[pointIx]) { p.points[pointIx] = [snapped(x), snapped(y)]; render(); } }
   });
   window.addEventListener("mouseup", () => {
     if (!drag) return;
+    // a click without a drag makes a box of a usual size
+    if (drag.kind === "draw" && selected() && selected().w < 4 && selected().h < 4) { selected().w = 64; selected().h = 24; }
     if (snapshot() !== drag.before) { history.record(drag.before); markDirty(); }
     drag = null; render();
   });
@@ -565,6 +622,13 @@ export function createRoomEditor(root, hooks = {}) {
   $(".re-sprite").onchange = () => { spriteName = $(".re-sprite").value; commit(() => { selected().sprite = spriteName; }); loadAssets(); };
   $(".re-frame").onchange = () => commit(() => { const v = Math.max(0, Math.floor(Number($(".re-frame").value) || 0)); if (v) selected().frame = v; else delete selected().frame; });
   $(".re-scale").onchange = () => commit(() => { const v = Math.max(0.25, Math.min(16, Number($(".re-scale").value) || 1)); if (v !== 1) selected().scale = v; else delete selected().scale; });
+  for (const [cls, f, min] of [[".re-bx", "x", -8192], [".re-by", "y", -8192], [".re-bw", "w", 1], [".re-bh", "h", 1]]) {
+    $(cls).onchange = () => commit(() => { const b = selected(); if (b && sel.kind === "boxes") b[f] = Math.max(min, Math.round(Number($(cls).value) || 0)); });
+  }
+  let alphaBefore = null;
+  $(".re-alpha").onpointerdown = () => { alphaBefore = snapshot(); };
+  $(".re-alpha").oninput = () => { const b = selected(); if (b && sel.kind === "boxes") { b.alpha = Number($(".re-alpha").value); markDirty(); render(); } };
+  $(".re-alpha").onchange = () => { if (alphaBefore && alphaBefore !== snapshot()) history.record(alphaBefore); alphaBefore = null; };
   $(".re-screen").onchange = () => commit(() => { if ($(".re-screen").checked) selected().screen = true; else delete selected().screen; });
 
   return {

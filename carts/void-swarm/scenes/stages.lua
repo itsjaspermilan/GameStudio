@@ -1,4 +1,6 @@
--- Choose a sector. A sector opens when the one before it is cleared.
+-- Choose a sector. A sector opens when the one before it is cleared. The bars, the title and the
+-- bottom panel are in its layout (stages.layout.lua), fixed on the screen above the background,
+-- which this code draws because it is the chosen sector's.
 local data = require "lib.data"
 local save = require "lib.save"
 local audio = require "lib.audio"
@@ -26,11 +28,14 @@ function Stages:update(dt)
   end
 end
 
+function Stages:draw()
+  ui.menu_background(data.STAGES[self.cur].bg, self.tick, 0.4)
+end
+
 function Stages:draw_ui()
   local s = save.data
   local sd = data.STAGES[self.cur]
-  ui.menu_background(sd.bg, self.tick, 0.4)
-  menu.header(self, "CHOOSE A SECTOR")
+  menu.credits(self)
   for i, st in ipairs(data.STAGES) do
     local col, row = (i - 1) // 5, (i - 1) % 5
     local x, y = 6 + col * 156, 28 + row * 28
@@ -43,7 +48,6 @@ function Stages:draw_ui()
     elseif s.cleared >= i then spr("spr_ico_star", 0, x + 142, y + 17, 0.6); txt(ui.fmt_time(s.best[i]), x + 28, y + 15, 22)
     else txt("NEW", x + 28, y + 15, 18) end
   end
-  ui.box(6, 172, 308, 52, 0, 22, 215)
   local open = self.cur <= s.cleared + 1
   txt(sd.name, 12, 177, 14, 1, 262)
   txt(sd.blurb, 12, 188, 2, 1, 262)

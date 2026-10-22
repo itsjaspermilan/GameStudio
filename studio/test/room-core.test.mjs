@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseRoom, serializeRoom, fitLayer, fillLayer, entityAt, snap, freshName, luaInline, layoutNames, nameProblem, textBox } from "../src/room-core.js";
@@ -104,7 +104,13 @@ test("a scene layout keeps texts, pictures, names and the code it runs", () => {
 });
 
 test("the sample games' layouts are exactly what the layout editor writes", () => {
-  for (const rel of ["carts/void-swarm/scenes/title.layout.lua"]) {
+  const rels = [];
+  for (const game of readdirSync(join(root, "carts"))) {
+    const dir = join(root, "carts", game, "scenes");
+    if (existsSync(dir)) for (const f of readdirSync(dir)) if (f.endsWith(".layout.lua")) rels.push(`carts/${game}/scenes/${f}`);
+  }
+  assert.ok(rels.length >= 7, rels.join(", "));
+  for (const rel of rels) {
     const text = readFileSync(join(root, rel), "utf8");
     const first = text.split("\n")[0].replace(/^-- /, "");
     assert.equal(serializeRoom(parseRoom(text).room, first), text, rel);

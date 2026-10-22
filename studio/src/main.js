@@ -779,7 +779,7 @@ async function carryRenames(scene, code, renames) {
     let changed = 0;
     const swap = (n) => (renames[n] ? (changed++, renames[n]) : n);
     for (const e of parsed.room.entities) if (e[4]) e[4] = swap(e[4]);
-    for (const t of [...parsed.room.texts, ...parsed.room.pictures]) if (t.name) t.name = swap(t.name);
+    for (const t of [...parsed.room.texts, ...parsed.room.pictures, ...parsed.room.boxes]) if (t.name) t.name = swap(t.name);
     if (changed) { await invoke("write_file", { cart: state.cart, rel, content: serializeRoom(parsed.room, LAYOUT_COMMENT) }); done.push(`${changed} in ${rel}`); }
   }
   // 2. the code: in the split view if it is open there (its edits are kept), on disk otherwise

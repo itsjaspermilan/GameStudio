@@ -18,7 +18,6 @@ for i, p in ipairs(data.PILOTS) do PILOT_IDS[i] = p.id end
 function Title:enter()
   save.load()
   self.tick = 0
-  self.far, self.dust = gs.layer("far"), gs.layer("dust")
   self:place()
   if require("lib.debug").start() then return end
   audio.music("msc_title")
@@ -26,9 +25,7 @@ end
 
 -- where everything that moves is at this tick
 function Title:place()
-  local t = self.tick * 0.6
-  self.far.x, self.far.y = floor(-t * 0.5), floor(-t * 0.2)
-  self.dust.x, self.dust.y = floor(-t * 1.2), floor(-t * 0.5)
+  ui.drift(self.tick, 0.6)
   local y = 26 + floor(sin(self.tick / 40) * 3)
   self.void.y, self.void_shadow.y = y, y + 3
   self.swarm.y, self.swarm_shadow.y = y + 48, y + 51

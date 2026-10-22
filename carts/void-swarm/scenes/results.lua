@@ -1,40 +1,52 @@
--- The screen after a run: what it earned.
+-- The screen after a run: what it earned. The panel, the headline, the pilot and the labels are in
+-- its layout (results.layout.lua), fixed on the screen above the background, which this code draws
+-- because it is the sector's; the code fills in the run's words and numbers.
 local data = require "lib.data"
 local run = require "lib.run"
 local audio = require "lib.audio"
 local ui = require "lib.ui"
 
 local floor = math.floor
-local spr, txt, txtc, txtr, box = ui.spr, ui.txt, ui.txtc, ui.txtr, ui.box
+local txtc, txtr = ui.txtc, ui.txtr
 
 local Results = gs.scene{}
 
 function Results:enter()
   self.tick = 0
+  local R = run.R
+  self.panel.edge = R.win and 14 or 5
+  self.headline.text = R.win and "SECTOR CLEARED!" or (R.abandoned and "RUN ENDED" or "SHIP DESTROYED")
+  self.headline.color = R.win and 14 or 6
+  self.sector.text = R.sdef.name
+  self.pilot.sprite = "spr_pilot_" .. R.pilot.id
+  self:place()
+end
+
+-- what moves: the pilot walks, the prompt blinks
+function Results:place()
+  self.pilot.frame = 2 + floor(self.tick / 5) % 6
+  self.prompt.visible = floor(self.tick / 30) % 2 == 0
 end
 
 function Results:update(dt)
   self.tick = self.tick + 1
+  self:place()
   if gs.input.pressed("a") or gs.input.pressed("start") then
     audio.sfx("sfx_ok", 1)
     gs.goto_scene("scenes.hub", { fade = 0.25 }, 1)
   end
 end
 
+function Results:draw()
+  ui.menu_background(run.R.sdef.bg, self.tick, 0.15)
+end
+
 function Results:draw_ui()
   local R, P = run.R, run.P
-  ui.menu_background(R.sdef.bg, self.tick, 0.15)
-  box(30, 20, 260, 196, 0, R.win and 14 or 5, 225)
-  txtc(R.win and "SECTOR CLEARED!" or (R.abandoned and "RUN ENDED" or "SHIP DESTROYED"), 30, R.win and 14 or 6, 2)
-  txtc(R.sdef.name, 54, 2, 1)
-  spr("spr_pilot_" .. R.pilot.id, 2 + floor(self.tick / 5) % 6, 160, 90, 2)
-  local rows = { { "TIME", ui.fmt_time(R.t) }, { "LEVEL", tostring(P.lvl) }, { "ENEMIES", tostring(R.kills) }, { "COINS", tostring(R.coin_count) } }
-  for i, r in ipairs(rows) do txt(r[1], 70, 120 + (i - 1) * 11, 2); txtr(r[2], 250, 120 + (i - 1) * 11, 3) end
-  box(60, 168, 200, 1, 22)
-  txt("CREDITS EARNED", 70, 176, 3)
+  local values = { ui.fmt_time(R.t), tostring(P.lvl), tostring(R.kills), tostring(R.coin_count) }
+  for i, v in ipairs(values) do txtr(v, 250, 120 + (i - 1) * 11, 3) end
   txtr("+" .. R.credits, 250, 176, 14)
   if R.newstage then txtc("NEW SECTOR: " .. data.STAGES[R.newstage].name, 192, 18, 1) end
-  if floor(self.tick / 30) % 2 == 0 then txtc("PRESS A", 204, 3, 1) end
 end
 
 return Results

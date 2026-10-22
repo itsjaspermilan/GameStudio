@@ -349,10 +349,12 @@ end
 --            entities = { { "player", 160, 120, { hp = 3 }, name = "player" }, { "brick", 32, 16 }, ... },
 --            texts = { { "PRESS A", 160, 206, name = "prompt", color = 3, size = 2, align = "center" } },
 --            pictures = { { "spr_logo", 80, 20, name = "logo", frame = 0, scale = 2 } },
+--            boxes = { { 0, 0, 320, 22, name = "bar", color = 0, alpha = 200, edge = 22 } },   -- x, y, w, h: panels and bars
 --            paths = { patrol = { { 0, 0 }, { 64, 0 }, loop = true } },
 --            code = "level" }        -- optional: run another scene's code with this layout (ten levels, one set of rules)
--- A layout with no code file of its own (and no `code`) is a scene that only shows its layout. Texts and pictures are entities of the
--- kinds gs.world.Text and gs.world.Picture: move them, hide them (visible = false), change text or color, tween them.
+-- A layout with no code file of its own (and no `code`) is a scene that only shows its layout. Texts, pictures and boxes are entities of the
+-- kinds gs.world.Text, gs.world.Picture and gs.world.Box: move them, hide them (visible = false), change text or color, tween them.
+-- In one layout boxes are drawn first, then pictures, then texts (a panel under its picture under its words), each in the order listed.
 -- rooms/<name>.lua holds the same data without a scene; gs.load_room(name) builds one into the scene that is running.
 
 -- Classes are named after the file that is loading; this file makes three, so each gets a name of its own (one name would be one class).
@@ -373,6 +375,19 @@ function W.Text.draw(self)
   draw.text(s, x, self.y, self.color, self.size)
 end
 W.Picture = builtin("gs.picture", "entity", {})
+-- a filled rectangle (alpha 0 to 255: how solid the fill is) with an optional one-pixel edge, solid
+W.Box = builtin("gs.box", "entity", { w = 16, h = 16, color = 0, alpha = 255 })
+function W.Box.draw(self)
+  local r, g, b, a = draw.color(self.color)
+  local x, y, w, h = self.x, self.y, self.w, self.h
+  gs.raw.rect(x, y, w, h, r, g, b, math.floor(a * self.alpha / 255 + 0.5))
+  local edge = self.edge
+  if edge ~= nil then
+    r, g, b, a = draw.color(edge)
+    gs.raw.rect(x, y, w, 1, r, g, b, a); gs.raw.rect(x, y + h - 1, w, 1, r, g, b, a)
+    gs.raw.rect(x, y, 1, h, r, g, b, a); gs.raw.rect(x + w - 1, y, 1, h, r, g, b, a)
+  end
+end
 
 -- names a layout may not use: what every scene already has
 local TAKEN = { enter = true, leave = true, update = true, draw = true, draw_ui = true, after = true, every = true, go = true, tween = true }
@@ -389,6 +404,10 @@ local function build(data, where, scene)
     scene[n] = e
   end
   for _, s in ipairs(data.entities or {}) do named(s, W.spawn(s[1] or s.class, s[2] or s.x, s[3] or s.y, s[4] or s.props)) end
+  for _, t in ipairs(data.boxes or {}) do
+    named(t, W.spawn(W.Box, t[1] or t.x, t[2] or t.y, { w = t[3] or t.w or 16, h = t[4] or t.h or 16, color = t.color or 0, alpha = t.alpha or 255, edge = t.edge,
+      depth = t.depth or 0, screen = t.screen or false }))
+  end
   for _, t in ipairs(data.pictures or {}) do
     local sc = t.scale or 1
     named(t, W.spawn(W.Picture, t[2] or t.x, t[3] or t.y, { sprite = t[1] or t.sprite, frame = t.frame or 0, sx = sc, sy = sc, depth = t.depth or 0, screen = t.screen or false }))

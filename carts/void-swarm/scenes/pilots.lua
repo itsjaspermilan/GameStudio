@@ -1,4 +1,5 @@
--- Choose a pilot, or spend credits to unlock one.
+-- Choose a pilot, or spend credits to unlock one. The bars, the title, the pilot's panel and the
+-- background are in its layout (pilots.layout.lua).
 local data = require "lib.data"
 local save = require "lib.save"
 local audio = require "lib.audio"
@@ -11,7 +12,8 @@ local spr, txt, txtr, box = ui.spr, ui.txt, ui.txtr, ui.box
 local Pilots = gs.scene{}
 
 function Pilots:enter(cur)
-  self.cur, self.tick = cur or 1, 0
+  self.cur, self.tick, self.drift = cur or 1, 0, 0.2
+  ui.drift(0, self.drift)
 end
 
 -- the lines that describe a pilot's modifiers
@@ -50,8 +52,7 @@ end
 
 function Pilots:draw_ui()
   local s = save.data
-  ui.menu_background("moon", self.tick, 0.2)
-  menu.header(self, "PILOTS")
+  menu.credits(self)
   for i, p in ipairs(data.PILOTS) do
     local y = 28 + (i - 1) * 19
     local on, owned = (i == self.cur), s.unl[i] == 1
@@ -63,11 +64,11 @@ function Pilots:draw_ui()
   end
   local p = data.PILOTS[self.cur]
   local owned = s.unl[self.cur] == 1
-  box(162, 28, 152, 190, 0, 22, 200)
   spr("spr_pilot_" .. p.id, 2 + floor(self.tick / 5) % 6, 238, 66, 3, false, 0, owned and 255 or 120)
   txt(p.name, 238 - #p.name * 8, 102, 14, 2, 312)
   for i, l in ipairs(ui.wrap(p.blurb, 17)) do txt(l, 168, 122 + (i - 1) * 9, 2, 1, 312) end
   spr("spr_ico_" .. data.WEAPONS[p.weapon].icon, 0, 176, 156)
+  -- drawn here, not in the layout: a long blurb's third line reaches it, and it must stay on top
   txt("STARTS WITH", 190, 144, 1, 1, 312)
   for i, l in ipairs(ui.wrap(data.WEAPONS[p.weapon].name, 15)) do txt(l, 190, 154 + (i - 1) * 9, 3, 1, 312) end
   for i, l in ipairs(mod_lines(p.mods)) do txt(l, 168, 176 + (i - 1) * 9, 18, 1, 312) end

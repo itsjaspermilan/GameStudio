@@ -1,5 +1,6 @@
 -- Permanent weapon upgrades: every weapon has two paths of five ranks (A: more damage, B: its own
--- special improvements).
+-- special improvements). The bars, the title, the weapon's panel and the background are in its
+-- layout (weapons.layout.lua).
 local data = require "lib.data"
 local run = require "lib.run"
 local save = require "lib.save"
@@ -13,7 +14,8 @@ local spr, txt, txtr, box = ui.spr, ui.txt, ui.txtr, ui.box
 local Weapons = gs.scene{}
 
 function Weapons:enter()
-  self.cur, self.sub, self.tick = 1, 1, 0       -- sub: which of the two paths is selected
+  self.cur, self.sub, self.tick, self.drift = 1, 1, 0, 0.2 -- sub: which of the two paths is selected
+  ui.drift(0, self.drift)
 end
 
 local function cost(kind, rank) return floor((kind == 1 and 50 or 70) * 1.7 ^ rank + 0.5) end
@@ -38,8 +40,7 @@ end
 
 function Weapons:draw_ui()
   local s = save.data
-  ui.menu_background("junk", self.tick, 0.2)
-  menu.header(self, "WEAPON UPGRADES")
+  menu.credits(self)
   for i, id in ipairs(data.WEAPON_ORDER) do
     local y = 26 + (i - 1) * 19
     local on = (i == self.cur)
@@ -49,7 +50,6 @@ function Weapons:draw_ui()
   end
   local id = data.WEAPON_ORDER[self.cur]
   local def = data.WEAPONS[id]
-  box(48, 26, 268, 190, 0, 22, 200)
   spr("spr_ico_" .. def.icon, 0, 68, 46, 2)
   txt(def.name, 90, 34, 14, 1, 312)
   for i, l in ipairs(ui.wrap(def.blurb, 27)) do txt(l, 90, 46 + (i - 1) * 9, 2, 1, 312) end
