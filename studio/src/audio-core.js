@@ -98,7 +98,8 @@ export function normalizeSfx(d) {
     const start = int(d.loop.start, 0, n - 1, 0);
     loop = { start, end: int(d.loop.end, start, n - 1, n - 1) };
   }
-  return { speed: int(d.speed, 1, 64, 8), loop, tracks, key: normalizeKey(d.key) };
+  const reverb = int(d.reverb, 0, 100, 0); // how much of it goes into the song's reverb; effects are dry unless they ask
+  return { speed: int(d.speed, 1, 64, 8), loop, tracks, key: normalizeKey(d.key), ...(reverb ? { reverb } : {}) };
 }
 
 export const sfxLength = (d) => d.tracks[0].steps.length;
@@ -424,7 +425,7 @@ export const INSTRUMENT_PRESETS = {
 // Collects the instruments, samples, sound effects and songs a preview needs, numbering them the way the runtime expects.
 //   lookups: { instrument(name) -> instrument json | undefined }  (the project's own instruments)
 export class AudioDesc {
-  constructor(lookups = {}, { style = "clean", channels = 6, sfxChannels = 3, stereo = false } = {}) {
+  constructor(lookups = {}, { style = "clean", channels = 8, sfxChannels = 3, stereo = false } = {}) {
     this.lookups = lookups; this.style = style; this.channels = channels; this.sfxChannels = sfxChannels; this.stereo = stereo;
     this.instIds = new Map(BUILTIN_INSTRUMENTS.map((n, i) => [n, i])); this.instLines = []; this.sampleIds = new Map(); this.sampleLines = [];
     this.blocks = []; this.sfxCount = 0; this.songCount = 0; this.problems = [];
@@ -464,7 +465,7 @@ export class AudioDesc {
       if (inst < 0) continue;
       voicesOf(t).forEach((steps, k) => {
         const id = this.sfxCount++;
-        this.blocks.push(`sfx ${id} ${d.speed} ${steps.length} ${lp.start} ${lp.end} ${t.vol || 0}\n${steps.map((s) => `s ${s[0]} ${inst} ${s[1]} ${s[2]}`).join("\n")}\n`);
+        this.blocks.push(`sfx ${id} ${d.speed} ${steps.length} ${lp.start} ${lp.end} ${t.vol || 0} ${d.reverb || 0}\n${steps.map((s) => `s ${s[0]} ${inst} ${s[1]} ${s[2]}`).join("\n")}\n`);
         (k ? more : ids).push(id);
       });
     }
@@ -474,8 +475,9 @@ export class AudioDesc {
   addSong(song) {
     const id = this.songCount++;
     const slots = Array.from({ length: SONG_SLOTS }, (_, i) => (i < song.tracks && song.track_inst[i] ? this.instrument(song.track_inst[i]) : -1));
-    const voices = Math.min(TRACKER.MAX_TRACKS * TRACKER.LAYERS, Math.max(song.tracks, ...song.patterns.map((p) => p.tracks.length)));   // voice v plays track v % 4's instrument
-    let t = `song ${id} ${song.tempo} ${song.rows_per_beat} ${voices} ${song.loop_to == null ? -1 : song.loop_to} ${song.reverb}\ntvol ${Array.from({ length: TRACKER.MAX_TRACKS }, (_, i) => (song.track_vol || [])[i] || 0).join(" ")}\nslots ${slots.join(" ")}\norder ${song.order.length} ${song.order.join(" ")}\n`;
+    const voices = Math.min(TRACKER.MAX_TRACKS * TRACKER.LAYERS, Math.max(song.tracks, ...song.patterns.map((p) => p.tracks.length)));   // voice v plays track v % 8's instrument
+    const space = Math.max(0, REVERB_TYPES.indexOf(song.reverb_type || "room"));
+    let t = `song ${id} ${song.tempo} ${song.rows_per_beat} ${voices} ${song.loop_to == null ? -1 : song.loop_to} ${song.reverb} ${space}\ntvol ${Array.from({ length: TRACKER.MAX_TRACKS }, (_, i) => (song.track_vol || [])[i] || 0).join(" ")}\nslots ${slots.join(" ")}\norder ${song.order.length} ${song.order.join(" ")}\n`;
     song.patterns.forEach((p, pi) => {
       t += `pattern ${pi} ${p.rows}\n`;
       p.tracks.forEach((track, ti) => track.forEach((c, r) => { if (c) t += `cell ${pi} ${ti} ${r} ${c.note} ${ti % TRACKER.MAX_TRACKS} ${c.vol} ${c.fx} ${c.fxp}${(c.extra || []).map((n) => " " + n).join("")}\n`; }));
@@ -517,13 +519,16 @@ export function namedNotePreviewDesc(name, note, lookups = {}, opts = {}) {
 // ====================================================================================================================
 // Tracker songs
 // ====================================================================================================================
-// In the editor a song is: {tempo, rows_per_beat, tracks (always 4), track_inst: [name|null x tracks], track_vol: [-3..3 x tracks], track_keys,
-// patterns: [{rows, tracks: [[cell|null x rows] x 16]}]. A track is a lane with up to four voices: voice v is layer floor(v / 4) of track v % 4,
+// In the editor a song is: {tempo, rows_per_beat, tracks (always 8), track_inst: [name|null x tracks], track_vol: [-3..3 x tracks], track_keys,
+// patterns: [{rows, tracks: [[cell|null x rows] x 32]}]. A track is a lane with up to four voices: voice v is layer floor(v / 8) of track v % 8,
 // so notes that overlap in one lane sit on different voices (all playing the track's instrument).
-// order: [pattern numbers], loop_to: number|null, reverb}. A cell is {note, vol, fx, fxp}: note 0..95, or -1 for "note off", or -2
+// order: [pattern numbers], loop_to: number|null, reverb (0..100, how much of the music goes into the reverb), reverb_type ("room", "hall", "cave")}.
+// Songs saved with 4 tracks (before 2026-10-23) keep their lanes and chords: a file's layers are read in steps of its own track count. A cell is {note, vol, fx, fxp}: note 0..95, or -1 for "note off", or -2
 // for no note (a volume or effect change on its own); vol 0..15 or -1 for "the instrument's own". Each track plays one instrument.
 
-export const TRACKER = { MAX_ROWS: 64, MAX_PATTERNS: 32, MAX_ORDER: 64, MAX_TRACKS: 4, DEFAULT_TRACKS: 4, LAYERS: 4, ROWS: [16, 32, 64], MIN_TEMPO: 30, MAX_TEMPO: 300 };
+export const TRACKER = { MAX_ROWS: 64, MAX_PATTERNS: 32, MAX_ORDER: 64, MAX_TRACKS: 8, DEFAULT_TRACKS: 8, LAYERS: 4, ROWS: [16, 32, 64], MIN_TEMPO: 30, MAX_TEMPO: 300 };
+// The space a song's reverb sounds like (the synth's REVERB_ROOM, _HALL, _CAVE, in this order).
+export const REVERB_TYPES = ["room", "hall", "cave"];
 export const NOTE_OFF = -1, NOTE_NONE = -2;
 export const DEFAULT_TRACK_INSTRUMENTS = ["lead", "piano", "bass", "kick", "snare", "hihat", "pad", "clap"];
 export const TRACKER_EFFECTS = [
@@ -581,9 +586,9 @@ export const newPattern = (rows = 32, voices = TRACKER.MAX_TRACKS * TRACKER.LAYE
 const defaultInstrument = (t) => DEFAULT_TRACK_INSTRUMENTS[t] || null;
 
 export const clampVol = (v) => clampInt(v, -VOL_STEPS, VOL_STEPS, 0);
-export function newSong() {                          // every song has the same four tracks
+export function newSong() {                          // every song has the same eight tracks
   const tracks = TRACKER.MAX_TRACKS;
-  return { tempo: 120, rows_per_beat: 4, tracks, track_inst: Array.from({ length: tracks }, (_, t) => defaultInstrument(t)), track_keys: Array(tracks).fill(null), track_vol: Array(tracks).fill(0), patterns: [newPattern(32)], order: [0], loop_to: 0, reverb: 0, key: { ...DEFAULT_KEY } };
+  return { tempo: 120, rows_per_beat: 4, tracks, track_inst: Array.from({ length: tracks }, (_, t) => defaultInstrument(t)), track_keys: Array(tracks).fill(null), track_vol: Array(tracks).fill(0), patterns: [newPattern(32)], order: [0], loop_to: 0, reverb: 15, reverb_type: "room", key: { ...DEFAULT_KEY } };
 }
 
 // From the saved JSON to the editor's model (and back with serializeSong). Anything out of range is repaired. Songs saved in
@@ -596,9 +601,14 @@ export function parseSong(d) {
   const patterns = (Array.isArray(d.patterns) ? d.patterns : []).slice(0, TRACKER.MAX_PATTERNS).map((p) => {
     const rows = clampInt(p && p.rows, 1, TRACKER.MAX_ROWS, 32);
     const out = newPattern(rows);
-    const texts = [...((p && p.tracks) || []).slice(0, tracks)];
-    while (texts.length < tracks) texts.push("");
-    if (p && Array.isArray(p.layers)) texts.push(...p.layers.slice(0, tracks * (TRACKER.LAYERS - 1)));   // the extra voices follow the tracks
+    // voice texts in the editor's order (layer * 8 + track); the file's layers step by its own track count (4 in older songs)
+    const own = ((p && p.tracks) || []).slice(0, tracks), ft = Math.max(1, own.length);
+    const texts = Array.from({ length: tracks * TRACKER.LAYERS }, () => "");
+    own.forEach((text, t) => { texts[t] = text; });
+    ((p && Array.isArray(p.layers)) ? p.layers : []).forEach((text, k) => {
+      const layer = 1 + Math.floor(k / ft), t = k % ft;
+      if (layer < TRACKER.LAYERS) texts[voiceIndex(layer, t)] = text;
+    });
     texts.forEach((text, t) => String(text).split(/\s+/).filter(Boolean).slice(0, rows).forEach((tok, r) => {
       const c = tokenToCell(tok, old);
       if (c && old) { if (c.note >= 0 && use[t % tracks]) use[t % tracks].set(c.inst, (use[t % tracks].get(c.inst) || 0) + 1); delete c.inst; }
@@ -626,12 +636,14 @@ export function parseSong(d) {
     track_vol: Array.from({ length: tracks }, (_, t) => clampVol(Array.isArray(d.track_vol) ? d.track_vol[t] : 0)),
     track_keys: Array.from({ length: tracks }, (_, t) => normalizeLaneKey(Array.isArray(d.track_keys) ? d.track_keys[t] : null)),   // a track's own key (false = any note); null = follow the song's
     loop_to: d.loop_to == null ? null : clampInt(d.loop_to, 0, order.length - 1, 0), reverb: clampInt(d.reverb, 0, 100, 0),
+    reverb_type: REVERB_TYPES.includes(d.reverb_type) ? d.reverb_type : "room",   // songs saved before the choice existed sound like a room
     key: normalizeKey(d.key),   // songs saved before the key lock existed have none: it stays off for them
   };
 }
 export function serializeSong(s) {
   return {
     format: "tracker", tempo: s.tempo, rows_per_beat: s.rows_per_beat, tracks: s.tracks, track_instruments: s.track_inst.map((n) => n || ""), reverb: s.reverb,
+    ...(s.reverb_type && s.reverb_type !== "room" ? { reverb_type: s.reverb_type } : {}),
     ...((s.track_vol || []).some((v) => v) ? { track_vol: s.track_vol } : {}),
     ...((s.track_keys || []).some((k) => k !== null) ? { track_keys: s.track_keys } : {}),
     patterns: s.patterns.map((p) => {
@@ -721,7 +733,7 @@ export const PIANO_KEYS = (() => {
 export const noteForKey = (key, octave) => (key in PIANO_KEYS ? Math.max(0, Math.min(95, octave * 12 + PIANO_KEYS[key])) : undefined);
 
 // Render descriptions for songs.
-export function renderSongDesc(song, lookups, { style = "gba", channels = 6, sfxChannels = 3, seconds = 60, stereo = true } = {}) {
+export function renderSongDesc(song, lookups, { style = "gba", channels = 8, sfxChannels = 3, seconds = 60, stereo = true } = {}) {
   const ad = new AudioDesc(lookups, { style, channels, sfxChannels, stereo });
   ad.addSong(song);
   return { text: ad.text(`render song 0 ${seconds}`), problems: ad.problems };

@@ -2,7 +2,8 @@
  *
  * Instruments are pulse waves (four duty cycles), a drawable 4-bit wavetable, short or long noise, or sampled sounds
  * pitched across the keyboard, each with an ADSR envelope, vibrato and pan. Sound effects are rows of steps played on one
- * channel; songs are tracker patterns played on all channels. An optional output stage adds reverb and a lo-fi sound
+ * channel; songs are tracker patterns played on all channels. The output stage adds reverb (a room, a hall or a cave, fed by the
+ * music and by sound effects that ask for it) and, optionally, a lo-fi sound
  * (32 kHz, 8-bit). Pure C with no SDL dependency, so the device and the studio's previews (gs render-audio) run the very
  * same code and sound the same.
  *
@@ -11,8 +12,8 @@
 #ifndef SYNTH_H
 #define SYNTH_H
 
-#define SYNTH_MAX_CHANNELS 16         /* music voices: SONG_TRACKS tracks of up to four voices each (a chord is more voices on the track's own instrument) */
-#define SONG_TRACKS 4                 /* a song's tracks: voice v belongs to track v % SONG_TRACKS */
+#define SYNTH_MAX_CHANNELS 32         /* music voices: SONG_TRACKS tracks of up to four voices each (a chord is more voices on the track's own instrument) */
+#define SONG_TRACKS 8                 /* a song's tracks: voice v belongs to track v % SONG_TRACKS (a typical GBA game mixed about 8 music voices) */
 #define SYNTH_MAX_SFX_CHANNELS 4      /* sound effect channels: a separate pool, so effects never cut into the music */
 #define SYNTH_LEGACY_SLOTS 4          /* channels used by the older "patterns of sound effects" music */
 #define SYNTH_STEPS 32
@@ -29,6 +30,7 @@ enum { WAVE_TRIANGLE, WAVE_SAW, WAVE_SQUARE, WAVE_PULSE, WAVE_SINE, WAVE_NOISE, 
 enum { FX_NONE, FX_SLIDE, FX_VIBRATO, FX_DROP, FX_FADE_IN, FX_FADE_OUT, FX_ARP, FX_TIE, FX_COUNT };   /* sound effect steps; FX_TIE holds the note from the step before (no new note) */
 enum { TFX_NONE, TFX_SLIDE_UP, TFX_SLIDE_DOWN, TFX_VIBRATO, TFX_ARP, TFX_VOLSLIDE, TFX_PAN, TFX_CUT, TFX_COUNT }; /* tracker cells */
 enum { INST_BASIC, INST_PULSE, INST_WAVE, INST_NOISE, INST_SAMPLE, INST_GM };
+enum { REVERB_ROOM, REVERB_HALL, REVERB_CAVE, REVERB_KINDS }; /* the space a song's reverb sounds like */
 
 typedef struct {
     int type;
@@ -53,6 +55,7 @@ typedef struct {
     int vol_step;                   /* the track's volume: -3..3 steps of 1.25x */
     int n;                          /* steps used, 1..SYNTH_STEPS */
     int loop_start, loop_end;       /* loop these steps (inclusive); loop_start -1 = play once */
+    int reverb;                     /* 0..100: how much of it goes into the reverb (0: dry, the usual for effects) */
     SynthStep steps[SYNTH_STEPS];
 } SynthSfx;
 
@@ -75,7 +78,8 @@ typedef struct {
     int tracks;                     /* how many channels the song uses */
     int norder, order[SONG_MAX_ORDER];
     int loop_to;                    /* order position to jump back to after the last, or -1 to play once */
-    int reverb;                     /* 0..100 */
+    int reverb;                     /* 0..100: how much of the music goes into the reverb */
+    int reverb_kind;                /* REVERB_ROOM, REVERB_HALL or REVERB_CAVE */
     int tvol[SONG_TRACKS];          /* each track's volume: -3..3 steps of 1.25x */
     int slots[SONG_SLOTS];          /* song instrument number -> synth instrument handle (-1 = none) */
     int npatterns;
@@ -85,7 +89,7 @@ typedef struct {
 int synth_load_soundfont(const void *data, int size); /* a SoundFont (.sf2) for the General MIDI instruments; 1 on success */
 int synth_have_soundfont(void);
 void synth_reset(int sample_rate);              /* forget everything and set the output sample rate */
-void synth_config(int music_tracks, int sfx_channels, int lofi); /* music tracks 1..16, sound effect channels 1..4; lofi = the GBA-style output stage */
+void synth_config(int music_tracks, int sfx_channels, int lofi); /* music tracks 1..8, sound effect channels 1..4; lofi = the GBA-style output stage */
 int synth_add_sample(const float *mono, int frames, int rate); /* copies the data; returns a handle or -1 */
 int synth_add_instrument(const SynthInstrument *i);
 void synth_default_instrument(SynthInstrument *i); /* sensible defaults (volume 1, sustain 1, no envelope) */

@@ -23,6 +23,7 @@ export function createSfxEditor(root, hooks = {}) {
         <label class="sfx-check"><input type="checkbox" class="sfx-loop"> Loop</label>
         <label>from <input type="number" class="sfx-loop-start" min="1" max="32"></label>
         <label>to <input type="number" class="sfx-loop-end" min="1" max="32"></label>
+        <label title="How much of this sound goes into the music's reverb (the space of the song playing, or a room). Most effects are dry; a spell, a bell or a door in a hall sound good with some.">Reverb <input type="range" class="sfx-reverb" min="0" max="100" step="5"></label>
         <span class="sfx-sep"></span>
         <span class="key-lock" title="Key lock: lanes only offer notes that fit one key, so nothing clashes. Turn it off for every note.">
           <label>Key <select class="key-root"></select></label><select class="key-scale"></select></span>
@@ -148,6 +149,7 @@ export function createSfxEditor(root, hooks = {}) {
     renderKey();
     $(".sfx-speed").value = def.speed; $(".sfx-length").value = A.sfxLength(def);
     $(".sfx-loop").checked = !!def.loop;
+    $(".sfx-reverb").value = def.reverb || 0;
     $(".sfx-loop-start").value = def.loop ? def.loop.start + 1 : ""; $(".sfx-loop-end").value = def.loop ? def.loop.end + 1 : "";
     $(".sfx-loop-start").disabled = $(".sfx-loop-end").disabled = !def.loop;
   }
@@ -182,6 +184,7 @@ export function createSfxEditor(root, hooks = {}) {
   $(".le-fx").addEventListener("change", (e) => withNote((n) => { stepsOf(sel.lane, sel.voice || 0)[n.col][2] = +e.target.value; }));
   $(".le-del").addEventListener("click", () => withNote((n) => { A.eraseSfxNote(def, sel.lane, n.col, sel.voice || 0); sel = null; }));
   $(".sfx-speed").addEventListener("change", () => commit(() => { def.speed = num(".sfx-speed"); }));
+  $(".sfx-reverb").addEventListener("change", (e) => commit(() => { const v = +e.target.value; if (v) def.reverb = v; else delete def.reverb; }));
   $(".sfx-length").addEventListener("change", () => commit(() => A.resizeSfx(def, num(".sfx-length"))));
   $(".sfx-loop").addEventListener("change", (e) => commit(() => { def.loop = e.target.checked ? { start: 0, end: A.sfxLength(def) - 1 } : null; }));
   $(".sfx-loop-start").addEventListener("change", () => commit(() => { def.loop = { start: num(".sfx-loop-start") - 1, end: def.loop.end }; }));

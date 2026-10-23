@@ -16,12 +16,12 @@ test("a small game is all green", () => {
   assert.equal(find(rows, "Biggest sprite").level, "ok");
   assert.equal(find(rows, "Colours outside the palette").text, "none");
   assert.equal(find(rows, "Songs and effects").text, "1 song, 5 sound effects");
-  assert.equal(find(rows, "Most tracks in a song").level, "warn"); // 4 of 4 is full, which is allowed but worth seeing
+  assert.equal(find(rows, "Most tracks in a song").level, "ok"); // 4 of Dot's 8
   assert.ok(!rows.some((r) => r.group === "While it runs"));
 });
 
 test("things over the console's limits are flagged", () => {
-  const rows = budgetRows(dot, { cartBytes: 20000 * 1024, sprites: { boss: { w: 160, h: 64, frames: 40, offPalette: 3 }, odd: { w: 12, h: 12, frames: 1 } }, tilesets: { t: { w: 1024, h: 64, tile_w: 12, tile_h: 12 } }, songs: { big: { tracks: 6 } }, sfx: 0, lua: { files: 1, lines: 1 } }, null);
+  const rows = budgetRows(dot, { cartBytes: 20000 * 1024, sprites: { boss: { w: 160, h: 64, frames: 40, offPalette: 3 }, odd: { w: 12, h: 12, frames: 1 } }, tilesets: { t: { w: 1024, h: 64, tile_w: 12, tile_h: 12 } }, songs: { big: { tracks: 10 } }, sfx: 0, lua: { files: 1, lines: 1 } }, null);
   assert.equal(find(rows, "Game size").level, "over");
   assert.match(find(rows, "Game size").text, /over budget/);
   assert.equal(find(rows, "Biggest sprite").level, "over");
@@ -67,5 +67,5 @@ test("the stats line and the console summary", () => {
   assert.equal(parseStatsLine("hello"), null);
   assert.equal(parseStatsLine("@@gs not json"), null);
   assert.equal(parseStatsLine('@@gs {"x":1}'), null);
-  assert.deepEqual(consoleSummary(dot), ["Dot 320×240", "colour banks: 16 sprite, 16 tile", "4 music tracks", "4 sound effect channels"]);
+  assert.deepEqual(consoleSummary(dot), ["Dot 320×240", "colour banks: 16 sprite, 16 tile", "8 music tracks", "4 sound effect channels"]);
 });

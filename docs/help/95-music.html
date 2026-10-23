@@ -52,9 +52,19 @@ pianos, guitars, strings, brass, pads, a drum kit. Use them unless you want the 
 </table>
 <p>The sounds you hear most (shots, footsteps) should be the quietest: they repeat hundreds of times.</p>
 
+<h2>Eight tracks and reverb</h2>
+<p>A song has eight tracks. Use them the way GBA composers did: a lead, a counter-melody or harmony, a pad or strings holding the chords, a bass,
+and three or four for drums (kick, snare, hi-hat, a crash or percussion). More parts are not more noise: keep each in its own range and give
+the quiet ones a lower track volume.</p>
+<p>Reverb puts the music in a space. <strong>Room</strong> (about 10 to 25) is the safe choice for most levels and menus; <strong>Hall</strong> suits
+title screens, castles and calm, slow songs; <strong>Cave</strong> suits caves, ruins and anything eerie. Fast songs want less reverb than slow ones
+(it blurs quick notes), and drums sound tighter with little. Sound effects stay dry, except the few that belong in the space: a spell, a bell, a
+door, a voice.</p>
+
 <h2>On the handheld</h2>
-<p>A four-track General MIDI song takes about a tenth of the handheld's processor time on its own thread. That is fine, but do not play many
-General MIDI sound effects at once; chip sounds are cheaper for effects.</p>
+<p>A four-track General MIDI song takes about a tenth of the handheld's processor time on its own thread; eight tracks of General MIDI take about
+twice that (not yet measured on the device). Chip instruments cost much less, so they are good for drums and for the extra parts. Do not play
+many General MIDI sound effects at once.</p>
 
 <h2>With an agent</h2>
 <p>An AI agent connected to GameStudio follows this page with its tools: <code>instruments</code> lists what exists; <code>song_write</code> writes a song

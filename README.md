@@ -145,10 +145,16 @@ On handhelds with no KMS/DRM (Knulli on the RG35XX Pro has only `/dev/fb0`) `gs`
 
 Sound is built like a small band, and like the GBA it mixes a handful of voices in software:
 
-- **Channels.** A song has four tracks (each can sound up to four notes at once) and a sound effect has two lanes; sound effects have their own channels (default 4).
-  They are separate pools, so a sound effect never cuts into the music. That is about 9 voices at once: a few
+- **Channels.** A song has eight tracks (each can sound up to four notes at once; Dot and Dash play all eight) and a sound effect has two lanes; sound effects have their own channels (default 4).
+  They are separate pools, so a sound effect never cuts into the music. That is about 12 voices at once: a few
   multiplications per voice per sample, a tiny cost next to drawing, and in the same range as what GBA games mixed in software
-  (the hardware itself has 4 tone channels plus 2 sample channels; most games mixed more samples than that themselves).
+  (the hardware itself has 4 tone channels plus 2 sample channels; most games mixed 8 to 12 sampled voices themselves).
+- **Reverb.** Like the GBA's sound driver, the mixer has a reverb, and it gives music much of its warmth. A song picks its space,
+  `reverb_type` `"room"` (short, warm; the default and what older songs get), `"hall"` (long, bright) or `"cave"` (very long, dark), and
+  how much of the music goes into it (`reverb`, 0 to 100). Sound effects are dry unless they set their own `reverb` amount: they then
+  ring in the space of the song that is playing (a room when none is).
+- **Samples.** Imported WAV files are made mono at the console's `sample_rate` (32 kHz on Dot and Dash, the rate of a GBA game's best
+  samples) and may be up to `sample_max_seconds` long (8).
 - **One instrument per channel.** Every track of a song, and every channel of a sound effect, plays one instrument. In the studio
   you drag an instrument from the palette onto the channel. Change the instrument and every note on it changes.
 - **General MIDI.** Besides the chip sounds there are real instruments: all 128 General MIDI sounds and a drum kit, played from a
@@ -173,12 +179,13 @@ Sound is built like a small band, and like the GBA it mixes a handful of voices 
   (or press Escape) to let go of the selected note. The note names sit in a gutter beside each lane, so they never cover the first column.
 - **Notes that overlap.** A lane can sound up to four notes at once (a chord, or a bass note under a melody). Clicking where a note already
   sounds puts the new note on the lane's next free *voice*, so nothing is replaced and each note keeps its own length. A song stores the extra
-  voices as `layers` (12 strings after a pattern's four `tracks`, voice `4 * layer + track`), a sound effect track as `layers` (more steps
+  voices as `layers` (24 strings after a pattern's eight `tracks`, voice `8 * layer + track`; a song saved with four tracks steps by 4, and
+  is read that way), a sound effect track as `layers` (more steps
   lists on the same instrument); both play on the track's own instrument. In a sound effect the layers use extra sound channels (after the
   tracks, so if the console has too few they are dropped first).
-- **Tracks and volume.** A song always has four tracks and a sound effect two lanes, all shown; a lane plays only if it has an instrument.
+- **Tracks and volume.** A song always has eight tracks and a sound effect two lanes, all shown; a lane plays only if it has an instrument.
   Each lane has a volume from -3 to +3 steps (0 is the baseline, each step is 1.25x), saved as `track_vol` in a song and `vol` on a sound
-  effect's track. Songs saved with more tracks keep only the first four, and sound effects only the first two lanes.
+  effect's track. Songs saved with more tracks keep only the first eight (older songs with four get four empty lanes), and sound effects only the first two lanes.
 The grid lines show bars and beats. Pattern length is counted in bars.
 - **Quick starts.** *Start from* loads a ready-made song (happy adventure, chill evening, boss fight: each in its key, with a lead, a chord
   or bass part and a drum kit beat). *Random* on a melody lane writes a phrase in the key and plays it; a drum kit lane has *Drum beat*

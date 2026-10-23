@@ -124,7 +124,7 @@ export function createConsoleEditor(dialog, hooks = {}) {
   field("Parallax scrolling", par);
 
   section("Sound");
-  field("Music tracks", numInput("audio.music_tracks", { max: 4 }), "How many tracks a song has (each plays one instrument, and can sound several notes at once).");
+  field("Music tracks", numInput("audio.music_tracks", { max: 8 }), "How many of a song's eight tracks play (each plays one instrument, and can sound several notes at once).");
   field("Sound effect channels", numInput("audio.sfx_channels", { max: 4 }), "How many sound effect voices can play at once (a sound effect has two lanes, and a lane can sound several notes). They are separate from the music, so effects never cut the music off.");
   const style = el("select");
   [["clean", "Clean: full quality"], ["gba", "GBA: lo-fi, like a Game Boy Advance"]].forEach(([v, l]) => style.appendChild(new Option(l, v)));

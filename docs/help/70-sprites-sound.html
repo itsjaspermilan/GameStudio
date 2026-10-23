@@ -59,13 +59,16 @@ gs.sfx("jump", 0.5)     -- at half volume
 gs.sfx_stop()           -- stop all sound effects</code></pre>
 
 <h2>Music</h2>
-<p>A song has four tracks (the console's limit), each with an instrument. Songs are patterns of notes in a grid; the music editor can also suggest a melody, a drum beat or a chord to start from.</p>
+<p>A song has eight tracks, each with an instrument (Dot and Dash play all eight, like a GBA game's music). <em>Reverb</em> at the top makes it
+sound as if played in a space: <strong>Room</strong> (short and warm), <strong>Hall</strong> (long and bright) or <strong>Cave</strong> (very long and dark),
+and the slider says how much. A little goes a long way: most GBA music had some. Sound effects are dry; give one a <em>Reverb</em> amount
+(a spell, a bell, a door in a hall) and it rings in the song's space. Songs are patterns of notes in a grid; the music editor can also suggest a melody, a drum beat or a chord to start from.</p>
 <pre class="lua"><code>gs.music("title_theme")         -- starts music/title_theme.json, replacing what played
 gs.music_stop(1.5)              -- fade out over one and a half seconds</code></pre>
 <p>Sound effects and music use separate voices, so a sound effect never cuts a note out of the song. The handheld's speaker is small: bright, short sounds carry better than deep ones.</p>
 
 <h2>Instruments and samples</h2>
 <p>Instruments are the sounds that songs and effects are played with. A set of ready-made ones (pulse waves, noise drums, a General MIDI piano and more) is always available. To change one, copy it into <em>Instruments</em> and edit the copy.
-You can also import a short <code>.wav</code> recording as a sample (up to 4 seconds on Dot) and use it as an instrument.</p>
+You can also import a short <code>.wav</code> recording as a sample (up to 8 seconds on Dot; it is made mono at 32 kHz, the best a GBA game used) and use it as an instrument.</p>
 <div class="note"><strong>Missing sounds are errors on purpose.</strong> <code>gs.sfx("jmup")</code> stops with "unknown sound effect 'jmup'" instead of staying silent, and the editor underlines it before you even run. Typos should not hide.</div>
 <p>Next: <a href="help:limits">Working inside the handheld's limits</a>.</p>

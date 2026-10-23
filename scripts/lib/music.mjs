@@ -120,7 +120,7 @@ export class Song {
   build() {
     const o = this.o, patterns = o.sections.map((s) => this.pattern(s.prog, s));
     return {
-      format: "tracker", tempo: o.tempo, rows_per_beat: 4, tracks: 4, track_instruments: o.inst, reverb: o.reverb ?? 12, track_vol: leveled(o.vol ?? [0, -2, -1, -2], o.level),
+      format: "tracker", tempo: o.tempo, rows_per_beat: 4, tracks: 4, track_instruments: o.inst, reverb: o.reverb ?? 12, ...(o.reverb_type ? { reverb_type: o.reverb_type } : {}), track_vol: leveled(o.vol ?? [0, -2, -1, -2], o.level),
       patterns, order: o.order, loop_to: o.loop === false ? -1 : 0, key: { root: o.root % 12, scale: o.scale === "lydian" ? "major" : o.scale === "harm" || o.scale === "dorian" || o.scale === "phrygian" ? "minor" : o.scale }, // the editor's key lock knows major and minor; lydian is a major mode
     };
   }

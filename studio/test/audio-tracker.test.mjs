@@ -25,12 +25,27 @@ test("cells round-trip through tokens (no instrument: the track has it)", () => 
   assert.deepEqual(A.tokenToCell("C4,2,9,3,4", true), { note: 48, vol: 9, fx: 3, fxp: 4, inst: 2 }); // the older form
 });
 
-test("a new song has four tracks with a band ready to go", () => {
+test("a new song has eight tracks with a band ready to go", () => {
   const s = A.newSong();
-  assert.equal(s.tracks, 4);
-  assert.deepEqual(s.track_inst, ["lead", "piano", "bass", "kick"]);
+  assert.equal(s.tracks, 8);
+  assert.deepEqual(s.track_inst, ["lead", "piano", "bass", "kick", "snare", "hihat", "pad", "clap"]);
   for (const n of s.track_inst) assert.ok(A.isBuiltinName(n), n);
-  assert.equal(s.patterns[0].tracks.length, 16);              // four tracks of four voices each
+  assert.equal(s.patterns[0].tracks.length, 32);              // eight tracks of four voices each
+  assert.deepEqual([s.reverb_type, s.reverb > 0], ["room", true]);  // a little room, so a new song does not sound dry
+});
+
+test("a song saved with four tracks keeps its lanes and its chords on the right tracks", () => {
+  // layers in the older file step by its 4 tracks: layer k is voice 1 of track k for k < 4, voice 2 of track k - 4, ...
+  const old = { format: "tracker", tempo: 100, tracks: 4, track_instruments: ["lead", "piano", "bass", "kick"], reverb: 20, order: [0], loop_to: 0,
+    patterns: [{ rows: 4, tracks: ["C4", "E4", "C2", "C3"], layers: ["--", "G4", "--", "--", "--", "B4"] }] };
+  const s = A.parseSong(old);
+  assert.equal(s.tracks, 8);
+  assert.deepEqual(s.track_inst, ["lead", "piano", "bass", "kick", null, null, null, null]);   // the new lanes are empty
+  assert.equal(s.patterns[0].tracks[A.voiceIndex(1, 1)][0].note, 55);   // G4: voice 1 of the piano
+  assert.equal(s.patterns[0].tracks[A.voiceIndex(2, 1)][0].note, 59);   // B4: voice 2 of the piano
+  assert.equal(s.reverb_type, "room");
+  const again = A.parseSong(JSON.parse(JSON.stringify(A.serializeSong(s))));   // saved with 8 tracks, read back the same
+  assert.deepEqual(again, s);
 });
 
 test("songs round-trip and repair bad data", () => {
@@ -39,7 +54,7 @@ test("songs round-trip and repair bad data", () => {
   A.setCell(s, 0, 2, 5, A.cellOf(40, -1, 4, 3));
   A.setTrackInstrument(s, 1, null);
   const json = JSON.parse(JSON.stringify(A.serializeSong(s)));
-  assert.deepEqual(json.track_instruments, ["lead", "", "bass", "kick"]);
+  assert.deepEqual(json.track_instruments, ["lead", "", "bass", "kick", "snare", "hihat", "pad", "clap"]);
   assert.deepEqual(A.parseSong(json), s);
   const bad = A.parseSong({ tempo: 9999, tracks: 99, order: [7, -3], patterns: [{ rows: 500, tracks: ["C4 C9 junk"] }] });
   assert.equal(bad.tempo, A.TRACKER.MAX_TEMPO);
@@ -73,7 +88,7 @@ test("editing operations keep the song consistent", () => {
   assert.equal(A.removePattern(s, 0), false);
   A.setPatternRows(s, 0, 16);
   assert.equal(s.patterns[0].tracks[0].length, 16);
-  assert.equal(s.patterns[0].tracks.length, 16);
+  assert.equal(s.patterns[0].tracks.length, 32);
   A.setTrackInstrument(s, 1, "strings"); assert.equal(s.track_inst[1], "strings");
 });
 
@@ -106,7 +121,7 @@ test("render descriptions give every track its own instrument", () => {
   A.setCell(s, 0, 1, 0, A.cellOf(36, 9));
   const { text, problems } = A.renderSongDesc(s, lookups, { seconds: 4 });
   assert.match(text, /^style gba/m);
-  assert.match(text, /^channels 6$/m);
+  assert.match(text, /^channels 8$/m);
   assert.match(text, /^inst 6 pulse 1 /m);
   assert.match(text, /^sample 0 sounds\/kick\.wav/m);
   assert.match(text, /^inst 7 sample 0 36 /m);
@@ -237,8 +252,8 @@ test("a lane's notes can overlap, each on its own voice", () => {
   assert.equal(A.addVoiceNote(pat, 0, 3, 59), -1);            // a track has four voices
   assert.deepEqual(A.voiceNotes(pat, 1), []);                 // other tracks are untouched
   const json = A.serializeSong(s);
-  assert.equal(json.patterns[0].tracks.length, 4);
-  assert.equal(json.patterns[0].layers.length, 12);           // the extra voices are saved after the tracks
+  assert.equal(json.patterns[0].tracks.length, 8);
+  assert.equal(json.patterns[0].layers.length, 24);           // the extra voices are saved after the tracks
   assert.deepEqual(A.parseSong(JSON.parse(JSON.stringify(json))), s);
   assert.equal("layers" in A.serializeSong(A.newSong()).patterns[0], false);   // and only when a lane uses them
   // moving a note keeps its length, volume and effect, and lands on the first voice with room
@@ -255,10 +270,10 @@ test("a lane's notes can overlap, each on its own voice", () => {
 
 test("a track's volume is a step from -3 to +3", () => {
   const s = A.parseSong({ track_vol: [9, -9, 1] });
-  assert.deepEqual(s.track_vol, [3, -3, 1, 0]);
+  assert.deepEqual(s.track_vol, [3, -3, 1, 0, 0, 0, 0, 0]);
   assert.equal("track_vol" in A.serializeSong(A.newSong()), false);
-  assert.deepEqual(A.serializeSong(s).track_vol, [3, -3, 1, 0]);
-  assert.match(A.renderSongDesc(s, {}, { seconds: 1 }).text, /^tvol 3 -3 1 0$/m);
+  assert.deepEqual(A.serializeSong(s).track_vol, [3, -3, 1, 0, 0, 0, 0, 0]);
+  assert.match(A.renderSongDesc(s, {}, { seconds: 1 }).text, /^tvol 3 -3 1 0 0 0 0 0$/m);
 });
 
 test("erasing a note leaves the note before it as long as it was", () => {
@@ -416,9 +431,11 @@ test("starter songs are valid, in key, in range and play", () => {
     const s = A.starterSong(id);
     assert.ok(label && s, id);
     assert.deepEqual(A.parseSong(A.serializeSong(s)), s, id);
-    assert.equal(s.tracks, 4);
+    assert.equal(s.tracks, 8);
     for (const p of s.patterns) for (let t = 0; t < s.tracks; t++) {
-      const inst = s.track_inst[t], kit = A.kitOf(inst), [lo, hi] = A.instrumentRange(inst);
+      const inst = s.track_inst[t];
+      if (!inst) { assert.ok(p.tracks[t].every((c) => !c), `${id}: notes on track ${t} with no instrument`); continue; }
+      const kit = A.kitOf(inst), [lo, hi] = A.instrumentRange(inst);
       assert.ok(A.isBuiltinName(inst), `${id}: ${inst}`);
       for (const c of p.tracks[t]) for (const n of A.cellNotes(c)) {
         if (kit) assert.ok(kit.some((k) => k.key === n), `${id}: drum key ${n}`);
@@ -437,4 +454,27 @@ test("every starter song renders to sound", { skip }, () => {
     assert.equal(r.status, 0, `${id}: ${r.stderr}`);
     assert.ok(rms(r.samples, 0, seg(1.5)) > 0.01, `${id} is silent`);
   }
+});
+
+test("reverb: a song rings out in its space (a cave longest), and effects are dry unless they ask", { skip }, () => {
+  const render = (type, amount) => {
+    const s = A.newSong(); s.track_inst[0] = "square"; s.tempo = 120; s.reverb = amount; s.reverb_type = type;
+    A.setCell(s, 0, 0, 0, A.cellOf(48, 15)); A.setCell(s, 0, 0, 2, A.cellOf(A.NOTE_OFF, -1));   // a short note, then silence
+    const r = runRender(A.renderSongDesc(s, {}, { style: "clean", seconds: 2.5 }).text);
+    assert.equal(r.status, 0, r.stderr);
+    return r.samples;
+  };
+  // after the note and its release only the reverb is left: a room rings briefly, a hall longer, a cave longest (dark, so softer at first)
+  const early = (x) => rms(x, seg(0.4), seg(0.6)), late = (x) => rms(x, seg(1.0), seg(1.5));
+  const dry = render("room", 0), room = render("room", 60), hall = render("hall", 60), cave = render("cave", 60);
+  assert.ok(early(dry) < 1e-4, "no reverb: silence after the note");
+  assert.ok(early(room) > 1e-4 && late(room) < late(hall), `a room dies first (${late(room)} < ${late(hall)})`);
+  assert.ok(early(hall) > early(room), "a hall rings louder than a room");
+  assert.ok(late(cave) > late(hall), `a cave rings longest (${late(cave)} > ${late(hall)})`);
+  const fx = (reverb) => {
+    const d = A.normalizeSfx({ speed: 4, reverb, tracks: [{ instrument: "square", steps: [[36, 7, 0], [36, 0, 0], [36, 0, 0], [36, 0, 0], [36, 0, 0]] }] });
+    return rms(runRender(A.renderSfxWith(d, {}, { style: "clean", seconds: 1.2 }).text).samples, seg(0.5), seg(1.0));
+  };
+  assert.ok(fx(0) < 1e-4, "a dry effect stops when it stops");
+  assert.ok(fx(80) > fx(0) * 10 + 1e-5, "an effect with reverb rings on");
 });

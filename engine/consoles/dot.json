@@ -74,10 +74,10 @@
     "parallax": true
   },
   "audio": {
-    "sample_rate": 22050,
-    "sample_max_seconds": 4,
+    "sample_rate": 32000,
+    "sample_max_seconds": 8,
     "style": "gba",
-    "music_tracks": 4,
+    "music_tracks": 8,
     "sfx_channels": 4
   },
   "input": [

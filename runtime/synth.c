@@ -106,13 +106,15 @@ typedef struct {
     /* sound effect player */
     int seq, step; double pos; double prev_pitch; float seq_vol;
     int trk_step;                /* the track's volume: -3..3 steps of 1.25x */
+    float send;                  /* how much of this voice goes into the reverb, 0..1 */
 } Voice;
 
 static Voice g_v[NVOICES];
 static unsigned long g_age;
 static float g_music_gain = 1.0f;
-static float g_reverb = 0;
-static long g_reverb_tail = 0; /* samples left to keep the reverb on after the music stops, so its tail can ring out */
+static int g_rev_kind = REVERB_ROOM;
+static long g_reverb_tail = 0; /* samples left to run the reverb after the last sound fed it, so its tail can ring out */
+static void reverb_kind(int kind);
 
 static double ms_samples(int ms) { return ms * (double)g_sr / 1000.0; }
 
@@ -357,6 +359,7 @@ static void sfx_start_on(int c, int h, float volume) {
     if (s->steps[0].inst >= g_ninst) return;
     voice_note_on(v, s->steps[0].inst, s->steps[0].pitch + 12.0, 1.0f, 0);
     v->seq = h; v->step = 0; v->pos = 0; v->prev_pitch = s->steps[0].pitch; v->seq_vol = volume; v->trk_step = s->vol_step;
+    v->send = s->reverb / 100.0f;
     v->phase = 0; v->noise = 0; v->lfsr = 2463534242u; v->gain = 0; /* a new sound effect always starts from the top */
 }
 
@@ -411,7 +414,6 @@ static void music_halt(void) {
     for (int c = 0; c < SYNTH_MAX_CHANNELS; c++) if (g_v[c].active) { g_v[c].seq = -1; voice_release(&g_v[c]); }
     g_m.active = 0; g_m.fading = 0; g_s.active = 0; g_s.fading = 0;
     g_music_gain = 1.0f;
-    g_reverb_tail = (long)(3.0 * g_sr);
 }
 
 static void music_start_pattern(int p) {
@@ -450,7 +452,6 @@ static void music_next(void) {
 void synth_play_music(int h) {
     if (h < 0 || h >= g_nmusic || g_music[h].n < 1) return;
     music_halt();
-    g_reverb = 0; g_reverb_tail = 0;
     g_m.active = 1; g_m.handle = h;
     music_start_pattern(0);
 }
@@ -461,7 +462,8 @@ void synth_play_music(int h) {
 static void song_row(void) {
     const SynthSong *s = &g_songs[g_s.handle];
     const SongPattern *p = &s->pat[s->order[g_s.ord]];
-    for (int c = 0; c < s->tracks && (c % SONG_TRACKS) < g_mch; c++) {
+    for (int c = 0; c < s->tracks; c++) {
+        if (c % SONG_TRACKS >= g_mch) continue; /* a track past what the console plays (a chord's later voices still belong to the early tracks) */
         Voice *v = &g_v[c];
         const SynthCell *cell = &p->cell[c][g_s.row];
         v->fx = 0; v->fxp = 0; v->fx_samples = 0;
@@ -472,6 +474,7 @@ static void song_row(void) {
                 voice_note_on(v, slot, cell->note, vol, 1);
                 v->seq = -1; /* a music note is not a sound effect step */
                 v->trk_step = s->tvol[c % SONG_TRACKS];
+                v->send = s->reverb / 100.0f;
                 if (g_inst[slot].type == INST_GM && v->sf) for (int e = 0; e < 3; e++) if (cell->extra[e] >= 0) gm_note(v, &g_inst[slot], cell->extra[e]); /* drum hits struck together */
             }
         } else if (cell->note == NOTE_OFF) {
@@ -507,7 +510,7 @@ void synth_play_song(int h) {
     if (h < 0 || h >= g_nsongs || g_songs[h].norder < 1) return;
     music_halt();
     g_s.active = 1; g_s.handle = h; g_s.ord = 0; g_s.row = 0;
-    g_reverb = g_songs[h].reverb / 100.0f; g_reverb_tail = 0;
+    reverb_kind(g_songs[h].reverb_kind);
     for (int c = 0; c < SYNTH_MAX_CHANNELS; c++) g_v[c].active = 0;
     song_begin_row();
 }
@@ -523,36 +526,63 @@ int synth_music_playing(void) { return g_m.active || g_s.active; }
 
 /* ---------------------------------------------------------------- the output stage: reverb and a lo-fi sound */
 
-#define REV_MAX 3300
+/* A small Schroeder reverb (four damped feedback echoes and two diffusers a side, as in Freeverb), in three spaces. The GBA's own sound
+ * driver had a simple reverb that gave its music much of its warmth; this is the same idea with more depth. The music feeds it at
+ * the song's amount, a sound effect only at its own (dry by default). */
+#define REV_MAX 4096
 #define COMBS 4
+#define ALLPASSES 2
 static const int COMB_L[COMBS] = {1116, 1188, 1277, 1356}, COMB_R[COMBS] = {1139, 1211, 1300, 1379};
-static float rev_buf[2][COMBS][REV_MAX];
+static const int AP_L[ALLPASSES] = {556, 441}, AP_R[ALLPASSES] = {579, 464};
+/* size: how far apart the walls are (echo times), feedback: how long it rings, damp: how fast the highs die (a cave is dark and long) */
+static const struct { float size, feedback, damp; } REVERBS[REVERB_KINDS] = {
+    {0.65f, 0.70f, 0.45f}, /* room: short and warm */
+    {1.00f, 0.84f, 0.25f}, /* hall: long and bright */
+    {1.40f, 0.89f, 0.60f}, /* cave: very long, the highs soaked up */
+};
+static float rev_buf[2][COMBS][REV_MAX], ap_buf[2][ALLPASSES][REV_MAX];
 static float rev_lp[2][COMBS];
-static int rev_pos[2][COMBS], rev_len[2][COMBS];
+static int rev_pos[2][COMBS], rev_len[2][COMBS], ap_pos[2][ALLPASSES], ap_len[2][ALLPASSES];
 
+static int scaled_len(int n, float size) {
+    int k = (int)(n * size * (g_sr / 44100.0));
+    return k < 1 ? 1 : k > REV_MAX ? REV_MAX : k;
+}
 static void reverb_reset(void) {
-    memset(rev_buf, 0, sizeof rev_buf); memset(rev_lp, 0, sizeof rev_lp); memset(rev_pos, 0, sizeof rev_pos);
-    for (int k = 0; k < COMBS; k++) {
-        rev_len[0][k] = (int)(COMB_L[k] * (g_sr / 44100.0)); rev_len[1][k] = (int)(COMB_R[k] * (g_sr / 44100.0));
-        if (rev_len[0][k] > REV_MAX) rev_len[0][k] = REV_MAX;
-        if (rev_len[1][k] > REV_MAX) rev_len[1][k] = REV_MAX;
-        if (rev_len[0][k] < 1) rev_len[0][k] = 1;
-        if (rev_len[1][k] < 1) rev_len[1][k] = 1;
-    }
+    memset(rev_buf, 0, sizeof rev_buf); memset(ap_buf, 0, sizeof ap_buf); memset(rev_lp, 0, sizeof rev_lp);
+    memset(rev_pos, 0, sizeof rev_pos); memset(ap_pos, 0, sizeof ap_pos);
+    const float size = REVERBS[g_rev_kind].size;
+    for (int k = 0; k < COMBS; k++) { rev_len[0][k] = scaled_len(COMB_L[k], size); rev_len[1][k] = scaled_len(COMB_R[k], size); }
+    for (int k = 0; k < ALLPASSES; k++) { ap_len[0][k] = scaled_len(AP_L[k], 1.0f); ap_len[1][k] = scaled_len(AP_R[k], 1.0f); }
+}
+/* A new space empties the old one (a different song); the same space keeps ringing. */
+static void reverb_kind(int kind) {
+    kind = kind < 0 || kind >= REVERB_KINDS ? REVERB_ROOM : kind;
+    if (kind != g_rev_kind) { g_rev_kind = kind; reverb_reset(); }
 }
 
-/* A small bank of feedback echoes, like the simple reverb of old console sound drivers. */
-static void reverb_process(float *l, float *r) {
-    float in = (*l + *r) * 0.5f, out[2] = {0, 0};
-    for (int ch = 0; ch < 2; ch++)
+/* in_l, in_r: what is sent to the reverb; the echoes are added to *l, *r. The input is scaled by (1 - feedback), so every space comes
+ * out about as loud for the same amount: only its length and colour differ. */
+static void reverb_process(float in_l, float in_r, float *l, float *r) {
+    const float fb = REVERBS[g_rev_kind].feedback, damp = REVERBS[g_rev_kind].damp, gain = (1.0f - fb) * 0.5f;
+    const float in[2] = {in_l * gain, in_r * gain};
+    float out[2] = {0, 0};
+    for (int ch = 0; ch < 2; ch++) {
         for (int k = 0; k < COMBS; k++) {
             float y = rev_buf[ch][k][rev_pos[ch][k]];
-            rev_lp[ch][k] += (y - rev_lp[ch][k]) * 0.6f; /* the echoes get duller as they fade */
-            rev_buf[ch][k][rev_pos[ch][k]] = in + rev_lp[ch][k] * 0.72f;
+            rev_lp[ch][k] = y * (1.0f - damp) + rev_lp[ch][k] * damp; /* the echoes get duller as they fade */
+            rev_buf[ch][k][rev_pos[ch][k]] = in[ch] + rev_lp[ch][k] * fb;
             if (++rev_pos[ch][k] >= rev_len[ch][k]) rev_pos[ch][k] = 0;
             out[ch] += y;
         }
-    *l += out[0] * 0.25f * g_reverb * 0.6f; *r += out[1] * 0.25f * g_reverb * 0.6f;
+        for (int k = 0; k < ALLPASSES; k++) { /* diffusers: smear the echoes into a smooth wash */
+            float b = ap_buf[ch][k][ap_pos[ch][k]];
+            ap_buf[ch][k][ap_pos[ch][k]] = out[ch] + b * 0.5f;
+            out[ch] = b - out[ch];
+            if (++ap_pos[ch][k] >= ap_len[ch][k]) ap_pos[ch][k] = 0;
+        }
+    }
+    *l += out[0]; *r += out[1];
 }
 
 static double lo_hold = 0; static float lo_l, lo_r, lp_l, lp_r;
@@ -580,7 +610,7 @@ void synth_reset(int sample_rate) {
     memset(g_v, 0, sizeof g_v);
     for (int c = 0; c < NVOICES; c++) g_v[c].seq = -1;
     memset(&g_m, 0, sizeof g_m); memset(&g_s, 0, sizeof g_s);
-    g_age = 0; g_music_gain = 1.0f; g_reverb = 0; g_reverb_tail = 0; g_mch = 6; g_sch = 3; g_lofi = 0; g_group = 0;
+    g_age = 0; g_music_gain = 1.0f; g_rev_kind = REVERB_ROOM; g_reverb_tail = 0; g_mch = 6; g_sch = 3; g_lofi = 0; g_group = 0;
     lo_hold = 0; lo_l = lo_r = lp_l = lp_r = 0;
     builtin_instruments();
     reverb_reset();
@@ -594,7 +624,7 @@ int synth_load_soundfont(const void *data, int size) {
 int synth_have_soundfont(void) { return g_sf != NULL; }
 
 void synth_config(int music_tracks, int sfx_channels, int lofi) {
-    g_mch = music_tracks < 1 ? 1 : music_tracks > SYNTH_MAX_CHANNELS ? SYNTH_MAX_CHANNELS : music_tracks;
+    g_mch = music_tracks < 1 ? 1 : music_tracks > SONG_TRACKS ? SONG_TRACKS : music_tracks;
     g_sch = sfx_channels < 1 ? 1 : sfx_channels > SYNTH_MAX_SFX_CHANNELS ? SYNTH_MAX_SFX_CHANNELS : sfx_channels;
     g_lofi = lofi ? 1 : 0;
 }
@@ -613,20 +643,20 @@ void synth_mix(float *out, int frames) {
             if (left < n) n = left;
         }
         for (int i = 0; i < n; i++) {
-            float l = 0, r = 0;
+            float l = 0, r = 0, sl = 0, sr = 0; /* sl, sr: what goes into the reverb */
             for (int c = 0; c < NVOICES; c++) {
                 Voice *v = &g_v[c];
                 if (!v->active) continue;
                 float s = voice_sample(v);
                 if (v->owner == 1) s *= g_music_gain;
                 float pan = v->pan;
-                l += s * (pan > 0 ? 1.0f - pan : 1.0f);
-                r += s * (pan < 0 ? 1.0f + pan : 1.0f);
+                const float vl = s * (pan > 0 ? 1.0f - pan : 1.0f), vr = s * (pan < 0 ? 1.0f + pan : 1.0f);
+                l += vl; r += vr;
+                if (v->send > 0) { sl += vl * v->send; sr += vr * v->send; }
             }
-            if (g_reverb > 0.0001f) {
-                reverb_process(&l, &r);
-                if (g_reverb_tail > 0 && --g_reverb_tail == 0) g_reverb = 0;
-            }
+            /* the reverb runs while something feeds it and for five seconds after, long enough for a cave to die away */
+            if (sl != 0 || sr != 0) g_reverb_tail = (long)(5.0 * g_sr);
+            if (g_reverb_tail > 0) { reverb_process(sl, sr, &l, &r); g_reverb_tail--; }
             if (g_lofi) lofi_process(&l, &r);
             out[2 * i] += l; out[2 * i + 1] += r;
             if ((g_m.active && g_m.fading) || (g_s.active && g_s.fading)) {

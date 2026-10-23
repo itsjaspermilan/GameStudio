@@ -907,6 +907,7 @@ static int l_sfx_load(lua_State *L) {
     SynthSfx s; memset(&s, 0, sizeof s);
     s.speed = speed; s.n = n; s.loop_start = clampi(luaL_optinteger(L, 4, -1), -1, n - 1); s.loop_end = clampi(luaL_optinteger(L, 5, -1), -1, n - 1);
     s.vol_step = clampi(luaL_optinteger(L, 6, 0), -3, 3);
+    s.reverb = clampi(luaL_optinteger(L, 7, 0), 0, 100); /* how much goes into the reverb (0: dry) */
     for (int i = 0; i < n; i++) {
         s.steps[i].pitch = (unsigned char)clampi(table_int(L, 3, i * 4 + 1), 0, 63);
         s.steps[i].inst = (unsigned char)clampi(table_int(L, 3, i * 4 + 2), 0, SYNTH_MAX_INSTRUMENTS - 1);
@@ -954,6 +955,9 @@ static int l_song_load(lua_State *L) {
     sg->rows_per_beat = clampi((lua_Integer)field_num(L, 1, "rows_per_beat", 4), 1, 16);
     sg->tracks = clampi((lua_Integer)field_num(L, 1, "tracks", 4), 1, SYNTH_MAX_CHANNELS);
     sg->loop_to = (int)field_num(L, 1, "loop_to", -1); sg->reverb = clampi((lua_Integer)field_num(L, 1, "reverb", 0), 0, 100);
+    lua_getfield(L, 1, "reverb_type"); /* "room" (also for songs saved before there was a choice), "hall" or "cave" */
+    { const char *k = lua_tostring(L, -1); sg->reverb_kind = k && !strcmp(k, "hall") ? REVERB_HALL : k && !strcmp(k, "cave") ? REVERB_CAVE : REVERB_ROOM; }
+    lua_pop(L, 1);
     for (int i = 0; i < SONG_SLOTS; i++) sg->slots[i] = -1;
     lua_getfield(L, 1, "tvol"); /* each track's volume step, -3..3 */
     if (lua_istable(L, -1)) for (int i = 0; i < SONG_TRACKS; i++) { lua_rawgeti(L, -1, i + 1); sg->tvol[i] = lua_isnumber(L, -1) ? clampi(lua_tointeger(L, -1), -3, 3) : 0; lua_pop(L, 1); }
@@ -1103,9 +1107,9 @@ static int call_global(lua_State *L, const char *name, int nargs, double arg) {
  *   inst <id> gm <program 0..127> <drum kit 0|1> <common>   (needs the SoundFont, see ensure_soundfont)
  *       common = volume% pan% attack_ms decay_ms sustain% release_ms vibrato_depth*100 vibrato_rate*10 vibrato_delay_ms
  *                [sweep_semitones*100 sweep_ms [fixed_note or -1]]  (the last three may be left off)
- *   sfx <id> <speed> <n> <loop_start> <loop_end>, then n lines:  s <pitch> <instrument> <volume> <effect>
+ *   sfx <id> <speed> <n> <loop_start> <loop_end> [<volume step> [<reverb 0..100>]], then n lines:  s <pitch> <instrument> <volume> <effect>
  *   music <id> <patterns> <loop_from> <loop_to>, then that many lines:  p <sfx> <sfx> <sfx> <sfx>
- *   song <id> <bpm> <rows_per_beat> <tracks> <loop_to> <reverb>   then  slots <16 instrument handles>,
+ *   song <id> <bpm> <rows_per_beat> <voices> <loop_to> <reverb> [<space: 0 room, 1 hall, 2 cave>]   then  slots <16 instrument handles>,
  *       order <n> <patterns...>, and per pattern  pattern <index> <rows>  with  cell <pattern> <track> <row> <note> <inst> <vol> <fx> <fxp> [<extra note>...]
  *   with sfx <id>[,<id>...] [volume]   (before a render: also play these sound effect tracks, to hear effects over music)
  *   render sfx <id>[,<id>...] [volume [seconds]]   (several ids = the tracks of one sound effect)  |  render music <id> <seconds>  |  render song <id> <seconds> */
@@ -1186,10 +1190,12 @@ static int render_audio(const char *descpath, const char *outpath) {
             if (synth_add_instrument(&in) < 0) { fprintf(stderr, "too many instruments\n"); return 1; }
             ngi++;
         } else if (sscanf(line, "sfx %d %d %d %d %d %d", &a, &b, &c, &d, &e, &g) >= 5) {
-            if (sscanf(line, "sfx %*d %*d %*d %*d %*d %d", &g) != 1) g = 0; /* an optional last number: the track's volume step */
+            int rv = 0;
+            if (sscanf(line, "sfx %*d %*d %*d %*d %*d %d %d", &g, &rv) < 1) g = 0; /* optional: the track's volume step, then its reverb amount */
             if (a != si++ || c < 1 || c > SYNTH_STEPS) { fprintf(stderr, "bad sfx line: %s", line); return 1; }
             memset(&sfx, 0, sizeof sfx);
             sfx.speed = SDL_clamp(b, 1, 64); sfx.n = c; sfx.loop_start = SDL_clamp(d, -1, c - 1); sfx.loop_end = SDL_clamp(e, -1, c - 1); sfx.vol_step = SDL_clamp(g, -3, 3);
+            sfx.reverb = SDL_clamp(rv, 0, 100);
             sfx_left = c;
         } else if (sscanf(line, "music %d %d %d %d", &a, &b, &c, &d) == 4) {
             if (a != mi++ || b < 1 || b > SYNTH_MAX_PATTERNS) { fprintf(stderr, "bad music line: %s", line); return 1; }
@@ -1202,6 +1208,7 @@ static int render_audio(const char *descpath, const char *outpath) {
             memset(song, 0, sizeof *song);
             song->bpm = SDL_clamp(b, 30, 300); song->rows_per_beat = SDL_clamp(c, 1, 16); song->tracks = SDL_clamp(d, 1, SYNTH_MAX_CHANNELS);
             song->loop_to = e; song->reverb = SDL_clamp(g, 0, 100); song->npatterns = 0;
+            int kind = 0; if (sscanf(line, "song %*d %*d %*d %*d %*d %*d %d", &kind) == 1) song->reverb_kind = SDL_clamp(kind, 0, REVERB_KINDS - 1); /* optional: 0 room, 1 hall, 2 cave */
             for (int i = 0; i < SONG_SLOTS; i++) song->slots[i] = -1;
             for (int p = 0; p < SONG_MAX_PATTERNS; p++) {
                 song->pat[p].rows = 32;

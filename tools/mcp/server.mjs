@@ -71,12 +71,12 @@ tool("song_check", "Listen to a song", "Reads a song like a musician (key, chord
 tool("song_write", "Write a song", "Writes music/<name>.json and checks it. spec is either a finished tracker song ({ format: 'tracker', ... }) or options for the generator: " +
   "{ seed, root (0=C..11=B), scale ('major'|'minor'|'dorian'|'phrygian'|'lydian'|'harm'), tempo, oct (melody octave, 4 = middle; 5+ gets shrill), inst: [melody, harmony, bass, drums] (instrument names; 'gm_drum_kit' for drums), " +
   "harmony ('pad'|'arp8'|'arp16'), bass ('half'|'eighth'|'pump'|'gallop'|'groove'), drums ('none'|'soft'|'four'|'drive'|'break'|'boss'), rhythms: [0-5 melody rhythm ids], rest (0-1), calm (true = notes ring), " +
-  "reverb (0-100), vol: [4 track volumes -3..3], level (whole-song steps), sections: [{ prog: [scale degrees, one a bar, 0 = home chord; 4 bars a section], oct?, drums?, bass?, reg? }], order: [section indexes], loop (default true) }. " +
+  "reverb (0-100, how much of the music goes into the reverb), reverb_type ('room' default, short and warm; 'hall' long and bright; 'cave' very long and dark), vol: [4 track volumes -3..3], level (whole-song steps), sections: [{ prog: [scale degrees, one a bar, 0 = home chord; 4 bars a section], oct?, drums?, bass?, reg? }], order: [section indexes], loop (default true) }. " +
   "In a tracker song the gm_drum_kit notes are C3 kick, D3 snare, F#3 closed hat, A#3 open hat, C#4 crash, A3 and D4 toms. Read help('music') first.",
   { game, name: z.string(), spec: z.record(z.string(), z.any()) }, T.song_write);
 tool("sound_check", "Listen to a sound effect", "Renders a sound effect and reports its notes, length, loudness and brightness.",
   { game, name: z.string() }, T.sound_check);
-tool("sound_write", "Write a sound effect", "Writes sfx/<name>.json and checks it. sound: { speed (ticks a step, 1-8), tracks: [{ instrument, steps: [[pitch, volume 0-7, effect], ...] }] } where pitch 48 = C5 and effects are 0 none, 1 slide, 2 vibrato, 3 drop, 4 fade in, 5 fade out, 6 arpeggio, 7 hold.",
+tool("sound_write", "Write a sound effect", "Writes sfx/<name>.json and checks it. sound: { speed (ticks a step, 1-8), tracks: [{ instrument, steps: [[pitch, volume 0-7, effect], ...] }] } where pitch 48 = C5 and effects are 0 none, 1 slide, 2 vibrato, 3 drop, 4 fade in, 5 fade out, 6 arpeggio, 7 hold. Optional reverb (0-100): rings in the playing song's space; most effects stay dry.",
   { game, name: z.string(), sound: z.record(z.string(), z.any()) }, T.sound_write);
 tool("room_view", "See a room", "Draws a room (rooms/<name>.lua) at its real size: tile layers, things as their sprites, paths in yellow, a dashed box one screen big. Plus its size in screens, layers and how many things of each kind.",
   { game, name: z.string(), scale: z.number().int().min(1).max(4).optional() }, T.room_view);

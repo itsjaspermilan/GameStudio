@@ -75,7 +75,7 @@ function M.load(audio)
         if inst_of then flat[#flat + 1], flat[#flat + 2], flat[#flat + 3], flat[#flat + 4] = st[1] or 0, inst_of, st[2] or 0, st[3] or 0
         else flat[#flat + 1], flat[#flat + 2], flat[#flat + 3], flat[#flat + 4] = st[1] or 0, instrument(st[2] or 0, where), st[3] or 0, st[4] or 0 end
       end
-      return gs.sfx_load(d.speed or 8, #steps, flat, lp and lp.start or -1, lp and lp["end"] or -1, vol or 0)
+      return gs.sfx_load(d.speed or 8, #steps, flat, lp and lp.start or -1, lp and lp["end"] or -1, vol or 0, d.reverb or 0)
     end
     if d.tracks then -- a sound effect with up to two tracks, one instrument each, played together; a track's "layers" are more voices (chords) on its instrument
       local hs, more = {}, {}
@@ -146,19 +146,27 @@ function M.load(audio)
           r = r + 1
         end
       end
+      -- The synth has 8 tracks: voice v (from 0) plays track v % 8. A file's "layers" are the extra voices in its own track count's steps
+      -- (layer 1 of every track, then layer 2, ...), so a song saved with 4 tracks keeps each chord on its track.
+      local TRACKS = 8
       for pi, pat in ipairs(d.patterns or {}) do
         rows[pi] = pat.rows or 32
-        tracks = math.max(tracks, #(pat.tracks or {}))
-        for ti, track in ipairs(pat.tracks or {}) do add_voice(pi, track, ti, ti - 1) end
-        for k, track in ipairs(pat.layers or {}) do -- more voices on a track's instrument: voice 4 + k, which plays track (3 + k) % 4
-          add_voice(pi, track, 4 + k, (3 + k) % 4)
-          tracks = math.max(tracks, 4 + k)
+        local ft = math.max(1, math.min(TRACKS, #(pat.tracks or {})))
+        for ti, track in ipairs(pat.tracks or {}) do
+          if ti <= TRACKS then add_voice(pi, track, ti, ti - 1); tracks = math.max(tracks, ti) end
+        end
+        for k, track in ipairs(pat.layers or {}) do
+          local layer, t = 1 + (k - 1) // ft, (k - 1) % ft
+          if layer < 4 then
+            add_voice(pi, track, layer * TRACKS + t + 1, t)
+            tracks = math.max(tracks, layer * TRACKS + t + 1)
+          end
         end
       end
       for i, p in ipairs(d.order or { 0 }) do order[i] = p end
       music_handles[n] = { song = true, handle = gs.song_load{
         bpm = d.tempo or 120, rows_per_beat = d.rows_per_beat or 4, tracks = tracks, loop_to = d.loop_to or -1,
-        reverb = d.reverb or 0, tvol = d.track_vol or {}, slots = slots, order = order, rows = rows, cells = cells, chords = chords } }
+        reverb = d.reverb or 0, reverb_type = d.reverb_type, tvol = d.track_vol or {}, slots = slots, order = order, rows = rows, cells = cells, chords = chords } }
     else -- the older music: patterns of sound effects
       local flat = {}
       for pi, pat in ipairs(d.patterns or {}) do

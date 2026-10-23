@@ -56,3 +56,25 @@ test("budgets: ok under 80%, warn up to the budget, over past it", () => {
   assert.equal(formatKB(150 * 1024), "150 KB");
   assert.equal(formatKB(5 * 1024 + 300), "5.3 KB");
 });
+
+test("a WAV is fitted to the console: mono, at most its sample rate, the same length", async () => {
+  const { fitWav } = await import("../src/wav.js");
+  const make = (rate, channels, frames, value) => {
+    const b = new Uint8Array(44 + frames * channels * 2), v = new DataView(b.buffer);
+    const put = (o, s) => { for (let i = 0; i < 4; i++) b[o + i] = s.charCodeAt(i); };
+    put(0, "RIFF"); v.setUint32(4, 36 + frames * channels * 2, true); put(8, "WAVE"); put(12, "fmt "); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); v.setUint16(22, channels, true); v.setUint32(24, rate, true); v.setUint32(28, rate * channels * 2, true);
+    v.setUint16(32, channels * 2, true); v.setUint16(34, 16, true); put(36, "data"); v.setUint32(40, frames * channels * 2, true);
+    for (let i = 0; i < frames * channels; i++) v.setInt16(44 + i * 2, value, true);
+    return b;
+  };
+  const big = fitWav(make(48000, 2, 48000, 16384), 32000);
+  assert.equal(big.changed, true);
+  const info = parseWav(big.bytes);
+  assert.deepEqual([info.channels, info.rate, info.bits], [1, 32000, 16]);
+  assert.ok(Math.abs(info.seconds - 1) < 0.001);
+  assert.ok(Math.abs(new DataView(big.bytes.buffer).getInt16(1000, true) - 16384) <= 1, "a steady level stays the same");
+  const small = make(22050, 1, 100, 0);
+  assert.equal(fitWav(small, 32000).bytes, small);   // already fits: left as it was
+  assert.equal(fitWav(new Uint8Array(10), 32000).changed, false);
+});

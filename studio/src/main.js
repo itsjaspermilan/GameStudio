@@ -23,7 +23,7 @@ setBuiltinInstruments(builtinInstrumentsDoc);
 import { encodeSpritePng, decodeSpritePng } from "./sprite-io.js";
 import { BUILTIN_CONSOLES, allConsoles, budgetStatus, formatKB, consoleFor, duplicateConsole, paletteOf, parseCustomConsoles, screenText, uniqueId, consoleFileOf, consoleFileText, resolveConsole } from "./consoles.js";
 import { createConsoleEditor } from "./console-editor.js";
-import { parseWav, sampleName } from "./wav.js";
+import { parseWav, sampleName, fitWav } from "./wav.js";
 import { renameReferences, countCodeMentions, renameInCode, renameSceneFields } from "./rename-core.js";
 import { checkProject } from "./console-check.js";
 import { budgetRows, consoleSummary, parseStatsLine } from "./budget-core.js";
@@ -1261,9 +1261,11 @@ $("wav-input").onchange = (e) => {
     const max = conInfo().audio.sample_max_seconds;
     if (max && wav.seconds > max) throw new Error(`That sound is ${wav.seconds.toFixed(1)} s long; this console allows samples up to ${max} s. Trim it first, or make a sound effect in the SFX editor instead.`);
     const name = sampleName(file.name, state.scan.groups.sounds);
-    await invoke("write_binary", { cart: state.cart, rel: `sounds/${name}.wav`, data: toBase64(bytes) });
+    // the console's sample rate (Dot: 32 kHz, like a GBA game's best samples), in mono: smaller files, and the sound the handheld plays
+    const fit = fitWav(bytes, conInfo().audio.sample_rate || 32000);
+    await invoke("write_binary", { cart: state.cart, rel: `sounds/${name}.wav`, data: toBase64(fit.bytes) });
     await refreshFiles();
-    info(`Imported ${file.name} as '${name}' (${wav.seconds.toFixed(1)} s).`);
+    info(`Imported ${file.name} as '${name}' (${wav.seconds.toFixed(1)} s${fit.changed ? `, made mono at ${(fit.rate / 1000).toFixed(fit.rate % 1000 ? 2 : 0)} kHz to fit the console` : ""}).`);
   });
 };
 
@@ -1345,7 +1347,8 @@ async function gatherFacts() {
   facts.cartBytes = state.cartBytes;
   facts.songs = {}; facts.sfx = state.scan.groups.sfx.length; facts.samples = state.scan.groups.sounds.length;
   for (const n of state.scan.groups.music) {
-    try { const d = await readJson(`music/${n}.json`); facts.songs[n] = { tracks: d.format === "tracker" ? (d.tracks || (d.patterns && d.patterns[0] && d.patterns[0].tracks && d.patterns[0].tracks.length) || 0) : (d.instruments ? d.instruments.length : 0) }; } catch { /* skip */ }
+    // a song file always has eight tracks now: count the ones that play (have an instrument)
+    try { const d = await readJson(`music/${n}.json`); facts.songs[n] = { tracks: d.format === "tracker" ? (Array.isArray(d.track_instruments) ? d.track_instruments.filter(Boolean).length : d.tracks || 0) : (d.instruments ? d.instruments.length : 0) }; } catch { /* skip */ }
   }
   const lines = Object.values(luaTexts).reduce((n, t) => n + t.split("\n").length, 0);
   facts.lua = { files: Object.keys(luaTexts).length, lines };

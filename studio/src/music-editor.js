@@ -1,6 +1,6 @@
 // Music editor: lanes, one per track, with the song's patterns in a row of steps along the top. Drag an instrument onto a lane's
 // box, then click in the strip to place notes; drag a note's end to hold it for longer, or drag the note itself to move it. Each track
-// plays ONE instrument, and a track can sound up to four notes at once. There are always four tracks. Pure logic is in audio-core.js; playback is rendered by the runtime's own synth
+// plays ONE instrument, and a track can sound up to four notes at once. There are always eight tracks. Pure logic is in audio-core.js; playback is rendered by the runtime's own synth
 // (hooks.renderSong), exactly as the game plays it.
 import * as A from "./audio-core.js";
 import { History } from "./sprite-core.js";
@@ -36,7 +36,9 @@ export function createMusicEditor(root, hooks = {}) {
           <label title="Beats per minute: higher is faster">Tempo <input type="number" class="mus-tempo" min="30" max="300"></label>
           <label>Length <select class="mus-rows-sel" title="How long this pattern is. A bar is four beats."></select></label>
           <label>Start from <select class="mus-start" title="Begin with a ready-made song"></select></label>
-          <label title="Adds an echo to everything">Echo <input type="range" class="mus-reverb" min="0" max="100"></label>
+          <span class="mus-reverb-box" title="Reverb: the song sounds as if played in a space. Room is short and warm, Hall long and bright, Cave very long and dark. The slider is how much (GBA music usually had a little).">
+          <label>Reverb <select class="mus-reverb-type"><option value="room">Room</option><option value="hall">Hall</option><option value="cave">Cave</option></select></label>
+          <input type="range" class="mus-reverb" min="0" max="100" aria-label="How much reverb"></span>
           <span class="key-lock" title="Key lock: lanes only offer notes that fit one key, so nothing clashes. Turn it off for every note.">
           <label>Key <select class="key-root"></select></label><select class="key-scale"></select></span>
           <span class="mus-sep"></span>
@@ -200,6 +202,7 @@ export function createMusicEditor(root, hooks = {}) {
     $(".mus-tempo").value = song.tempo;
     $(".mus-rows-sel").value = pat().rows;
     $(".mus-reverb").value = song.reverb;
+    $(".mus-reverb-type").value = song.reverb_type || "room";
     $(".mus-status").textContent = `${name}  |  ${statusText()}`;
     const ord = $(".mus-order"); ord.replaceChildren();
     song.order.forEach((p, i) => {
@@ -252,6 +255,7 @@ export function createMusicEditor(root, hooks = {}) {
   $(".mus-tempo").addEventListener("change", (e) => commit(() => { song.tempo = +e.target.value; }));
   $(".mus-rows-sel").addEventListener("change", (e) => commit(() => A.setPatternRows(song, song.order[cur.order], +e.target.value), true));
   $(".mus-reverb").addEventListener("change", (e) => commit(() => { song.reverb = +e.target.value; }));
+  $(".mus-reverb-type").addEventListener("change", (e) => commit(() => { song.reverb_type = e.target.value; }));
   $(".mus-newpat").addEventListener("click", () => { sel = null; commit(() => { const p = A.addPattern(song); if (p >= 0 && A.insertOrder(song, cur.order + 1, p)) cur.order += 1; row = 0; }, true); });
   $(".mus-duppat").addEventListener("click", () => { sel = null; commit(() => { const p = A.addPattern(song, song.order[cur.order]); if (p >= 0 && A.insertOrder(song, cur.order + 1, p)) cur.order += 1; }, true); });
   $(".mus-delord").addEventListener("click", () => { sel = null; commit(() => { A.removeOrder(song, cur.order); }, true); });

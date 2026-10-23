@@ -69,7 +69,7 @@ test("the render description numbers instruments and joins the tracks", () => {
   assert.match(r.text, /^style gba$/m);
   assert.match(r.text, /^sfxchannels 3$/m);
   assert.match(r.text, /^inst 6 wave [0-9A-F]{32} /m);        // the built-in piano is described
-  assert.match(r.text, /^sfx 0 6 2 0 1 0\ns 40 6 7 0\ns 44 6 6 1\nsfx 1 6 2 0 1 0\ns 30 2 5 0\ns 30 2 0 0\n/m);
+  assert.match(r.text, /^sfx 0 6 2 0 1 0 0\ns 40 6 7 0\ns 44 6 6 1\nsfx 1 6 2 0 1 0 0\ns 30 2 5 0\ns 30 2 0 0\n/m);
   assert.match(r.text, /^render sfx 0,1 0.5 2$/m);            // the empty track is left out
   assert.equal(A.renderSfxWith(A.normalizeSfx({ tracks: [{ instrument: null }] }), {}).silent, true);
   assert.deepEqual(A.renderSfxWith(A.normalizeSfx({ tracks: [{ instrument: "ghost", steps: [[40, 7, 0]] }] }), {}).problems, ["instrument 'ghost' is missing"]);
@@ -201,5 +201,5 @@ test("a track's volume is a step from -3 to +3 and a sound effect keeps its own"
   const d = A.normalizeSfx({ tracks: [{ instrument: "square", vol: 9, steps: [[40, 5, 0]] }, { instrument: "pulse", vol: -2, steps: [[40, 5, 0]] }] });
   assert.deepEqual(d.tracks.map((t) => t.vol), [3, -2]);
   assert.equal("vol" in A.normalizeSfx({ tracks: [{ instrument: "square", vol: 0, steps: [[40, 5, 0]] }] }).tracks[0], false);
-  assert.match(A.renderSfxWith(d, {}).text, /^sfx 0 8 1 -1 -1 3\n/m);
+  assert.match(A.renderSfxWith(d, {}).text, /^sfx 0 8 1 -1 -1 3 0\n/m);
 });
