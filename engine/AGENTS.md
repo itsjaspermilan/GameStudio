@@ -27,7 +27,7 @@ Blending: the runtime's `gs.blend(mode)` ("normal", "add", "darken", SDL's BLEND
 `draw()` that forgets cannot spill. Alpha (entities, layers, layout items) is the strength. `tests/blend` checks the colours against plain
 rectangles (`tests/same-frames.mjs`, 2 levels of rounding allowed).
 
-Added while porting Void Swarm (the stress test): `gs.pause()` (freeze the world, only the scene updates: pause menus, level-up choices), `gs.defaults(name)` (an entity's starting values without making one),
+Added while porting Void Swarm (the old stress-test sample, now only in git history): `gs.pause()` (freeze the world, only the scene updates: pause menus, level-up choices), `gs.defaults(name)` (an entity's starting values without making one),
 `collide_every = { tag = n }` in an entity spec (check that handler every nth step, staggered), `gs.goto_scene(name, nil, args...)` (nil options), and a faster collision candidate merge (no sorting).
 After it: `gs.in_radius` / `gs.in_rect` take an optional list to refill (no garbage), `Entity:hit_radius()` (a round hitbox's radius with scale), and `"#rrggbbaa"` colors.
 Entities are classes keyed by module name; reloading a file fills the same table, so living instances keep their state and get the new methods.

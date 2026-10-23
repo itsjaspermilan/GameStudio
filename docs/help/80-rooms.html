@@ -9,7 +9,8 @@ summary: Levels bigger than the screen, a camera that follows within them, tile 
 how big it is, its background, its tile layers, and which entities start where. <code>gs.load_room("arena")</code> builds it.</p>
 <div class="note"><strong>Rooms or layouts?</strong> A scene's <a href="help:layouts">layout</a> holds the same data and is built when the scene starts, so for a new level that is all you need:
 set its size to <em>Bigger: it scrolls</em> on the layout's Layout tab. A room is for when one scene builds levels from code, picking which one to load
-(<code>gs.load_room("level" .. n)</code>). Both open in the same layout editor.</div>
+(<code>gs.load_room("level" .. n)</code>). Both open in the same layout editor. The list on the left shows <strong>Rooms</strong> once a game has one:
+make the first with <strong>+</strong> under <em>Other files</em> (<code>rooms/arena.lua</code>), or with <strong>Make this game</strong> below.</div>
 
 <h2>A room file</h2>
 <p>A room is plain Lua that returns a table, so you can write it by hand or generate it. Entities are <code>{ name, x, y }</code> (an optional fourth value is a table of values to set).</p>
@@ -85,7 +86,7 @@ return Main</code></pre>
 <code>draw_ui</code> is never zoomed, so the score stays the same size. Going to another scene puts the zoom back to 1.</p>
 
 <h2>Tile layers</h2>
-<p>Real levels are made of tiles drawn in the tileset editor: a picture sheet where each tile is 8 or 16 pixels square. A layer is a grid of tile numbers (counting from 0, left to right then down; <code>-1</code> is empty).
+<p>Real levels are made of tiles drawn in the tileset editor: a picture sheet where each tile is 8, 16 or 32 pixels square. A layer is a grid of tile numbers (counting from 0, left to right then down; <code>-1</code> is empty).
 Add layers in a room file, or by hand with <code>gs.add_layer</code>:</p>
 <pre class="lua"><code>-- in rooms/arena.lua
 layers = {

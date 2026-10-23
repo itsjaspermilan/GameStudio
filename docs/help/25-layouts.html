@@ -16,10 +16,24 @@ summary: A scene's layout holds what is placed where (texts, pictures, entities,
 behind (a light shaft, fire), <strong>shadow</strong> darkens it (shade, night), and <strong>strength</strong> makes it see-through below 100%.
 The editor shows the look as the game will.</p>
 
+<h2>Which half does it go in?</h2>
+<p>If you can point at it when the scene starts, it goes in the <strong>Layout</strong>. If it changes, decides or comes and goes, it is <strong>Code</strong>.</p>
+<table>
+<tr><th>Layout</th><th>Code</th></tr>
+<tr><td>The player's starting spot, the walls, the wall of bricks</td><td>Enemies that arrive in waves, bullets, things made while playing (<code>gs.spawn</code>)</td></tr>
+<tr><td>The score bar and the words <code>SCORE 0</code></td><td>Changing those words as the score goes up (<code>self.score.text = ...</code>)</td></tr>
+<tr><td>A logo, a window frame, a background of tiles</td><td>Making the logo bob, the prompt blink, a door open</td></tr>
+<tr><td>A guard's patrol route (a path)</td><td>The guard walking it (<code>self:follow_path("patrol", 60)</code>)</td></tr>
+<tr><td>The level's size</td><td>The camera following the player, going to the next scene</td></tr>
+</table>
+<p>A scene can be all Layout (a credits screen), all Code (a scene that builds a random level), or anything between. Breakout (on the start screen under Examples) is a
+good one to read: its play scene's layout holds the paddle, the ball, 48 bricks and the score bar, and its code is a dozen short lines.</p>
+
 <h2>Names connect the two</h2>
 <p>Give something in the layout a name (in the <strong>Selected</strong> panel) and the code has it as a field: a text named <code>prompt</code> is <code>self.prompt</code>, a picture named <code>logo</code> is <code>self.logo</code>.
 Texts and pictures get a name as soon as you place them; an entity gets one only if you give it one, so forty enemies don't make forty names. The layout editor shows each name as <code>self.name</code> above the thing.</p>
-<p>Typing <code>self.</code> in the scene's code lists the names, hovering one shows what it is, and a typo like <code>self.promtp</code> gets a warning. <strong>Renaming</strong> something in the layout renames it in the code too, when you save the layout.</p>
+<p>The list on the left of the layout, <strong>In this layout</strong>, is the map of the scene: everything with a name, as the code calls it, and a click selects it.
+Typing <code>self.</code> in the scene's code lists the names, hovering one shows what it is, and a typo like <code>self.promtp</code> gets a warning. <strong>Renaming</strong> something in the layout renames it in the code too, when you save the layout.</p>
 
 <h2>A title screen</h2>
 <p>This layout has a big title and a blinking prompt. You would normally place them with the Text tool; this is what the editor writes:</p>

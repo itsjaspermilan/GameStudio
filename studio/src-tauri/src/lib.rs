@@ -146,11 +146,197 @@ fn safe_rel(rel: &str) -> Result<PathBuf, String> {
     Ok(out)
 }
 
+/// A game is named by its folder. The front end passes either the absolute path of a folder the person opened or made
+/// (it must be in the list of projects, so the page can never reach a folder they did not choose), or, for the
+/// workspace's own samples and the tests, a plain name in `<workspace>/carts/`.
 fn cart_dir(app: &AppHandle, cart: &str) -> Result<PathBuf, String> {
-    if !valid_name(cart) {
-        return Err("invalid game name (use letters, digits, - and _)".into());
+    if valid_name(cart) {
+        return Ok(workspace(app).join("carts").join(cart));
     }
-    Ok(workspace(app).join("carts").join(cart))
+    let path = PathBuf::from(cart);
+    if path.is_absolute() && load_projects(app).iter().any(|p| p == cart) {
+        return Ok(path);
+    }
+    Err("that game's folder is not open in the studio (open it with Open folder)".into())
+}
+
+/// The name shown for a game and used for its packed cartridge: its folder's name.
+fn cart_label(cart: &str) -> String {
+    let name = Path::new(cart).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let clean: String = name.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '-' }).collect();
+    if clean.is_empty() { "game".into() } else { clean }
+}
+
+// ---------- projects (game folders anywhere on disk, like folders opened in a code editor) ----------
+// The list of folders opened lately is kept beside the settings, newest first. A game's folder holds only the game;
+// what the studio remembers about it (open tabs, where you were) is in <folder>/.gamestudio/, which is never packed.
+
+fn projects_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    Ok(dir.join("projects.json"))
+}
+
+fn load_projects(app: &AppHandle) -> Vec<String> {
+    projects_path(app)
+        .ok()
+        .and_then(|p| fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+fn save_projects(app: &AppHandle, list: &[String]) -> Result<(), String> {
+    let path = projects_path(app)?;
+    fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
+    fs::write(path, serde_json::to_string_pretty(list).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+}
+
+fn remember_project(app: &AppHandle, dir: &Path) -> Result<String, String> {
+    let path = dir.to_string_lossy().into_owned();
+    let mut list = load_projects(app);
+    list.retain(|p| p != &path);
+    list.insert(0, path.clone());
+    list.truncate(30);
+    save_projects(app, &list)?;
+    Ok(path)
+}
+
+/// Where new games go unless the person picks another place: Documents/GameStudio.
+fn games_home(app: &AppHandle) -> PathBuf {
+    app.path().document_dir().unwrap_or_else(|_| std::env::temp_dir()).join("GameStudio")
+}
+
+#[derive(Serialize)]
+struct ProjectInfo {
+    /// The folder's absolute path: the id every other command takes as `cart`.
+    path: String,
+    name: String,
+    kind: &'static str,
+}
+
+/// The games opened lately that are still there, newest first.
+#[tauri::command]
+fn list_projects(app: AppHandle) -> Vec<ProjectInfo> {
+    load_projects(&app)
+        .into_iter()
+        .filter(|p| Path::new(p).is_dir())
+        .map(|p| {
+            let kind = if Path::new(&p).join("game.lua").is_file() { "game" } else { "lua" };
+            ProjectInfo { name: cart_label(&p), kind, path: p }
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn forget_project(app: AppHandle, path: String) -> Result<(), String> {
+    let mut list = load_projects(&app);
+    list.retain(|p| p != &path);
+    save_projects(&app, &list)
+}
+
+fn pick_folder(app: &AppHandle, title: &str, start: Option<PathBuf>) -> Option<PathBuf> {
+    use tauri_plugin_dialog::DialogExt;
+    let mut d = app.dialog().file().set_title(title);
+    if let Some(dir) = start {
+        let _ = fs::create_dir_all(&dir);
+        d = d.set_directory(dir);
+    }
+    d.blocking_pick_folder().and_then(|f| f.into_path().ok())
+}
+
+/// Open folder: any folder becomes the open game (an empty one can be given a game with New game files). None if cancelled.
+#[tauri::command]
+async fn open_folder(app: AppHandle) -> Result<Option<String>, String> {
+    match pick_folder(&app, "Open a game folder", Some(games_home(&app))) {
+        Some(dir) => Ok(Some(remember_project(&app, &dir)?)),
+        None => Ok(None),
+    }
+}
+
+/// Asks where a new game's folder should go (Documents/GameStudio to start with) and makes `<there>/<name>`. None if cancelled.
+#[tauri::command]
+async fn new_project(app: AppHandle, name: String) -> Result<Option<String>, String> {
+    if !valid_name(&name) {
+        return Err("use letters, digits, - and _ for the name".into());
+    }
+    let Some(parent) = pick_folder(&app, &format!("Where should the folder '{name}' go?"), Some(games_home(&app))) else {
+        return Ok(None);
+    };
+    let dir = parent.join(&name);
+    if dir.exists() {
+        return Err(format!("there is already a '{name}' in {}", parent.display()));
+    }
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(Some(remember_project(&app, &dir)?))
+}
+
+fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
+    fs::create_dir_all(to).map_err(|e| e.to_string())?;
+    for e in fs::read_dir(from).map_err(|e| e.to_string())?.filter_map(|e| e.ok()) {
+        let name = e.file_name();
+        if name.to_string_lossy().starts_with('.') {
+            continue;
+        }
+        let (a, b) = (e.path(), to.join(&name));
+        if a.is_dir() { copy_tree(&a, &b)? } else { fs::copy(&a, &b).map(|_| ()).map_err(|e| e.to_string())? }
+    }
+    Ok(())
+}
+
+/// The finished examples that come with the studio (`<workspace>/carts/<name>` with a game.lua).
+#[tauri::command]
+fn list_examples(app: AppHandle) -> Result<Vec<String>, String> {
+    let root = workspace(&app).join("carts");
+    Ok(list_carts(app)?.into_iter().filter(|n| root.join(n).join("game.lua").is_file()).collect())
+}
+
+/// An example is copied into a folder of the person's own before it opens, so changing it never changes the original.
+/// A copy made before is opened again instead of copied twice.
+#[tauri::command]
+async fn copy_example(app: AppHandle, name: String) -> Result<Option<String>, String> {
+    let from = cart_dir(&app, &name)?;
+    if !from.join("game.lua").is_file() {
+        return Err(format!("there is no example called {name}"));
+    }
+    let Some(parent) = pick_folder(&app, &format!("Where should your copy of '{name}' go?"), Some(games_home(&app))) else {
+        return Ok(None);
+    };
+    let dir = parent.join(&name);
+    if !dir.join("game.lua").is_file() {
+        if dir.exists() {
+            return Err(format!("there is already a '{name}' in {} that is not a game", parent.display()));
+        }
+        copy_tree(&from, &dir)?;
+    }
+    Ok(Some(remember_project(&app, &dir)?))
+}
+
+/// What the studio remembers about one game (open tabs, the file you were in), in <folder>/.gamestudio/state.json.
+#[tauri::command]
+fn read_project_state(app: AppHandle, cart: String) -> Result<String, String> {
+    Ok(fs::read_to_string(cart_dir(&app, &cart)?.join(".gamestudio").join("state.json")).unwrap_or_default())
+}
+
+#[tauri::command]
+fn write_project_state(app: AppHandle, cart: String, content: String) -> Result<(), String> {
+    if content.len() > 256 * 1024 {
+        return Err("project state too large".into());
+    }
+    let dir = cart_dir(&app, &cart)?.join(".gamestudio");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // a note for anyone who finds the folder, as editors do with theirs
+    let readme = dir.join("README.txt");
+    if !readme.exists() {
+        let _ = fs::write(&readme, "GameStudio keeps its notes about this game here (open tabs, where you were).\nIt is not part of the game and is never packed; it is safe to delete.\n");
+    }
+    fs::write(dir.join("state.json"), content).map_err(|e| e.to_string())
+}
+
+/// Shows the game's folder in Finder (Explorer, the file manager).
+#[tauri::command]
+fn reveal_project(app: AppHandle, cart: String) -> Result<(), String> {
+    let dir = cart_dir(&app, &cart)?;
+    let opener = if cfg!(target_os = "macos") { "open" } else if cfg!(windows) { "explorer" } else { "xdg-open" };
+    Command::new(opener).arg(&dir).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
 // ---------- custom consoles ----------
@@ -594,7 +780,7 @@ async fn pack_cart(app: AppHandle, cart: String) -> Result<String, String> {
         return Err(format!("runtime not found at {}. Run scripts/build.sh in the workspace.", bin.display()));
     }
     let dir = cart_dir(&app, &cart)?;
-    let out = ws.join("build").join(format!("{cart}.cart"));
+    let out = ws.join("build").join(format!("{}.cart", cart_label(&cart)));
     fs::create_dir_all(ws.join("build")).map_err(|e| e.to_string())?;
     let ok = run_logged(&app, Command::new(&bin).arg("pack").arg(&dir).arg(&out))?;
     if ok { Ok(out.to_string_lossy().into_owned()) } else { Err("packing failed".into()) }
@@ -629,7 +815,7 @@ async fn take_screenshot(app: AppHandle, cart: String, seconds: f64) -> Result<S
     }
     let tmp = std::env::temp_dir().join("gamestudio-shot");
     fs::create_dir_all(tmp.join("saves")).map_err(|e| e.to_string())?;
-    let bmp = tmp.join(format!("{cart}.bmp"));
+    let bmp = tmp.join(format!("{}.bmp", cart_label(&cart)));
     let _ = fs::remove_file(&bmp);
     let frames = (seconds.clamp(0.1, 30.0) * 60.0).round() as u32;
     let out = Command::new(&bin)
@@ -758,7 +944,7 @@ async fn push_cart(app: AppHandle, state: State<'_, AppState>, cart: String) -> 
         }
     }
     step("Copying game");
-    if !run_logged(&app, Command::new("scp").arg("-q").args(SSH_OPTS).arg(&packed).arg(format!("{target}:{dir}/carts/{cart}.cart")))? {
+    if !run_logged(&app, Command::new("scp").arg("-q").args(SSH_OPTS).arg(&packed).arg(format!("{target}:{dir}/carts/{}.cart", cart_label(&cart))))? {
         return Err("copying the game failed".into());
     }
     if !run_logged(&app, Command::new("ssh").args(SSH_OPTS).arg(&target).arg(format!("chmod +x '{dir}/gs'")))? {
@@ -770,6 +956,7 @@ async fn push_cart(app: AppHandle, state: State<'_, AppState>, cart: String) -> 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .manage(lsp::LspState::default())
         .invoke_handler(tauri::generate_handler![
@@ -782,6 +969,15 @@ pub fn run() {
             runtime_status,
             list_carts,
             list_games,
+            list_projects,
+            forget_project,
+            open_folder,
+            new_project,
+            list_examples,
+            copy_example,
+            read_project_state,
+            write_project_state,
+            reveal_project,
             list_consoles,
             save_console,
             delete_console,

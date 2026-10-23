@@ -5,7 +5,7 @@ export const FIRST_STEPS = [
   { id: "run", text: "Run it", tip: "The Run button, or Ctrl/Cmd+Enter. The game opens in its own window." },
   { id: "live", text: "Change a number and save while it runs", tip: "Open entities/player.lua, change a speed, save: the running game picks it up at once." },
   { id: "sprite", text: "Draw a sprite", tip: "The + beside Sprites, draw, save. Then use its name in an entity: sprite = \"name\"." },
-  { id: "tutorial", text: "Follow Your first game in Help", tip: "Help (F1) > Your first game: a few small files and you have something playable." },
+  { id: "tutorial", text: "Follow Make a game, step by step in Help", tip: "Help (F1) > Make a game, step by step: the studio from New game to a game with a title screen, a sprite and a sound." },
 ];
 
 // The saved text in, the set of done step ids out (anything unreadable counts as nothing done).

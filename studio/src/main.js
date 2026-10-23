@@ -46,7 +46,7 @@ const TEXT_EXT = /\.(lua|txt|md|json)$/i;
 const VIEWS = ["code", "sprite", "tileset", "sfx", "music", "instrument"];
 
 const state = {
-  live: null, logTab: "log", tabs: [], games: [], customConsoles: [], cartBytes: 0, cart: null, files: [], scan: null, info: null, running: false, busy: false, pushing: false,
+  live: null, logTab: "log", tabs: [], games: [], customConsoles: [], cartBytes: 0, cart: null, cartName: "", files: [], scan: null, info: null, running: false, busy: false, pushing: false,
   view: "code",       // "code" | "sprite" | "tileset" | "sfx" | "music" | "instrument"
   file: null,         // the file open in the code editor
   name: null,         // the resource open in the editor of `view` (not for code)
@@ -191,10 +191,10 @@ const isOpen = (g, name) => (g.key === "rooms" ? state.view === "room" && state.
 
 function renderTitle() {
   let title = "No file open";
-  if (state.view === "code" && state.file) title = `${state.cart} / ${state.file}`;
-  else if (state.view === "room" && state.name) title = state.layoutKind === "layout" ? `${state.cart} / scenes / ${state.name}  ·  layout` : `${state.cart} / rooms / ${state.name}`;
-  else if (state.view === "palette") title = `${state.cart} / Colours (palette.json)`;
-  else if (state.view !== "code" && state.name) title = `${state.cart} / ${GROUPS.find((g) => g.kind === state.view).dir} / ${state.name}`;
+  if (state.view === "code" && state.file) title = `${state.cartName} / ${state.file}`;
+  else if (state.view === "room" && state.name) title = state.layoutKind === "layout" ? `${state.cartName} / scenes / ${state.name}  ·  layout` : `${state.cartName} / rooms / ${state.name}`;
+  else if (state.view === "palette") title = `${state.cartName} / Colours (palette.json)`;
+  else if (state.view !== "code" && state.name) title = `${state.cartName} / ${GROUPS.find((g) => g.kind === state.view).dir} / ${state.name}`;
   $("editor-title").textContent = title + (currentDirty() ? "  ●" : "");
   noteTab(); renderTabs(); renderCodeTools();
 }
@@ -210,7 +210,8 @@ function listItem(text, { active, disabled, onclick } = {}) {
 function render() {
   const open = !!state.cart;
   $("app").classList.toggle("welcome-mode", !open);
-  $("project-title").textContent = state.cart || "";
+  $("project-title").textContent = state.cartName || "";
+  $("project-title").title = state.cart || "";
   const sizeBox = $("project-size");
   sizeBox.hidden = !(state.cart && state.scan && state.scan.hasGame);
   if (!sizeBox.hidden) {
@@ -257,7 +258,10 @@ async function run(label, fn) {
   state.busy = false; render();
 }
 
-async function refreshGames() { state.games = await invoke("list_games"); }
+async function refreshGames() {
+  state.games = await invoke("list_projects");
+  try { state.examples = await invoke("list_examples"); } catch { state.examples = []; }
+}
 
 const readJson = (rel) => invoke("read_file", { cart: state.cart, rel }).then(JSON.parse);
 const writeJson = (rel, obj) => invoke("write_file", { cart: state.cart, rel, content: JSON.stringify(obj, null, 2) + "\n" });
@@ -319,24 +323,38 @@ function renderFirstSteps() {
   for (const s of FIRST_STEPS) {
     const row = document.createElement("div"); row.className = "fs-step" + (p.done.has(s.id) ? " done" : ""); row.title = s.tip;
     row.textContent = (p.done.has(s.id) ? "✓ " : "○ ") + s.text;
-    if (s.id === "tutorial") row.onclick = () => help.open("first-game");
+    if (s.id === "tutorial") row.onclick = () => help.open("step-by-step");
     box.appendChild(row);
   }
 }
 
-function recents() {
-  try { return JSON.parse(localStorage.getItem("gs.recent") || "[]"); } catch { return []; }
+// ---------- the game's folder (opened like a folder in a code editor) ----------
+// A game is any folder on disk; `state.cart` is its path, which every backend command takes. What the studio
+// remembers about it (open tabs, which half of each scene, the tab you were on) is in <folder>/.gamestudio/state.json.
+const folderName = (path) => String(path).split(/[\\/]/).filter(Boolean).pop() || "game";
+let stateTimer = null;
+function saveProjectState() {
+  clearTimeout(stateTimer);
+  const cart = state.cart;
+  if (!cart) return;
+  stateTimer = setTimeout(() => {
+    const text = JSON.stringify({ tabs: state.tabs, current: tabKey(), scene_part: state.scenePart }, null, 2) + "\n";
+    invoke("write_project_state", { cart, content: text }).catch(() => { /* only a convenience */ });
+  }, 400);
 }
-function noteRecent(name) {
-  try { localStorage.setItem("gs.recent", JSON.stringify([name, ...recents().filter((n) => n !== name)].slice(0, 20))); } catch { /* ignore */ }
+async function loadProjectState() {
+  try {
+    const s = JSON.parse((await invoke("read_project_state", { cart: state.cart })) || "{}");
+    return { tabs: Array.isArray(s.tabs) ? s.tabs.filter((t) => typeof t === "string") : [], current: typeof s.current === "string" ? s.current : null, scenePart: s.scene_part && typeof s.scene_part === "object" ? s.scene_part : {} };
+  } catch { return { tabs: [], current: null, scenePart: {} }; }
 }
 
 // Only one game is open at a time: opening another closes the current one first.
 async function openGame(name) {
   if (state.cart === name) return;
   if (state.cart) await closeProject();
-  state.cart = name; clearOpen();
-  noteRecent(name);
+  state.cart = name; state.cartName = folderName(name); clearOpen();
+  const saved = await loadProjectState();
   await refreshFiles();
   render();
   // not awaited: the editor works at once and gets smarter when the server is ready
@@ -345,6 +363,10 @@ async function openGame(name) {
     luaServer.files(Object.keys(luaTexts));
     if (state.view === "code" && state.file && state.file.endsWith(".lua")) luaServer.open(state.file, view.state.doc.toString());
   });
+  // back where you were: the tabs that are still there, and the one you had open
+  state.scenePart = saved.scenePart; state.tabs = saved.tabs;
+  renderTabs();
+  if (saved.current && state.tabs.includes(saved.current)) { try { await openTab(saved.current); return; } catch { /* fall back to game.lua */ } }
   const first = state.scan.hasGame ? "game.lua" : state.files.includes("main.lua") ? "main.lua" : null;
   if (first) await openFile(first, true);
 }
@@ -353,7 +375,7 @@ async function closeProject() {
   await confirmDiscard();
   if (state.running) await invoke("stop_preview").catch(fail);
   if (split.file) await closeSplit();
-  state.cart = null; state.files = []; state.scan = null; state.info = null; state.tabs = []; state.newFolders = {};
+  clearTimeout(stateTimer); state.cart = null; state.cartName = ""; state.files = []; state.scan = null; state.info = null; state.tabs = []; state.newFolders = {};
   showPlay(false);
   if ($("find-dialog").open) $("find-dialog").close();
   if (luaServer) await luaServer.stop();
@@ -364,24 +386,34 @@ async function closeProject() {
 
 function renderWelcome() {
   const ul = $("games"); ul.replaceChildren();
-  const order = recents();
-  const games = [...state.games].sort((a, b) => {
-    const ia = order.indexOf(a.name), ib = order.indexOf(b.name);
-    return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.name.localeCompare(b.name);
-  });
-  if (!games.length) {
-    const li = document.createElement("li"); li.className = "tree-empty"; li.textContent = "No games yet. Create one above.";
+  // the games opened lately, newest first (the backend keeps the list)
+  if (!state.games.length) {
+    const li = document.createElement("li"); li.className = "tree-empty"; li.textContent = "No games yet. Make one with New game, or open a folder.";
     ul.appendChild(li);
   }
-  for (const g of games) {
+  for (const g of state.games) {
+    const li = document.createElement("li"); li.className = "game-item"; li.title = g.path;
+    const n = document.createElement("span"); n.className = "game-name"; n.textContent = g.name;
+    const where = document.createElement("span"); where.className = "game-path"; where.textContent = g.path.replace(/^\/Users\/[^/]+|^\/home\/[^/]+/, "~");
+    const k = document.createElement("span"); k.className = "game-kind"; k.textContent = g.kind === "game" ? "" : "No game.lua";
+    if (g.kind !== "game") k.title = "This folder has no game.lua yet, so it will not run. Open it and press New game files, or see Help.";
+    const x = document.createElement("button"); x.className = "small game-forget"; x.textContent = "\u00D7"; x.title = "Take it off this list (the folder stays where it is)";
+    x.onclick = (e) => { e.stopPropagation(); run("forget", async () => { await invoke("forget_project", { path: g.path }); await refreshGames(); renderWelcome(); }); };
+    li.append(n, where, k, x);
+    li.onclick = () => run("open", () => openGame(g.path));
+    ul.appendChild(li);
+  }
+  const ex = $("examples"); ex.replaceChildren();
+  for (const name of state.examples || []) {
     const li = document.createElement("li"); li.className = "game-item";
-    const n = document.createElement("span"); n.textContent = g.name;
-    const k = document.createElement("span"); k.className = "game-kind"; k.textContent = g.kind === "game" ? "Game" : "Old format";
-    if (g.kind !== "game") k.title = "This folder has no game.lua, so it will not run. Move its code into a scene (see Help).";
+    li.title = "Makes a copy in a folder you pick, so you can change it freely";
+    const n = document.createElement("span"); n.className = "game-name"; n.textContent = defaultTitle(name);
+    const k = document.createElement("span"); k.className = "game-kind"; k.textContent = "Open a copy";
     li.append(n, k);
-    li.onclick = () => openGame(g.name);
-    ul.appendChild(li);
+    li.onclick = () => run("example", () => openExample(name));
+    ex.appendChild(li);
   }
+  $("examples-head").hidden = !(state.examples || []).length;
   renderConsoleList();
   renderFirstSteps();
 }
@@ -624,7 +656,7 @@ $("btn-info").onclick = async () => {
   const i = normalizeInfo(state.info);
   const sprites = state.scan.groups.sprites;
   pending = {}; picKey = "box_art";
-  $("info-title").value = i.title; $("info-title").placeholder = defaultTitle(state.cart);
+  $("info-title").value = i.title; $("info-title").placeholder = defaultTitle(state.cartName);
   $("info-desc").value = i.description; $("info-dev").value = i.developer;
   const g = $("info-genre"); g.replaceChildren(new Option("(none)", ""), ...GENRES.map((x) => new Option(x, x))); g.value = i.genre;
   const p = $("info-players"); p.replaceChildren(...[1, 2, 3, 4].map((n) => new Option(String(n), String(n)))); p.value = String(i.players);
@@ -848,6 +880,8 @@ function renderTree() {
   if (!state.scan.hasGame) return;
   for (const g of GROUPS) {
     const names = state.scan.groups[g.key];
+    // rooms are the older form of a scene's layout: only games that have some show the group
+    if (g.key === "rooms" && !names.length && !(state.newFolders.rooms || []).length) continue;
     const wrap = document.createElement("div"); wrap.className = "tree-group";
     const head = document.createElement("div"); head.className = "tree-head";
     if (g.tip) head.title = g.tip;
@@ -1553,18 +1587,27 @@ $("np-cancel").onclick = () => { $("new-project").hidden = true; };
 const createProject = () => run("create", async () => {
   const name = $("np-name").value.trim();
   if (!validName(name)) { $("np-error").textContent = "Use letters, digits, - and _ for the name."; return; }
+  let path;
   try {
-    await invoke("new_cart", { name });
+    // the studio asks where the folder goes (Documents/GameStudio to start with)
+    path = await invoke("new_project", { name });
+    if (!path) return;
     const banks = paletteOf(chosenConsole).mode === "banks";
-    for (const [rel, content] of Object.entries(newGameFiles(defaultTitle(name), chosenConsole.id, { banks }))) await invoke("write_file", { cart: name, rel, content });
+    for (const [rel, content] of Object.entries(newGameFiles(defaultTitle(name), chosenConsole.id, { banks, screen: chosenConsole.screen }))) await invoke("write_file", { cart: path, rel, content });
     const copy = consoleFileOf(chosenConsole.id);
-    if (copy) await invoke("write_file", { cart: name, rel: copy, content: consoleFileText(chosenConsole) });
+    if (copy) await invoke("write_file", { cart: path, rel: copy, content: consoleFileText(chosenConsole) });
   } catch (e) { $("np-error").textContent = String(e); return; }
   $("new-project").hidden = true;
   stepDone("make");
-  await refreshGames(); await openGame(name);
+  await refreshGames(); await openGame(path);
 });
 $("np-create").onclick = createProject;
+$("btn-open-folder").onclick = () => run("open", async () => {
+  const path = await invoke("open_folder");
+  if (!path) return;
+  await refreshGames(); await openGame(path);
+});
+$("btn-reveal").onclick = () => run("reveal", () => invoke("reveal_project", { cart: state.cart }));
 $("np-name").onkeydown = (e) => { if (e.key === "Enter") createProject(); if (e.key === "Escape") $("np-cancel").click(); };
 $("btn-close").onclick = () => run("close", closeProject);
 $("btn-new-file").onclick = () => promptInList("files", "file.lua", async (rel) => {
@@ -1584,26 +1627,31 @@ async function addHelpFile(rel, text) {
   await refreshFiles(); render();
   await openFile(rel);
 }
-// "Open this example": a finished game from the workspace (the samples live in carts/ beside your own games).
+// "Open this example": a finished game that comes with the studio, copied into a folder of your own first so the original stays as it was.
 async function openExample(name) {
-  if (!state.games.some((g) => g.name === name)) throw new Error(`There is no game called ${name} in this workspace.`);
-  await openGame(name);
+  if (!(state.examples || []).includes(name)) throw new Error(`There is no example called ${name}.`);
+  const path = await invoke("copy_example", { name });
+  if (!path) return;
+  await refreshGames(); await openGame(path);
 }
 // "Make this game": a new game made of a tutorial's files, for the console picked beside the button (Glow43 unless you choose another).
 async function makeHelpGame(title, files, consoleId = "glow43") {
-  const base = "tutorial-" + title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  // the folder is named after the game (its title in game.lua), not the page: Coin Dash goes in coin-dash
+  const gameTitle = (/title\s*=\s*"([^"]+)"/.exec(files["game.lua"] || "") || [])[1] || title;
+  const base = gameTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "tutorial";
   let name = base, n = 2;
   while (state.games.some((g) => g.name === name)) name = `${base}-${n++}`;
-  await invoke("new_cart", { name });
+  const path = await invoke("new_project", { name });
+  if (!path) return;
   const target = allConsoles(state.customConsoles).find((c) => c.id === consoleId) || BUILTIN_CONSOLES[0];
   for (const [rel, content] of Object.entries(files)) {
-    await invoke("write_file", { cart: name, rel, content: rel === "game.lua" ? setConsoleInGame(content, target.id) ?? content : content });
+    await invoke("write_file", { cart: path, rel, content: rel === "game.lua" ? setConsoleInGame(content, target.id) ?? content : content });
   }
-  await invoke("write_file", { cart: name, rel: "meta/info.json", content: JSON.stringify({ title, console: target.id }, null, 2) + "\n" });
+  await invoke("write_file", { cart: path, rel: "meta/info.json", content: JSON.stringify({ title: gameTitle, console: target.id }, null, 2) + "\n" });
   const copy = consoleFileOf(target.id);
-  if (copy) await invoke("write_file", { cart: name, rel: copy, content: consoleFileText(target) });
+  if (copy) await invoke("write_file", { cart: path, rel: copy, content: consoleFileText(target) });
   await refreshGames();
-  await openGame(name);
+  await openGame(path);
 }
 
 $("set-theme").onchange = () => setLook($("set-theme").value);
@@ -1621,6 +1669,7 @@ function noteTab() {
   const scene = openSceneNow();
   if (scene) state.scenePart[scene] = state.view === "room" ? "layout" : "code";
   if (!state.tabs.includes(k)) { state.tabs.push(k); if (state.tabs.length > 8) state.tabs.splice(state.tabs.findIndex((t) => t !== k), 1); }
+  saveProjectState();
 }
 async function openTab(k) {
   const [kind, ...rest] = k.split(":"), name = rest.join(":");
@@ -1651,7 +1700,7 @@ function renderTabs() {
     const label = k === "palette:palette" ? "Colours" : k.split(":").slice(1).join(":").split("/").pop() + (k.startsWith("layout:") ? " · layout" : "");
     const t = document.createElement("div"); t.className = "tab-item" + (k === cur ? " on" : ""); t.title = k.replace(":", ": ");
     const x = document.createElement("button"); x.textContent = "\u00D7"; x.title = "Close this tab";
-    x.onclick = (e) => { e.stopPropagation(); state.tabs = state.tabs.filter((y) => y !== k); renderTabs(); };
+    x.onclick = (e) => { e.stopPropagation(); state.tabs = state.tabs.filter((y) => y !== k); renderTabs(); saveProjectState(); };
     t.append(label, x);
     if (k.startsWith("scene:")) t.appendChild(sceneParts(k.slice(6), k === cur));
     t.onclick = () => run("open", () => openTab(k));
@@ -1926,7 +1975,7 @@ $("settings").addEventListener("close", async () => {
   });
   luaServer = createLuaServer({ invoke, listen, note: info, onDiagnostics: (rel) => { if (rel === state.file && state.view === "code") forceLinting(view); } });
   help = createHelp($("help-dialog"), { getApi: () => luaApi, hasGame: () => !!state.scan && state.scan.hasGame, addFile: addHelpFile, makeGame: makeHelpGame,
-    getConsoles: () => allConsoles(state.customConsoles), openGame: openExample, onPage: (id) => { if (id === "first-game") stepDone("tutorial"); } });
+    getConsoles: () => allConsoles(state.customConsoles), openGame: openExample, onPage: (id) => { if (id === "first-game" || id === "step-by-step") stepDone("tutorial"); } });
   makeEditor();
   const palette = artPalette;
   paletteEditor = createPaletteEditor($("palette-editor"), {

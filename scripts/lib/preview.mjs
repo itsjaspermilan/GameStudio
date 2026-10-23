@@ -1,4 +1,4 @@
-// Contact sheet for looking at sprites while drawing them: node scripts/lib/preview.mjs out.png ../void-swarm/pilots.mjs PILOTS [scale] [columns]
+// Contact sheet for looking at sprites while drawing them: node scripts/lib/preview.mjs out.png <art module>.mjs EXPORT [scale] [columns]
 import { writeFileSync } from "node:fs";
 import { png } from "../png.mjs";
 import { Canvas, strip } from "./canvas.mjs";

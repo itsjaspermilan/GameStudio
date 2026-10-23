@@ -56,7 +56,7 @@ test("the runtime sends its frames to the studio and takes buttons back", { skip
       setTimeout(() => sock.write("Q"), 1500);
     });
     srv.listen(0, "127.0.0.1", () => {
-      const p = spawn(gs, [join(root, "tests/breakout")], {
+      const p = spawn(gs, [join(root, "carts/breakout")], {
         env: { ...process.env, GS_EMBED: String(srv.address().port), GS_EMBED_SIZE: "320x240", GS_SAVE_DIR: mkdtempSync(join(tmpdir(), "gs-play-")), SDL_AUDIODRIVER: "dummy" },
         stdio: "ignore",
       });

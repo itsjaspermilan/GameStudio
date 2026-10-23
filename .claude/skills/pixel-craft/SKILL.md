@@ -1,13 +1,13 @@
 ---
 name: pixel-craft
-description: Pixel art craft from the masters (Pedro Medeiros / saint11 and others) - clusters without anti-aliasing, hue-shifted ramps, selective outlines, dithering, subpixel animation, character proportions, frame economy (4-frame walks), and the anti-patterns (pillow shading, banding, doubles, thin protrusions, sliding walks). Use alongside the project's own pixel-art skill when drawing or reviewing sprites and animations.
+description: Pixel art craft from the masters (Pedro Medeiros / saint11 and others) - clusters without anti-aliasing, hue-shifted ramps, selective outlines, dithering, subpixel animation, character proportions, frame economy (4-frame walks), and the anti-patterns (pillow shading, banding, doubles, thin protrusions, sliding walks). Use when drawing or reviewing sprites and animations, alongside the project's own pixel-art skill.
 ---
 
 # Pixel craft
 
 General pixel-art technique, from the `pixel-art` skill of [omer-metin/skills-for-antigravity](https://github.com/omer-metin/skills-for-antigravity)
 (Apache License 2.0, see `LICENSE`). The project's own `pixel-art` skill says how art is made and sized in GameStudio (banks, sizes, the
-generators); this one is the craft to judge it by.
+generators; the GameStudio MCP server's `help('art')` and `help('sizes')`); this one is the craft to judge it by.
 
 - **Creating:** read `references/patterns.md` (clusters, hue shifting, dithering, subpixel animation, selective outlining, retro hardware,
   tilesets, character proportions, animation frame economy).

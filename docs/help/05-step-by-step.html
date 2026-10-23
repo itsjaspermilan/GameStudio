@@ -1,0 +1,192 @@
+<!--
+title: Make a game, step by step
+group: Start here
+order: 5
+summary: From New game to a game on your handheld: a scene's Layout and Code, drawing a sprite, placing things, words on screen, a sound, a title screen.
+-->
+<h1>Make a game, step by step: Coin Dash</h1>
+<p>This page walks through the studio itself: where to click and what each part is for. You make <strong>Coin Dash</strong>: walk around a field and pick up every coin,
+then the title screen comes back. It takes about twenty minutes. The finished files are on this page too (and <strong>Make this game</strong> at the bottom gives you all of them),
+but doing it by hand is how the studio starts to make sense.</p>
+
+<h2>1. Make the game</h2>
+<p>On the start screen press <strong>New game</strong>, type <code>coin-dash</code>, keep <strong>Glow43</strong> as the console and press <strong>Create</strong>. The studio asks where the
+game's folder should go; <em>Documents/GameStudio</em> is a good home. The game <em>is</em> that folder: every file you see on the left is a file in it, so you can
+back it up, put it in git or open it in another editor. <strong>Show folder</strong> (under the game's name) opens it in Finder.</p>
+<p>You start with:</p>
+<table>
+<tr><th>On the left</th><th>What it is</th></tr>
+<tr><td><code>game.lua</code></td><td>The game's title, its console and the scene it starts with.</td></tr>
+<tr><td>Colours</td><td>The game's colour banks (<code>palette.json</code>): sets of 15 colours that sprites and tiles draw with, like a GBA.</td></tr>
+<tr><td>Entities: <code>player</code></td><td>The things in your game. Each kind is one Lua file: its starting values and what it does.</td></tr>
+<tr><td>Scenes: <code>main</code></td><td>A screen of your game. Every scene has two halves, <strong>Layout</strong> and <strong>Code</strong> (step 4).</td></tr>
+</table>
+<p>The folder also gets a hidden <code>.gamestudio</code> folder the first time you open a tab. That is the studio's own notes (which tabs were open, where you were), like a code editor's settings
+folder: it is not part of the game, is never sent to the handheld, and is safe to delete.</p>
+
+<h2>2. Run it</h2>
+<p>Press <strong>Run</strong> (Cmd/Ctrl+Enter). The game plays in the Play panel beside the code: click it, then move the red square with the arrow keys.
+Leave it running for the rest of this page. Every time you save a file the running game picks up the change at once.</p>
+
+<h2>3. Draw the player</h2>
+<ol>
+<li>Press <strong>+</strong> beside <strong>Sprites</strong>, type <code>hero</code>, press Enter. The sprite editor opens with a blank 32x32 picture
+(the right size for a hero on this screen, see <a href="help:sizes">Sprite and tile sizes</a>).</li>
+<li>Pick the <strong>hero</strong> colour bank at the top left. Its colours are below it: a dark, middle and light shade of skin, hair and clothes.</li>
+<li>Draw with the Pencil (B). Big simple shapes first, then a darker shade on the side away from the light. <a href="help:art">Drawing pixel art</a> has the tricks.</li>
+<li>With <strong>Set origin</strong> (O), click between the feet: that point sits on the entity's position.</li>
+<li>Save (Cmd/Ctrl+S).</li>
+</ol>
+<p>Now open <code>player</code> under Entities, put the sprite in its table and delete its <code>draw</code> method (an entity with a sprite draws itself). Save, and the square in the running game becomes your hero.</p>
+<pre class="lua"><code>local Player = gs.entity{
+  sprite = "hero",
+  tags = { "player" },
+  speed = 90,                     -- pixels a second
+}</code></pre>
+<p>Want it to walk? Add frames with <strong>Copy</strong> (copy a frame, change a little), name them under <strong>+ New animation</strong>, and call <code>self:play("walk")</code>:
+see <a href="help:sprites-sound">Sprites, animation and sound</a>.</p>
+
+<h2>4. A scene has a Layout and Code</h2>
+<p>Click <code>main</code> under Scenes. Its tab above the editor has two buttons, <strong>Layout</strong> and <strong>Code</strong>, the two halves of every scene:</p>
+<ul>
+<li><strong>Layout</strong> is <em>what is where</em> when the scene starts: things, words, pictures, tiles. You place them with the mouse. It is the file <code>scenes/main.layout.lua</code>.</li>
+<li><strong>Code</strong> is <em>what happens</em>: <code>enter</code> runs once when the scene starts, <code>update</code> every step. It is <code>scenes/main.lua</code>.</li>
+</ul>
+<p>The scene starts by building its layout, then runs <code>enter</code>. A rule of thumb: <strong>if you can point at it, put it in the layout; if it changes or decides, it is code.</strong>
+The new game made the player in code (<code>gs.spawn("player", 160, 120)</code> in <code>enter</code>). Let's move it to the layout, where you can see it:</p>
+<ol>
+<li>Click <strong>Layout</strong>. Pick the <strong>Things</strong> tool (N) above the picture, choose <code>player</code> on the right and click near the bottom of the screen.</li>
+<li>With the player selected, type <code>player</code> in its <strong>Name</strong> box on the right. It shows <code>self.player</code> above it: that is what the code calls it.</li>
+<li>Click <strong>Code</strong> and delete the <code>gs.spawn</code> line (and the now-empty <code>enter</code>). Save both halves.</li>
+</ol>
+<p>The list on the left of the layout, <strong>In this layout</strong>, shows everything with a name as <code>self.something</code>. Typing <code>self.</code> in the code lists the same names,
+and a misspelt one gets a warning. That list is the map between the two halves: the layout says what exists, the names are how the code reaches it.</p>
+
+<h2>5. Coins</h2>
+<p>Press <strong>+</strong> beside <strong>Entities</strong> and make <code>coin</code>. A coin needs a tag (so the player knows what it touched), a hitbox, and something to look like.
+Draw a 16x16 <code>coin</code> sprite (the <strong>items</strong> bank has gold) and use <code>sprite = "coin"</code>, or draw a circle as here:</p>
+<pre class="lua" data-path="entities/coin.lua"><code>local Coin = gs.entity{
+  tags = { "coin" },
+  hitbox = { r = 6 },             -- a circle with a radius of 6
+}
+
+function Coin:draw()
+  gs.draw.circle(self.x, self.y, 6, "#f5d94a")
+end
+
+return Coin</code></pre>
+<p>Back in the scene's <strong>Layout</strong>, pick <strong>Things</strong>, choose <code>coin</code> and click six or seven times around the field. Coins don't need names: forty coins
+would make forty names, and the code only needs to count them.</p>
+<p>Now the player picks them up. A method called <code>on_collide_</code> plus a tag runs when the two touch:</p>
+<pre class="lua" data-path="entities/player.lua"><code>-- The player moves with the D-pad and picks up coins.
+local Player = gs.entity{
+  tags = { "player" },
+  hitbox = { -8, -8, 16, 16 },
+  speed = 90,                     -- pixels a second
+}
+
+function Player:update(dt)
+  local dx, dy = gs.input.dir()
+  self.x = gs.clamp(self.x + dx * self.speed * dt, 8, 312)
+  self.y = gs.clamp(self.y + dy * self.speed * dt, 8, 232)
+end
+
+function Player:draw()
+  gs.draw.rect(self.x - 8, self.y - 8, 16, 16, "#ea5a4b")
+end
+
+function Player:on_collide_coin(coin)
+  coin:destroy()
+end
+
+return Player</code></pre>
+
+<h2>6. Words on the screen</h2>
+<p>In the Layout pick <strong>Text</strong> (X), click near the top left and type <code>COINS 0</code>. Name it <code>score</code>. On the right you can choose its font
+(round, square or bold; small or tall), colour and a shadow. Then the code changes its words as you play: the scene counts the coins when it starts, and says how many are gone.</p>
+<pre class="lua" data-path="scenes/main.layout.lua"><code>-- The scene's layout, built when it starts. Named things are fields of its code: self.&lt;name&gt;.
+return {
+  width = 320, height = 240, background = "#123b2a",
+  entities = {
+    { "player", 160, 200, {}, name = "player" },
+    { "coin", 40, 40, {} },
+    { "coin", 120, 70, {} },
+    { "coin", 200, 40, {} },
+    { "coin", 280, 90, {} },
+    { "coin", 70, 140, {} },
+    { "coin", 250, 160, {} },
+  },
+  texts = {
+    { "COINS 0", 8, 6, name = "score", color = "#ffffff", font = "round_small", shadow = true },
+  },
+}</code></pre>
+<p>That is what the layout editor writes; you never have to type it. <strong>Edit as text</strong> shows it if you are curious.</p>
+<pre class="lua" data-path="scenes/main.lua"><code>local Main = gs.scene{}
+
+function Main:enter()
+  self.total = gs.count("coin")   -- the layout is already built, so the coins are there
+end
+
+function Main:update(dt)
+  local got = self.total - gs.count("coin")
+  self.score.text = "COINS " .. got
+  if got == self.total then
+    gs.goto_scene("scenes.title", { fade = 0.5 })    -- all of them: back to the title
+  end
+end
+
+return Main</code></pre>
+
+<h2>7. A sound</h2>
+<ol>
+<li>Press <strong>+</strong> beside <strong>Sound effects</strong> and make <code>pickup</code>.</li>
+<li>Drag an instrument (a pulse or a bell) onto a lane, then click two or three rising notes into it. Press play to hear it; it sounds exactly as it will on the handheld.</li>
+<li>Save, and play it when a coin is picked up:</li>
+</ol>
+<pre class="lua"><code>function Player:on_collide_coin(coin)
+  gs.sfx("pickup")
+  coin:destroy()
+end</code></pre>
+<p>Music is the same idea with songs: <code>gs.music("name")</code>. <a href="help:music">Music and sound effects</a> says what fits which mood.</p>
+
+<h2>8. A title screen</h2>
+<p>Press <strong>+</strong> beside <strong>Scenes</strong> and make <code>title</code>. A new scene gets both halves. In its Layout put two texts: <code>COIN DASH</code> big, in the bold
+tall font, named <code>title</code>, and <code>PRESS A</code> named <code>prompt</code>. The code blinks the prompt and starts the game:</p>
+<pre class="lua" data-path="scenes/title.layout.lua"><code>-- The scene's layout, built when it starts. Named things are fields of its code: self.&lt;name&gt;.
+return {
+  width = 320, height = 240, background = "#14234f",
+  entities = {
+  },
+  texts = {
+    { "COIN DASH", 160, 80, name = "title", color = "#ffd08a", size = 2, align = "center", font = "bold_tall", shadow = true },
+    { "PRESS A", 160, 170, name = "prompt", color = "#ffffff", align = "center", font = "round_tall", shadow = true },
+  },
+}</code></pre>
+<pre class="lua" data-path="scenes/title.lua"><code>local Title = gs.scene{}
+
+function Title:update(dt)
+  self.prompt.visible = gs.time() % 1 &lt; 0.6
+  if gs.input.pressed("a") then
+    gs.goto_scene("scenes.main", { fade = 0.3 })
+  end
+end
+
+return Title</code></pre>
+<p>Last, open <code>game.lua</code> and make the title the first scene:</p>
+<pre class="lua" data-path="game.lua"><code>return gs.game{
+  title = "Coin Dash",
+  console = "glow43",
+  start = "scenes.title",
+}</code></pre>
+
+<h2>9. On the handheld</h2>
+<p>The <strong>Handheld</strong> tab under the editor shows how the game compares with what the handheld can do. <strong>Game info…</strong> sets the title, description and box
+art its game list shows. With the device set up (Settings), <strong>Send to device</strong> packs the game into one cartridge file and copies it over.</p>
+
+<h2>Where next</h2>
+<ul>
+<li>Open the <a href="open:breakout">Breakout example</a>: every screen is a scene with a layout, the bricks are placed in the play scene's layout, and its code is short.</li>
+<li><a href="help:first-game">Your first game</a> does a game in code only, which is good for seeing what each line does.</li>
+<li><a href="help:layouts">Layouts</a> has the rest of the layout editor: pictures, tile panels, many levels sharing one scene's code.</li>
+<li>Bigger than the screen: <a href="help:rooms">Big levels</a>.</li>
+</ul>

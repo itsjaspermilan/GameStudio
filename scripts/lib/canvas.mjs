@@ -1,4 +1,4 @@
-// A tiny indexed-colour pixel canvas for drawing the Void Swarm sprites in code. Colours are indexes into the console palette (0..31);
+// A tiny indexed-colour pixel canvas for drawing sprites in code (the MCP server's sprite_write uses it). Colours are indexes into the console palette (0..31);
 // -1 is transparent. Every sprite is a function (canvas, frame) -> draws that frame, so animation is just maths on the frame number.
 export const PAL = ["#000000", "#3b3f55", "#8a90a8", "#ffffff", "#4a1424", "#b0293a", "#ea5a4b", "#ffa38c", "#4b2a1d", "#9a5324", "#e8913a", "#ffd08a",
   "#6b5a14", "#c9a227", "#f5d94a", "#fff6a8", "#123b2a", "#2f8a3f", "#6ccf4f", "#c4f28a", "#0f3b4a", "#1f8a96", "#45d1c5", "#a6f4e6",

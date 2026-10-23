@@ -7,10 +7,17 @@ Consoles were renamed on 2026-10-23: Dot is **Glow43** (4:3, G43 for short) and 
 The logos are GBA-era chrome (`scripts/make-console-logos.mjs`). On Knulli the new id means a new system folder (`/userdata/roms/glow43`):
 the old `dot` system and its folder stay until removed by hand.
 
+## Games as folders (2026-10-23)
+
+- [ ] Try it in the real app (only the browser mock was clicked through): Open folder…, New game asking where, Examples opening a copy of
+  Breakout, Make this game asking where, the recent list (× forgets one), Show folder, and reopening a game coming back to its tabs.
+- [ ] Maybe: a game's own studio settings in `.gamestudio/` (its device, run in a window or the panel), and a `.gitignore` line for it in new games.
+- [ ] The Help pages still show no pictures; screenshots of the layout editor in "Make a game, step by step" would help beginners most.
+
 ## GBA overhaul (2026-10-23, research in `docs/gba-style.md`)
 
-Only Void Swarm and Panel Pop remain as games (Kitchen Rush, Then & Now and the Test project were removed; Breakout lives on as the test
-fixture `tests/breakout`). Built, tested on the desktop, pushed to the muOS card; nothing below was seen by a person on the handheld yet.
+Void Swarm and Panel Pop were removed on 2026-10-23 as well (in git history before that); Breakout, remade with layouts and colour banks,
+is the one example (`carts/breakout`). Items below about those two games are kept only as notes on the engine. Built, tested on the desktop, pushed to the muOS card; nothing below was seen by a person on the handheld yet.
 - [ ] On the handheld: the new built-in fonts (round, square, bold; small and tall) in both games, their sizes and shadows on the real screen.
 - [ ] On the handheld: mosaic transitions (`look = "mosaic"`) read the frame back from the GPU; check they stay smooth on muOS (only the
   few frames of a transition do it).

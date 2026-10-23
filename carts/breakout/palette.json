@@ -1,0 +1,74 @@
+{
+  "sprites": [
+    {
+      "name": "ball",
+      "colors": [
+        "#1a1c2c",
+        "#94b0c2",
+        "#f4f4f4",
+        "#ffffff"
+      ]
+    },
+    {
+      "name": "paddle",
+      "colors": [
+        "#1a1c2c",
+        "#257179",
+        "#38b7a0",
+        "#a7f0d8",
+        "#f4f4f4"
+      ]
+    },
+    {
+      "name": "bricks",
+      "colors": [
+        "#1a1c2c",
+        "#ffffff",
+        "#9c2a3a",
+        "#ef5a5a",
+        "#b55a1e",
+        "#f5a03a",
+        "#b8932a",
+        "#f7e26b",
+        "#2a7a3e",
+        "#6fd36a",
+        "#28509c",
+        "#5aa6f2",
+        "#5a3a9c",
+        "#b07ef0"
+      ]
+    }
+  ],
+  "tiles": [
+    {
+      "name": "space",
+      "colors": [
+        "#0b0d1a",
+        "#141833",
+        "#3a4070",
+        "#8a90c8",
+        "#f4f4f4"
+      ]
+    },
+    {
+      "name": "ui",
+      "colors": [
+        "#1a1c2c",
+        "#262b44",
+        "#3a4466",
+        "#8b9bb4",
+        "#c0cbdc"
+      ]
+    },
+    {
+      "name": "text",
+      "colors": [
+        "#f4f4f4",
+        "#ffd08a",
+        "#8b9bb4",
+        "#ef7d57",
+        "#a7f070"
+      ]
+    }
+  ]
+}

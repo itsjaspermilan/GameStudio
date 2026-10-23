@@ -211,6 +211,6 @@ What to remember:</p>
 <li><strong>Do not make tables in <code>update</code>.</strong> A new table every step for every enemy is garbage for the collector, and the handheld notices. The editor warns about it.</li>
 <li><strong>Everything that goes away needs a way to go away.</strong> The shot has a timer, the gem is collected. A game that never removes things slowly stops fitting.</li>
 </ul>
-<p>For a complete version of the same idea, open <strong>Void Swarm</strong> in <code>carts/void-swarm</code>: ten pilots, ten weapons, 24 kinds of enemy (each a small file that builds on one shared <code>enemy.lua</code>), ten bosses, upgrades that last between runs, and a director that pauses the world for level-up choices with <code>gs.pause()</code>.
-It is the engine's biggest test game, and a good place to read how a large project is laid out.</p>
+<p>To grow it: give enemies a shared parent (<code>entities/enemy.lua</code>) and make each kind a small file that changes a few numbers (see <a href="help:best-practices">Best practices</a>),
+pause the world for level-up choices with <code>gs.pause()</code>, and keep upgrades between runs in <code>gs.save</code>.</p>
 <p>Ideas: level up when <code>state.xp</code> reaches a number and let the player pick a stronger shot, or more speed. Make a second enemy that is a bigger child of this one (see <a href="help:best-practices">Best practices</a>).</p>

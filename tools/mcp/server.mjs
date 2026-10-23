@@ -9,7 +9,7 @@ import { z } from "zod";
 import * as T from "./tools.mjs";
 
 const server = new McpServer({ name: "gamestudio", version: "1.0.0" }, {
-  instructions: "GameStudio makes small 2D Lua games for a handheld (games are folders in carts/; the engine API is gs.*). Prefer these tools over reading big files: " +
+  instructions: "GameStudio makes small 2D Lua games for a handheld (a game is a folder: an example in carts/ by name, or any game folder by its full path, see games; the engine API is gs.*). Prefer these tools over reading big files: " +
     "api and help for the engine, overview to see a game, check after editing Lua, run to see it (a screenshot), inspect to look inside, sprite_view/sprite_write for art, room_view/room_write for levels, " +
     "song_check/song_write and sound_check/sound_write for sound (the checks read the notes with music theory and measure the rendered audio), push to send a game to the handheld. " +
     "Before drawing, designing levels or composing, read the craft guide with help: help('art') (with help('sizes')), help('levels'), help('music').",
@@ -27,7 +27,7 @@ function tool(name, title, description, shape, fn) {
   });
 }
 
-const game = z.string().describe("A game: a folder name in carts/ (see games)");
+const game = z.string().describe("A game: a folder name in carts/, or the full path of a game's folder (see games)");
 
 tool("api", "Look up the gs API", "Find gs.* functions, Entity methods and fields by name or by words in their description (e.g. 'spawn', 'collide', 'camera', 'burst', 'follow_path'). Empty query lists the groups.",
   { query: z.string().default("") }, T.api);

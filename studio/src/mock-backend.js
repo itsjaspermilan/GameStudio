@@ -52,7 +52,15 @@ async function seed() {
     "sprites/spr_demo.png": { b64: await encodeSpritePng(s) },
   } };
   carts.hello = { files: { "main.lua": { text: LUA } } };
+  // the folders you have open are paths, as in the app; "demo" is also offered as an example to copy
+  carts[HOME + "/demo"] = carts.demo;
+  carts[HOME + "/hello"] = carts.hello;
+  projects.push(HOME + "/demo", HOME + "/hello");
 }
+const HOME = "/Users/you/Documents/GameStudio";
+const projects = [];
+const projectState = {};
+const remember = (path) => { const i = projects.indexOf(path); if (i >= 0) projects.splice(i, 1); projects.unshift(path); return path; };
 
 const handlers = {
   get_settings: () => ({ workspace: "/mock/workspace", device_host: "", device_user: "root", device_dir: "" }),
@@ -74,6 +82,25 @@ const handlers = {
   },
   write_binary: ({ cart, rel, data }) => { carts[cart].files[rel] = { b64: data }; return null; },
   delete_file: ({ cart, rel }) => { delete carts[cart].files[rel]; return null; },
+  list_projects: () => projects.filter((p) => carts[p]).map((path) => ({ path, name: path.split("/").pop(), kind: carts[path].files["game.lua"] ? "game" : "lua" })),
+  forget_project: ({ path }) => { const i = projects.indexOf(path); if (i >= 0) projects.splice(i, 1); return null; },
+  // the real commands show a folder picker; the mock always picks Documents/GameStudio
+  open_folder: () => remember(HOME + "/demo"),
+  new_project: ({ name }) => {
+    const path = `${HOME}/${name}`;
+    if (carts[path]) throw `there is already a '${name}' in ${HOME}`;
+    carts[path] = { files: {} };
+    return remember(path);
+  },
+  list_examples: () => ["demo"],
+  copy_example: ({ name }) => {
+    const path = `${HOME}/${name}-copy`;
+    if (!carts[path]) carts[path] = { files: JSON.parse(JSON.stringify(carts[name].files)) };
+    return remember(path);
+  },
+  read_project_state: ({ cart }) => projectState[cart] || "",
+  write_project_state: ({ cart, content }) => { projectState[cart] = content; return null; },
+  reveal_project: () => null,
   new_cart: ({ name }) => {
     if (carts[name]) throw `'${name}' already exists`;
     carts[name] = { files: {} };

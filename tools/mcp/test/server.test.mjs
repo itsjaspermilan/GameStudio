@@ -21,15 +21,17 @@ test("the GameStudio MCP server answers", { skip, timeout: 120000 }, async () =>
     assert.deepEqual(names, ["api", "check", "games", "help", "inspect", "instruments", "overview", "push", "room_view", "room_write", "run", "song_check", "song_write", "sound_check", "sound_write", "sprite_view", "sprite_write"]);
     const call = async (name, args) => { const r = await client.callTool({ name, arguments: args }); assert.ok(!r.isError, `${name}: ${r.content[0].text}`); return r; };
     assert.match((await call("api", { query: "spawn" })).content[0].text, /gs\.spawn/);
-    assert.match((await call("overview", { game: "void-swarm" })).content[0].text, /entities \(\d+\)/);
-    const run = await call("run", { game: "panel-pop", seconds: 1 });
+    assert.match((await call("overview", { game: "breakout" })).content[0].text, /entities \(\d+\)/);
+    // a game's folder can also be named by its full path (the studio opens folders anywhere)
+    assert.match((await call("overview", { game: join(root, "carts/breakout") })).content[0].text, /entities \(\d+\)/);
+    const run = await call("run", { game: "breakout", seconds: 1 });
     assert.equal(run.content[1].type, "image");
     assert.equal(Buffer.from(run.content[1].data, "base64").readUInt32BE(0), 0x89504e47, "a PNG");
-    assert.match((await call("song_check", { game: "void-swarm", name: "msc_s1" })).content[0].text, /key E dorian[\s\S]*loudness/);
+    assert.match((await call("song_check", { game: "breakout", name: "msc_title" })).content[0].text, /key [A-G][\s\S]*loudness/);
     // prompts start a task with the matching guide included
     assert.deepEqual((await client.listPrompts()).prompts.map((p) => p.name).sort(), ["compose-music", "design-level", "draw-art"]);
-    const pr = await client.getPrompt({ name: "design-level", arguments: { game: "void-swarm", room: "level1", idea: "a first level" } });
-    assert.match(pr.messages[0].content.text, /Design the room level1 for the game void-swarm: a first level[\s\S]*# Designing levels[\s\S]*Teach, test, twist/);
+    const pr = await client.getPrompt({ name: "design-level", arguments: { game: "breakout", room: "level1", idea: "a first level" } });
+    assert.match(pr.messages[0].content.text, /Design the room level1 for the game breakout: a first level[\s\S]*# Designing levels[\s\S]*Teach, test, twist/);
     assert.match((await call("help", { topic: "music" })).content[0].text, /# Music and sound effects/);
     const bad = await client.callTool({ name: "overview", arguments: { game: "no-such-game" } });
     assert.ok(bad.isError && /no game called/.test(bad.content[0].text));
@@ -37,9 +39,10 @@ test("the GameStudio MCP server answers", { skip, timeout: 120000 }, async () =>
 });
 
 test("writing: a sprite, a sound and a song land in a game and come back checked", { skip, timeout: 120000 }, async () => {
-  // a copy of the Breakout test cart in a throwaway workspace, so the real games are never touched
+  // a copy of the Breakout example in a throwaway workspace, so the real games are never touched
   const ws = mkdtempSync(join(tmpdir(), "gs-mcp-ws-"));
-  cpSync(join(root, "tests/breakout"), join(ws, "carts/breakout"), { recursive: true });
+  cpSync(join(root, "carts/breakout"), join(ws, "carts/breakout"), { recursive: true });
+  rmSync(join(ws, "carts/breakout/palette.json"));   // first the classic palette; colour banks are tried further down
   for (const d of ["engine", "build/gs", "docs/help", "tests", "assets/soundfonts"]) cpSync(join(root, d), join(ws, d), { recursive: true });
   const client = new Client({ name: "test", version: "1" });
   await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(here, "../server.mjs")], env: { ...process.env, GS_WORKSPACE: ws } }));

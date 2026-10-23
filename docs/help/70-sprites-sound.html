@@ -10,7 +10,7 @@ Nothing has to be listed or registered anywhere.</p>
 
 <h2>A sprite</h2>
 <ol>
-<li>In the list on the left, press <strong>+</strong> next to <em>Sprites</em> and type a name such as <code>hero</code>. The pixel editor opens with a blank 32x32 picture.
+<li>In the list on the left, press <strong>+</strong> next to <em>Sprites</em> and type a name such as <code>hero</code>. The pixel editor opens with a blank 32x32 picture, a good start for a hero; <em>Resize</em> changes it (any multiple of 8 up to 128x128 on Glow43, for bosses).
 (Not sure about the size? See <a href="help:sizes">Sprite and tile sizes</a>.)</li>
 <li>Draw. Pick the sprite's <strong>colour bank</strong> at the top left; its 15 colours and see-through are below it (Glow43 works like a GBA:
 each sprite uses one bank of the game's colours, see <a href="help:art">Drawing pixel art</a>). Choosing another bank moves every pixel to the same place in the new one.
@@ -48,7 +48,7 @@ Other things every entity has for its looks: <code>alpha</code> (0 invisible to 
 <code>self:set_sprite("hero_hurt")</code> switches to another picture. In code that is not an entity, <code>gs.draw.sprite("star", x, y, { frame = 1, scale = 2 })</code> draws one.</p>
 
 <h2>Tilesets</h2>
-<p>A tileset is a sheet of small square pictures. In the tileset editor you set the tile size (8 or 16 on Glow43), then draw tiles on the sheet. The tiles are numbered left to right, top to bottom.
+<p>A tileset is a sheet of small square pictures. In the tileset editor you set the tile size (8, 16 or 32 on Glow43; 32 is the usual size for ground and walls, 8 or 16 for window and panel edges), then draw tiles on the sheet. The tiles are numbered left to right, top to bottom.
 They are drawn into a map with a <em>tile layer</em>: see <a href="help:rooms">Big levels</a>.</p>
 
 <h2>Sound effects</h2>

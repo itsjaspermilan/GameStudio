@@ -1,8 +1,0 @@
-{
- "image": "tilesets/ts_mid_fleet.png",
- "tile_w": 16,
- "tile_h": 16,
- "banks": [
-  "sky_fleet"
- ]
-}

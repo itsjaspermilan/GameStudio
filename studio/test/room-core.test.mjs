@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseRoom, serializeRoom, fitLayer, fillLayer, entityAt, snap, freshName, luaInline, layoutNames, nameProblem, textBox } from "../src/room-core.js";
+import { parseRoom, normalizeRoom, serializeRoom, fitLayer, fillLayer, entityAt, snap, freshName, luaInline, layoutNames, nameProblem, textBox } from "../src/room-core.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -54,9 +54,14 @@ test("writing and reading again gives the same room", () => {
 });
 
 test("the rooms in the repository read as data", () => {
-  const { room, error } = parseRoom(readFileSync(join(root, "carts/panel-pop/scenes/title.layout.lua"), "utf8"));
+  const { room, error } = parseRoom(readFileSync(join(root, "carts/breakout/scenes/play.layout.lua"), "utf8"));
   assert.equal(error, undefined);
   assert.equal(room.width, 320);
+});
+
+test("an entity's name survives normalizing twice (the editor normalizes what it loads)", () => {
+  const { room } = parseRoom(`return { entities = { { "paddle", 136, 216, {}, name = "paddle" }, { "brick", 32, 32, { row = 1 } } } }`);
+  assert.deepEqual(normalizeRoom(normalizeRoom(room)).entities, [["paddle", 136, 216, undefined, "paddle"], ["brick", 32, 32, { row: 1 }]]);
 });
 
 test("editing helpers", () => {
@@ -111,7 +116,7 @@ test("the sample games' layouts are exactly what the layout editor writes", () =
     const dir = join(root, "carts", game, "scenes");
     if (existsSync(dir)) for (const f of readdirSync(dir)) if (f.endsWith(".layout.lua")) rels.push(`carts/${game}/scenes/${f}`);
   }
-  assert.ok(rels.length >= 7, rels.join(", "));
+  assert.ok(rels.length >= 3, rels.join(", "));
   for (const rel of rels) {
     const text = readFileSync(join(root, rel), "utf8");
     const first = text.split("\n")[0].replace(/^-- /, "");

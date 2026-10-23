@@ -38,7 +38,7 @@
       <div id="gut-side" class="gutter gx" title="Drag to make the side bar wider or narrower (double-click: usual size)"></div>
       <aside id="sidebar">
         <div id="project-head">
-          <div><div id="project-title"></div><div id="project-kind"></div><button id="btn-console" class="link" title="See what would change on another console, and switch">Change console…</button><button id="btn-info" class="link" title="The title, description and box art your device's game list shows">Game info…</button></div>
+          <div><div id="project-title"></div><div id="project-kind"></div><button id="btn-console" class="link" title="See what would change on another console, and switch">Change console…</button><button id="btn-info" class="link" title="The title, description and box art your device's game list shows">Game info…</button><button id="btn-reveal" class="link" title="Show this game's folder in Finder (Explorer on Windows)">Show folder</button></div>
           <button id="btn-close" class="small" title="Close this project and return to the start screen">Close</button>
         </div>
         <div id="project-size" class="size-meter" hidden>
@@ -63,7 +63,8 @@
           <h1>GameStudio</h1>
           <p class="welcome-sub">Make small 2D games for your handheld.</p>
           <div class="welcome-actions">
-            <button id="btn-new-project" class="primary" title="A game with a Lua starter: one scene and one entity">New game</button>
+            <button id="btn-new-project" class="primary" title="A game with a Lua starter: one scene and one entity, in a folder you choose">New game</button>
+            <button id="btn-open-folder" title="Open a game's folder from anywhere on your computer">Open folder…</button>
           </div>
           <div id="new-project" class="newproj" hidden>
             <h2>New game</h2>
@@ -74,8 +75,10 @@
             <div class="np-actions"><button id="np-cancel">Cancel</button><button id="np-create" class="primary">Create</button></div>
           </div>
           <div id="first-steps" class="first-steps" hidden></div>
-          <h2>Open a game</h2>
+          <h2>Recent</h2>
           <ul id="games"></ul>
+          <h2 id="examples-head" title="Finished games that come with the studio. Opening one makes a copy you can change.">Examples</h2>
+          <ul id="examples"></ul>
           <h2>Consoles</h2>
           <ul id="consoles"></ul>
           <div class="welcome-actions"><button id="btn-new-console" title="Start from Dot and change its screen, colours and limits">New console</button></div>
@@ -183,7 +186,7 @@
     <dialog id="settings">
       <form method="dialog">
         <h2>Settings</h2>
-        <label>Workspace folder <small>(contains carts/ and build/)</small>
+        <label>Studio tools folder <small>(holds build/gs, the examples and the SoundFont; your games can be anywhere)</small>
           <input id="set-workspace" spellcheck="false" />
         </label>
         <label>Run games <select id="set-run-in" title="Where Run shows the game"><option value="studio">In the studio, beside the code</option><option value="window">In a window of their own</option></select></label>

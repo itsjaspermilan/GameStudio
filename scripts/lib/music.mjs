@@ -1,7 +1,7 @@
 // Writing sound in code, for any game: sound effects from short step lists, and songs generated from a chord plan, a seeded melody,
 // a harmony style, a bass style and a drum style (and, for a band of 8 instruments, a counter-melody, a second harmony, hand percussion
 // and an echo of the melody), saved in the studio's tracker format (see README.md > Sound) so they open and edit
-// like hand-made ones. Void Swarm's and Panel Pop's sound are made with it (scripts/void-swarm/audio.mjs, scripts/panel-pop/audio.mjs),
+// like hand-made ones. The MCP server's song_write uses it,
 // and the MCP server's song_write uses it.
 import { rng } from "./canvas.mjs";
 

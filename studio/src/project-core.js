@@ -161,11 +161,13 @@ return {
 }
 `;
 
-// Starter files of a new game. On a console with colour banks it starts with the ready-made banks (palette.json).
-export function newGameFiles(title, consoleId, { banks = false } = {}) {
+// Starter files of a new game. On a console with colour banks it starts with the ready-made banks (palette.json). The first scene has
+// both halves, an empty layout and its code, as every scene made in the studio does.
+export function newGameFiles(title, consoleId, { banks = false, screen = { width: 320, height: 240 } } = {}) {
   const safe = String(title).replace(/[\\"]/g, "");
   return {
     "game.lua": `-- ${safe}\nreturn gs.game{\n  title = "${safe}",\n  console = "${consoleId}",\n  start = "scenes.main",\n}\n`,
+    "scenes/main.layout.lua": LAYOUT_TEMPLATE(screen),
     "scenes/main.lua": `local Main = gs.scene{}\n\nfunction Main:enter()\n  gs.spawn("player", 160, 120)\nend\n\nreturn Main\n`,
     "entities/player.lua": `-- The player moves with the D-pad. Save the file while the game runs and the change shows at once.\nlocal Player = gs.entity{\n  tags = { "player" },\n  speed = 90,                     -- pixels a second\n}\n\nfunction Player:update(dt)\n  local dx, dy = gs.input.dir()\n  self.x = self.x + dx * self.speed * dt\n  self.y = self.y + dy * self.speed * dt\nend\n\nfunction Player:draw()\n  gs.draw.rect(self.x - 8, self.y - 8, 16, 16, "#ea5a4b")\nend\n\nreturn Player\n`,
     "meta/info.json": JSON.stringify({ title, console: consoleId }, null, 2) + "\n",

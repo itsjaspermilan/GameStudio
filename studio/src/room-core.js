@@ -107,7 +107,9 @@ export function normalizeRoom(r) {
       const l = Array.isArray(e) ? e : e.__list || [e.class, e.x, e.y, e.props];
       const props = l[3] && typeof l[3] === "object" && !Array.isArray(l[3]) ? l[3] : undefined; // {} reads as an empty list: no values
       const out = [String(l[0] ?? ""), Number(l[1]) || 0, Number(l[2]) || 0, props];
-      if (!Array.isArray(e) && typeof e.name === "string") out.push(e.name);
+      // the name is a field when read from a file, and the fifth item of an entity that was normalized already (the editor loads that)
+      const named = Array.isArray(e) ? e[4] : e.name;
+      if (typeof named === "string") out.push(named);
       return out;
     })
     : [];

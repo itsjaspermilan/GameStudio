@@ -3,8 +3,8 @@
 // It reuses the studio's own logic (studio/src/*-core.js), the shared generators (scripts/lib/) and the real runtime (build/gs).
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateSync } from "node:zlib";
 import { parseApi, buildIndex, diagnose } from "../../studio/src/lua-intel-core.js";
@@ -29,11 +29,25 @@ const theApi = () => (apiCache ||= parseApi(read(join(ROOT, "engine/api/gs.d.lua
 
 // ---------- games and their files ----------
 const VALID = /^[A-Za-z0-9_-]+$/, VALID_REL = /^[A-Za-z0-9_\-/]+$/;
+// A game is a folder name in carts/ (the examples) or the full path of a game's folder anywhere (games the studio opened; see games).
 function gameDir(game) {
-  if (!VALID.test(String(game || ""))) throw new Error(`'${game}' is not a game name (letters, digits, - and _)`);
-  const d = join(ROOT, "carts", game);
-  if (!existsSync(join(d, "game.lua"))) throw new Error(`no game called '${game}' (games are the folders in carts/ with a game.lua; see games)`);
+  const g = String(game || "");
+  if (isAbsolute(g)) {
+    if (!existsSync(join(g, "game.lua"))) throw new Error(`no game called '${game}' (that folder has no game.lua; see games)`);
+    return g;
+  }
+  if (!VALID.test(g)) throw new Error(`'${game}' is not a game name (letters, digits, - and _) or a game folder's full path`);
+  const d = join(ROOT, "carts", g);
+  if (!existsSync(join(d, "game.lua"))) throw new Error(`no game called '${game}' (games are the folders in carts/ with a game.lua, or a game folder's full path; see games)`);
   return d;
+}
+
+// The game folders the studio opened lately (it keeps them in its settings folder as projects.json, newest first).
+function studioProjects() {
+  const id = "com.gamestudio.studio", h = homedir();
+  const dir = process.env.GS_STUDIO_CONFIG || (process.platform === "darwin" ? join(h, "Library/Application Support", id)
+    : process.platform === "win32" ? join(process.env.APPDATA || join(h, "AppData/Roaming"), id) : join(process.env.XDG_CONFIG_HOME || join(h, ".config"), id));
+  try { return readJson(join(dir, "projects.json")).filter((p) => typeof p === "string" && existsSync(p)); } catch { return []; }
 }
 function resName(name) {
   if (!VALID_REL.test(String(name || "")) || name.includes("..")) throw new Error(`'${name}' is not a usable name (letters, digits, -, _ and / for folders)`);
@@ -207,7 +221,14 @@ export function games() {
     try { const i = readJson(join(d, g, "meta/info.json")); title = i.title || ""; con = i.console || ""; } catch { /* none */ }
     return `  ${g}${has ? "" : " (old format, no game.lua)"}${title ? `: ${title}` : ""}${con ? ` [${con}]` : ""}`;
   });
-  return { text: `Games in ${relative(process.cwd(), d) || d}:\n${rows.join("\n")}` };
+  const row = (name, dir) => {
+    let title = "", con = "";
+    try { const i = readJson(join(dir, "meta/info.json")); title = i.title || ""; con = i.console || ""; } catch { /* none */ }
+    return `  ${name}${existsSync(join(dir, "game.lua")) ? "" : " (no game.lua)"}${title ? `: ${title}` : ""}${con ? ` [${con}]` : ""}`;
+  };
+  const open = studioProjects();
+  const mine = open.length ? `\n\nGames open in the studio lately (pass the whole path as game):\n${open.map((p) => row(p, p)).join("\n")}` : "";
+  return { text: `Examples in ${relative(process.cwd(), d) || d}:\n${rows.join("\n")}${mine}` };
 }
 
 export function overview({ game }) {

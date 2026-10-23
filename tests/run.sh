@@ -28,14 +28,14 @@ echo "$out" | grep -qi 'error' && { echo "FAIL: band test reported an error"; st
 out="$(run ./build/gs tests/band-bad)"; echo "$out" | grep -q 'unknown instrument: nopiano' || { echo "FAIL: unknown track instrument not reported"; status=1; }
 
 # The sample games must load and run without errors or warnings (GS_SAVE_DIR keeps the test away from real saves).
-for game in tests/breakout carts/void-swarm carts/panel-pop carts/buttontest carts/padsetup; do
+for game in carts/breakout carts/buttontest carts/padsetup; do
   out="$(run ./build/gs "$game")"
   echo "$out" | grep -qiE 'error|^warning:' && { echo "$out"; echo "FAIL: $game printed an error or warning"; status=1; }
 done
 
 # The studio's inspector (GS_INSPECT): a paused game stays on one step, answers with kinds and their costs, and evaluates watches.
 insp="$(mktemp)"; printf '{"open":true,"paused":true,"step_seq":3,"watch":["gs.count(\\"player\\")","1 +"]}' > "$insp"
-out="$(GS_INSPECT="$insp" FRAMES=120 run ./build/gs tests/breakout)"; rm -f "$insp"
+out="$(GS_INSPECT="$insp" FRAMES=120 run ./build/gs carts/breakout)"; rm -f "$insp"
 last="$(echo "$out" | grep '^@@gsi ' | tail -1)"
 echo "$last" | grep -q '"paused":true' && echo "$last" | grep -q '"classes":\[' && echo "$last" | grep -q '"error: ' \
   && [ "$(echo "$out" | grep '^@@gsi ' | sed -E 's/.*"step":([0-9]+).*/\1/' | sort -u | wc -l | tr -d ' ')" = 1 ] \
@@ -68,32 +68,9 @@ rm -rf "$tmp"
 plain="$(mktemp -d)"; printf 'function draw() end\n' > "$plain/main.lua"
 out="$(run ./build/gs "$plain")"; rm -rf "$plain"
 echo "$out" | grep -q 'needs a game.lua' || { echo "$out"; echo "FAIL: a plain main.lua game was not refused clearly"; status=1; }
-# Panel Pop's menus lead into a game on one board and a Vs game (seen in the stats line the play scene prints with GS_STATS), and every other
-# screen opens and closes without an error.
-out="$(GS_STATS=1 GS_BOT_LUA=tests/keys-bot.lua GS_KEYS='start,wait*30,a,wait*30,a,a,wait*30' FRAMES=700 run ./build/gs carts/panel-pop)"
-echo "$out" | grep -q 'stats play/endless' || { echo "$out" | tail -3; echo "FAIL: panel-pop menus did not start Endless"; status=1; }
-out="$(GS_STATS=1 GS_BOT_LUA=tests/keys-bot.lua GS_KEYS='start,wait*30,down,down,a,wait*30,right,a,a,wait*30' FRAMES=700 run ./build/gs carts/panel-pop)"
-echo "$out" | grep -q 'stats play/vs' || { echo "$out" | tail -3; echo "FAIL: panel-pop menus did not start Vs CPU"; status=1; }
-out="$(GS_BOT_LUA=tests/keys-bot.lua GS_KEYS='start,wait*30,up,up,a,wait*30,a,a,b,wait*30,up,a,wait*30,b,wait*30,up,a,wait*30,right,down,b,wait*30,up,a,wait*30,down,down,a,a,wait*300,start,down,a,wait*20,down,a,wait*30' FRAMES=1200 run ./build/gs carts/panel-pop)"
-echo "$out" | grep -qi 'error' && { echo "$out"; echo "FAIL: panel-pop menus printed an error"; status=1; }
-
-# Void Swarm (written with entities and scenes, a good stress test of the framework) plays itself (GS_BOT) through a sector, fast-forwarded,
-# and prints one result line; any Lua error fails it. Then a different pilot and sector with the boss close, and the text audit of all its screens.
-out="$(GS_BOT=1 GS_FF=30 GS_STAGE=3 GS_UPG=5 GS_T0=560 GS_BOT_SECS=60 FRAMES=1500 run ./build/gs carts/void-swarm)"
-echo "$out" | grep -q '^BOT pilot=' || { echo "$out"; echo "FAIL: void-swarm bot did not finish a run"; status=1; }
-echo "$out" | grep -qi 'error' && { echo "$out"; echo "FAIL: void-swarm bot run printed an error"; status=1; }
-out="$(GS_BOT=1 GS_FF=30 GS_STAGE=8 GS_PILOT=5 GS_UPG=3 GS_T0=560 FRAMES=3000 run ./build/gs carts/void-swarm)"
-echo "$out" | grep -q '^BOT pilot=gravis stage=8' || { echo "$out"; echo "FAIL: void-swarm boss run did not finish"; status=1; }
-echo "$out" | grep -qi 'error' && { echo "$out"; echo "FAIL: void-swarm boss run printed an error"; status=1; }
-out="$(GS_TEXTAUDIT=1 FRAMES=600 run ./build/gs carts/void-swarm)"
-echo "$out" | grep -q 'TEXT AUDIT DONE, overflows: 0' || { echo "$out" | tail -5; echo "FAIL: void-swarm text overflows"; status=1; }
-# the menus, scripted with button presses (the credits let it buy things): no errors
-out="$(GS_CREDITS=5000 GS_BOT_LUA=tests/keys-bot.lua GS_KEYS='a,wait*30,down,a,wait*30,down,a,a,left,a,b,wait*30,down,a,wait*30,a,a,down,a,b,wait*30,up,up,up,a,wait*30,a,wait*60,start,wait*5,down,a,wait*30,a' GS_FF=4 FRAMES=900 run ./build/gs carts/void-swarm)"
-echo "$out" | grep -qi 'error' && { echo "$out"; echo "FAIL: void-swarm menus printed an error"; status=1; }
-
-# Panel Pop tests itself (lib/tests.lua): board rules, chains, garbage, the CPU player, every puzzle and stage.
-out="$(GS_SELFTEST=1 run ./build/gs carts/panel-pop)"; echo "$out" | tail -3
-echo "$out" | grep -q 'PANEL POP TEST PASS' || { echo "$out"; echo "FAIL: panel-pop self-test"; status=1; }
+# Breakout, the example, plays through its screens: the title, a game the random bot plays, and back (no errors).
+out="$(GS_BOT_LUA=tests/random-bot.lua GS_SEED=3 FRAMES=2400 run ./build/gs carts/breakout)"
+echo "$out" | grep -qi 'error' && { echo "$out"; echo "FAIL: breakout played by the bot printed an error"; status=1; }
 
 # The adaptive CPU floor (raised while frames are late, put back afterwards, recovered after a killed game) on made-up files.
 dir="$(mktemp -d)"
@@ -113,17 +90,17 @@ rm -rf "$tmp"
 
 # Tile layers are drawn from one composed picture each; the frame must look exactly like drawing them tile by tile (GS_NO_LAYER_PICTURES=1).
 tmp="$(mktemp -d)"
-(export GS_NO_LAYER_PICTURES=1; GS_DUMP_FRAME="$tmp/tiles.bmp" FRAMES=120 run ./build/gs tests/breakout >/dev/null)
-GS_DUMP_FRAME="$tmp/pic.bmp" FRAMES=120 run ./build/gs tests/breakout >/dev/null
+(export GS_NO_LAYER_PICTURES=1; GS_DUMP_FRAME="$tmp/tiles.bmp" FRAMES=120 run ./build/gs carts/breakout >/dev/null)
+GS_DUMP_FRAME="$tmp/pic.bmp" FRAMES=120 run ./build/gs carts/breakout >/dev/null
 [ -s "$tmp/pic.bmp" ] && cmp -s "$tmp/tiles.bmp" "$tmp/pic.bmp" || { echo "FAIL: breakout looks different when its tile layers are drawn from pictures"; status=1; }
 rm -rf "$tmp"
 
 # Starting a sound is posted to a queue the audio thread empties (the game never waits for the mixer); breakout's title scene starts its music.
-out="$(GS_PERF=1 run ./build/gs tests/breakout)"
+out="$(GS_PERF=1 run ./build/gs carts/breakout)"
 echo "$out" | grep -qE 'sound commands carried out: [1-9]' || { echo "FAIL: starting music did not reach the audio thread"; status=1; }
 
 # The studio's Handheld panel reads a line of numbers a second from the running game (GS_STATS=1): entities, time per step and frame, fps, memory.
-out="$(GS_STATS=1 FRAMES=150 run ./build/gs tests/breakout)"
+out="$(GS_STATS=1 FRAMES=150 run ./build/gs carts/breakout)"
 echo "$out" | grep -qE '^@@gs \{"entities":[0-9]+,"peak":[0-9]+,"limit":[0-9]+,"update_ms":[0-9.]+,"draw_ms":[0-9.]+,"fps":[0-9]+,"mem_kb":[0-9]+,"checks":[0-9]+,"screens":[0-9.]+\}$' || { echo "FAIL: no stats line from GS_STATS=1"; status=1; }
 
 [ $status -eq 0 ] && echo "ALL TESTS PASS"

@@ -9,16 +9,20 @@ summary: How GameStudio works, in two minutes.
 <strong>Lua</strong>, a small, friendly language. You draw the sprites and make the sound and music in editors built into this window.</p>
 
 <h2>The folder is the game</h2>
-<p>A game is just a folder. Everything you see in the list on the left is a file in it, so you can also use git, your own text editor, or move files around outside the studio.</p>
+<p>A game is just a folder, and it can be anywhere on your computer: <strong>New game</strong> asks where to put it, <strong>Open folder…</strong> opens one you already have, and the start screen lists the ones you opened lately.
+Everything you see in the list on the left is a file in it, so you can also use git, your own text editor, or move files around outside the studio. <strong>Show folder</strong> opens it in Finder.</p>
 <table>
 <tr><th>Folder / file</th><th>What it holds</th></tr>
 <tr><td><code>game.lua</code></td><td>The game's title, the console it is made for, and the first scene.</td></tr>
 <tr><td><code>entities/</code></td><td>Things in your game: the player, enemies, bullets. <em>One Lua file for each kind of thing.</em></td></tr>
-<tr><td><code>scenes/</code></td><td>Screens: the title, the level, game over. They decide what exists and what happens.</td></tr>
+<tr><td><code>scenes/</code></td><td>Screens: the title, the level, game over. Each has a <strong>Layout</strong> (<code>title.layout.lua</code>: what is placed where) and <strong>Code</strong> (<code>title.lua</code>: what happens).</td></tr>
 <tr><td><code>rooms/</code></td><td>The older form of level data (a scene's layout does the same now, see <a href="help:layouts">Layouts</a>).</td></tr>
 <tr><td><code>lib/</code></td><td>Shared code and game state you load with <code>require</code>.</td></tr>
 <tr><td><code>sprites/</code>, <code>tilesets/</code></td><td>Pictures, drawn in the sprite editor.</td></tr>
 <tr><td><code>sfx/</code>, <code>music/</code>, <code>instruments/</code>, <code>sounds/</code></td><td>Sound effects and songs, made in the sound editors; imported WAV samples.</td></tr>
+<tr><td><code>palette.json</code></td><td>The game's colour banks (<strong>Colours</strong> in the list).</td></tr>
+<tr><td><code>meta/</code></td><td>The title, description and box art the handheld's game list shows (<strong>Game info…</strong>). Not packed into the game.</td></tr>
+<tr><td><code>.gamestudio/</code></td><td>The studio's own notes about the game (open tabs, where you were), like a code editor's settings folder. Hidden, never packed, safe to delete.</td></tr>
 </table>
 
 <h2>Run it, change it, watch it change</h2>
@@ -39,13 +43,12 @@ On the handheld, <strong>HOTKEY + Start</strong> closes it, as in every other ap
 <li><strong>The Handheld tab</strong> under the editor shows how your game compares with what the handheld can do: size, sprite sizes, and, while the game runs, how many things are alive.</li>
 </ul>
 
-<h2>Finished examples</h2>
-<p>Two complete games come with the studio. Open one, press Run, then read its files: everything they do is in plain Lua you can change.</p>
-<ul>
-<li><a href="open:void-swarm">Open Void Swarm</a>: a big one. Ten pilots, two dozen enemies, bosses, upgrades, a director scene that spawns waves.</li>
-<li><a href="open:panel-pop">Open Panel Pop</a>: a panel-swapping puzzler with eight computer rivals. Every screen is a scene with a layout; its boards are plain tables of cells, not entities.</li>
-</ul>
+<h2>A finished example</h2>
+<p><a href="open:breakout">Open Breakout</a> (it is also under <strong>Examples</strong> on the start screen). The studio makes a copy in a folder you pick, so you can change it freely.
+Press Run, then look around: every screen is a scene whose Layout holds what you see (the wall of bricks, the score bar, the words) and whose Code is a few lines.
+Three entities (paddle, ball, brick) do the rest.</p>
 
 <h2>Where next</h2>
-<p>Make a new game with <strong>New game</strong>, then follow <a href="help:first-game">Your first game</a>: a few small files and you have something playable. When you want to understand the limits of the handheld, read
+<p>Follow <a href="help:step-by-step">Make a game, step by step</a>: it walks through the studio from <strong>New game</strong> to a game with a title screen, a sprite, a sound and words on screen.
+<a href="help:first-game">Your first game</a> does one in code only. When you want to understand the limits of the handheld, read
 <a href="help:limits">Working inside the handheld's limits</a>. The <a href="help:api">API reference</a> lists everything the engine gives you.</p>

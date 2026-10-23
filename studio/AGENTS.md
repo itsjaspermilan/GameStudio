@@ -12,7 +12,7 @@ npx vite build                # quick syntax/bundle check of the front end
 
 ## How the front end is organised
 
-- **The project is its folder.** No index file: `project-core.js` (`GROUPS`, `scanProject`) turns the file list into the tree, so files added outside the studio show up. A game has
+- **The project is its folder**, anywhere on disk: `state.cart` is the folder's absolute path (every `invoke` passes it as `cart`), `state.cartName` its name for display; the start screen lists recent folders (`list_projects`) and the examples (`list_examples`, opened as a copy). Open tabs and the tab you were on are saved to the game's `.gamestudio/state.json` (`saveProjectState`) and restored when it opens. No index file: `project-core.js` (`GROUPS`, `scanProject`) turns the file list into the tree, so files added outside the studio show up. A game has
   `game.lua`, `entities/ scenes/ rooms/ lib/` (Lua) and `sprites/ tilesets/ sfx/ music/ instruments/ sounds/`, plus `meta/info.json` (title, description, console, box art for the game list).
 - **`main.js` is the conductor.** It owns `state` (open game, file list, the scan, which editor shows which file), the tree, saving, rename/delete, run/pack/push, and creates every
   editor with a `hooks` object.
@@ -58,5 +58,5 @@ via the `render_audio` command, so they sound exactly like the game. Start with 
 
 ## Verifying UI changes
 
-Use the built-in browser pane on `http://localhost:1420` (see the root guide about the port). The mock backend has demo projects (`demo`, `hello`). Typical flow: click `demo` →
+Use the built-in browser pane on `http://localhost:1420` (see the root guide about the port). The mock backend has demo projects (`demo`, `hello`, as `/Users/you/Documents/GameStudio/...` paths; `demo` is also its example, and the folder pickers always pick Documents/GameStudio). Typical flow: click `demo` →
 the **+** beside a group → type a name → Enter. Hot reload resets the page, so redo the clicks after edits. The pane is small (about 1024x768 CSS px): keep editors usable at that size.

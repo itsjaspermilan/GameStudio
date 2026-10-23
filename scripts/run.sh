@@ -1,5 +1,5 @@
 #!/bin/sh
-# Push a cartridge and launch it on the device over SSH.  scripts/run.sh carts/panel-pop
+# Push a cartridge and launch it on the device over SSH.  scripts/run.sh carts/breakout
 set -e
 cd "$(dirname "$0")/.."
 ./scripts/push.sh "$1"

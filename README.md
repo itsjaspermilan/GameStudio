@@ -7,8 +7,8 @@ A cheap Linux handheld (an Anbernic RG35XX Pro) becomes a small console for 2D g
 ```sh
 brew install cmake pkgconf     # once
 ./scripts/build.sh             # -> build/gs
-./build/gs carts/panel-pop     # run a cartridge directory
-./build/gs pack carts/panel-pop build/panel-pop.cart && ./build/gs build/panel-pop.cart
+./build/gs carts/breakout      # run a cartridge directory
+./build/gs pack carts/breakout build/breakout.cart && ./build/gs build/breakout.cart
 ```
 
 Controls (keyboard): arrows, Z/X/A/S = A/B/X/Y, Q/W = L/R, Enter = Start, Right Shift = Select, E/R = L2/R2, D/F = L3/R3. Esc quits; on a handheld, HOTKEY + Start (the Menu / function button), or holding Start + Select for three seconds. While HOTKEY is held the game sees no buttons (HOTKEY combinations belong to the handheld). Gamepads map by physical position; the left stick acts as the d-pad.
@@ -58,9 +58,10 @@ Run a game from the studio (Run): it plays in the **Play panel** beside the code
 **Layouts.** A scene's layout is plain data the layout editor writes: tile layers, entities, texts, pictures, panels (a 3×3 block of tiles stretched to a size) and paths. It is built when the scene starts, and anything given a name is a field of the scene's code: a text named `prompt` is `self.prompt` (renaming it in the layout renames it in the code). Texts use a built-in font (round, square or bold letters, small or tall, with an optional drop shadow) or a sprite font (a frame a letter). `gs.say(name, text)` and `gs.ask(question, answers)` show a text box and wait for the player, styled by the layout's `dialogue_box`, `dialogue_text`, `dialogue_name` and `dialogue_cursor`. The Help window's "Layouts" and "Talking" pages walk through both.
 
 - The **full reference** is `engine/api/gs.d.lua` (typed notes the studio's editor, its Help window and the language server all read); the Help window turns it into the API page.
-- The **tutorials** are in `docs/help/` (Your first game, scenes and saving, collisions and tags, timers and tweens, a platformer, a survivors-style game, big levels and tile layers, sprites and sound, the handheld's limits,
+- The **tutorials** are in `docs/help/` (Make a game step by step, which walks through the studio; Your first game, scenes and saving, collisions and tags, timers and tweens, a platformer, a survivors-style game, big levels and tile layers, sprites and sound, the handheld's limits,
   sprite sizes, best practices). Every tutorial game is played by a bot in the tests.
-- **Samples:** `carts/panel-pop` (a puzzler built from scene layouts) and `carts/void-swarm` (a large one: 90 files, 24 enemies, 10 bosses, upgrades, a director scene).
+- **Example:** `carts/breakout`, every screen a scene with a layout, colour banks, built-in fonts. The studio offers it under **Examples** and opens a copy.
+- **Games are folders anywhere.** The studio opens a folder like a code editor does (**Open folder…**, **New game** asks where; recent ones are on the start screen). It keeps its own notes about a game (open tabs, where you were) in a hidden `.gamestudio/` folder inside it, which is never packed. The studio's tools folder (Settings) holds `build/gs`, the examples and the SoundFont.
 - `engine/AGENTS.md` describes how the framework itself is built.
 
 Every game has a `game.lua`. (Plain `main.lua` games with `init`/`update`/`draw` are no longer run: move the code into a scene, which can still call the low-level functions below.)
@@ -133,8 +134,8 @@ Saves go to the OS per-user data folder under `gs/<cart name>/` (override with t
 ```sh
 ./scripts/build-aarch64.sh     # -> build-aarch64/gs (zig cc; uses the handheld's own libSDL2, for its GPU and overlays)
 cp scripts/device.env.example scripts/device.env   # then edit host/user/dir
-./scripts/push.sh carts/panel-pop # pack + scp the runtime and cartridge
-./scripts/run.sh carts/panel-pop  # push, then launch over SSH
+./scripts/push.sh carts/breakout  # pack + scp the runtime and cartridge (any game folder works)
+./scripts/run.sh carts/breakout   # push, then launch over SSH
 ```
 
 `build-aarch64.sh` needs zig, cmake and pkgconf, and downloads a small Debian header/library sysroot on first use (`scripts/fetch-sysroot.sh`, checksum-verified). The binary targets glibc 2.31; change it in `scripts/zig-cc-aarch64` if the firmware is older.
@@ -215,7 +216,7 @@ The grid lines show bars and beats. Pattern length is counted in bars.
 ## Tests
 
 ```sh
-./tests/run.sh          # the framework, audio and the sample games (Void Swarm plays itself), run headless
+./tests/run.sh          # the framework, audio and the example games (a bot plays Breakout), run headless
 cd studio && npm test   # the studio's logic, every Help tutorial game played by a bot, and the synth rendered through the real runtime
 ```
 
