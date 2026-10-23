@@ -1,7 +1,7 @@
 #!/bin/sh
 # Pack a cartridge directory and copy it (and the aarch64 runtime) to the device.
-#   scripts/push.sh carts/breakout                  the device in scripts/device.env
-#   GS_DEVICE=muos scripts/push.sh carts/breakout   another one, in scripts/device-muos.env (a second SD card, another handheld)
+#   scripts/push.sh carts/panel-pop                  the device in scripts/device.env
+#   GS_DEVICE=muos scripts/push.sh carts/panel-pop   another one, in scripts/device-muos.env (a second SD card, another handheld)
 # DEVICE_OS in the file says which system the card runs: knulli (the default; EmulationStation) or muos (MustardOS).
 set -e
 cd "$(dirname "$0")/.."

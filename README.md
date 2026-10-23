@@ -7,8 +7,8 @@ A cheap Linux handheld (an Anbernic RG35XX Pro) becomes a small console for 2D g
 ```sh
 brew install cmake pkgconf     # once
 ./scripts/build.sh             # -> build/gs
-./build/gs carts/breakout      # run a cartridge directory
-./build/gs pack carts/breakout build/breakout.cart && ./build/gs build/breakout.cart
+./build/gs carts/panel-pop     # run a cartridge directory
+./build/gs pack carts/panel-pop build/panel-pop.cart && ./build/gs build/panel-pop.cart
 ```
 
 Controls (keyboard): arrows, Z/X/A/S = A/B/X/Y, Q/W = L/R, Enter = Start, Right Shift = Select, E/R = L2/R2, D/F = L3/R3. Esc quits; on a handheld, HOTKEY + Start (the Menu / function button), or holding Start + Select for three seconds. While HOTKEY is held the game sees no buttons (HOTKEY combinations belong to the handheld). Gamepads map by physical position; the left stick acts as the d-pad.
@@ -60,7 +60,7 @@ Run a game from the studio (Run): it plays in the **Play panel** beside the code
 - The **full reference** is `engine/api/gs.d.lua` (typed notes the studio's editor, its Help window and the language server all read); the Help window turns it into the API page.
 - The **tutorials** are in `docs/help/` (Your first game, scenes and saving, collisions and tags, timers and tweens, a platformer, a survivors-style game, big levels and tile layers, sprites and sound, the handheld's limits,
   sprite sizes, best practices). Every tutorial game is played by a bot in the tests.
-- **Samples:** `carts/breakout` (the smallest complete game) and `carts/void-swarm` (a large one: 90 files, 24 enemies, 10 bosses, upgrades, a director scene).
+- **Samples:** `carts/panel-pop` (a puzzler built from scene layouts) and `carts/void-swarm` (a large one: 90 files, 24 enemies, 10 bosses, upgrades, a director scene).
 - `engine/AGENTS.md` describes how the framework itself is built.
 
 Every game has a `game.lua`. (Plain `main.lua` games with `init`/`update`/`draw` are no longer run: move the code into a scene, which can still call the low-level functions below.)
@@ -132,8 +132,8 @@ Saves go to the OS per-user data folder under `gs/<cart name>/` (override with t
 ```sh
 ./scripts/build-aarch64.sh     # -> build-aarch64/gs (zig cc; uses the handheld's own libSDL2, for its GPU and overlays)
 cp scripts/device.env.example scripts/device.env   # then edit host/user/dir
-./scripts/push.sh carts/breakout  # pack + scp the runtime and cartridge
-./scripts/run.sh carts/breakout   # push, then launch over SSH
+./scripts/push.sh carts/panel-pop # pack + scp the runtime and cartridge
+./scripts/run.sh carts/panel-pop  # push, then launch over SSH
 ```
 
 `build-aarch64.sh` needs zig, cmake and pkgconf, and downloads a small Debian header/library sysroot on first use (`scripts/fetch-sysroot.sh`, checksum-verified). The binary targets glibc 2.31; change it in `scripts/zig-cc-aarch64` if the firmware is older.

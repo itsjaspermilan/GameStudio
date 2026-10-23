@@ -54,7 +54,7 @@ test("writing and reading again gives the same room", () => {
 });
 
 test("the rooms in the repository read as data", () => {
-  const { room, error } = parseRoom(readFileSync(join(root, "carts/test/rooms/room1.lua"), "utf8"));
+  const { room, error } = parseRoom(readFileSync(join(root, "carts/panel-pop/scenes/title.layout.lua"), "utf8"));
   assert.equal(error, undefined);
   assert.equal(room.width, 320);
 });
