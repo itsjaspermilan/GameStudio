@@ -47,11 +47,22 @@ Pure C with **no SDL dependency**, so the device and the studio's previews (`ren
 `gs.tile(img, sx, sy, sw, sh, x, y, scale, flipx, angle, yscale, alpha, pivotx, pivoty)`: `x, y` is where the unscaled sprite's top-left would go; scaling and rotation (degrees clockwise, SDL's
 convention; the engine passes the negative of `image_angle`) happen around the pivot, which stays put. A negative scale mirrors. Alpha 0-255 is applied with `SDL_SetTextureAlphaMod` for this draw only.
 
+## Controllers on handheld frontends
+
+Knulli and muOS hand games a mapping in `SDL_GAMECONTROLLERCONFIG`, written for SDL2. `apply_env_gamepad_mapping` registers it under
+SDL3's own id for the joystick, and renumbers its buttons: SDL2 (as muOS builds it) counted a Linux joystick's keys below the gamepad
+range (BTN_MISC: Escape and the volume keys on the RG35XX Pro) first, SDL3 counts them last, so the raw mapping pointed three buttons too
+far (X acted as A; A, B, Y did nothing). `GS_MAPPING_SHIFT=0` turns the renumbering off; `GS_DEBUG_INPUT=1` prints the mapping used.
+A `padmap.txt` from the Pad setup cart still wins over the mapping.
+
 ## Framebuffer output and measuring (devices with no display server)
 
-When SDL finds no video device (Knulli on the RG35XX Pro: no `/dev/dri`), `main` falls back to `fb_open` / `fb_present`: the software renderer draws at the **console's own size** into
+When SDL finds no video device (Knulli and muOS on the RG35XX Pro: no `/dev/dri`), `main` falls back to `fb_open` / `fb_present`: the software renderer draws at the **console's own size** into
 the top-left corner of a surface (viewport, no logical presentation), and `fb_present` enlarges it by a whole number into `/dev/fb0` (double buffered when the driver has two pages, centred, black bars).
-Drawing at 640x480 instead cost about 19 ms a frame; this costs about 2.6 ms. Environment switches (all optional):
+Drawing at 640x480 instead cost about 19 ms a frame; this costs about 2.6 ms. The copy and the flip run on a thread of their own
+(`fb_thread_main`): on this panel the flip must come several ms before the refresh, which left a game waiting for it only about 11 ms a
+frame. With the thread a frame shows one refresh later and the game gets nearly all 16.7 ms (`GS_FB_THREAD=0` turns it off, `GS_FB_WAIT=0`
+skips the extra wait after the flip). Opaque composed pictures are copied without blending (`SDL_BLENDMODE_NONE`). Environment switches (all optional):
 
 | Variable | Does |
 | --- | --- |

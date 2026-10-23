@@ -230,13 +230,62 @@ static void evdev_debug_poll(void) {
 }
 #endif
 
+/* Frontends write their mapping for SDL2's numbering of a Linux joystick's buttons, and SDL3 numbers them differently: the RG35XX Pro's
+ * muOS-Keys has three keys below the gamepad range (Escape and the two volume keys); muOS's SDL2 counted those first (A is button 3),
+ * SDL3 counts the gamepad buttons first (A is button 0) and those three last. Used as it is, the mapping pointed three buttons too far
+ * (on muOS X acted as A, and A, B and Y did nothing). So a mapping from the environment is renumbered: with k keys below the gamepad
+ * range (BTN_MISC) out of n buttons, SDL2's button N >= k is SDL3's N - k, and N < k is SDL3's n - k + N. GS_MAPPING_SHIFT=0 turns it off.
+ * Returns k (0: nothing to change, or not Linux), and the button count in *count. */
+static int sdl2_low_keys(SDL_JoystickID id, int *count) {
+    *count = 0;
+#ifdef __linux__
+    const char *off = getenv("GS_MAPPING_SHIFT");
+    if (off && !strcmp(off, "0")) return 0;
+    SDL_Joystick *j = SDL_OpenJoystick(id);
+    *count = j ? SDL_GetNumJoystickButtons(j) : 0;
+    if (j) SDL_CloseJoystick(j);
+    const char *path = SDL_GetJoystickPathForID(id);
+    int fd = path ? open(path, O_RDONLY | O_NONBLOCK) : -1;
+    if (fd < 0) return 0;
+    unsigned long bits[(KEY_MAX + 1) / (8 * sizeof(unsigned long)) + 1] = {0};
+    int below = 0;
+    if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof bits), bits) >= 0)
+        for (int code = 0; code < BTN_MISC; code++) if (bits[code / (8 * sizeof(unsigned long))] >> (code % (8 * sizeof(unsigned long))) & 1) below++;
+    close(fd);
+    return below < *count ? below : 0;
+#else
+    (void)id; return 0;
+#endif
+}
+/* the mapping with every "b<N>" renumbered from SDL2's order to SDL3's (see above) */
+static char *renumber_mapping_buttons(const char *map, int low, int count) {
+    size_t cap = strlen(map) + 16; char *out = SDL_malloc(cap), *o = out;
+    if (!out) return NULL;
+    for (const char *p = map; *p;) {
+        const char *comma = strchr(p, ','); size_t len = comma ? (size_t)(comma - p) : strlen(p);
+        const char *colon = memchr(p, ':', len);
+        if (colon && colon[1] == 'b' && colon[2] >= '0' && colon[2] <= '9') {
+            const int v = atoi(colon + 2), w = v >= low ? v - low : count - low + v;
+            o += SDL_snprintf(o, cap - (size_t)(o - out), "%.*sb%d,", (int)(colon + 1 - p), p, w);
+        } else { memcpy(o, p, len); o += len; *o++ = ','; }
+        p += len + (comma ? 1 : 0);
+    }
+    *o = 0;
+    return out;
+}
+
 static void apply_env_gamepad_mapping(void) {
     const char *cfg = getenv("SDL_GAMECONTROLLERCONFIG");
     int n = 0; SDL_JoystickID *ids = SDL_GetJoysticks(&n);
     for (int i = 0; i < n; i++) {
         char guid[64]; SDL_GUIDToString(SDL_GetJoystickGUIDForID(ids[i]), guid, sizeof guid);
         if (cfg && strchr(cfg, ',')) {
-            char *line = NULL; SDL_asprintf(&line, "%s%s", guid, strchr(cfg, ','));
+            const char *rest = strchr(cfg, ',');
+            int count = 0; const int low = sdl2_low_keys(ids[i], &count);
+            char *shifted = low > 0 ? renumber_mapping_buttons(rest, low, count) : NULL;
+            char *line = NULL; SDL_asprintf(&line, "%s%s", guid, shifted ? shifted : rest);
+            if (line && g_debug_input) fprintf(stderr, "mapping: %s\n", line);
+            SDL_free(shifted);
             if (line) { if (SDL_AddGamepadMapping(line) < 0) fprintf(stderr, "mapping rejected: %s\n", SDL_GetError()); SDL_free(line); }
         }
         if (SDL_IsGamepad(ids[i])) SDL_OpenGamepad(ids[i]);
@@ -458,10 +507,14 @@ static int l_compose(lua_State *L) {
         }
         lua_pop(L, 1);
     }
+    /* A picture with no see-through pixel at all (a background wall of panels) is copied instead of blended: the software renderer on the
+     * handhelds blends every pixel of a blended picture, which made a full-screen background cost several milliseconds a frame. */
+    bool opaque = true;
+    for (size_t p = 3; p < (size_t)W * H * 4 && opaque; p += 4) if (out[p] != 255) opaque = false;
     SDL_Texture *t = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, W, H);
     if (!t) { free(out); return luaL_error(L, "compose: %s", SDL_GetError()); }
     SDL_UpdateTexture(t, NULL, out, W * 4); free(out);
-    SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureBlendMode(t, opaque ? SDL_BLENDMODE_NONE : SDL_BLENDMODE_BLEND);
     SDL_SetTextureScaleMode(t, SDL_SCALEMODE_NEAREST);
     int id = -1;
     if (lua_istable(L, 11)) { /* reuse the slot of an earlier picture from this function */
@@ -530,9 +583,10 @@ static SDL_Texture *check_image(lua_State *L, int i) {
 }
 static void draw_tex(SDL_Texture *t, SDL_FRect src, float x, float y, float scale, bool flipx) {
     SDL_FRect dst = {ZX(x), ZY(y), src.w * scale * g_zoom, src.h * scale * g_zoom};
+    SDL_BlendMode own = SDL_BLENDMODE_BLEND; SDL_GetTextureBlendMode(t, &own);
     if (g_blend != SDL_BLENDMODE_BLEND) SDL_SetTextureBlendMode(t, g_blend);
     SDL_RenderTextureRotated(g_ren, t, &src, &dst, 0, NULL, flipx ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
-    if (g_blend != SDL_BLENDMODE_BLEND) SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
+    if (g_blend != SDL_BLENDMODE_BLEND) SDL_SetTextureBlendMode(t, own);
     count_px(dst.x, dst.y, dst.w, dst.h);
 }
 static int l_sprite(lua_State *L) { /* img,x,y[,scale,flipx] whole image */
@@ -568,10 +622,13 @@ static int l_tile(lua_State *L) { /* img,sx,sy,sw,sh,x,y[,scale,flipx,angle,ysca
             c.x -= l; c.y -= tp;
         }
     }
+    /* an opaque picture (blend mode none) is copied, unless this draw wants it see-through or blended another way */
+    SDL_BlendMode own = SDL_BLENDMODE_BLEND; SDL_GetTextureBlendMode(t, &own);
+    const SDL_BlendMode use = g_blend != SDL_BLENDMODE_BLEND ? g_blend : (own == SDL_BLENDMODE_NONE && alpha < 255) ? SDL_BLENDMODE_BLEND : own;
     if (alpha < 255) SDL_SetTextureAlphaMod(t, (Uint8)(alpha < 0 ? 0 : alpha));
-    if (g_blend != SDL_BLENDMODE_BLEND) SDL_SetTextureBlendMode(t, g_blend);
+    if (use != own) SDL_SetTextureBlendMode(t, use);
     SDL_RenderTextureRotated(g_ren, t, &src, &dst, angle, &c, (SDL_FlipMode)((flipx ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE) | (flipy ? SDL_FLIP_VERTICAL : 0)));
-    if (g_blend != SDL_BLENDMODE_BLEND) SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
+    if (use != own) SDL_SetTextureBlendMode(t, own);
     if (alpha < 255) SDL_SetTextureAlphaMod(t, 255);
     count_px(dst.x, dst.y, dst.w, dst.h);
     return 0;
@@ -1326,6 +1383,7 @@ static bool fb_open(void) {
     if (!g_fb.surf) { fprintf(stderr, "fb surface: %s\n", SDL_GetError()); return false; }
     return true;
 }
+static void fb_thread_start(void); static void fb_thread_stop(void);
 
 /* The software renderer is the slow part on a handheld, and it costs by pixels drawn. So the game is drawn at its own size (320x240, not the
  * 640x480 display) into the top-left corner of the surface, and this copies it to the framebuffer enlarged by a whole number, centred, with
@@ -1333,7 +1391,8 @@ static bool fb_open(void) {
 static void fb_clear_pages(void) { g_fb.dirty_pages = g_fb.pages; }
 
 static double g_fb_copy_ms, g_fb_copy_max; static long g_fb_copy_n; /* GS_PERF: the copy into the framebuffer, apart from the pan and the wait for the screen */
-static void fb_present(void) {
+/* Copy a finished frame (lw x lh pixels at src) into the hidden page, enlarged, and flip to it. */
+static void fb_copy_and_flip(const unsigned char *src, size_t pitch, int lw, int lh) {
     const Uint64 t_copy0 = SDL_GetTicksNS();
     struct fb_var_screeninfo *v = &g_fb.var;
     const int target = g_fb.pages == 2 ? 1 - g_fb.shown : 0, bpp = (int)v->bits_per_pixel / 8;
@@ -1341,11 +1400,8 @@ static void fb_present(void) {
     unsigned char *page = g_fb.map + (size_t)target * v->yres * line;
     if (g_fb.dirty_pages > 0) { memset(page, 0, (size_t)v->yres * line); g_fb.dirty_pages--; } /* the bars move when the screen size changes */
 
-    const int lw = SDL_min(g_screen_w, (int)v->xres), lh = SDL_min(g_screen_h, (int)v->yres);
     const int k = SDL_max(1, SDL_min((int)v->xres / lw, (int)v->yres / lh));
     const int ox = ((int)v->xres - lw * k) / 2, oy = ((int)v->yres - lh * k) / 2;
-    const unsigned char *src = g_fb.surf->pixels;
-    const size_t pitch = (size_t)g_fb.surf->pitch;
     if (g_fb.rowbuf_len < (size_t)lw * k * bpp) {
         g_fb.rowbuf_len = (size_t)lw * k * bpp; g_fb.rowbuf = SDL_realloc(g_fb.rowbuf, g_fb.rowbuf_len);
     }
@@ -1365,9 +1421,58 @@ static void fb_present(void) {
     { const double ms = (SDL_GetTicksNS() - t_copy0) * 1e-6; g_fb_copy_last = ms; g_fb_copy_ms += ms; g_fb_copy_n++; if (ms > g_fb_copy_max) g_fb_copy_max = ms; }
     if (g_fb.pages == 2) {
         v->yoffset = (unsigned)target * v->yres;
+        static int wait = -1; /* GS_FB_WAIT=0: flip only, without the extra wait for the refresh (a test: some drivers already wait in the flip) */
+        if (wait < 0) { const char *w = getenv("GS_FB_WAIT"); wait = !(w && !strcmp(w, "0")); }
         if (!ioctl(g_fb.fd, FBIOPAN_DISPLAY, v)) g_fb.shown = target;
-        int zero = 0; ioctl(g_fb.fd, FBIO_WAITFORVSYNC, &zero);
+        if (wait) { int zero = 0; ioctl(g_fb.fd, FBIO_WAITFORVSYNC, &zero); }
     }
+}
+
+/* The flip waits for the screen, and on the RG35XX Pro (muOS and Knulli) it must come several milliseconds before the refresh, so a game
+ * that waited for it had only about 11 of each frame's 16.7 ms: any frame over that missed a refresh (a stutter) although the work was
+ * light. So a thread of its own copies each finished frame to the screen and flips, while the game already makes the next one; the game
+ * waits only when the frame before is not on the screen yet, which also paces it to the screen's own refresh. A frame reaches the screen
+ * one refresh later than before. GS_FB_THREAD=0 presents on the game's thread as before. */
+static struct { SDL_Thread *th; SDL_Mutex *mu; SDL_Condition *cv; unsigned char *stage; size_t cap, pitch; int w, h; bool busy, quit; } g_fbt;
+static int fb_thread_main(void *unused) {
+    (void)unused;
+    SDL_LockMutex(g_fbt.mu);
+    for (;;) {
+        while (!g_fbt.busy && !g_fbt.quit) SDL_WaitCondition(g_fbt.cv, g_fbt.mu);
+        if (!g_fbt.busy) break;
+        SDL_UnlockMutex(g_fbt.mu);
+        fb_copy_and_flip(g_fbt.stage, g_fbt.pitch, g_fbt.w, g_fbt.h);
+        SDL_LockMutex(g_fbt.mu);
+        g_fbt.busy = false;
+        SDL_SignalCondition(g_fbt.cv);
+    }
+    SDL_UnlockMutex(g_fbt.mu);
+    return 0;
+}
+static void fb_thread_start(void) {
+    const char *t = getenv("GS_FB_THREAD");
+    if (g_fb.pages != 2 || (t && !strcmp(t, "0"))) return;
+    g_fbt.mu = SDL_CreateMutex(); g_fbt.cv = SDL_CreateCondition();
+    if (g_fbt.mu && g_fbt.cv) g_fbt.th = SDL_CreateThread(fb_thread_main, "gs-present", NULL);
+}
+static void fb_thread_stop(void) {
+    if (!g_fbt.th) return;
+    SDL_LockMutex(g_fbt.mu); g_fbt.quit = true; SDL_SignalCondition(g_fbt.cv); SDL_UnlockMutex(g_fbt.mu);
+    SDL_WaitThread(g_fbt.th, NULL); g_fbt.th = NULL;
+}
+static void fb_present(void) {
+    const int lw = SDL_min(g_screen_w, (int)g_fb.var.xres), lh = SDL_min(g_screen_h, (int)g_fb.var.yres);
+    const size_t row = (size_t)lw * (g_fb.var.bits_per_pixel / 8);
+    if (!g_fbt.th) { fb_copy_and_flip(g_fb.surf->pixels, (size_t)g_fb.surf->pitch, lw, lh); return; }
+    SDL_LockMutex(g_fbt.mu);
+    while (g_fbt.busy) SDL_WaitCondition(g_fbt.cv, g_fbt.mu); /* the frame before is still on its way to the screen */
+    if (g_fbt.cap < row * lh) { unsigned char *n = SDL_realloc(g_fbt.stage, row * lh); if (n) { g_fbt.stage = n; g_fbt.cap = row * lh; } }
+    if (g_fbt.cap >= row * lh) {
+        for (int y = 0; y < lh; y++) memcpy(g_fbt.stage + (size_t)y * row, (const unsigned char *)g_fb.surf->pixels + (size_t)y * g_fb.surf->pitch, row);
+        g_fbt.pitch = row; g_fbt.w = lw; g_fbt.h = lh; g_fbt.busy = true;
+        SDL_SignalCondition(g_fbt.cv);
+    }
+    SDL_UnlockMutex(g_fbt.mu);
 }
 #endif
 
@@ -1694,6 +1799,7 @@ int main(int argc, char **argv) {
 #ifdef __linux__
         fprintf(stderr, "no video device: drawing to the framebuffer instead\n");
         if (!SDL_Init(SDL_INIT_GAMEPAD) || !fb_open()) { fprintf(stderr, "framebuffer output failed: %s\n", SDL_GetError()); return 1; }
+        fb_thread_start();
         use_fb = true;
 #else
         return 1;
@@ -1833,11 +1939,11 @@ int main(int argc, char **argv) {
             if (t_fb < want) SDL_DelayNS(want - t_fb);
         }
 #ifdef __linux__
-        if (use_fb) { /* no vsync from SDL here, so hold the game to 60 frames a second ourselves */
+        if (use_fb) { /* the screen's refresh paces the game when frames are flipped on their own thread; otherwise hold it to 60 a second */
             fb_present();
             t_fb = SDL_GetTicksNS();
             Uint64 want = now + 16666667ULL;
-            if (t_fb < want) SDL_DelayNS(want - t_fb);
+            if (!g_fbt.th && t_fb < want) SDL_DelayNS(want - t_fb);
         }
 #endif
         if (perf) {
@@ -1902,6 +2008,9 @@ int main(int argc, char **argv) {
         }
     }
     embed_close();
+#ifdef __linux__
+    fb_thread_stop(); /* the last frame reaches the screen first */
+#endif
     boost_restore(); /* the CPU's lowest clock goes back to what it was */
     if (g_perf_on) perf_log("sound commands carried out: %ld\n", g_sound_ran);
     perf_flush();

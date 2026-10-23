@@ -1,11 +1,15 @@
 #!/bin/sh
 # Pack a cartridge directory and copy it (and the aarch64 runtime) to the device.
-#   scripts/push.sh carts/breakout
+#   scripts/push.sh carts/breakout                  the device in scripts/device.env
+#   GS_DEVICE=muos scripts/push.sh carts/breakout   another one, in scripts/device-muos.env (a second SD card, another handheld)
+# DEVICE_OS in the file says which system the card runs: knulli (the default; EmulationStation) or muos (MustardOS).
 set -e
 cd "$(dirname "$0")/.."
 [ -n "$1" ] || { echo "usage: $0 <cart-dir>" >&2; exit 2; }
-[ -f scripts/device.env ] || { echo "create scripts/device.env (see device.env.example)" >&2; exit 1; }
-. scripts/device.env
+ENVFILE="scripts/device${GS_DEVICE:+-$GS_DEVICE}.env"
+[ -f "$ENVFILE" ] || { echo "create $ENVFILE (see $ENVFILE.example, or scripts/device.env.example)" >&2; exit 1; }
+. "./$ENVFILE"
+DEVICE_OS="${DEVICE_OS:-knulli}"
 command -v node >/dev/null 2>&1 || { echo "Sending needs Node.js (the 'node' program) for the game list entry. Install it (nodejs.org, or 'brew install node'), then send again." >&2; exit 1; }
 SRC="${1%/}"; NAME="$(basename "$SRC")"
 HOSTCART="build/$NAME.cart"
@@ -32,8 +36,9 @@ T="$DEVICE_USER@$DEVICE_HOST"
 # Never wait for a password (a studio window cannot answer one): without a working shared connection or key, stop at once and say how to fix it.
 SSH_OPTS="$SSH_OPTS -o BatchMode=yes -o ConnectTimeout=8"
 if ! ssh $SSH_OPTS "$T" true 2>/dev/null; then
+  CTL="$(printf '%s' "$SSH_OPTS" | sed -n 's/.*ControlPath=\([^ ]*\).*/\1/p')"
   echo "Cannot reach $T without a password. Open the shared connection again in a terminal, then send again:" >&2
-  echo "  ssh -fN -o ControlMaster=yes -o ControlPath=\$HOME/.ssh/knulli-ctl -o ServerAliveInterval=15 $T" >&2
+  echo "  ssh -fN -o ControlMaster=yes -o ControlPath=${CTL:-\$HOME/.ssh/knulli-ctl} -o ServerAliveInterval=15 $T" >&2
   exit 1
 fi
 ssh $SSH_OPTS "$T" "mkdir -p '$DEVICE_DIR/carts'"
@@ -41,7 +46,7 @@ scp -q $SSH_OPTS build-aarch64/gs "$T:$DEVICE_DIR/gs"
 # the General MIDI SoundFont (about 6 MB) goes once, beside the runtime, not into every game
 ssh $SSH_OPTS "$T" "test -f '$DEVICE_DIR/TimGM6mb.sf2'" || scp -q $SSH_OPTS assets/soundfonts/TimGM6mb.sf2 "$T:$DEVICE_DIR/TimGM6mb.sf2"
 scp -q $SSH_OPTS "$HOSTCART" "$T:$DEVICE_DIR/carts/$NAME.cart"
-if [ -n "$DEVICE_PORTS_DIR" ]; then
+if [ -n "$DEVICE_PORTS_DIR" ] || [ "$DEVICE_OS" = muos ]; then
   # GS_DEBUG=1 scripts/push.sh ...  logs controller presses to <DEVICE_DIR>/last-run.log and leaves after 60 seconds (GS_DEBUG_SECONDS=N),
   # so a test on a device whose buttons are not mapped yet can never trap you in the game.
   # GS_PERF=1 scripts/push.sh ...  prints a frame timing line a second to <DEVICE_DIR>/last-run-<cart>.log and leaves after GS_PERF_SECONDS (default 40).
@@ -80,6 +85,46 @@ FLOOR
     echo "$RUN"
   } > "build/$NAME.sh"
   INFO="$(console_info "$SRC")"
+  if [ "$DEVICE_OS" = muos ]; then
+    # muOS: each console is a folder of launchers under ROMS named after it ("Dot"; carts with no console, like the button test, go in
+    # "Tools"), assigned to muOS's own External - Ports system (which
+    # runs .sh files with its SDL set-up, as for PortMaster games). muOS picks a folder's system by its name, lower case without spaces,
+    # in assign.json; adding ours there means nobody has to assign it by hand. The game's title replaces the file name in the list
+    # (info/name/global.json), and its box art, screenshot and description go into the External - Ports catalogue.
+    CNAME="${INFO#*|}"; [ -n "$INFO" ] || CNAME="Tools"
+    FOLDER="$CNAME"
+    DEST="$DEVICE_ROMS_DIR/$FOLDER/$NAME.sh"
+    TITLE="$(node -e 'try { const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(d.title || "").replace(/[\r\n"\\]/g, " ").trim()); } catch {}' "$SRC/meta/info.json")"
+    node -e 'try { const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(d.description || "")); } catch {}' "$SRC/meta/info.json" > "build/$NAME.txt"
+    CAT="/mnt/mmc/MUOS/info/catalogue/External - Ports"
+    # ssh joins its arguments into one command for the remote shell, so each one is quoted ("GameStudio Dot", "Then & Now")
+    q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+    ssh $SSH_OPTS "$T" "sh -s -- $(q "$DEVICE_ROMS_DIR") $(q "$FOLDER") $(q "$NAME") $(q "${TITLE:-$NAME}") $(q "$CAT")" <<'REMOTE'
+roms="$1"; folder="$2"; cart="$3"; title="$4"; cat="$5"
+mkdir -p "$roms/$folder" "$cat/box" "$cat/preview" "$cat/text"
+assign=/opt/muos/share/info/assign/assign.json
+key="$(printf '%s' "$folder" | tr 'A-Z' 'a-z' | tr -d '[:space:]')"
+if [ -f "$assign" ] && ! jq -e --arg k "$key" 'has($k)' "$assign" >/dev/null; then
+  jq -S --arg k "$key" '. + {($k): "External - Ports"}' "$assign" > "$assign.tmp" && mv "$assign.tmp" "$assign"
+  echo "folder assigned: $folder -> External - Ports"
+fi
+names=/mnt/mmc/MUOS/info/name/global.json
+[ -f "$names" ] || echo '{}' > "$names"
+jq --arg k "$cart" --arg v "$title" '.[$k] = $v' "$names" > "$names.tmp" && mv "$names.tmp" "$names"
+REMOTE
+    for pic in box_art:box screenshot:preview; do
+      f="${pic%%:*}"; d="${pic#*:}"
+      if [ -f "$SRC/meta/$f.png" ]; then scp -q $SSH_OPTS "$SRC/meta/$f.png" "$T:$CAT/$d/$NAME.png"; else ssh $SSH_OPTS "$T" "rm -f '$CAT/$d/$NAME.png'"; fi
+    done
+    scp -q $SSH_OPTS "build/$NAME.txt" "$T:$CAT/text/$NAME.txt"
+    scp -q $SSH_OPTS "build/$NAME.sh" "$T:$DEST"
+    ssh $SSH_OPTS "$T" "chmod +x '$DEST' '$DEVICE_DIR/gs'"
+    # the first muOS version put each console in "GameStudio <name>": move this game out of there (and drop the folder once empty)
+    ssh $SSH_OPTS "$T" "rm -f $(q "$DEVICE_ROMS_DIR/GameStudio $CNAME/$NAME.sh"); rmdir $(q "$DEVICE_ROMS_DIR/GameStudio $CNAME") 2>/dev/null; true"
+    echo "launcher: $DEST ($FOLDER in the muOS menu)"
+    echo "pushed $NAME to $T:$DEVICE_DIR"
+    exit 0
+  fi
   if [ -n "$INFO" ] && [ -n "$DEVICE_ROMS_DIR" ]; then
     # Each console is its own EmulationStation system (Dot, Dash, ...): a folder under the roms dir of launchers, and a system entry in
     # es_systems_gamestudio.cfg that runs them with the same "sh" launcher the Ports system uses. EmulationStation reads that file at

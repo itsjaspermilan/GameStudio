@@ -169,7 +169,14 @@ function M.draw_layer(l, cam_x, cam_y, view_w, view_h)
   gs.raw.camera(ex, ey)
   local cw, ch = l.cell[1], l.cell[2]
   local a = (l.alpha or 1) * 255 -- see-through layers (the world sets the layer's blend mode around this)
-  local pic = use_pictures and picture(l, cols, rows)
+  -- A layer that is mostly empty (the light of a few lamps, walls only round the edges) is drawn tile by tile: one picture of the whole
+  -- room would make the software renderer go over every pixel of the screen, empty or not, which cost a few milliseconds a layer.
+  if l.recount ~= false then -- counted again only after a tile changes
+    local n = 0
+    for _, row in ipairs(l.data) do for _, v in ipairs(row) do if v >= 0 then n = n + 1 end end end
+    l.filled, l.recount = n / (rows * cols), false
+  end
+  local pic = use_pictures and l.filled >= 0.35 and picture(l, cols, rows)
   if pic then
     local W, H = cols * cw, rows * ch
     local kx0, kx1, ky0, ky1 = 0, 0, 0, 0
@@ -209,7 +216,7 @@ function M.tile_at(l, x, y)
 end
 function M.set_tile(l, x, y, v)
   local r, c = floor((y - l.y) / l.cell[2]) + 1, floor((x - l.x) / l.cell[1]) + 1
-  if l.data[r] and l.data[r][c] ~= nil then l.data[r][c] = v; l.dirty = true end
+  if l.data[r] and l.data[r][c] ~= nil then l.data[r][c] = v; l.dirty = true; l.recount = true end
 end
 
 return M
