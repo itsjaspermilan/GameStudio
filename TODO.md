@@ -14,6 +14,7 @@ Games
 - [x] Panel Pop and Doc Capsule are modules (`lib/`) and scenes; the generators write `lib/art.lua`. Seeded bot games give the same results as before.
 - [x] Panel Pop on its own (Doc Capsule removed): a scene with a layout for every screen (`versus` runs `play`'s code), a light 16-bit look (pastel tile skies, window panels from a tileset, sprite fonts, outlines in each colour's own dark shade, a logo of letter panels) and General MIDI songs.
 - [ ] Panel Pop's new look and songs on the device: the fonts and the sky layer, the see-through board wells, and the General MIDI music while panels pop.
+- [ ] Then & Now (`carts/then-and-now`, design `docs/then-and-now-design.md`): the Hangar Ring slice is built (hub, 11 rooms, the Lens with Static and phase dodge, Ossie's story, the Last Launch boss, Keep or Release, two notes, two pickups, an end-of-part screen). Play it on the device: does flipping the Lens feel good, are the mid-air flips in the Launch Shaft and the dash gaps (Cargo Hall's secret, the lift lobby) fair, is Static too fast or slow (`lib/lens.lua` RISE/FALL), is the boss too easy or hard, and is the text readable on the small screen. The songs and sound effects were written without the MCP server's song/sound checks (it was down); run them through `song_check` / `sound_check`. Next: the Overgrowth and the Ward (choose order), then the rest of the plan.
 - [x] `gs.legacy` and plain `main.lua` carts are removed (the button test, pad setup and the art tools' picture carts are framework carts now).
 
 Studio
@@ -48,6 +49,7 @@ Framework (`engine/gs/`)
 - [x] Small API gaps found while porting Void Swarm: `gs.in_radius` / `gs.in_rect` refill an optional list, `Entity:hit_radius()` (Void Swarm's enemies no longer copy `r`), `"#rrggbbaa"` colors. Fixed in passing: Void Swarm's comet kept its direction in `sx`/`sy` (the scale), so it flew down-right, stretched; check a comet sector on the device.
 - [x] Live reload stays desktop-only (decided 2026-10-22).
 - [x] Collision broad phase stays in Lua (grid per tag, about 1.3x hand-tuned tables on a desktop); closed 2026-10-22, reopen if a game gets slow.
+- [ ] Palette banks, GBA style (decided 2026-10-22, after Then & Now's Hangar Ring): each sprite and tileset picks one bank of 16 colours from a larger master set, so a game shows many more colours while every picture stays small and limited. Needs a console spec field (`consoles/README.md` already lists banks as "not yet specified"), the sprite editor's palette picker per bank, the art tools and MCP server's palette places, and the pixel-art guide. Afterwards redo the colours of every game (Breakout, Void Swarm, Panel Pop, Kitchen Rush, Then & Now). Until then Dot keeps its 32 fixed colours; note that code can draw any hex colour (Then & Now's HUD and text box use a few off-palette shades), which banks should settle too.
 
 ## Performance (measured on the RG35XX Pro, Breakout, `GS_PERF=1 scripts/push.sh`)
 

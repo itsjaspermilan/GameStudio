@@ -41,8 +41,9 @@ function Room:place_hero()
     face = door.side == "left" and 1 or -1
     x, y = door.side == "left" and door.x + 34 or door.x - 18, door.y
   else
-    for _, t in ipairs(gs.all("usable")) do if t.sprite == "spr_terminal" then x, y = t.x + 20, t.y end end
-    if not x then for _, s in ipairs(gs.all("spot")) do if s.name == "start" then x, y = s.x, s.y end end end
+    -- a new game starts by the ship; after that Wren wakes at the room's terminal
+    if not d.flags.intro then for _, s in ipairs(gs.all("spot")) do if s.name == "start" then x, y = s.x, s.y end end end
+    if not x then for _, t in ipairs(gs.all("usable")) do if t.sprite == "spr_terminal" then x, y = t.x + 20, t.y end end end
   end
   d.door = nil
   self.hero = gs.spawn("hero", x or self.w / 2, y or self.h / 2, { face = face })

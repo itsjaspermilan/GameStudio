@@ -41,7 +41,7 @@ export const ROOMS = [
       row(40, "#", "  NN"),
       row(40, "#", "  NN"),
       row(40, "C", "  NN               e"),
-      row(40, "#", "#####tttt      tttttttttttt========"),
+      row(40, "#", "#####tttt     ttttttttttttt========"),
       ...empty(40, 2),
       row(40, "#", "                                 ==="),
       ...empty(40, 2),
@@ -169,8 +169,8 @@ export const ROOMS = [
     map: [
       wall(20), ...empty(20, 11),
       row(20, "A", "  s            L"),
-      "######      ########",
-      "######      ########",
+      "######       #######",
+      "######       #######",
     ],
   },
 ];

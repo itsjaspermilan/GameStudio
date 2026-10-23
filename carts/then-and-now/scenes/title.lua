@@ -17,9 +17,15 @@ function Title:update(dt)
   if self.away then return end
   self.t = self.t + dt
   local I = gs.input
-  if I.pressed("down") then self.pick = self.pick % #self.items + 1; gs.sfx("sfx_select", 0.4) end
-  if I.pressed("up") then self.pick = (self.pick - 2) % #self.items + 1; gs.sfx("sfx_select", 0.4) end
-  if I.pressed("a") or I.pressed("start") or I.pressed("b") then
+  if I.pressed("down") then self.pick = self.pick % #self.items + 1; self.sure = false; gs.sfx("sfx_select", 0.4) end
+  if I.pressed("up") then self.pick = (self.pick - 2) % #self.items + 1; self.sure = false; gs.sfx("sfx_select", 0.4) end
+  if I.pressed("a") or I.pressed("start") then
+    -- a new game over a save asks once more
+    if self.items[self.pick] == "NEW GAME" and state.has_save() and not self.sure then
+      self.sure = true
+      gs.sfx("sfx_buzz", 0.4)
+      return
+    end
     gs.sfx("sfx_ok", 0.6)
     if self.items[self.pick] == "CONTINUE" then state.load() else state.new_game(); state.save("dock") end
     gs.goto_scene("scenes.rooms." .. state.data.room, { fade = 0.8 })
@@ -48,11 +54,12 @@ function Title:draw_ui()
   gs.draw.text("THEN", 34 + (glitch and 2 or 0), 70, glitch and "#ffffff" or "#a6f4e6", 3)
   gs.draw.text("&", 34, 100, "#e8913a", 3)
   gs.draw.text("NOW", 34, 130, "#8a90a8", 3)
-  gs.draw.text("A STORY OF VESPER STATION", 34, 162, "#3b3f55")
+  gs.draw.text("VESPER STATION", 34, 162, "#3b3f55")
   for i, item in ipairs(self.items) do
     local on = i == self.pick
     gs.draw.text((on and "> " or "  ") .. item, 34, 186 + (i - 1) * 14, on and "#ffffff" or "#8a90a8")
   end
+  if self.sure then gs.draw.text("THIS ERASES YOUR SAVE. PRESS A AGAIN.", 34, 222, "#ea5a4b") end
 end
 
 return Title
