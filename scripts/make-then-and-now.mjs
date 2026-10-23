@@ -11,7 +11,8 @@ import * as A from "./then-and-now/art.mjs";
 import * as SP from "./then-and-now/sprites.mjs";
 import * as PE from "./then-and-now/people.mjs";
 import { tileset, lightset, TILE } from "./then-and-now/tiles.mjs";
-import { TILE_BANKS, TILESET_BANK, groupOf, spritePal, paletteJson } from "./then-and-now/banks.mjs";
+import { TILE_BANKS, TILESET_BANK, groupOf, spriteSpec, bankPal, paletteJson } from "./then-and-now/banks.mjs";
+import { shadeSprite } from "./then-and-now/shade.mjs";
 import { buildRoom, layoutLua, worldLua } from "./then-and-now/rooms.mjs";
 import { ROOMS as HANGAR } from "./then-and-now/hangar.mjs";
 import { SFX, allMusic } from "./then-and-now/audio.mjs";
@@ -27,16 +28,17 @@ const json = (path, v) => writeFileSync(join(dir, path), JSON.stringify(v, null,
 // opening one in the studio and pressing Tidy changes nothing.
 const lua = (path, text) => writeFileSync(join(dir, path), tidyLua(text));
 let sprites = 0;
-const used = {}; // colour bank -> the classic places its sprites draw with (for palette.json)
-// Every sprite belongs to a group with a colour bank (banks.mjs): it is drawn with the classic places and recoloured with the group's
-// tuned colours, and its JSON names the bank.
+// Every sprite belongs to a group with a colour bank (banks.mjs): its drawing paints materials in the classic places, shade.mjs lights
+// each frame with the group's ramps (from the top left, with coloured outlines), and its JSON names the bank.
 function sprite(name, def, origin) {
-  const fr = [], group = groupOf(name);
+  const fr = [], group = groupOf(name), spec = spriteSpec(name);
   if (!group) throw new Error(`${name} is in no sprite group (banks.mjs SPRITE_GROUPS)`);
-  used[group] = used[group] || new Set();
-  for (let f = 0; f < def.frames; f++) { const c = new Canvas(def.w, def.h); def.draw(c, f); fr.push(c); for (const v of c.d) if (v >= 0) used[group].add(v); }
+  for (let f = 0; f < def.frames; f++) {
+    const c = new Canvas(def.w, def.h); def.draw(c, f);
+    try { fr.push(shadeSprite(c, spec)); } catch (e) { throw new Error(`${name} frame ${f}: ${e.message}`); }
+  }
   const s = strip(fr);
-  writeFileSync(join(dir, "sprites", name + ".png"), png(s.w, s.h, s.rgba(spritePal(group))));
+  writeFileSync(join(dir, "sprites", name + ".png"), png(s.w, s.h, s.rgba(bankPal(group))));
   json(`sprites/${name}.json`, { image: `sprites/${name}.png`, frames: def.frames, origin, mask: null, fps: 0, bank: group });
   sprites++;
 }
@@ -69,7 +71,7 @@ for (const name of TILESETS) {
   writeFileSync(join(dir, "tilesets", `ts_${name}.png`), png(ts.w, ts.h, ts.rgba([null, ...TILE_BANKS[bank]])));
   json(`tilesets/ts_${name}.json`, { image: `tilesets/ts_${name}.png`, tile_w: 16, tile_h: 16, banks: [bank] });
 }
-writeFileSync(join(dir, "palette.json"), JSON.stringify(paletteJson(used), null, 2) + "\n");
+writeFileSync(join(dir, "palette.json"), JSON.stringify(paletteJson(), null, 2) + "\n");
 
 for (const [n, d] of Object.entries(SFX)) json(`sfx/${n}.json`, d);
 const music = allMusic();

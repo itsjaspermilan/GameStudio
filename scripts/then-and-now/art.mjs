@@ -7,7 +7,7 @@
 // A frame is a leg pose plus an aim. Frame numbers are listed in HERO_FRAMES and copied into the game's lib/art.lua, with each frame's
 // body bob (HERO_DY) so the game knows where the neck and the gun are.
 const OUT = 0, TROUSERS = 17, TROUSERS_LIGHT = 18, BOOT = 8, BOOT_LIGHT = 9, METAL = 2, SHINE = 3, GRIP = 1;
-const JACKET = 10, JACKET_LIGHT = 11, JACKET_DARK = 9, SKIN = 7, SCARF = 6, SCARF_DARK = 5, SCARF_LIGHT = 7, GLOW = 22;
+const JACKET = 10, JACKET_LIGHT = 11, JACKET_DARK = 9, SKIN = 7, SCARF = 6, SCARF_DARK = 5, SCARF_LIGHT = 6, GLOW = 22;
 
 const HEAD = [
   "     oo  ooo    ",
@@ -23,7 +23,7 @@ const HEAD = [
   "   oddoSsssssSo ",
   "     ooooooo    ",
 ];
-const HEAD_MAP = { o: OUT, d: 28, h: 29, H: 30, s: SKIN, S: 6, g: METAL, G: SHINE, l: 21, L: GLOW, w: 23 };
+const HEAD_MAP = { o: OUT, d: 28, h: 29, H: 30, s: SKIN, S: SKIN, g: GRIP, G: 21, l: 21, L: GLOW, w: 23 }; // the goggles: a dark frame round a teal lens
 const TORSO = [
   "  oooooooo  ",
   " oJJJJJJjjo ",
