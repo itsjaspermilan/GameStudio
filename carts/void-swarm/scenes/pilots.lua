@@ -64,7 +64,7 @@ function Pilots:draw_ui()
   end
   local p = data.PILOTS[self.cur]
   local owned = s.unl[self.cur] == 1
-  spr("spr_pilot_" .. p.id, 2 + floor(self.tick / 5) % 6, 238, 66, 2, false, 0, owned and 255 or 120)
+  spr("spr_pilot_" .. p.id, ui.walk_frame(p.id, self.tick), 238, 66, 2, false, 0, owned and 255 or 120)
   ui.txtm(p.name, 238, 100, 14, 2, 312, "bold_small")
   for i, l in ipairs(ui.wrap_px(p.blurb, 140)) do if i <= 2 then txt(l, 168, 122 + (i - 1) * 10, 2, 1, 312) end end
   spr("spr_ico_" .. data.WEAPONS[p.weapon].icon, 0, 176, 156)

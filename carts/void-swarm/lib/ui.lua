@@ -117,6 +117,12 @@ function M.wrap(s, n)
   return lines
 end
 
+-- the frame of a pilot's walk at this tick (60 a second), from its sprite's own walk clip
+function M.walk_frame(id, tick)
+  local w = require("gs.assets").sprite("spr_pilot_" .. id).anims.walk
+  return w.from + floor(tick * w.fps / 60) % (w.to - w.from + 1)
+end
+
 -- one-pixel rectangles and lines with a palette color and alpha (the radar and the weapon beams)
 function M.dot(x, y, w, h, ci, alpha) gs.draw.rect(x, y, w, h, tint(ci, alpha)) end
 function M.line(x1, y1, x2, y2, ci, alpha) gs.draw.line(x1, y1, x2, y2, tint(ci, alpha)) end

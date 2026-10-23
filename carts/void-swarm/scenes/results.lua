@@ -27,7 +27,7 @@ end
 
 -- what moves: the pilot walks, the prompt blinks
 function Results:place()
-  self.pilot.frame = 2 + floor(self.tick / 5) % 6
+  self.pilot.frame = ui.walk_frame(run.R.pilot.id, self.tick)
   self.prompt.visible = floor(self.tick / 30) % 2 == 0
 end
 

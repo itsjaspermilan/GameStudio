@@ -35,7 +35,7 @@ end
 function Hub:draw_ui()
   menu.credits(self)
   local p = data.PILOTS[save.data.sel]
-  spr("spr_pilot_" .. p.id, 2 + floor(self.tick / 5) % 6, 244, 76, 2)
+  spr("spr_pilot_" .. p.id, ui.walk_frame(p.id, self.tick), 244, 76, 2)
   ui.txtm(p.name, 244, 110, 14, 2, 310, "bold_small")
   spr("spr_ico_" .. data.WEAPONS[p.weapon].icon, 0, 190, 146)
   local wy = 134

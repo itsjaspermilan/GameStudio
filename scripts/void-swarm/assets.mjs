@@ -37,7 +37,7 @@ export function writeAssets(dir, opts = {}) {
     sprites.push(name); art[name] = { f: frames, w, h };
   }
 
-  for (const p of PILOTS) sprite("spr_pilot_" + p.id, p, { animations: PILOT_CLIPS });
+  for (const p of PILOTS) sprite("spr_pilot_" + p.id, p, { animations: p.clips || PILOT_CLIPS });
   // the boomer walks, then flickers while its fuse burns
   const boomerClips = { animations: { walk: { from: 0, to: 1, fps: 4, loop: true }, fuse: { from: 2, to: 3, fps: 16, loop: true } } };
   for (const e of ENEMIES) sprite("spr_e_" + e.id, e, e.id === "boomer" ? boomerClips : {});
