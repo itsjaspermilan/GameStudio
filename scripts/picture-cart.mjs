@@ -1,4 +1,4 @@
-// A throwaway game that draws one picture, for the art tools (make-cart-art.mjs, make-panel-pop-art.mjs): a game.lua and one scene whose
+// A throwaway game that draws one picture, for the art tools (make-cart-art.mjs, lib/cover.mjs): a game.lua and one scene whose
 // draw() is `body`, at a screen size of w x h. The body uses the runtime's own calls (gs.print, gs.rect, gs.tile, gs.image, ...).
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

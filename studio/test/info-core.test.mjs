@@ -40,10 +40,10 @@ test("PNG checks and size", () => {
 });
 
 test("box art zoom is a whole number that fits", () => {
-  assert.equal(I.boxArtScale(32), 15);
-  assert.equal(I.boxArtScale(64), 7);
+  assert.equal(I.boxArtScale(32), 9);
+  assert.equal(I.boxArtScale(64), 4);
   assert.equal(I.boxArtScale(1000), 1);
-  assert.equal(I.boxArtScale(0), 480);
+  assert.equal(I.boxArtScale(0), 300);
 });
 
 test("the gamelist entry is escaped, complete, and leaves out empty fields", () => {

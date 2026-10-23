@@ -1,6 +1,6 @@
 // Makes the pictures a game list shows for a project, with the game's own runtime (nothing is drawn by hand):
-//   meta/screenshot.png  the game after a second of running, as the game looks
-//   meta/box_art.png     a portrait cover: the title in big letters over the game's first sprites, in the console's palette
+//   meta/screenshot.png  the game after a second of running, at the handheld's size (twice the console's screen)
+//   meta/box_art.png     a 240x300 cover (scripts/lib/cover.mjs): the console's band, the game's first sprites, the title along the bottom
 //   meta/logo.png        the title as a banner
 // usage: node scripts/make-cart-art.mjs <project-dir> [--frames N] [--sprites a,b,c]   (needs build/gs; meta/info.json needs a title)
 //   --sprites  the sprites on the cover (default: the first three by name), side by side
@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { png, decodeBmp } from "./png.mjs";
 import { writePictureCart } from "./picture-cart.mjs";
+import { makeCover, makePreview, COVER_W } from "./lib/cover.mjs";
 
 const args = process.argv.slice(2);
 const dir = args.find((a) => !a.startsWith("--") && !["--room", "--frames", "--sprites"].includes(args[args.indexOf(a) - 1]));
@@ -48,7 +49,7 @@ const fit = (s, width, max) => Math.max(1, Math.min(max, Math.floor(width / (s.l
 // 1. the screenshot: the game itself
 const sprites = opt("--sprites") ? opt("--sprites").split(",")
   : existsSync(join(dir, "sprites")) ? readdirSync(join(dir, "sprites")).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5)).sort().slice(0, 3) : [];
-shot(dir, join(dir, "meta/screenshot.png"), { frames: Number(opt("--frames", 90)) });
+makePreview(dir, Number(opt("--frames", 90)));
 
 // 2. the logo: the title as a banner
 {
@@ -58,27 +59,22 @@ shot(dir, join(dir, "meta/screenshot.png"), { frames: Number(opt("--frames", 90)
   shot(luaPicture(320, 80, body), join(dir, "meta/logo.png"));
 }
 
-// 3. the box art: the title in big letters (a word a line) over the first sprites
+// 3. the box art: the first sprites side by side on the console's dark blue, as big as fits, under the band and over the title
 {
-  const words = title.split(/\s+/), scale = Math.min(...words.map((w) => fit(w, 216, 6))), lineH = 8 * scale + 6;
-  const body = [`gs.clear(${rgb(1).join(", ")})`, `gs.rect(0, 0, W, 6, ${rgb(6).join(", ")})`, `gs.rect(0, 6, W, 6, ${rgb(10).join(", ")})`, `gs.rect(0, 12, W, 6, ${rgb(14).join(", ")})`];
-  words.forEach((w, i) => { const x = Math.floor((240 - w.length * 8 * scale) / 2), y = 40 + i * lineH; body.push(text(w, x + 2, y + 2, rgb(0), scale), text(w, x, y, rgb(3), scale)); });
-  // the sprites stand in one row, all at the same whole-number scale, as big as fits between the title and the footer
-  const imgs = sprites.map((s, i) => {
+  const imgs = sprites.map((s) => {
     const meta = JSON.parse(readFileSync(join(dir, "sprites", `${s}.json`), "utf8"));
-    const size = pngSize(join(dir, "sprites", `${s}.png`)), frames = meta.frames || 1;
-    body.unshift(`local s${i} = gs.image("sprites/${s}.png")`);
-    return { i, fw: Math.floor(size.w / frames), fh: size.h };
+    const size = pngSize(join(dir, "sprites", `${s}.png`));
+    return { s, fw: Math.floor(size.w / (meta.frames || 1)), fh: size.h };
   });
+  const scene = [`gs.draw.rect(0, 0, W, H, "${palette[24] || "#14234f"}")`];
   if (imgs.length) {
-    const top = 40 + words.length * lineH + 12, bottom = 296, gap = 4;
+    const top = 18, bottom = 120, gap = 3;
     const sumW = imgs.reduce((a, m) => a + m.fw, 0), maxH = Math.max(...imgs.map((m) => m.fh));
-    const k = Math.max(1, Math.min(8, Math.floor((224 - gap * (imgs.length - 1)) / sumW), Math.floor((bottom - top) / maxH)));
-    let x = Math.floor((240 - (sumW * k + gap * (imgs.length - 1))) / 2);
+    const k = Math.max(1, Math.min(4, Math.floor((COVER_W - 8 - gap * (imgs.length - 1)) / sumW), Math.floor((bottom - top) / maxH)));
+    let x = Math.floor((COVER_W - (sumW * k + gap * (imgs.length - 1))) / 2);
     const base = top + Math.floor((bottom - top + maxH * k) / 2);
-    for (const m of imgs) { body.push(`gs.tile(s${m.i}, 0, 0, ${m.fw}, ${m.fh}, ${x}, ${base - m.fh * k}, ${k})`); x += m.fw * k + gap; }
+    for (const m of imgs) { scene.push(`gs.tile(gs.image("sprites/${m.s}.png"), 0, 0, ${m.fw}, ${m.fh}, ${x}, ${base - m.fh * k}, ${k})`); x += m.fw * k + gap; }
   }
-  body.push(text("GAMESTUDIO", Math.floor((240 - 80 * 1) / 2), 304, rgb(2), 1));
-  shot(luaPicture(240, 320, body.join("\n"), sprites.flatMap((s) => [`${s}.png`, `${s}.json`])), join(dir, "meta/box_art.png"));
+  makeCover(dir, { scene: scene.join("\n"), title: info.title || "Game", accent: palette[14] || "#f5d94a" });
 }
 console.log(`wrote ${dir}/meta/screenshot.png, logo.png, box_art.png (${title})`);

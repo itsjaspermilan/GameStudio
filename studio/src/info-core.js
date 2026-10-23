@@ -7,7 +7,7 @@ export const LIMITS = { title: 60, description: 600, developer: 60 };
 export const BOX_ART_PATH = "meta/box_art.png";
 // The pictures a game list can show, all optional, all in meta/ (scripts/push.sh sends whichever exist; make-cart-art.mjs can draw them).
 export const PICTURES = [
-  { key: "box_art", path: BOX_ART_PATH, label: "Box art", tip: "The cover the game list shows. A tall picture works best." },
+  { key: "box_art", path: BOX_ART_PATH, label: "Box art", tip: "The cover the game list shows beside the names: about 240 x 300 fits the handheld's list." },
   { key: "screenshot", path: "meta/screenshot.png", label: "Screenshot", tip: "The game itself, as the list's preview." },
   { key: "logo", path: "meta/logo.png", label: "Logo", tip: "The title as a banner (wide and short), for themes that show one." },
 ];
@@ -68,9 +68,9 @@ export function pngSize(bytes) {
   return { width: v.getUint32(16), height: v.getUint32(20) };
 }
 
-// The largest whole-number zoom that keeps the first frame of a sprite under `target` pixels tall, at least 1. Pixel art stays crisp that way
-// when the device scales the picture to fit its list.
-export function boxArtScale(frameHeight, target = 480) {
+// The largest whole-number zoom that keeps the first frame of a sprite under `target` pixels tall, at least 1. Pixel art stays crisp that way.
+// 300 because muOS draws box art at its own size over the right of its game list: taller covers the names and the bars (scripts/lib/cover.mjs).
+export function boxArtScale(frameHeight, target = 300) {
   return Math.max(1, Math.floor(target / Math.max(1, frameHeight)));
 }
 
