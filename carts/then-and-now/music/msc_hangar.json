@@ -10,6 +10,7 @@
   "gm_drum_kit"
  ],
  "reverb": 35,
+ "reverb_type": "hall",
  "track_vol": [
   -1,
   -3,

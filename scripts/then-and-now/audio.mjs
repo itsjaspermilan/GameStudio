@@ -31,16 +31,18 @@ export const SFX = {
 };
 
 const D = "gm_drum_kit";
+// reverb_type: the space each song sounds in. The dock and the hangar are huge empty metal halls; Ossie's song and the boss fight are
+// close and busy, so a room keeps them clear.
 const SONGS = {
-  msc_title: { level: -1, seed: 11, root: 9, scale: "minor", tempo: 84, oct: 4, inst: ["gm_celesta", "gm_choir_pad", "gm_fretless_bass", D], harmony: "pad", bass: "half", drums: "none", rhythms: [3, 1], rest: 0.4, calm: true, reverb: 45, vol: [0, -2, -1, -4], fill: false,
+  msc_title: { reverb_type: "hall", level: -1, seed: 11, root: 9, scale: "minor", tempo: 84, oct: 4, inst: ["gm_celesta", "gm_choir_pad", "gm_fretless_bass", D], harmony: "pad", bass: "half", drums: "none", rhythms: [3, 1], rest: 0.4, calm: true, reverb: 45, vol: [0, -2, -1, -4], fill: false,
     sections: [{ prog: [0, 5, 3, 4] }, { prog: [0, 5, 6, 4] }], order: [0, 1] },
-  msc_dock: { level: -1, seed: 23, root: 2, scale: "dorian", tempo: 86, oct: 4, inst: ["gm_vibraphone", "gm_warm_pad", "gm_fretless_bass", D], harmony: "pad", bass: "half", drums: "soft", rhythms: [3, 1], rest: 0.45, calm: true, reverb: 40, vol: [0, -2, -1, -4], fill: false,
+  msc_dock: { reverb_type: "hall", level: -1, seed: 23, root: 2, scale: "dorian", tempo: 86, oct: 4, inst: ["gm_vibraphone", "gm_warm_pad", "gm_fretless_bass", D], harmony: "pad", bass: "half", drums: "soft", rhythms: [3, 1], rest: 0.45, calm: true, reverb: 40, vol: [0, -2, -1, -4], fill: false,
     sections: [{ prog: [0, 3, 0, 4] }, { prog: [5, 3, 6, 4] }], order: [0, 1, 0] },
-  msc_hangar: { level: -1, seed: 37, root: 4, scale: "phrygian", tempo: 94, oct: 4, inst: ["gm_clean_guitar", "gm_bowed_pad", "gm_fretless_bass", D], harmony: "pad", bass: "pump", drums: "soft", rhythms: [3, 0, 1], rest: 0.4, reverb: 35, vol: [0, -2, -1, -3],
+  msc_hangar: { reverb_type: "hall", level: -1, seed: 37, root: 4, scale: "phrygian", tempo: 94, oct: 4, inst: ["gm_clean_guitar", "gm_bowed_pad", "gm_fretless_bass", D], harmony: "pad", bass: "pump", drums: "soft", rhythms: [3, 0, 1], rest: 0.4, reverb: 35, vol: [0, -2, -1, -3],
     sections: [{ prog: [0, 1, 0, 6] }, { prog: [3, 1, 4, 0] }, { prog: [5, 6, 1, 0] }], order: [0, 1, 0, 2] },
-  msc_ossie: { level: -1, seed: 53, root: 7, scale: "major", tempo: 104, oct: 4, inst: ["gm_nylon_guitar", "gm_electric_piano_1", "gm_acoustic_bass", D], harmony: "arp8", bass: "half", drums: "soft", rhythms: [1, 3, 0], rest: 0.35, reverb: 30, vol: [0, -2, -1, -4],
+  msc_ossie: { reverb_type: "room", level: -1, seed: 53, root: 7, scale: "major", tempo: 104, oct: 4, inst: ["gm_nylon_guitar", "gm_electric_piano_1", "gm_acoustic_bass", D], harmony: "arp8", bass: "half", drums: "soft", rhythms: [1, 3, 0], rest: 0.35, reverb: 30, vol: [0, -2, -1, -4],
     sections: [{ prog: [0, 4, 5, 3] }, { prog: [0, 4, 1, 4] }], order: [0, 1, 0] },
-  msc_boss: { level: -1, seed: 71, root: 2, scale: "harm", tempo: 148, oct: 4, inst: ["gm_brass_section", "gm_tremolo_strings", "gm_synth_bass_1", D], harmony: "arp8", bass: "gallop", drums: "boss", rhythms: [2, 4, 0], rest: 0.2, reverb: 20, vol: [0, -2, -1, -3],
+  msc_boss: { reverb_type: "room", level: -1, seed: 71, root: 2, scale: "harm", tempo: 148, oct: 4, inst: ["gm_brass_section", "gm_tremolo_strings", "gm_synth_bass_1", D], harmony: "arp8", bass: "gallop", drums: "boss", rhythms: [2, 4, 0], rest: 0.2, reverb: 20, vol: [0, -2, -1, -3],
     sections: [{ prog: [0, 5, 3, 4] }, { prog: [0, 6, 5, 4] }], order: [0, 1] },
 };
 

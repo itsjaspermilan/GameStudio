@@ -1,0 +1,8 @@
+{
+ "image": "tilesets/ts_hangar_light_then.png",
+ "tile_w": 16,
+ "tile_h": 16,
+ "banks": [
+  "light_then"
+ ]
+}

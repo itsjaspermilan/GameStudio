@@ -78,7 +78,7 @@ export function layoutLua(def, built) {
   const rowsLua = (data) => data.map((r) => "      { " + r.join(", ") + " },").join("\n");
   const val = (v) => typeof v === "string" ? JSON.stringify(v) : String(v);
   const ts = def.tiles || "hangar";
-  const layer = (name, set, data, depth) => `    { name = "${name}", tileset = "ts_${ts}_${set}", depth = ${depth}, data = {\n${rowsLua(data)}\n    } },`;
+  const layer = (name, set, data, depth, look = "") => `    { name = "${name}", tileset = "ts_${ts}_${set}", depth = ${depth},${look} data = {\n${rowsLua(data)}\n    } },`;
   const thing = (t) => {
     const props = Object.entries(t.props);
     return `    { "${t.kind}", ${t.x}, ${t.y}${props.length ? ", { " + props.map(([k, v]) => `${k} = ${val(v)}`).join(", ") + " }" : ""} },`;
@@ -86,13 +86,16 @@ export function layoutLua(def, built) {
   const door = (id, d) => `    { "door", ${d.x}, ${d.y}, { id = "${id}", side = "${d.side}", to = "${d.to}", at = "${d.at}" } },`;
   return [
     `-- ${def.name}. Written by scripts/make-then-and-now.mjs from scripts/then-and-now/${def.file}.mjs; edit the drawing there.`,
-    "-- Layers: now / then (solid, one shown at a time by the Lens) and their backgrounds. The code for every room is scenes/room.lua.",
+    "-- Layers: now / then (solid, one shown at a time by the Lens), their backgrounds, and their light (added on top of the background:",
+    "-- lamps, beams, windows). The code for every room is scenes/room.lua.",
     "return {",
     `  code = "room",`,
     `  width = ${built.cols * T}, height = ${built.rows * T}, background = "#000000",`,
     "  layers = {",
     layer("back_now", "now", built.back.now, 200),
     layer("back_then", "then", built.back.then, 200),
+    layer("light_now", "light_now", built.back.lightNow, 150, ` blend = "add", alpha = 0.85,`),
+    layer("light_then", "light_then", built.back.lightThen, 150, ` blend = "add",`),
     layer("now", "now", built.now, 100),
     layer("then", "then", built.then, 100),
     "  },",

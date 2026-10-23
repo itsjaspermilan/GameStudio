@@ -1,7 +1,7 @@
 -- The Lens: Wren's goggles flip the room between Now (the wreck) and Then (the station as it was,
 -- full of echoes).
--- Each room has a tile layer per era (now, then, back_now, back_then); flipping shows one pair and
--- makes tiles.lua read its walls.
+-- Each room has tile layers per era (now, then, back_now, back_then, light_now, light_then);
+-- flipping shows one set and makes tiles.lua read its walls.
 -- Time spent in Then builds Static (lib/state static, up to static_max); at the top it overloads
 -- and throws Wren back to Now.
 -- Flipping just before a hit lands is a phase dodge (the hero asks dodging()).
@@ -24,6 +24,7 @@ local layers = {}
 function M.enter()
   layers.now, layers["then"] = gs.layer("now"), gs.layer("then")
   layers.back_now, layers.back_then = gs.layer("back_now"), gs.layer("back_then")
+  layers.light_now, layers.light_then = gs.layer("light_now"), gs.layer("light_then")
   tiles.use(layers.now, layers["then"])
   M.since, M.flash = 99, 0
   M.show(M.era)
@@ -37,6 +38,8 @@ function M.show(era)
   if layers["then"] then layers["then"].visible = not now end
   if layers.back_now then layers.back_now.visible = now end
   if layers.back_then then layers.back_then.visible = not now end
+  if layers.light_now then layers.light_now.visible = now end
+  if layers.light_then then layers.light_then.visible = not now end
   M.ghost = nil -- the faint picture of the other era is made again when needed
 end
 
