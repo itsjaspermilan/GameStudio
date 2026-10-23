@@ -46,7 +46,7 @@ function Title:draw_ui()
   local tick = self.tick
   for i = 1, #PILOT_IDS do
     local x = ((tick * 0.6 + i * 34) % (ui.SW + 40)) - 20
-    spr("spr_pilot_" .. PILOT_IDS[i], 2 + floor(tick / 5 + i) % 6, x, 166 + floor(sin(tick / 9 + i) * 1.5), 1.5)
+    spr("spr_pilot_" .. PILOT_IDS[i], 2 + floor(tick / 5 + i) % 6, x, 166 + floor(sin(tick / 9 + i) * 1.5), 1)
   end
 end
 

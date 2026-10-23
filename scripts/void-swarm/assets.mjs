@@ -4,10 +4,11 @@ import { mkdirSync, writeFileSync, rmSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { png } from "../png.mjs";
 import { Canvas, strip } from "../lib/canvas.mjs";
-import { PILOTS, CLIPS as PILOT_CLIPS } from "./pilots.mjs";
-import { ENEMIES } from "./enemies.mjs";
-import { BOSSES } from "./bosses.mjs";
-import { PROJECTILES, FX, PICKUPS, ICONS, PLANETS, BACKGROUNDS, backgroundTile, dustTile } from "./misc.mjs";
+import { PILOTS, CLIPS as PILOT_CLIPS, PILOT_BANKS } from "./pilots.mjs";
+import { ENEMIES, ENEMY_BANKS } from "./enemies.mjs";
+import { BOSSES, BOSS_BANKS } from "./bosses.mjs";
+import { PROJECTILES, FX, PICKUPS, ICONS, PLANETS, ITEM_BANKS } from "./items.mjs";
+import { SECTORS, BACKGROUNDS, DUST_BANK, skyFar, skyMid, dustTile } from "./skies.mjs";
 import { SFX, allMusic } from "./audio.mjs";
 import { panelTiles } from "./panels.mjs";
 
@@ -16,6 +17,14 @@ export function writeAssets(dir, opts = {}) {
   for (const sub of ["sprites", "tilesets", "sfx", "music"]) for (const f of readdirSync(join(dir, sub))) rmSync(join(dir, sub, f));
 
   const json = (path, v) => writeFileSync(join(dir, path), JSON.stringify(v, null, 1) + "\n");
+  // every sprite is painted in one of the console's 16 sprite banks (place 0 see-through, 15 colours each)
+  const spriteBanks = { ...PILOT_BANKS, ...ENEMY_BANKS, ...BOSS_BANKS, ...ITEM_BANKS };
+  if (Object.keys(spriteBanks).length > 16) throw new Error("more than 16 sprite banks");
+  // and every sky in a tile bank of its own sector's (the dust, over every sky, has one too)
+  const tileBanks = { ...Object.fromEntries(Object.entries(SECTORS).map(([id, s]) => ["sky_" + id, s.bank])), dust: DUST_BANK };
+  if (Object.keys(tileBanks).length > 16) throw new Error("more than 16 tile banks");
+  const banksOf = (m) => Object.entries(m).map(([name, b]) => ({ name, colors: b.colors }));
+  json("palette.json", { sprites: banksOf(spriteBanks), tiles: banksOf(tileBanks) });
   const art = {};
   const sprites = [];
 
@@ -23,8 +32,8 @@ export function writeAssets(dir, opts = {}) {
     const w = def.w || 16, h = def.h || 16, frames = def.frames || 1, fr = [];
     for (let f = 0; f < frames; f++) { const c = new Canvas(w, h); def.draw(c, f); fr.push(c); }
     const s = strip(fr);
-    writeFileSync(join(dir, "sprites", name + ".png"), png(s.w, s.h, s.rgba()));
-    json(`sprites/${name}.json`, { image: `sprites/${name}.png`, frames, origin: [w >> 1, h >> 1], mask: opts.mask ? opts.mask(name, w, h) ?? null : null, fps: def.fps ?? (frames > 1 ? 6 : 0), ...extra });
+    writeFileSync(join(dir, "sprites", name + ".png"), png(s.w, s.h, s.rgba(def.bank.pal)));
+    json(`sprites/${name}.json`, { image: `sprites/${name}.png`, frames, origin: [w >> 1, h >> 1], mask: opts.mask ? opts.mask(name, w, h) ?? null : null, fps: def.fps ?? (frames > 1 ? 6 : 0), bank: def.bankName, ...extra });
     sprites.push(name); art[name] = { f: frames, w, h };
   }
 
@@ -40,13 +49,13 @@ export function writeAssets(dir, opts = {}) {
   for (const p of PLANETS) sprite("spr_" + p.id, p);
 
   const tilesets = [];
-  function tileset(name, c) {
-    writeFileSync(join(dir, "tilesets", name + ".png"), png(c.w, c.h, c.rgba()));
-    json(`tilesets/${name}.json`, { image: `tilesets/${name}.png`, tile_w: 16, tile_h: 16 });
+  function tileset(name, c, bankName) {
+    writeFileSync(join(dir, "tilesets", name + ".png"), png(c.w, c.h, c.rgba(tileBanks[bankName].pal)));
+    json(`tilesets/${name}.json`, { image: `tilesets/${name}.png`, tile_w: 16, tile_h: 16, banks: [bankName] });
     tilesets.push(name);
   }
-  BACKGROUNDS.forEach((b, i) => tileset("ts_bg_" + b.id, backgroundTile(i)));
-  tileset("ts_dust", dustTile());
+  for (const { id } of BACKGROUNDS) { tileset("ts_bg_" + id, skyFar(id), "sky_" + id); tileset("ts_mid_" + id, skyMid(id), "sky_" + id); }
+  tileset("ts_dust", dustTile(), "dust");
   const panel = panelTiles();
   writeFileSync(join(dir, "tilesets", "ts_panel.png"), png(panel.w, panel.h, panel.rgba));
   json("tilesets/ts_panel.json", { image: "tilesets/ts_panel.png", tile_w: panel.tile, tile_h: panel.tile });

@@ -2,9 +2,10 @@
  "image": "sprites/spr_pk_coin.png",
  "frames": 4,
  "origin": [
-  6,
-  6
+  9,
+  9
  ],
  "mask": null,
- "fps": 6
+ "fps": 6,
+ "bank": "items_hot"
 }

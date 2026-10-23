@@ -162,7 +162,7 @@ function renderWav(desc, cwd) {
 }
 // songs above about 1200 Hz sounded whistly and harsh in Void Swarm (its old chip songs read 1400-1500 Hz, the General MIDI ones 600-900);
 // a sound effect may be brighter (a laser is meant to be)
-const describeSound = (m, bright = 1200) => `rendered ${m.seconds.toFixed(1)} s: loudness ${m.rms.toFixed(3)} (Void Swarm's songs sit at 0.08-0.10), peak ${m.peak.toFixed(2)}${m.clipped ? `, ${m.clipped} clipped samples (too loud)` : ", no clipping"}, energy around ${Math.round(m.brightHz)} Hz${m.brightHz > bright ? " (bright: may sound harsh, hissy or chirpy)" : m.brightHz < 180 ? " (dark: may sound muffled on small speakers)" : ""}${m.silentShare > 0.3 ? `, ${Math.round(m.silentShare * 100)}% silent` : ""}`;
+const describeSound = (m, bright = 1200) => `rendered ${m.seconds.toFixed(1)} s: loudness ${m.rms.toFixed(3)} (Void Swarm's 8-track songs sit at 0.10-0.13), peak ${m.peak.toFixed(2)}${m.clipped ? `, ${m.clipped} clipped samples (too loud)` : ", no clipping"}, energy around ${Math.round(m.brightHz)} Hz${m.brightHz > bright ? " (bright: may sound harsh, hissy or chirpy)" : m.brightHz < 180 ? " (dark: may sound muffled on small speakers)" : ""}${m.silentShare > 0.3 ? `, ${Math.round(m.silentShare * 100)}% silent` : ""}`;
 function customInstruments(dir) {
   const m = new Map();
   const d = join(dir, "instruments");

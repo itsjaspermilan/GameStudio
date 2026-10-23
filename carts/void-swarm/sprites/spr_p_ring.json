@@ -2,9 +2,10 @@
  "image": "sprites/spr_p_ring.png",
  "frames": 1,
  "origin": [
-  32,
-  32
+  48,
+  48
  ],
  "mask": null,
- "fps": 0
+ "fps": 0,
+ "bank": "items_cold"
 }

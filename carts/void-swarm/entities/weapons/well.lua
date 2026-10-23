@@ -12,7 +12,7 @@ local Well = gs.entity{
 }
 
 function Well:create()
-  local k = self.r / 16 * 0.9
+  local k = self.r / 24 * 0.9
   self.sx, self.sy = k, k
 end
 

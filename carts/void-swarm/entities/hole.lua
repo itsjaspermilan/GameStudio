@@ -3,6 +3,6 @@
 return gs.entity{
   depth = 90,
   sprite = "spr_p_hole",
-  sx = 3, sy = 3,
+  sx = 2, sy = 2,
   alpha = 0.78,
 }

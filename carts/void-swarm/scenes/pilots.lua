@@ -7,7 +7,7 @@ local ui = require "lib.ui"
 local menu = require "lib.menu"
 
 local floor = math.floor
-local spr, txt, txtr, box = ui.spr, ui.txt, ui.txtr, ui.box
+local spr, txt, txtr, box, item = ui.spr, ui.txt, ui.txtr, ui.box, ui.item
 
 local Pilots = gs.scene{}
 
@@ -56,21 +56,21 @@ function Pilots:draw_ui()
   for i, p in ipairs(data.PILOTS) do
     local y = 28 + (i - 1) * 19
     local on, owned = (i == self.cur), s.unl[i] == 1
-    box(6, y, 150, 17, on and 25 or 0, on and 26 or 1, 215)
-    spr("spr_pilot_" .. p.id, 0, 20, y + 9, 0.7, false, 0, owned and 255 or 90)
+    item(6, y, 150, 17, on, 215)
+    spr("spr_pilot_" .. p.id, 0, 20, y + 9, 0.5, false, 0, owned and 255 or 90)
     txt(p.name, 34, y + 5, owned and 3 or 1, 1, 100)
     if s.sel == i then txtr("ACTIVE", 152, y + 5, 22)
     elseif not owned then txtr(tostring(p.cost), 152, y + 5, s.credits >= p.cost and 14 or 5) end
   end
   local p = data.PILOTS[self.cur]
   local owned = s.unl[self.cur] == 1
-  spr("spr_pilot_" .. p.id, 2 + floor(self.tick / 5) % 6, 238, 66, 3, false, 0, owned and 255 or 120)
+  spr("spr_pilot_" .. p.id, 2 + floor(self.tick / 5) % 6, 238, 66, 2, false, 0, owned and 255 or 120)
   txt(p.name, 238 - #p.name * 8, 102, 14, 2, 312)
   for i, l in ipairs(ui.wrap(p.blurb, 17)) do txt(l, 168, 122 + (i - 1) * 9, 2, 1, 312) end
   spr("spr_ico_" .. data.WEAPONS[p.weapon].icon, 0, 176, 156)
   -- drawn here, not in the layout: a long blurb's third line reaches it, and it must stay on top
-  txt("STARTS WITH", 190, 144, 1, 1, 312)
-  for i, l in ipairs(ui.wrap(data.WEAPONS[p.weapon].name, 15)) do txt(l, 190, 154 + (i - 1) * 9, 3, 1, 312) end
+  txt("STARTS WITH", 192, 144, 1, 1, 312)
+  for i, l in ipairs(ui.wrap(data.WEAPONS[p.weapon].name, 15)) do txt(l, 192, 154 + (i - 1) * 9, 3, 1, 312) end
   for i, l in ipairs(mod_lines(p.mods)) do txt(l, 168, 176 + (i - 1) * 9, 18, 1, 312) end
   menu.footer(self, owned and "A: CHOOSE   B: BACK" or ("A: BUY FOR " .. p.cost .. "   B: BACK"))
 end

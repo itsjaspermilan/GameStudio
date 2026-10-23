@@ -4,7 +4,7 @@ local run = require "lib.run"
 local audio = require "lib.audio"
 
 local Hive = gs.entity(Enemy, {
-  kind = "hive", sprite = "spr_e_hive", hitbox = { r = 14 },
+  kind = "hive", sprite = "spr_e_hive", hitbox = { r = 21 },
   cap = 3, hp = 120, spd = 15, dmg = 8, xp = 10,
 })
 

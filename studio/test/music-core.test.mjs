@@ -57,3 +57,15 @@ test("modes: a dorian and a lydian tune from the song generator read as such", a
   assert.equal(analyzeSong(make(4, "dorian", [0, 3, 4, 0])).key.name, "E dorian");
   assert.equal(analyzeSong(make(5, "lydian", [0, 1, 4, 0])).key.name, "F lydian");
 });
+
+test("an echo of the melody is read as an echo, not as the melody or a clash", () => {
+  const mel = [...bar([0, "E4"], [4, "F4"], [8, "G4"], [12, "A4"]), ...bar([0, "G4"], [4, "F4"], [8, "E4"], [12, "D4"]), ...bar([0, "C4"], [4, "D4"], [8, "E4"], [12, "F4"]), ...bar([0, "E4"], [8, "C4"])];
+  const echo = mel.map((_, i) => mel[(i - 3 + mel.length) % mel.length]);
+  const pad = [...bar([0, "C3"]), ...bar([0, "G2"]), ...bar([0, "F2"]), ...bar([0, "C3"])];
+  const bass = [...bar([0, "C2"]), ...bar([0, "G1"]), ...bar([0, "F1"]), ...bar([0, "C2"])];
+  const a = analyzeSong(song([mel, pad, bass, echo], ["gm_vibraphone", "gm_warm_pad", "gm_fretless_bass", "gm_celesta"]));
+  assert.equal(a.tracks[0].role, "melody");
+  assert.match(a.tracks[3].role, /echo of track 1, 3 rows later/);
+  assert.equal(a.clashes, 0, "E4 under F4 one row later is the echo, not a rub");
+  assert.match(describeAnalysis(a), /track 4: gm_celesta, echo of track 1/);
+});

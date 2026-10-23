@@ -4,7 +4,7 @@ local Enemy = require "entities.enemy"
 local run = require "lib.run"
 
 local Minelayer = gs.entity(Enemy, {
-  kind = "minelayer", sprite = "spr_e_minelayer", hitbox = { r = 6 },
+  kind = "minelayer", sprite = "spr_e_minelayer", hitbox = { r = 9 },
   cap = 4, hp = 24, spd = 42, dmg = 4, xp = 3,
 })
 

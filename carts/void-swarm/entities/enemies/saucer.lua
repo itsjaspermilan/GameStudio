@@ -3,7 +3,7 @@ local Enemy = require "entities.enemy"
 local run = require "lib.run"
 
 local Saucer = gs.entity(Enemy, {
-  kind = "saucer", sprite = "spr_e_saucer", hitbox = { r = 6 },
+  kind = "saucer", sprite = "spr_e_saucer", hitbox = { r = 9 },
   cap = 6, hp = 22, spd = 36, dmg = 4, xp = 3,
 })
 

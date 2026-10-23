@@ -2,9 +2,10 @@
  "image": "sprites/spr_fx_boom.png",
  "frames": 5,
  "origin": [
-  16,
-  16
+  24,
+  24
  ],
  "mask": null,
- "fps": 12
+ "fps": 12,
+ "bank": "items_hot"
 }

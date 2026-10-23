@@ -1,114 +1,137 @@
-// The ten sector bosses, 48x48. Frames are small animations (pulse, blink, flicker).
-import { R, K, W } from "../lib/canvas.mjs";
+// The ten sector bosses, 72x72 (one size up from the first 48x48 drawings), painted with lit shapes (scripts/lib/paint.mjs). Frames are
+// small animations (pulse, blink, flicker). They share three colour banks: warm, cold and cosmic.
+import { ramp } from "../../studio/src/palette-core.js";
+import { bank, sphere, capsule, box, plane, outline, dot, ring, shades as pick } from "../lib/paint.mjs";
 
 const tau = Math.PI * 2;
-
+const shades = (hue, sat, n, opts) => pick(ramp(hue, sat, opts), n);
+export const BOSS_BANKS = {
+  boss_warm: bank({ out: ["#160c0e"], orange: shades(24, 0.78, 4, { lo: 0.2, hi: 0.74 }), yellow: shades(46, 0.9, 4, { lo: 0.4, hi: 0.92 }),
+    red: shades(355, 0.75, 3, { lo: 0.25, hi: 0.64 }), steel: shades(222, 0.12, 3, { lo: 0.2, hi: 0.78 }) }),
+  boss_cold: bank({ out: ["#0a0e18"], steel: shades(220, 0.12, 5, { lo: 0.14, hi: 0.94 }), blue: shades(215, 0.62, 4, { lo: 0.16, hi: 0.74 }),
+    red: shades(355, 0.75, 3, { lo: 0.25, hi: 0.66 }), pale: ["#f2d06a", "#fff6e0"] }),
+  boss_cosmic: bank({ out: ["#100a18"], purple: shades(275, 0.5, 4, { lo: 0.14, hi: 0.72 }), teal: shades(178, 0.55, 3, { lo: 0.25, hi: 0.82 }),
+    blue: shades(218, 0.6, 2, { lo: 0.3, hi: 0.66 }), red: shades(355, 0.72, 3, { lo: 0.25, hi: 0.66 }), gold: ["#f0b43c", "#fff2b8"] }),
+};
+const { boss_warm: W, boss_cold: C, boss_cosmic: X } = BOSS_BANKS;
+const nameOf = (b) => Object.keys(BOSS_BANKS).find((k) => BOSS_BANKS[k] === b);
+const B = (id, frames, b, draw) => ({ id, w: 72, h: 72, frames, bank: b, bankName: nameOf(b), draw });
 export const BOSSES = [
-  { id: "rockking", w: 48, h: 48, frames: 2, draw(c, f) {
-    c.sphere(24, 27, 19, [R.grey[0], R.grey[1], R.orange[0], R.orange[1]], -0.5, -0.5, 20, 18);
-    [[14, 20, 3], [32, 36, 4], [34, 18, 2.5], [18, 38, 2.5], [25, 12, 2]].forEach(([x, y, r]) => { c.disc(x, y, r, R.grey[0]); c.disc(x - 0.5, y - 0.5, r - 1, R.grey[1]); });
-    for (let i = 0; i < 5; i++) { const x = 9 + i * 7.5; c.poly([[x, 12 + Math.abs(i - 2) * 2], [x + 3.5, 3 + Math.abs(i - 2) * 2 + (i === 2 ? -2 : 0)], [x + 7, 12 + Math.abs(i - 2) * 2]], R.yellow[2]); c.px(x + 3, 6 + Math.abs(i - 2) * 2, R.yellow[3]); }
-    c.rect(10, 11, 28, 3, R.yellow[1]);
-    c.rect(14, 22, 7, 5, K); c.rect(27, 22, 7, 5, K);
-    c.rect(15, 23, 5, 3, f ? R.orange[3] : R.orange[2]); c.rect(28, 23, 5, 3, f ? R.orange[3] : R.orange[2]); c.px(16, 23, W); c.px(29, 23, W);
-    c.rect(14, 34, 20, 4, K); for (let i = 0; i < 5; i++) c.rect(15 + i * 4, 34, 2, 2, R.grey[3]);
-    c.rect(4, 26, 5, 9, R.grey[1]); c.rect(39, 26, 5, 9, R.grey[1]);
-    c.outline(K);
-  } },
-  { id: "stormeye", w: 48, h: 48, frames: 3, draw(c, f) {
-    for (let i = 0; i < 8; i++) { const a = (i / 8) * tau + f * 0.2; c.poly([[24 + Math.cos(a - 0.2) * 17, 24 + Math.sin(a - 0.2) * 17], [24 + Math.cos(a) * 23, 24 + Math.sin(a) * 23], [24 + Math.cos(a + 0.2) * 17, 24 + Math.sin(a + 0.2) * 17]], i % 2 ? R.yellow[2] : R.blue[3]); }
-    c.sphere(24, 24, 17, [R.grey[2], R.grey[3], W, W], -0.5, -0.5);
-    c.sphere(24, 25, 10, [R.blue[0], R.blue[1], R.blue[2], R.blue[3]], -0.4, -0.5);
-    const p = 3 + (f === 1 ? 1 : 0) + (f === 2 ? -1 : 0);
-    c.disc(24, 25, p + 1.5, K); c.disc(21, 21, 2, W); c.px(27, 28, R.blue[3]);
-    for (let i = 0; i < 6; i++) c.line(24 + Math.cos(i * 1.3) * 12, 24 + Math.sin(i * 1.3) * 12, 24 + Math.cos(i * 1.3 + 0.3) * 16, 24 + Math.sin(i * 1.3 + 0.3) * 16, R.red[2]);
-    c.outline(R.blue[0]);
-  } },
-  { id: "lunarmaw", w: 48, h: 48, frames: 2, draw(c, f) {
-    c.sphere(24, 24, 21, [R.grey[0], R.grey[1], R.grey[2], R.grey[3]], -0.5, -0.5);
-    [[12, 12, 4], [36, 14, 3], [38, 34, 3.5], [10, 33, 3]].forEach(([x, y, r]) => { c.disc(x, y, r, R.grey[1]); c.disc(x + 0.5, y + 0.5, r - 1, R.grey[0]); });
-    c.rect(14, 15, 6, 6, R.red[2]); c.rect(28, 15, 6, 6, R.red[2]); c.rect(16, 16, 3, 3, R.yellow[3]); c.rect(30, 16, 3, 3, R.yellow[3]); c.px(16, 16, W); c.px(30, 16, W);
-    const o = f ? 5 : 2;
-    c.ellipse(24, 33, 13, 4 + o, K); c.ellipse(24, 33 + o, 8, 3, R.red[1]);
-    for (let i = 0; i < 6; i++) { const x = 13 + i * 4.4; c.poly([[x, 33 - 4 - o + 1], [x + 3, 33 - 4 - o + 1], [x + 1.5, 33 - 4 - o + 6]], W); c.poly([[x, 33 + 4 + o - 1], [x + 3, 33 + 4 + o - 1], [x + 1.5, 33 + 4 + o - 6]], R.grey[3]); }
-    c.outline(K);
-  } },
-  { id: "crystalmother", w: 48, h: 48, frames: 2, draw(c, f) {
-    const shard = (x, y, ang, len, wid, ramp) => { const ca = Math.cos(ang), sa = Math.sin(ang), px = -sa, py = ca; c.poly([[x + px * wid, y + py * wid], [x + ca * len, y + sa * len], [x - px * wid, y - py * wid]], ramp[1]); c.poly([[x + px * wid, y + py * wid], [x + ca * len, y + sa * len], [x, y]], ramp[2]); };
-    for (let i = 0; i < 9; i++) { const a = (i / 9) * tau + 0.3; shard(24, 26, a, 21 + (i % 3) * 2, 5, i % 2 ? R.purple : R.blue); }
-    c.poly([[24, 4], [38, 18], [34, 40], [14, 40], [10, 18]], R.teal[1]); c.poly([[24, 4], [10, 18], [14, 40], [22, 40], [22, 18]], R.teal[2]); c.poly([[24, 4], [22, 18], [30, 14]], R.teal[3]);
-    c.disc(24, 26, 6 + f, R.yellow[2]); c.disc(24, 26, 3 + f, W);
-    c.rect(15, 22, 3, 2, K); c.rect(30, 22, 3, 2, K);
-    c.outline(R.blue[0]);
-  } },
-  { id: "scraptitan", w: 48, h: 48, frames: 2, draw(c, f) {
-    const a = f ? 2 : 0;
-    c.rect(8, 36, 10, 10, R.grey[1]); c.rect(30, 36, 10, 10, R.grey[1]); c.rect(6, 44, 14, 3, R.grey[2]); c.rect(28, 44, 14, 3, R.grey[2]);
-    c.rect(12, 18, 24, 20, R.grey[2]); c.rect(12, 18, 24, 3, R.grey[3]); c.rect(30, 21, 6, 17, R.grey[1]); c.rect(15, 28, 18, 3, R.orange[2]); c.rect(15, 28, 18, 1, R.orange[3]);
-    c.rect(14, 6, 20, 13, R.grey[2]); c.rect(14, 6, 20, 2, R.grey[3]); c.rect(28, 8, 6, 11, R.grey[1]);
-    c.rect(17, 10, 14, 5, K); c.rect(19, 11, 10, 3, R.red[2]); c.rect(f ? 22 : 20, 11, 3, 3, R.red[3]);
-    c.rect(2, 20 + a, 9, 6, R.orange[2]); c.rect(0, 26 + a, 5, 10, R.grey[1]); c.rect(38, 20 - a + 2, 9, 6, R.orange[2]); c.rect(43, 26 - a + 2, 5, 10, R.grey[1]);
-    c.poly([[0, 36 + a], [5, 36 + a], [3, 42 + a]], R.grey[3]); c.poly([[43, 38 - a], [48, 38 - a], [46, 44 - a]], R.grey[3]);
-    c.rect(22, 2, 4, 5, R.grey[1]); c.px(23, 1, f ? R.yellow[3] : R.red[2]);
-    for (let i = 0; i < 4; i++) c.px(15 + i * 6, 22, R.yellow[1]);
-    c.outline(K);
-  } },
-  { id: "pulsar", w: 48, h: 48, frames: 3, draw(c, f) {
-    for (let i = 0; i < 12; i++) { const a = (i / 12) * tau + f * 0.12, l = i % 2 ? 22 : 18; c.poly([[24 + Math.cos(a - 0.2) * 14, 24 + Math.sin(a - 0.2) * 14], [24 + Math.cos(a) * l, 24 + Math.sin(a) * l], [24 + Math.cos(a + 0.2) * 14, 24 + Math.sin(a + 0.2) * 14]], i % 2 ? R.orange[2] : R.yellow[2]); }
-    c.sphere(24, 24, 14, [R.orange[1], R.orange[2], R.yellow[2], R.yellow[3]], -0.4, -0.4);
-    c.rect(17, 20, 5, 4, K); c.rect(27, 20, 5, 4, K); c.rect(18, 21, 3, 2, R.red[2]); c.rect(28, 21, 3, 2, R.red[2]); c.px(18, 21, W); c.px(28, 21, W);
-    c.rect(19, 29, 11, 2, K); c.ring(24, 24, 20 + (f % 2), 1, R.yellow[3]);
-    c.outline(R.red[1]);
-  } },
-  { id: "hivequeen", w: 48, h: 48, frames: 2, draw(c, f) {
-    const w = f ? 3 : 0;
-    c.poly([[8, 10 + w], [22, 18], [20, 28], [4, 22 + w]], R.teal[3]); c.poly([[40, 10 + w], [26, 18], [28, 28], [44, 22 + w]], R.teal[3]); c.poly([[10, 12 + w], [20, 18], [19, 24], [7, 20 + w]], R.teal[2]); c.poly([[38, 12 + w], [28, 18], [29, 24], [41, 20 + w]], R.teal[2]);
-    c.sphere(24, 36, 11, [R.orange[1], R.orange[2], R.yellow[2], R.yellow[3]], -0.5, -0.5, 10, 11);
-    for (let i = 0; i < 3; i++) c.rect(15, 33 + i * 4, 18, 2, R.orange[0]);
-    c.rect(22, 45, 4, 3, R.red[2]);
-    c.sphere(24, 18, 9, R.green, -0.5, -0.6); c.rect(17, 14, 5, 4, K); c.rect(27, 14, 5, 4, K); c.rect(18, 15, 3, 2, R.yellow[3]); c.rect(28, 15, 3, 2, R.yellow[3]);
-    c.poly([[17, 22], [20, 28], [22, 22]], W); c.poly([[31, 22], [28, 28], [26, 22]], W);
-    c.line(19, 9, 14, 3, R.green[3]); c.line(29, 9, 34, 3, R.green[3]); c.px(14, 2, R.yellow[3]); c.px(34, 2, R.yellow[3]);
-    c.outline(R.green[0]);
-  } },
-  { id: "horizon", w: 48, h: 48, frames: 3, draw(c, f) {
-    const band = (e, x, y, front) => {
-      const sw = ((Math.atan2(y - 24, x - 24) / tau) * 12 + f * 1.3) % 2, sp = Math.floor(sw + 4) % 2 === 0;
-      if (e < 0.3) return sp ? W : R.yellow[3];
-      if (e < 0.55) return sp ? R.yellow[3] : R.orange[2];
-      if (e < 0.8) return sp ? R.orange[2] : R.red[2];
-      return sp ? R.purple[2] : R.purple[1];
+  B("rockking", 2, W, (c, f) => {
+    box(c, 5, 39, 8, 14, W.steel, { round: 3 }); box(c, 59, 39, 8, 14, W.steel, { round: 3, bias: -0.2 });          // fists of stone
+    sphere(c, 36, 40.5, 30, 27, [W.out[0], W.steel[0], W.steel[1], W.orange[0], W.orange[1]], { spec: W.orange[2] });
+    for (const [x, y, r] of [[21, 30, 4.5], [48, 54, 6], [51, 27, 3.8], [27, 57, 3.8], [37, 18, 3]]) sphere(c, x, y, r, r, [W.out[0], W.steel[0], W.steel[1]], { bias: -0.2 });
+    for (let i = 0; i < 5; i++) { const x = 13 + i * 11.3, d = Math.abs(i - 2) * 3; plane(c, [[x, 18 + d], [x + 5.3, 4 + d - (i === 2 ? 3 : 0)], [x + 10.5, 18 + d]], W.yellow, i < 2 ? 0.6 : i === 2 ? 0.3 : -0.2); } // the crown
+    box(c, 15, 16, 42, 5, W.yellow, { round: 2 });
+    for (const ex of [21, 41]) { box(c, ex, 33, 11, 8, [W.out[0]], { round: 2 }); box(c, ex + 1.5, 34.5, 8, 5, f ? W.yellow : W.orange, { round: 1 }); dot(c, ex + 2, 35, W.yellow[3]); }
+    box(c, 21, 51, 30, 6, [W.out[0]], { round: 2 }); for (let i = 0; i < 5; i++) box(c, 23 + i * 6, 51, 3, 3, W.steel, { round: 0, bias: 0.4 });
+    outline(c, W);
+  }),
+  B("stormeye", 3, C, (c, f) => {
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * tau + f * 0.2; plane(c, [[36 + Math.cos(a - 0.2) * 25, 36 + Math.sin(a - 0.2) * 25], [36 + Math.cos(a) * 34.5, 36 + Math.sin(a) * 34.5], [36 + Math.cos(a + 0.2) * 25, 36 + Math.sin(a + 0.2) * 25]], i % 2 ? C.pale : C.blue, Math.cos(a + 2.4) * 0.7); } // lightning spikes
+    sphere(c, 36, 36, 25.5, 25.5, C.steel, { spec: C.pale[1], edge: true });
+    sphere(c, 36, 37.5, 15, 15, C.blue, { spec: C.blue[3] });
+    const p = 4.5 + (f === 1 ? 1.5 : 0) + (f === 2 ? -1.5 : 0);
+    sphere(c, 36, 37.5, p + 2.2, p + 2.2, [C.out[0]]); sphere(c, 31.5, 31.5, 3, 3, [C.pale[1]]);
+    for (let i = 0; i < 6; i++) capsule(c, 36 + Math.cos(i * 1.3) * 18, 36 + Math.sin(i * 1.3) * 18, 36 + Math.cos(i * 1.3 + 0.3) * 24, 36 + Math.sin(i * 1.3 + 0.3) * 24, 0.8, C.red); // veins
+    outline(c, C);
+  }),
+  B("lunarmaw", 2, C, (c, f) => {
+    sphere(c, 36, 36, 31.5, 31.5, C.steel, { spec: C.steel[4] });
+    for (const [x, y, r] of [[18, 18, 6], [54, 21, 4.5], [57, 51, 5.2], [15, 50, 4.5]]) sphere(c, x, y, r, r, C.steel, { bias: -0.35 }); // craters
+    for (const ex of [21, 42]) { box(c, ex, 22, 9, 9, C.red, { round: 2 }); box(c, ex + 2.5, 24, 4.5, 4.5, C.pale, { round: 1 }); dot(c, ex + 3, 24, C.pale[1]); }
+    const o = f ? 7.5 : 3;
+    sphere(c, 36, 49.5, 19.5, 6 + o, [C.out[0]]); sphere(c, 36, 49.5 + o, 12, 4.5, C.red);              // the maw
+    for (let i = 0; i < 6; i++) { const x = 19.5 + i * 6.6; plane(c, [[x, 44.5 - o], [x + 4.5, 44.5 - o], [x + 2.2, 52 - o]], C.pale, 0.7); plane(c, [[x, 54.5 + o], [x + 4.5, 54.5 + o], [x + 2.2, 47 + o]], C.steel, 0.4); }
+    outline(c, C);
+  }),
+  B("crystalmother", 2, X, (c, f) => {
+    const shard = (ang, len, wid, rmp) => { const ca = Math.cos(ang), sa = Math.sin(ang), px = -sa, py = ca;
+      plane(c, [[36 + px * wid, 39 + py * wid], [36 + ca * len, 39 + sa * len], [36 - px * wid, 39 - py * wid]], rmp, -0.2);
+      plane(c, [[36 + px * wid, 39 + py * wid], [36 + ca * len, 39 + sa * len], [36, 39]], rmp, 0.6); };
+    for (let i = 0; i < 9; i++) shard((i / 9) * tau + 0.3, 31 + (i % 3) * 3, 7.5, i % 2 ? X.purple : X.blue);
+    plane(c, [[36, 6], [57, 27], [51, 60], [21, 60], [15, 27]], X.teal, 0); plane(c, [[36, 6], [15, 27], [21, 60], [33, 60], [33, 27]], X.teal, 0.7);
+    plane(c, [[36, 6], [33, 27], [45, 21]], X.teal, 1);
+    sphere(c, 36, 39, 9 + f * 1.5, 9 + f * 1.5, X.gold, { spec: X.gold[1] }); sphere(c, 36, 39, 4.5 + f * 1.5, 4.5 + f * 1.5, [X.gold[1]]); // the heart crystal
+    box(c, 22, 33, 5, 3, [X.out[0]], { round: 0 }); box(c, 45, 33, 5, 3, [X.out[0]], { round: 0 });
+    outline(c, X);
+  }),
+  B("scraptitan", 2, W, (c, f) => {
+    const a = f ? 3 : 0;
+    box(c, 12, 54, 15, 15, W.steel, { round: 2 }); box(c, 45, 54, 15, 15, W.steel, { round: 2, bias: -0.2 });
+    box(c, 9, 66, 21, 5, W.steel, { round: 1 }); box(c, 42, 66, 21, 5, W.steel, { round: 1, bias: -0.1 });
+    box(c, 18, 27, 36, 30, W.steel, { round: 4 });                                                          // the chest
+    box(c, 22, 42, 27, 5, W.orange, { round: 1 });
+    box(c, 21, 9, 30, 20, W.steel, { round: 4 });                                                           // the head
+    box(c, 25, 15, 21, 8, [W.out[0]], { round: 1 }); box(c, 28, 16.5, 15, 5, W.red, { round: 1 }); box(c, f ? 33 : 30, 16.5, 5, 5, [W.red[2]], { round: 1 });
+    box(c, 3, 30 + a, 14, 9, W.orange, { round: 3 }); box(c, 0, 39 + a, 8, 15, W.steel, { round: 2 });        // arms of scrap
+    box(c, 56, 33 - a, 14, 9, W.orange, { round: 3, bias: -0.15 }); box(c, 64, 42 - a, 8, 15, W.steel, { round: 2, bias: -0.2 });
+    plane(c, [[0, 54 + a], [8, 54 + a], [4, 63 + a]], W.steel, 0.6); plane(c, [[64, 57 - a], [72, 57 - a], [69, 66 - a]], W.steel, 0.2); // claws
+    box(c, 33, 3, 6, 7, W.steel, { round: 1 }); dot(c, 35, 1, f ? W.yellow[3] : W.red[2]);
+    for (let i = 0; i < 4; i++) sphere(c, 24 + i * 9, 33, 1.3, 1.3, W.yellow);                              // rivets
+    outline(c, W);
+  }),
+  B("pulsar", 3, W, (c, f) => {
+    for (let i = 0; i < 12; i++) { const a = (i / 12) * tau + f * 0.12, l = i % 2 ? 33 : 27; plane(c, [[36 + Math.cos(a - 0.2) * 21, 36 + Math.sin(a - 0.2) * 21], [36 + Math.cos(a) * l, 36 + Math.sin(a) * l], [36 + Math.cos(a + 0.2) * 21, 36 + Math.sin(a + 0.2) * 21]], i % 2 ? W.orange : W.yellow, Math.cos(a + 2.4) * 0.6); }
+    sphere(c, 36, 36, 21, 21, [W.orange[1], W.orange[2], W.yellow[1], W.yellow[2], W.yellow[3]], { spec: W.yellow[3] });
+    for (const ex of [25, 40]) { box(c, ex, 30, 8, 6, [W.out[0]], { round: 1 }); box(c, ex + 1.5, 31.5, 5, 3, W.red, { round: 0 }); dot(c, ex + 2, 31, W.yellow[3]); }
+    box(c, 28, 43.5, 17, 3, [W.out[0]], { round: 1 });
+    ring(c, 36, 36, 29.5 + (f % 2), 31 + (f % 2), W.yellow);                                                // a pulse ring
+    outline(c, W);
+  }),
+  B("hivequeen", 2, X, (c, f) => {
+    const w = f ? 4.5 : 0;
+    plane(c, [[12, 15 + w], [33, 27], [30, 42], [6, 33 + w]], X.teal, 0.6); plane(c, [[60, 15 + w], [39, 27], [42, 42], [66, 33 + w]], X.teal, -0.2); // wings
+    plane(c, [[15, 18 + w], [30, 27], [28.5, 36], [10.5, 30 + w]], X.teal, 1); plane(c, [[57, 18 + w], [42, 27], [43.5, 36], [61.5, 30 + w]], X.teal, 0.3);
+    sphere(c, 36, 54, 16.5, 16.5, [X.red[0], X.red[1], X.gold[0], X.gold[1]], { spec: X.gold[1] });                // the abdomen
+    for (let i = 0; i < 3; i++) box(c, 22, 49.5 + i * 6, 28, 2, [X.red[0]], { round: 0 });
+    box(c, 33, 67, 6, 5, X.red, { round: 1 });                                                                     // the stinger
+    sphere(c, 36, 27, 13.5, 13.5, X.teal, { spec: X.teal[2] });                                                     // the head
+    for (const ex of [25, 40]) { box(c, ex, 21, 8, 6, [X.out[0]], { round: 1 }); box(c, ex + 1.5, 22.5, 5, 3, [X.gold[1]], { round: 0 }); }
+    plane(c, [[25, 33], [30, 42], [33, 33]], [X.gold[1]], 0); plane(c, [[47, 33], [42, 42], [39, 33]], [X.gold[1]], 0); // mandibles
+    capsule(c, 28, 13.5, 21, 4.5, 0.8, X.teal); capsule(c, 44, 13.5, 51, 4.5, 0.8, X.teal); dot(c, 21, 3, X.gold[1]); dot(c, 51, 3, X.gold[1]);
+    outline(c, X);
+  }),
+  B("horizon", 3, X, (c, f) => {
+    const band = (e, x, y) => {
+      const sw = ((Math.atan2(y - 36, x - 36) / tau) * 12 + f * 1.3) % 2, sp = Math.floor(sw + 4) % 2 === 0;
+      if (e < 0.3) return sp ? X.gold[1] : X.gold[0];
+      if (e < 0.55) return sp ? X.gold[0] : X.red[2];
+      if (e < 0.8) return sp ? X.red[2] : X.red[1];
+      return sp ? X.purple[2] : X.purple[1];
     };
-    for (let y = 0; y < 48; y++) for (let x = 0; x < 48; x++) {
-      const dx = (x + 0.5 - 24) / 23, dy = (y + 0.5 - 24) / 9, e = dx * dx + dy * dy;
-      if (e <= 1 && e > 0.08) c.px(x, y, band(e, x, y));
-    }
-    c.disc(24, 24, 10, K); c.ring(24, 24, 10.5, 1, R.purple[3]); c.disc(24, 24, 9, K);
-    for (let y = 25; y < 48; y++) for (let x = 0; x < 48; x++) {
-      const dx = (x + 0.5 - 24) / 23, dy = (y + 0.5 - 24) / 9, e = dx * dx + dy * dy;
-      if (e <= 1 && e > 0.08 && Math.hypot(x + 0.5 - 24, y + 0.5 - 24) > 4) c.px(x, y, band(e, x, y));
-    }
-    c.rect(18, 20, 4, 3, R.purple[2]); c.rect(27, 20, 4, 3, R.purple[2]); c.px(19, 20, W); c.px(28, 20, W); c.rect(21, 26, 7, 1, R.purple[0]);
-    c.outline(R.purple[0]);
-  } },
-  { id: "dread", w: 48, h: 48, frames: 2, draw(c, f) {
-    c.poly([[2, 24], [10, 14], [36, 12], [46, 24], [36, 36], [10, 34]], R.grey[1]); c.poly([[4, 24], [11, 16], [36, 14], [44, 24], [16, 24]], R.grey[2]); c.poly([[11, 16], [36, 14], [34, 18], [13, 19]], R.grey[3]);
-    c.rect(12, 21, 26, 6, R.blue[1]); c.rect(12, 21, 26, 1, R.blue[3]);
-    c.rect(16, 6, 10, 8, R.grey[2]); c.rect(16, 6, 10, 2, R.grey[3]); c.rect(18, 3, 2, 4, R.grey[1]); c.px(19, 2, f ? R.red[3] : R.red[2]);
-    c.rect(16, 34, 10, 8, R.grey[2]); c.rect(16, 40, 10, 2, R.grey[1]);
-    c.rect(36, 19, 10, 3, R.grey[3]); c.rect(36, 26, 10, 3, R.grey[3]); c.px(46, 20, f ? W : R.orange[3]); c.px(46, 27, f ? R.orange[3] : W);
-    for (let i = 0; i < 6; i++) c.px(8 + i * 5, 30, i % 2 === f ? R.yellow[3] : R.red[2]);
-    c.rect(0, 20, 3, 3, f ? R.orange[3] : R.orange[2]); c.rect(0, 26, 3, 3, f ? R.orange[2] : R.orange[3]);
-    c.disc(30, 24, 3, K); c.px(30, 24, R.red[3]);
-    c.outline(K);
-  } },
-  { id: "voidheart", w: 48, h: 48, frames: 3, draw(c, f) {
-    for (let i = 0; i < 6; i++) { const a = (i / 6) * tau + 0.5; c.line(24, 24, 24 + Math.cos(a) * 22, 24 + Math.sin(a) * 22, R.grey[1]); c.line(24 + 1, 24, 24 + 1 + Math.cos(a) * 22, 24 + Math.sin(a) * 22, R.grey[2]); c.disc(24 + Math.cos(a) * 22, 24 + Math.sin(a) * 22, 2.4, R.purple[2]); c.px(24 + Math.cos(a) * 22, 24 + Math.sin(a) * 22, R.purple[3]); }
-    const r = 14 + (f === 1 ? 1.5 : f === 2 ? 0.5 : 0);
-    c.sphere(24, 24, r, [R.purple[0], R.red[1], R.red[2], R.red[3]], -0.4, -0.5);
-    c.ring(24, 24, r + 3, 2, R.grey[2]); c.ring(24, 24, r + 3, 1, R.grey[3]);
-    c.ellipse(24, 24, 9, 4.5, K); c.ellipse(24, 24, 7, 3, R.purple[3]); c.ellipse(24, 24, 2, 3, K); c.px(23, 22, W);
-    c.px(22, 25, R.yellow[3]);
-    c.outline(R.purple[0]);
-  } },
+    const disk = (front) => { for (let y = 0; y < 72; y++) for (let x = 0; x < 72; x++) {
+      const dx = (x + 0.5 - 36) / 34.5, dy = (y + 0.5 - 36) / 13.5, e = dx * dx + dy * dy;
+      if (e <= 1 && e > 0.08 && (!front || (y >= 37 && Math.hypot(x + 0.5 - 36, y + 0.5 - 36) > 6))) c.px(x, y, band(e, x, y));
+    } };
+    disk(false);
+    sphere(c, 36, 36, 15, 15, [X.out[0]]); ring(c, 36, 36, 15, 16.5, X.purple);                              // the hole and its glow
+    disk(true);
+    for (const ex of [27, 40]) { box(c, ex, 30, 6, 4, X.purple, { round: 1, bias: 0.3 }); dot(c, ex + 1, 30, X.gold[1]); }
+    box(c, 31, 39, 11, 1, [X.purple[0]], { round: 0 });
+    outline(c, X);
+  }),
+  B("dread", 2, C, (c, f) => {
+    plane(c, [[3, 36], [15, 21], [54, 18], [69, 36], [54, 54], [15, 51]], C.steel, -0.3);                      // the hull
+    plane(c, [[6, 36], [16.5, 24], [54, 21], [66, 36], [24, 36]], C.steel, 0.4); plane(c, [[16.5, 24], [54, 21], [51, 27], [19.5, 28.5]], C.steel, 0.95);
+    box(c, 18, 31.5, 39, 9, C.blue, { round: 2 });                                                             // the bridge windows
+    box(c, 24, 9, 15, 12, C.steel, { round: 2 }); box(c, 27, 4.5, 3, 6, C.steel, { round: 1, bias: -0.2 }); dot(c, 28, 3, f ? C.red[2] : C.red[1]); // the tower
+    box(c, 24, 51, 15, 12, C.steel, { round: 2, bias: -0.2 });
+    box(c, 54, 28.5, 15, 4.5, C.steel, { round: 1 }); box(c, 54, 39, 15, 4.5, C.steel, { round: 1, bias: -0.15 }); // the guns
+    dot(c, 69, 30, f ? C.pale[1] : C.red[2]); dot(c, 69, 40, f ? C.red[2] : C.pale[1]);
+    for (let i = 0; i < 6; i++) sphere(c, 12 + i * 7.5, 45, 1.2, 1.2, i % 2 === f ? C.pale : C.red);           // running lights
+    box(c, 0, 30, 5, 5, f ? C.pale : C.red, { round: 1 }); box(c, 0, 39, 5, 5, f ? C.red : C.pale, { round: 1 }); // the engines
+    sphere(c, 45, 36, 4.5, 4.5, [C.out[0]]); dot(c, 45, 36, C.red[2]);
+    outline(c, C);
+  }),
+  B("voidheart", 3, X, (c, f) => {
+    for (let i = 0; i < 6; i++) { const a = (i / 6) * tau + 0.5, ex = 36 + Math.cos(a) * 33, ey = 36 + Math.sin(a) * 33;
+      capsule(c, 36, 36, ex, ey, 1.4, X.teal, { bias: -0.2 }); sphere(c, ex, ey, 3.6, 3.6, X.purple, { spec: X.purple[3] }); } // tethers
+    const r = 21 + (f === 1 ? 2.2 : f === 2 ? 0.8 : 0);
+    sphere(c, 36, 36, r, r, [X.purple[0], X.red[0], X.red[1], X.red[2]], { spec: X.gold[1] });
+    ring(c, 36, 36, r + 3, r + 5.5, X.teal);
+    sphere(c, 36, 36, 13.5, 6.8, [X.out[0]]); sphere(c, 36, 36, 10.5, 4.5, X.purple, { bias: 0.3 }); sphere(c, 36, 36, 3, 4.5, [X.out[0]]); // an eye
+    dot(c, 34, 33, X.gold[1]);
+    outline(c, X);
+  }),
 ];

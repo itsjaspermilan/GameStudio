@@ -1,163 +1,172 @@
-// The ten pilots: 24x24 (a hero is about a tenth of Glow43's screen height), drawn at that size pixel for pixel. Eight frames each: 0-1 idle (breathing),
-// 2-7 a walk cycle. They stand three-quarters turned to the right (the game mirrors them when they walk left): a shared little spacesuit body
-// whose legs stride, arms swing against the legs and body bobs, with a different helmet and extras per pilot.
-import { R, K, W } from "../lib/canvas.mjs";
+// The ten pilots: 32x32 (a hero is 13% of Glow43's screen height), painted with lit shapes from scripts/lib/paint.mjs. Eight frames each:
+// 0-1 idle (breathing), 2-7 a walk cycle. They stand three-quarters turned to the right (the game mirrors them when they walk left): a
+// shared little spacesuit body whose legs stride, arms swing against the legs and body bobs, with a different helmet and extras per
+// pilot. Two pilots share each colour bank (the console has 16 sprite banks for everything), so a bank is the ramps both of them need.
+import { ramp } from "../../studio/src/palette-core.js";
+import { bank, sphere, capsule, box, plane, outline, dot } from "../lib/paint.mjs";
 
 export const FRAMES = 8;
 export const CLIPS = { idle: { from: 0, to: 1, fps: 3, loop: true }, walk: { from: 2, to: 7, fps: 12, loop: true } };
+
+// n shades of a five-step ramp, spread from dark to light
+const shades = (hue, sat, n, opts) => { const r = ramp(hue, sat, opts); return n >= 5 ? r : Array.from({ length: n }, (_, i) => r[Math.round((i * 4) / (n - 1))]); };
+const BANKS = {
+  nova_lancer: bank({ out: ["#12101c"], blue: shades(220, 0.62, 4, { lo: 0.18, hi: 0.72 }), grey: shades(225, 0.14, 4, { lo: 0.2, hi: 0.88 }),
+    red: shades(355, 0.7, 3, { lo: 0.25, hi: 0.62 }), teal: shades(185, 0.6, 2, { lo: 0.3, hi: 0.8 }), flame: ["#f0902c"] }),
+  bulwark_vex: bank({ out: ["#160e10"], grey: shades(220, 0.12, 4, { lo: 0.2, hi: 0.86 }), orange: shades(28, 0.75, 4, { lo: 0.22, hi: 0.78 }),
+    red: shades(355, 0.75, 2, { lo: 0.35, hi: 0.65 }), teal: shades(180, 0.6, 2, { lo: 0.3, hi: 0.78 }), gold: shades(48, 0.85, 2, { lo: 0.5, hi: 0.85 }) }),
+  zephyr_sparks: bank({ out: ["#10140e"], green: shades(115, 0.5, 4, { lo: 0.18, hi: 0.72 }), yellow: shades(48, 0.8, 4, { lo: 0.3, hi: 0.86 }),
+    orange: shades(26, 0.75, 3, { lo: 0.3, hi: 0.72 }), grey: shades(220, 0.12, 2, { lo: 0.35, hi: 0.8 }), blue: shades(215, 0.7, 1, { lo: 0.6, hi: 0.6 }) }),
+  gravis_kuro: bank({ out: ["#120c1a"], purple: shades(270, 0.48, 5, { lo: 0.12, hi: 0.72 }), teal: shades(178, 0.6, 3, { lo: 0.3, hi: 0.8 }),
+    red: shades(352, 0.72, 3, { lo: 0.25, hi: 0.62 }), grey: shades(230, 0.1, 3, { lo: 0.1, hi: 0.6 }) }),
+  mira_halo: bank({ out: ["#160e14"], red: shades(355, 0.62, 4, { lo: 0.22, hi: 0.72 }), teal: shades(180, 0.55, 4, { lo: 0.2, hi: 0.76 }),
+    grey: shades(225, 0.1, 3, { lo: 0.4, hi: 0.95 }), gold: shades(46, 0.85, 3, { lo: 0.45, hi: 0.9 }) }),
+};
+export const PILOT_BANKS = BANKS;
 
 // Where the moving parts are in frame f. A walk frame's phase goes once round a circle over the six frames; the near leg leads at phase 0.
 function pose(f) {
   if (f < 2) return { bob: f, near: [0, 0], far: [0, 0], armNear: 0, armFar: 0 };
   const p = ((f - 2) / 6) * Math.PI * 2;
-  // a foot travelling forward (cos > 0 for the near one) is the one in the air
-  const foot = (ph) => [Math.round(Math.sin(ph) * 2.6), Math.max(0, Math.round(Math.cos(ph) * 1.6))];
-  return {
-    bob: (f - 2) % 3 === 0 ? -1 : 0, // up while the legs pass each other, down when they are apart
-    near: foot(p), far: foot(p + Math.PI),
-    armNear: Math.round(-Math.sin(p) * 2), armFar: Math.round(Math.sin(p) * 2),
-  };
+  const foot = (ph) => [Math.sin(ph) * 3.4, Math.max(0, Math.cos(ph) * 2.2)]; // a foot travelling forward (cos > 0) is in the air
+  return { bob: (f - 2) % 3 === 0 ? -1 : 0, near: foot(p), far: foot(p + Math.PI), armNear: -Math.sin(p) * 2.6, armFar: Math.sin(p) * 2.6 };
 }
 
-// a 2 pixel wide limb from (x0, y0) down to (x1, y1)
-function limb(c, x0, y0, x1, y1, col) {
-  const n = Math.max(1, y1 - y0);
-  for (let i = 0; i <= n; i++) c.rect(Math.round(x0 + ((x1 - x0) * i) / n), y0 + i, 2, 1, col);
+function leg(c, hx, [dx, lift], suit, trim, far) {
+  const fy = 28.5 - lift, fx = hx + dx;
+  capsule(c, hx, 23, fx, fy - 1, 1.8, suit, { bias: far ? -0.18 : 0, edge: !far });
+  box(c, Math.round(fx - 1.6), Math.round(fy - 0.8), 5, 3, trim, { round: 1, bias: far ? -0.18 : 0 }); // boot, toe forward
 }
-
-function leg(c, hx, [dx, lift], S, T, dark) {
-  const fy = 21 - lift, fx = hx + dx;
-  limb(c, hx, 18, fx, fy, dark ? S[0] : S[1]);
-  c.px(hx, 18, dark ? S[1] : S[2]);
-  c.rect(fx, fy + 1, 3, 2, dark ? T[0] : T[1]); // boot, toe forward
-  c.px(fx + 2, fy + 1, dark ? T[1] : T[2]);
-}
-
-function arm(c, sx, sy, dx, S, T, dark) {
-  limb(c, sx, sy, sx + dx, sy + 4, dark ? S[0] : S[1]);
-  if (!dark) c.px(sx, sy, S[2]);
-  c.rect(sx + dx, sy + 5, 2, 1, dark ? T[1] : T[2]); // glove
+function arm(c, sx, sy, dx, suit, trim, far) {
+  capsule(c, sx, sy, sx + dx, sy + 5.5, 1.7, suit, { bias: far ? -0.2 : 0, edge: !far });
+  sphere(c, sx + dx, sy + 6.6, 1.6, 1.5, trim, { bias: far ? -0.2 : 0 }); // glove
 }
 
 // The shared body. Returns the helmet's centre for this frame: { x, y, bob }.
-function body(c, f, o) {
-  const { bob, near, far, armNear, armFar } = pose(f);
-  const S = o.suit, T = o.trim, wide = o.wide ? 1 : 0;
-  const top = 12 + bob;
-  leg(c, 9, far, S, T, true);
-  arm(c, 7 - wide, top + 1, armFar, S, T, true);
-  // torso: the light comes from the top left, the right side is in shade
-  c.rect(8 - wide, top, 8 + wide * 2, 6 - bob, S[1]);
-  c.rect(8 - wide, top, 8 + wide * 2, 1, S[2]); c.rect(8 - wide, top, 2, 5 - bob, S[2]);
-  c.rect(14 + wide, top + 1, 2, 5 - bob, S[0]);
-  c.rect(8 - wide, 17, 8 + wide * 2, 1, T[0]); c.px(12, 17, T[3]); // belt and buckle
-  c.rect(11, top + 2, 3, 2, T[1]); c.px(11, top + 2, T[2]); // chest panel
-  leg(c, 12, near, S, T, false);
-  arm(c, 15 + wide, top + 1, armNear, S, T, false);
-  return { x: 12, y: 6.5 + bob, bob };
+function body(c, f, { suit, trim, buckle, wide = 0 }) {
+  const { bob, near, far, armNear, armFar } = pose(f), top = 15 + bob;
+  leg(c, 13.5, far, suit, trim, true);
+  arm(c, 10.5 - wide, top + 1.5, armFar, suit, trim, true);
+  box(c, 11 - wide, top, 10 + wide * 2, 9 - bob, suit, { round: 3 });          // torso
+  box(c, 11 - wide, 23, 10 + wide * 2, 2, trim, { round: 1, slope: 0 });        // belt
+  dot(c, 16, 23, buckle); dot(c, 16, 24, buckle);
+  box(c, 14, top + 2, 4, 3, trim, { round: 1 });                                // chest panel
+  leg(c, 17.5, near, suit, trim, false);
+  arm(c, 21 + wide, top + 1.5, armNear, suit, trim, false);
+  return { x: 16, y: 8.5 + bob, bob };
 }
+// a round helmet with the visor turned toward the right
+function helmet(c, h, shell, glass, r = 7.5) {
+  sphere(c, h.x, h.y, r, r, shell, { edge: true });
+  sphere(c, h.x + 2.2, h.y + 1, r - 3, r - 4.2, glass, { bias: -0.15, spec: glass[glass.length - 1] });
+}
+const eyes = (c, h, col, dy = 1) => { for (const ex of [2, 5]) { dot(c, h.x + ex, h.y + dy, col); dot(c, h.x + ex, h.y + dy + 1, col); } };
 
-// A round helmet with the visor turned towards the right.
-function helmet(c, h, glass, ramp = R.grey, r = 6) {
-  c.sphere(h.x, h.y, r, ramp);
-  c.ellipse(h.x + 1.5, h.y + 0.8, r - 2.2, r - 3.2, glass[0]);
-  c.px(h.x - 0.5, h.y - 0.8, glass[1]); c.px(h.x + 0.5, h.y - 1.5, glass[1]);
-}
-function eyes(c, h, col, dy = 1) { c.px(h.x + 1, h.y + dy, col); c.px(h.x + 4, h.y + dy, col); c.px(h.x + 1, h.y + dy + 1, col); c.px(h.x + 4, h.y + dy + 1, col); }
+const P = (id, b, draw) => ({ id, w: 32, h: 32, frames: FRAMES, bank: b, bankName: Object.keys(BANKS).find((k) => BANKS[k] === b), draw });
+const { nova_lancer: NL, bulwark_vex: BV, zephyr_sparks: ZS, gravis_kuro: GK, mira_halo: MH } = BANKS;
 
 export const PILOTS = [
-  { id: "nova", draw(c, f) {
-    c.rect(4, 12 + pose(f).bob, 3, 5, R.grey[1]); c.rect(4, 12 + pose(f).bob, 3, 1, R.grey[2]); c.px(5, 17 + pose(f).bob, R.orange[2 + (f % 2)]); // jet pack
-    const h = body(c, f, { suit: R.blue, trim: R.grey });
-    helmet(c, h, [R.teal[0], R.teal[3]]);
-    eyes(c, h, W);
-    c.rect(8, 12 + h.bob, 8, 1, R.red[2]); c.rect(6, 13 + h.bob, 2, 2, R.red[1]); c.px(5, 14 + h.bob + (f % 2), R.red[2]); // scarf, its end flutters behind
-    c.outline(R.blue[0]);
-  } },
-  { id: "bulwark", draw(c, f) {
-    const h = body(c, f, { suit: R.grey, trim: R.orange, wide: true });
-    c.rect(4, 11 + h.bob, 4, 4, R.orange[1]); c.rect(4, 11 + h.bob, 4, 1, R.orange[3]); // shoulder plates
-    c.rect(16, 11 + h.bob, 4, 4, R.orange[2]); c.rect(16, 11 + h.bob, 4, 1, R.orange[3]); c.px(19, 14 + h.bob, R.orange[0]);
-    c.rect(6, 1 + h.bob, 12, 10, R.grey[2]); c.rect(6, 1 + h.bob, 12, 1, R.grey[3]); c.rect(6, 1 + h.bob, 1, 10, R.grey[3]); c.rect(15, 2 + h.bob, 3, 9, R.grey[1]);
-    c.rect(9, 5 + h.bob, 9, 3, K); c.rect(12 + (f % 2), 5 + h.bob, 4, 3, R.red[2]); c.px(13 + (f % 2), 5 + h.bob, R.red[3]); // visor slit
-    c.rect(10, 0 + h.bob, 4, 1, R.orange[2]);
-    c.outline(R.grey[0]);
-  } },
-  { id: "zephyr", draw(c, f) {
-    const h = body(c, f, { suit: R.green, trim: R.yellow });
-    c.px(6, 19 + (f % 2), R.orange[2]); c.rect(4, 17 + h.bob, 3, 2, R.orange[2]); c.px(3, 16 + h.bob + (f % 2), R.orange[3]); // tail
-    c.poly([[6, 6 + h.bob], [6, -0.5 + h.bob], [10, 2 + h.bob]], R.orange[2]); c.poly([[15, 2 + h.bob], [19, -0.5 + h.bob], [18, 6 + h.bob]], R.orange[2]); // ears
-    c.px(7, 2 + h.bob, R.red[2]); c.px(17, 2 + h.bob, R.red[2]);
-    helmet(c, h, [R.green[0], R.green[3]], R.orange);
-    eyes(c, h, R.yellow[3]);
-    c.outline(R.green[0]);
-  } },
-  { id: "sparks", draw(c, f) {
-    const h = body(c, f, { suit: R.yellow, trim: R.grey });
-    c.rect(12, 0 + h.bob, 1, 2, R.grey[2]); // antenna
-    helmet(c, h, [K, R.yellow[2]], R.yellow);
-    eyes(c, h, R.yellow[3]);
-    const sp = f % 2 ? W : R.yellow[3]; c.px(12, -1 + h.bob + 1, sp); c.px(f % 2 ? 10 : 14, 0 + h.bob, sp); c.px(f % 2 ? 14 : 10, 1 + h.bob, R.teal[3]);
-    c.px(12, 13 + h.bob, R.blue[2]); c.px(11, 14 + h.bob, R.blue[3]); c.px(12, 14 + h.bob, R.blue[3]); c.px(11, 15 + h.bob, R.blue[2]); // bolt
-    c.outline(R.yellow[0]);
-  } },
-  { id: "gravis", draw(c, f) {
-    const h = body(c, f, { suit: R.purple, trim: R.teal, wide: true });
-    // a ring round the helmet: its back half behind, its front half over the glass
-    const ring = (front) => { for (let x = 0; x < 24; x++) for (let dy = -2; dy <= 2; dy++) {
-      const y = Math.round(h.y + dy), q = ((x + 0.5 - 12) / 11) ** 2 + ((y + 0.5 - h.y) / 2.2) ** 2, inner = ((x + 0.5 - 12) / 8) ** 2 + ((y + 0.5 - h.y) / 1.1) ** 2;
-      if (q <= 1 && inner > 1 && (y + 0.5 >= h.y) === front) c.px(x, y, front ? R.teal[2] : R.teal[1]);
+  P("nova", NL, (c, f) => {
+    const bob = pose(f).bob;
+    box(c, 5, 15 + bob, 5, 8, NL.grey, { round: 2, bias: -0.1 });                                       // jet pack
+    dot(c, 7, 23 + bob, NL.flame[0]); dot(c, 6 + (f % 2), 24 + bob, NL.flame[0]);
+    const h = body(c, f, { suit: NL.blue, trim: NL.grey, buckle: NL.red[2] });
+    helmet(c, h, NL.grey, NL.teal);
+    eyes(c, h, NL.grey[3]);
+    capsule(c, 11, 15.5 + h.bob, 20, 15.5 + h.bob, 1.3, NL.red);                                          // scarf
+    capsule(c, 10, 16 + h.bob, 6, 18 + h.bob + (f % 2), 1.2, NL.red, { bias: -0.1 });                     // its end flutters behind
+    outline(c, NL);
+  }),
+  P("lancer", NL, (c, f) => {
+    const h = body(c, f, { suit: NL.grey, trim: NL.blue, buckle: NL.red[2] });
+    const sw = f % 2;
+    capsule(c, 15, 0.8 + h.bob, 9 - sw, 2.5 + h.bob, 1.3, NL.red);                                        // plume streams back
+    helmet(c, h, NL.grey, [NL.out[0], NL.grey[0]]);
+    box(c, 12, 8 + h.bob, 12, 2, [NL.out[0]], { round: 0 }); box(c, 18, 8 + h.bob, 3, 6, [NL.out[0]], { round: 0 }); // T visor
+    capsule(c, 27, 3 + h.bob, 27, 24 + h.bob, 0.9, NL.blue); dot(c, 27, 2 + h.bob, NL.grey[3]);           // lance
+    outline(c, NL);
+  }),
+  P("bulwark", BV, (c, f) => {
+    const h = body(c, f, { suit: BV.grey, trim: BV.orange, buckle: BV.gold[1], wide: 1 });
+    box(c, 5, 14 + h.bob, 6, 5, BV.orange, { round: 2 }); box(c, 21, 14 + h.bob, 6, 5, BV.orange, { round: 2, bias: -0.08 }); // shoulder plates
+    box(c, 8, 1 + h.bob, 16, 13, BV.grey, { round: 3 });                                                  // a square helmet
+    box(c, 12, 6 + h.bob, 12, 4, [BV.out[0]], { round: 1 });
+    box(c, 16 + (f % 2), 6 + h.bob, 5, 4, BV.red, { round: 1 });                                          // visor slit, scanning
+    box(c, 13, 0 + h.bob, 6, 2, BV.orange, { round: 1 });
+    outline(c, BV);
+  }),
+  P("vex", BV, (c, f) => {
+    const bob = pose(f).bob;
+    sphere(c, 7.5, 19 + bob, 3.6, 4.2, BV.orange, { bias: -0.2 });                                        // sack on the back
+    const h = body(c, f, { suit: BV.orange, trim: BV.grey, buckle: BV.gold[1] });
+    helmet(c, h, BV.orange, [BV.out[0], BV.teal[0]]);
+    for (const gx of [13.5, 20.5]) sphere(c, gx, h.y + 0.5, 2.6, 2.6, BV.teal, { spec: BV.teal[1] });   // goggles
+    box(c, 15, 0 + h.bob, 4, 2, BV.gold, { round: 1 });
+    sphere(c, 26, 28, 2, 2, BV.gold, { spec: BV.gold[1] });                                               // a coin
+    outline(c, BV);
+  }),
+  P("zephyr", ZS, (c, f) => {
+    const h = body(c, f, { suit: ZS.green, trim: ZS.yellow, buckle: ZS.orange[2] });
+    capsule(c, 9, 23 + h.bob, 4, 21 + h.bob + (f % 2), 1.8, ZS.orange);                                   // tail
+    plane(c, [[8, 7 + h.bob], [8, -0.5 + h.bob], [13, 3 + h.bob]], ZS.orange, 0.3);                       // ears
+    plane(c, [[19, 3 + h.bob], [25, -0.5 + h.bob], [24, 7 + h.bob]], ZS.orange, -0.2);
+    dot(c, 9, 3 + h.bob, ZS.orange[0]); dot(c, 23, 3 + h.bob, ZS.orange[0]);
+    helmet(c, h, ZS.orange, [ZS.green[0], ZS.green[2]]);
+    eyes(c, h, ZS.yellow[3]);
+    outline(c, ZS);
+  }),
+  P("sparks", ZS, (c, f) => {
+    const h = body(c, f, { suit: ZS.yellow, trim: ZS.grey, buckle: ZS.blue[0] });
+    capsule(c, 16, -0.5 + h.bob, 16, 2 + h.bob, 0.7, ZS.grey);                                            // antenna
+    helmet(c, h, ZS.yellow, [ZS.out[0], ZS.yellow[1]]);
+    eyes(c, h, ZS.yellow[3]);
+    const sp = f % 2 ? ZS.grey[1] : ZS.yellow[3];
+    dot(c, 16, -1 + h.bob + 1, sp); dot(c, f % 2 ? 13 : 19, 0 + h.bob, sp); dot(c, f % 2 ? 19 : 13, 1 + h.bob, ZS.blue[0]);
+    plane(c, [[16, 16 + h.bob], [14, 19.5 + h.bob], [16, 19.5 + h.bob], [15, 22 + h.bob], [18, 18 + h.bob], [16, 18 + h.bob]], ZS.blue, 0.5); // a bolt
+    outline(c, ZS);
+  }),
+  P("gravis", GK, (c, f) => {
+    const h = body(c, f, { suit: GK.purple, trim: GK.teal, buckle: GK.teal[2], wide: 1 });
+    const ring = (front) => { for (let x = 0; x < 32; x++) for (let dy = -3; dy <= 3; dy++) { // a ring round the helmet, half behind, half in front
+      const y = Math.round(h.y + dy), q = ((x + 0.5 - 16) / 14.5) ** 2 + ((y + 0.5 - h.y) / 2.8) ** 2, inner = ((x + 0.5 - 16) / 10.5) ** 2 + ((y + 0.5 - h.y) / 1.4) ** 2;
+      if (q <= 1 && inner > 1 && (y + 0.5 >= h.y) === front) c.px(x, y, front ? (x < 14 ? GK.teal[2] : GK.teal[1]) : GK.teal[0]);
     } };
     ring(false);
-    helmet(c, h, [R.purple[0], R.purple[3]], R.purple, 6.5);
-    eyes(c, h, R.teal[3], 0);
+    helmet(c, h, GK.purple, [GK.purple[0], GK.purple[3]], 8);
+    eyes(c, h, GK.teal[2], 0);
     ring(true);
-    c.outline(R.purple[0]);
-  } },
-  { id: "mira", draw(c, f) {
-    const h = body(c, f, { suit: R.red, trim: R.grey });
-    c.disc(5, 4 + h.bob, 3, R.orange[3]); c.disc(19, 4 + h.bob, 3, R.orange[2]); c.px(5, 4 + h.bob, R.red[2]); c.px(18, 4 + h.bob, R.red[2]); // hair buns
-    helmet(c, h, [R.red[0], R.red[3]], R.grey);
-    eyes(c, h, R.yellow[3]);
-    c.px(12, 13 + h.bob, R.yellow[3]); c.rect(11, 14 + h.bob, 3, 1, R.yellow[2]); c.px(12, 14 + h.bob, R.yellow[3]); c.px(12, 15 + h.bob, R.yellow[2]); // star
-    c.outline(R.red[0]);
-  } },
-  { id: "vex", draw(c, f) {
-    c.rect(3, 13 + pose(f).bob, 4, 5, R.orange[0]); c.rect(4, 12 + pose(f).bob, 2, 1, R.orange[1]); // sack on the back
-    const h = body(c, f, { suit: R.orange, trim: R.grey });
-    helmet(c, h, [K, R.teal[2]], R.orange);
-    c.rect(9, 5 + h.bob, 9, 4, R.teal[1]); c.rect(10, 5 + h.bob, 3, 4, R.teal[3]); c.rect(15, 5 + h.bob, 3, 4, R.teal[3]); c.px(11, 6 + h.bob, R.teal[2]); c.px(16, 6 + h.bob, R.teal[2]); // goggles
-    c.rect(11, 0 + h.bob, 3, 2, R.yellow[2]); c.px(12, 0 + h.bob, W);
-    c.disc(19, 21, 1.6, R.yellow[2 + ((f >> 1) % 2)]); // coin
-    c.outline(R.orange[0]);
-  } },
-  { id: "lancer", draw(c, f) {
-    const h = body(c, f, { suit: R.grey, trim: R.blue });
-    const sw = f % 2;
-    c.rect(10, 0 + h.bob, 3, 2, R.red[2]); c.rect(7 - sw, 1 + h.bob, 3, 1, R.red[1]); c.px(6 - sw, 2 + h.bob, R.red[1]); // plume streams back
-    helmet(c, h, [K, R.grey[2]], R.grey);
-    c.rect(9, 6 + h.bob, 9, 1, K); c.rect(14, 6 + h.bob, 2, 5, K); // T visor
-    c.rect(20, 3 + h.bob, 1, 15, R.blue[3]); c.px(20, 2 + h.bob, W); c.px(20, 1 + h.bob, R.blue[2]); // lance
-    c.outline(R.grey[0]);
-  } },
-  { id: "halo", draw(c, f) {
-    const flap = f % 2;
-    c.rect(3, 12 + pose(f).bob - flap, 4, 3, W); c.rect(2, 11 + pose(f).bob - flap, 2, 2, W); c.px(2, 11 + pose(f).bob - flap, R.teal[3]); // wing behind
-    const h = body(c, f, { suit: R.teal, trim: R.yellow });
-    helmet(c, h, [R.teal[0], R.teal[3]], R.grey);
-    eyes(c, h, W);
-    const hv = (f >> 1) % 2;
-    c.ellipse(12.5, 0.8 + hv, 5.5, 1.3, R.yellow[3]); c.ellipse(12.5, 0.8 + hv, 3.2, 0.5, -1);
-    c.outline(R.teal[0]);
-  } },
-  { id: "kuro", draw(c, f) {
-    const h = body(c, f, { suit: R.purple, trim: R.red });
+    outline(c, GK);
+  }),
+  P("kuro", GK, (c, f) => {
+    const h = body(c, f, { suit: GK.purple, trim: GK.red, buckle: GK.red[2] });
     const sc = f % 2;
-    c.rect(4, 12 + h.bob, 5, 2, R.red[2]); c.rect(2, 14 + h.bob + sc, 3, 1, R.red[1]); c.px(1, 15 + h.bob + sc, R.red[2]); // scarf tails behind
-    c.sphere(h.x, h.y, 6, [K, R.grey[1], R.purple[0], R.purple[1]]);
-    c.rect(8, 6 + h.bob, 10, 3, R.purple[0]); c.rect(9, 6 + h.bob, 9, 3, K); // mask band
-    c.px(13, 7 + h.bob, R.purple[3]); c.px(16, 7 + h.bob, R.purple[3]); c.px(12, 7 + h.bob, R.purple[2]); c.px(17, 7 + h.bob, R.purple[2]);
-    c.rect(8, 12 + h.bob, 8, 1, R.red[2]);
-    c.outline(R.purple[2]);
-  } },
-].map((p) => ({ ...p, w: 24, h: 24, frames: FRAMES }));
+    capsule(c, 12, 16 + h.bob, 5, 19 + h.bob + sc, 1.3, GK.red, { bias: -0.1 });                          // scarf tails behind
+    capsule(c, 12, 17 + h.bob, 4, 21 + h.bob + sc, 1, GK.red, { bias: -0.2 });
+    sphere(c, h.x, h.y, 7.5, 7.5, GK.grey);                                                                // a dark hood
+    box(c, 11, 7 + h.bob, 13, 4, [GK.out[0]], { round: 1 });                                               // mask band
+    for (const ex of [18, 21]) { dot(c, ex, 8 + h.bob, GK.purple[4]); dot(c, ex - 1, 8 + h.bob, GK.purple[2]); }
+    capsule(c, 11, 15.5 + h.bob, 20, 15.5 + h.bob, 1.2, GK.red);
+    outline(c, GK);
+  }),
+  P("mira", MH, (c, f) => {
+    const h = body(c, f, { suit: MH.red, trim: MH.grey, buckle: MH.gold[2] });
+    sphere(c, 6.5, 5 + h.bob, 3.6, 3.6, MH.gold, { bias: -0.1 }); sphere(c, 25.5, 5 + h.bob, 3.6, 3.6, MH.gold, { bias: -0.2 }); // hair buns
+    helmet(c, h, MH.grey, [MH.red[0], MH.red[3]]);
+    eyes(c, h, MH.gold[2]);
+    plane(c, [[16, 16 + h.bob], [17, 18 + h.bob], [19, 18.4 + h.bob], [17.4, 19.6 + h.bob], [18, 22 + h.bob], [16, 20.6 + h.bob], [14, 22 + h.bob], [14.6, 19.6 + h.bob], [13, 18.4 + h.bob], [15, 18 + h.bob]], MH.gold, 0.6); // a star
+    outline(c, MH);
+  }),
+  P("halo", MH, (c, f) => {
+    const flap = f % 2, bob = pose(f).bob;
+    plane(c, [[10, 15 + bob - flap], [2, 12 + bob - flap], [3, 17 + bob - flap], [9, 20 + bob]], MH.grey, 0.7); // a wing behind
+    const h = body(c, f, { suit: MH.teal, trim: MH.gold, buckle: MH.gold[2] });
+    helmet(c, h, MH.grey, [MH.teal[0], MH.teal[3]]);
+    eyes(c, h, MH.grey[2]);
+    const hv = (f >> 1) % 2;
+    for (let x = 8; x < 25; x++) for (let y = -1; y < 3; y++) { // the halo, a bright ring floating over the helmet
+      const q = ((x + 0.5 - 16.5) / 7.5) ** 2 + ((y + 0.5 - 1 - hv) / 1.7) ** 2, inner = ((x + 0.5 - 16.5) / 4.6) ** 2 + ((y + 0.5 - 1 - hv) / 0.7) ** 2;
+      if (q <= 1 && inner > 1) c.px(x, y, y + 0.5 < 1 + hv ? MH.gold[2] : MH.gold[1]);
+    }
+    outline(c, MH);
+  }),
+];

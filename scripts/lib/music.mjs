@@ -1,5 +1,6 @@
 // Writing sound in code, for any game: sound effects from short step lists, and songs generated from a chord plan, a seeded melody,
-// a harmony style, a bass style and a drum style, saved in the studio's tracker format (see README.md > Sound) so they open and edit
+// a harmony style, a bass style and a drum style (and, for a band of 8 instruments, a counter-melody, a second harmony, hand percussion
+// and an echo of the melody), saved in the studio's tracker format (see README.md > Sound) so they open and edit
 // like hand-made ones. Void Swarm's and Panel Pop's sound are made with it (scripts/void-swarm/audio.mjs, scripts/panel-pop/audio.mjs),
 // and the MCP server's song_write uses it.
 import { rng } from "./canvas.mjs";
@@ -15,6 +16,7 @@ export function sfx(speed, a, b) {
 }
 // ---------- music
 const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const midiOf = (name) => { const m = /^([A-G]#?)(\d)$/.exec(name || ""); return m ? NAMES.indexOf(m[1]) + 12 * +m[2] : null; };
 export const nm = (n) => { while (n > 83) n -= 12; while (n < 12) n += 12; return `${NAMES[n % 12]}${Math.floor(n / 12)}`; };
 export const SCALES = { minor: [0, 2, 3, 5, 7, 8, 10], major: [0, 2, 4, 5, 7, 9, 11], dorian: [0, 2, 3, 5, 7, 9, 10], phrygian: [0, 1, 3, 5, 7, 8, 10], lydian: [0, 2, 4, 6, 7, 9, 11], harm: [0, 2, 3, 5, 7, 8, 11] };
 export const RHY = [
@@ -107,20 +109,89 @@ export class Song {
     }
     return rows;
   }
+  // The melody's pitches sounding from row `from` for `len` rows (a held note counts from where it starts).
+  heldBy(mel, from, len) {
+    const out = [];
+    let cur = null;
+    for (let i = 0; i < from + len && i < mel.length; i++) { if (mel[i] === "OFF") cur = null; else if (mel[i] !== "--") cur = midiOf(mel[i]); if (i >= from && cur !== null) out.push(cur); }
+    return out;
+  }
+  // a pitch that rubs a semitone (or a minor ninth) against one of `pitches`
+  rubs(p, pitches) { return pitches.some((q) => { const d = Math.abs(p - q); return d === 1 || d === 13; }); }
+  // A slow second voice under the melody: a long note on each half bar, the chord's third or fifth nearest the last one (so it moves
+  // by small steps, against the melody's quicker line), now and then holding over to the next half. It steps around the melody's notes
+  // rather than rub a semitone against them.
+  counter(prog, oct, mel) {
+    const rows = empty(16 * prog.length), r = this.r; let prev = prog[0] + 2;
+    prog.forEach((root, bar) => {
+      const ch = this.chordDegs(root);
+      for (const at of [0, 8]) {
+        if (at === 8 && r() < 0.35) continue;
+        const near = mel ? this.heldBy(mel, bar * 16 + at, 8) : [], first = r() < 0.25 ? 1 : 0;
+        let d = null;
+        for (let k = 0; k < 4 && d === null; k++) {
+          const c = Math.max(root, Math.min(root + 8, nearest([ch[1], ch[2]], prev, (first + k) % 4))); // above the bass, under the melody
+          if (!this.rubs(this.note(c, oct), near)) d = c;
+        }
+        if (d === null) continue; // every choice rubs: leave this half bar to the others
+        prev = d;
+        rows[bar * 16 + at] = nm(this.note(d, oct));
+      }
+    });
+    return rows;
+  }
+  // A held chord (three rows of voices) with any voice that would rub against the melody during its bar taken out.
+  clearOf([a, b, c], mel) {
+    const voices = [a, b, c].map((v) => v.slice());
+    for (let bar = 0; bar * 16 < mel.length; bar++) {
+      const near = this.heldBy(mel, bar * 16, 16);
+      for (const v of voices) { const p = midiOf(v[bar * 16]); if (p !== null && this.rubs(p, near)) v[bar * 16] = "--"; }
+    }
+    if (voices[0].every((x, i) => x !== "--" || (voices[1][i] === "--" && voices[2][i] === "--"))) return voices;
+    // a voice taken out of the first row: move the next one down to it, so the track's own note is still the chord's
+    return voices[0].map((x, i) => (x !== "--" ? [x, voices[1][i], voices[2][i]] : voices[1][i] !== "--" ? [voices[1][i], voices[2][i], "--"] : [voices[2][i], "--", "--"]))
+      .reduce((acc, [x, y, z], i) => { acc[0][i] = x; acc[1][i] = y; acc[2][i] = z; return acc; }, [voices[0].slice(), voices[1].slice(), voices[2].slice()]);
+  }
+  // Hand percussion beside the kit (shaker, tambourine, ride, congas), lighter than the drums in the same style.
+  percussion(bars, style) {
+    const rows = empty(16 * bars), add = (i, n) => { rows[i] = rows[i] === "--" ? n : rows[i] + "+" + n; };
+    const shaker = "A#4", tamb = "F#4", ride = "D#4", conga = "D#5", congaLo = "E5", tom = "A3";
+    for (let bar = 0; bar < bars; bar++) {
+      const b = bar * 16;
+      if (style === "none") { if (bar % 2 === 1) add(b + 12, shaker); continue; }
+      if (style === "soft") { for (let i = 2; i < 16; i += 4) add(b + i, shaker); if (bar % 2) add(b + 14, conga); }
+      else if (style === "four") { for (let i = 2; i < 16; i += 4) add(b + i, shaker); add(b + 4, tamb); add(b + 12, tamb); }
+      else if (style === "break") { [3, 6, 11, 14].forEach((i) => add(b + i, i % 2 ? conga : congaLo)); for (let i = 1; i < 16; i += 4) add(b + i, shaker); }
+      else if (style === "drive") { for (let i = 0; i < 16; i += 4) add(b + i, ride); add(b + 4, tamb); add(b + 12, tamb); }
+      else if (style === "boss") { for (let i = 0; i < 16; i += 4) add(b + i, ride); if (bar % 2) { add(b + 10, tom); add(b + 14, tom); } }
+    }
+    return rows;
+  }
+  // The melody again `delay` rows later: the delay echo of GBA soundtracks, played quietly on a softer instrument. It runs on into the
+  // next pattern's start the way an echo would, so the first rows take the end of the pattern before.
+  echo(mel, delay = 3) { const n = mel.length; return mel.map((_, i) => mel[(i - delay + n) % n]); }
   // One pattern of `bars` bars from a chord plan.
   pattern(prog, v) {
-    const o = this.o, mel = this.melody(prog, { oct: v.oct ?? o.oct, rhythms: v.rhythms ?? o.rhythms, reg: v.reg ?? 6, calm: o.calm });
-    const layers = Array.from({ length: 12 }, () => empty(16 * prog.length));
+    const o = this.o, n = this.n, mel = this.melody(prog, { oct: v.oct ?? o.oct, rhythms: v.rhythms ?? o.rhythms, reg: v.reg ?? 6, calm: o.calm });
+    const layers = Array.from({ length: 3 * n }, () => empty(16 * prog.length)), chord = (t, [a, b, c]) => { layers[t] = b; layers[n + t] = c; return a; };
     let t1;
-    if (o.harmony === "pad") { const [a, b, c] = this.pad(prog, o.padOct ?? 3); t1 = a; layers[1] = b; layers[5] = c; }
+    if (o.harmony === "pad") t1 = chord(1, this.pad(prog, o.padOct ?? 3));
     else t1 = this.arp(prog, o.harmony, o.arpOct ?? (o.oct ?? 5) - 1); // an octave under the melody, so it accompanies rather than covers it
-    const tracks = [mel, t1, this.bass(prog, v.bass ?? o.bass, o.bassOct ?? 2), this.drums(prog.length, v.drums ?? o.drums, o.fill !== false)];
+    const drums = v.drums ?? o.drums, tracks = [mel, t1, this.bass(prog, v.bass ?? o.bass, o.bassOct ?? 2), this.drums(prog.length, drums, o.fill !== false)];
+    if (n === 8) {
+      // a pad under an arpeggio, or a quiet broken chord in eighths over a pad, so the harmony has a held part and a moving one
+      const second = o.harmony === "pad" ? this.arp(prog, "arp8", o.padOct ?? 3) : chord(5, this.clearOf(this.pad(prog, o.padOct ?? 3), mel));
+      tracks.push(this.counter(prog, (o.counterOct ?? (o.oct ?? 5) - 1), mel), second, this.percussion(prog.length, drums), this.echo(mel, o.echo ?? 3));
+    }
     return { rows: 16 * prog.length, tracks: tracks.map((t) => t.join(" ")), layers: layers.map((t) => t.join(" ")) };
   }
   build() {
-    const o = this.o, patterns = o.sections.map((s) => this.pattern(s.prog, s));
+    const o = this.o;
+    this.n = o.inst.length === 8 ? 8 : 4; // a band of 8 adds the counter-melody, second harmony, percussion and echo
+    const patterns = o.sections.map((s) => this.pattern(s.prog, s));
     return {
-      format: "tracker", tempo: o.tempo, rows_per_beat: 4, tracks: 4, track_instruments: o.inst, reverb: o.reverb ?? 12, ...(o.reverb_type ? { reverb_type: o.reverb_type } : {}), track_vol: leveled(o.vol ?? [0, -2, -1, -2], o.level),
+      format: "tracker", tempo: o.tempo, rows_per_beat: 4, tracks: this.n, track_instruments: o.inst, reverb: o.reverb ?? 12, ...(o.reverb_type ? { reverb_type: o.reverb_type } : {}),
+      track_vol: leveled(o.vol ?? (this.n === 8 ? [0, -2, -1, -2, -3, -3, -3, -4] : [0, -2, -1, -2]), o.level),
       patterns, order: o.order, loop_to: o.loop === false ? -1 : 0, key: { root: o.root % 12, scale: o.scale === "lydian" ? "major" : o.scale === "harm" || o.scale === "dorian" || o.scale === "phrygian" ? "minor" : o.scale }, // the editor's key lock knows major and minor; lydian is a major mode
     };
   }

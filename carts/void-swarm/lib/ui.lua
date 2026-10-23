@@ -44,6 +44,19 @@ function M.box(x, y, w, h, fill, edge, alpha)
   end
 end
 
+-- A button of a menu list, GBA style: corners cut round, a light line along the top and a dark one
+-- along the bottom, and a bright stripe on the left when it is the one chosen (accent: its colour,
+-- teal unless given).
+function M.item(x, y, w, h, on, alpha, accent)
+  local a = alpha or 215
+  local fill, top, bottom = on and 25 or 0, on and 27 or 1, on and 24 or 0
+  gs.draw.rect(x + 1, y, w - 2, h, tint(fill, a)); gs.draw.rect(x, y + 1, 1, h - 2, tint(fill, a)); gs.draw.rect(x + w - 1, y + 1, 1, h - 2, tint(fill, a))
+  gs.draw.rect(x + 1, y, w - 2, 1, tint(top, on and 255 or a))
+  if on then gs.draw.rect(x + 1, y + 1, w - 2, 1, 26) end
+  gs.draw.rect(x + 1, y + h - 1, w - 2, 1, tint(bottom, 255))
+  gs.draw.rect(x, y + 1, on and 2 or 1, h - 2, on and (accent or 22) or tint(1, a))
+end
+
 function M.bar(x, y, w, h, v, vmax, fg, bg, edge)
   M.box(x, y, w, h, bg or 1, edge)
   local fw = floor((w - 2) * max(0, min(1, v / max(1, vmax))))

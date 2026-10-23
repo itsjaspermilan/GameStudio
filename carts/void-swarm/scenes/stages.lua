@@ -41,7 +41,7 @@ function Stages:draw_ui()
     local x, y = 6 + col * 156, 28 + row * 28
     local open = i <= s.cleared + 1
     local on = (i == self.cur)
-    ui.box(x, y, 152, 25, on and 25 or 0, on and 26 or 1, 220)
+    ui.item(x, y, 152, 25, on, 220)
     txt(string.format("%2d", i), x + 6, y + 9, open and 14 or 1)
     txt(st.name, x + 28, y + 5, open and 3 or 1, 1, x + 140)
     if not open then spr("spr_ico_lock", 0, x + 142, y + 17, 0.6)

@@ -3,7 +3,7 @@
 local Enemy = require "entities.enemy"
 
 local Wraith = gs.entity(Enemy, {
-  kind = "wraith", sprite = "spr_e_wraith", hitbox = { r = 6 },
+  kind = "wraith", sprite = "spr_e_wraith", hitbox = { r = 9 },
   cap = 12, hp = 22, spd = 52, dmg = 7, xp = 4,
 })
 

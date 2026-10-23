@@ -2,11 +2,12 @@
  "image": "sprites/spr_pilot_gravis.png",
  "frames": 8,
  "origin": [
-  12,
-  12
+  16,
+  16
  ],
  "mask": null,
  "fps": 6,
+ "bank": "gravis_kuro",
  "animations": {
   "idle": {
    "from": 0,

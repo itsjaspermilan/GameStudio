@@ -32,8 +32,11 @@ end
 function Play:enter(pilot_index, stage)
   local R = run.start(pilot_index, stage)
   local sd = R.sdef
-  gs.add_layer(layer("ts_bg_" .. sd.bg, 0.5, 100))
-  gs.add_layer(layer("ts_dust", 0.85, 99))
+  -- parallax: the far sky barely moves, the things floating in the sector pass faster, the dust
+  -- fastest
+  gs.add_layer(layer("ts_bg_" .. sd.bg, 0.3, 100))
+  gs.add_layer(layer("ts_mid_" .. sd.bg, 0.6, 99))
+  gs.add_layer(layer("ts_dust", 0.85, 98))
   if sd.hazard == "pull" then gs.spawn("hole", 0, 0) end
   local player = gs.spawn("player", 0, 0, { sprite = "spr_pilot_" .. R.pilot.id })
   gs.camera:follow(player, { smooth = 0.18 })
@@ -205,7 +208,7 @@ function Play:update_over(dt)
   R.end_t = R.end_t + dt
   gs.each("fx", function(f) f:update(dt) end)          -- the world is not running, so the explosions are moved along by hand
   if R.boss_death_fx and random() < 0.3 then
-    run.fx("boom", R.boss_x + random(-26, 26), R.boss_y + random(-26, 26), 0.45, 1.2 + random())
+    run.fx("boom", R.boss_x + random(-39, 39), R.boss_y + random(-39, 39), 0.45, 1.2 + random())
     audio.sfx("sfx_explode", 6)
   end
   if R.finish_pending and R.end_t > 2.6 then
@@ -275,14 +278,14 @@ function Play:draw_hud()
   -- weapons and passives
   local x = 90
   for _, w in ipairs(R.weapons) do
-    spr("spr_ico_" .. data.WEAPONS[w.id].icon, 0, x + 8, 228, 0.75)
+    spr("spr_ico_" .. data.WEAPONS[w.id].icon, 0, x + 8, 228, 0.5)
     txt(tostring(w.lv), x + 11, 230, 14)
     x = x + 14
   end
   x = x + 4
   for _, id in ipairs(data.PASSIVE_ORDER) do
     local lv = R.passives[id]
-    if lv then spr("spr_ico_" .. data.PASSIVES[id].icon, 0, x + 8, 228, 0.75); txt(tostring(lv), x + 11, 230, 11); x = x + 14 end
+    if lv then spr("spr_ico_" .. data.PASSIVES[id].icon, 0, x + 8, 228, 0.5); txt(tostring(lv), x + 11, 230, 11); x = x + 14 end
   end
   -- dash ready
   local dw = 22
@@ -352,8 +355,8 @@ function Play:draw_levelup()
   for i, c in ipairs(R.choices) do
     local x, y = x0 + (i - 1) * (cw + 4), 52
     local on = (i == self.cur)
-    box(x, y, cw, 142, on and 25 or 0, on and 14 or 22, 240)
-    spr("spr_ico_" .. c.icon, 0, x + cw / 2, y + 24, 2.4)
+    ui.item(x, y, cw, 142, on, 240, 14)
+    spr("spr_ico_" .. c.icon, 0, x + cw / 2, y + 24, 1.6)
     if c.new then txt("NEW!", x + cw / 2 - 16, y + 46, 6) end
     local ty = y + 58
     for _, l in ipairs(ui.wrap(c.title, 11)) do txt(l, x + (cw - #l * 8) / 2, ty, on and 14 or 3, 1, x + cw - 2); ty = ty + 9 end

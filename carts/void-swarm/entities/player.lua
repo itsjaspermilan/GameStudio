@@ -8,7 +8,7 @@ local audio = require "lib.audio"
 local Player = gs.entity{
   tags = { "player" },
   depth = 30,
-  hitbox = { r = 7 },
+  hitbox = { r = 10 },
   inv = 0,                            -- seconds of being unhurtable
   dash = 0,                           -- seconds of dashing left
   dash_cd = 0,

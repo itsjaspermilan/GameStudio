@@ -4,7 +4,7 @@ local Shot = require "entities.weapons.shot"
 local run = require "lib.run"
 local targets = require "lib.targets"
 
-local Missile = gs.entity(Shot, { sprite = "spr_p_missile", hitbox = { r = 4 }, area = 24 })
+local Missile = gs.entity(Shot, { sprite = "spr_p_missile", hitbox = { r = 6 }, area = 24 })
 
 function Missile:update(dt)
   local target = self.tgt

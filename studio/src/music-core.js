@@ -91,7 +91,21 @@ export function analyzeSong(song, opts = {}) {
   const { notes, rows, barRows, drums } = songNotes(song, opts);
   const beatRows = song.rows_per_beat, seconds = (rows / beatRows) * (60 / song.tempo);
   const tracks = Array.from({ length: song.tracks }, (_, t) => ({ track: t, instrument: song.track_inst[t], drum: drums[t], notes: notes.filter((n) => n.track === t) }));
-  const pitched = tracks.filter((t) => !t.drum && t.notes.length);
+  // An echo: a part that plays another one's notes a few rows later (the delay trick of GBA soundtracks). It is read as that part's echo
+  // and left out of the melody, the cover and the clash checks: rubbing against the line it repeats is what an echo does.
+  for (const t of tracks) {
+    if (t.drum || t.notes.length < 4) continue;
+    for (const u of tracks) {
+      if (u.track >= t.track || u.drum || u.echo || Math.abs(u.notes.length - t.notes.length) > Math.max(2, u.notes.length * 0.15)) continue;
+      for (let d = 1; d <= 8 && !t.echo; d++) {
+        const later = new Set(u.notes.map((n) => `${(n.start + d) % rows}:${n.pitch}`));
+        if (t.notes.filter((n) => later.has(`${n.start % rows}:${n.pitch}`)).length >= 0.8 * t.notes.length) t.echo = { of: u.track, rows: d };
+      }
+      if (t.echo) break;
+    }
+  }
+  const echoes = new Set(tracks.filter((t) => t.echo).map((t) => t.track)), heard = notes.filter((n) => !echoes.has(n.track));
+  const pitched = tracks.filter((t) => !t.drum && !t.echo && t.notes.length);
   const out = { seconds, bars: Math.ceil(rows / barRows), tempo: song.tempo, tracks: [], issues: [], good: [] };
   if (!pitched.length) { out.issues.push("No pitched notes (only drums, or empty)."); return out; }
 
@@ -137,6 +151,7 @@ export function analyzeSong(song, opts = {}) {
   const bass = ranged.reduce((a, b) => (b.range.mean < a.range.mean ? b : a));
   for (const t of tracks) {
     if (!t.notes.length) { out.tracks.push({ track: t.track, instrument: t.instrument, role: t.drum ? "drums" : "silent" }); continue; }
+    if (t.echo) { out.tracks.push({ track: t.track, instrument: t.instrument, role: `echo of track ${t.echo.of + 1}, ${t.echo.rows} rows later` }); continue; }
     const r = rangeOf(t.notes);
     const onsets = new Set(t.notes.map((n) => n.start)).size;
     out.tracks.push({ track: t.track, instrument: t.instrument, role: t.drum ? "drums" : t === lead || t.track === lead.track ? "melody" : t.track === bass.track && ranged.length > 1 ? "bass" : "harmony",
@@ -159,7 +174,7 @@ export function analyzeSong(song, opts = {}) {
   // ---- harmony: the chord of each bar from everything but the melody (or everything, if the melody is alone)
   const bars = out.bars;
   const chords = [];
-  const support = pitched.length > 1 ? notes.filter((n) => n.track !== lead.track) : notes;
+  const support = pitched.length > 1 ? heard.filter((n) => n.track !== lead.track) : heard;
   for (let b = 0; b < bars; b++) {
     const w = Array(12).fill(0);
     const from = b * barRows, to = from + barRows;
@@ -212,7 +227,7 @@ export function analyzeSong(song, opts = {}) {
 
   // ---- clashes: notes in different parts a semitone (or a tritone) apart, sounding together for at least a beat
   const clashes = [];
-  const byStart = [...notes].sort((a, b) => a.start - b.start);
+  const byStart = [...heard].sort((a, b) => a.start - b.start);
   for (let i = 0; i < byStart.length; i++) {
     const a = byStart[i];
     for (let j = i + 1; j < byStart.length && byStart[j].start < a.start + a.len; j++) {

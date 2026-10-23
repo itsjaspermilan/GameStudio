@@ -4,7 +4,7 @@ local run = require "lib.run"
 local ui = require "lib.ui"
 
 local Spore = gs.entity(Enemy, {
-  kind = "spore", sprite = "spr_e_spore", hitbox = { r = 14 },
+  kind = "spore", sprite = "spr_e_spore", hitbox = { r = 21 },
   cap = 5, hp = 90, spd = 16, dmg = 4, xp = 8,
   aura = 0,
 })
@@ -18,7 +18,7 @@ function Spore:think(dt, dx, dy, d, nx, ny)
 end
 
 function Spore:draw_extras()
-  ui.spr("spr_p_dangerzone", self.t * 3, self.x, self.y, 3.2, false, 0, 70)
+  ui.spr("spr_p_dangerzone", self.t * 3, self.x, self.y, 2.13, false, 0, 70)
 end
 
 return Spore

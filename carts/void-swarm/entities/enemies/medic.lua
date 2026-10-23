@@ -4,7 +4,7 @@ local Enemy = require "entities.enemy"
 local run = require "lib.run"
 
 local Medic = gs.entity(Enemy, {
-  kind = "medic", sprite = "spr_e_medic", hitbox = { r = 6 },
+  kind = "medic", sprite = "spr_e_medic", hitbox = { r = 9 },
   cap = 3, hp = 26, spd = 36, dmg = 2, xp = 4,
 })
 

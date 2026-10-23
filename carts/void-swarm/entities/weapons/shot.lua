@@ -7,7 +7,7 @@ local run = require "lib.run"
 local Shot = gs.entity{
   tags = { "shot" },
   depth = 20,
-  hitbox = { r = 4 },
+  hitbox = { r = 6 },
   anim_speed = 20 / 6,
   dmg = 1,
   pierce = 0,

@@ -2,9 +2,10 @@
  "image": "sprites/spr_ico_w_arc.png",
  "frames": 1,
  "origin": [
-  8,
-  8
+  12,
+  12
  ],
  "mask": null,
- "fps": 0
+ "fps": 0,
+ "bank": "items_hot"
 }

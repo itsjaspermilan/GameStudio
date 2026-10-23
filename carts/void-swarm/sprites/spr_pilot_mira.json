@@ -2,11 +2,12 @@
  "image": "sprites/spr_pilot_mira.png",
  "frames": 8,
  "origin": [
-  12,
-  12
+  16,
+  16
  ],
  "mask": null,
  "fps": 6,
+ "bank": "mira_halo",
  "animations": {
   "idle": {
    "from": 0,

@@ -2,9 +2,10 @@
  "image": "sprites/spr_e_splitling.png",
  "frames": 2,
  "origin": [
-  4,
-  4
+  8,
+  8
  ],
  "mask": null,
- "fps": 6
+ "fps": 6,
+ "bank": "void"
 }

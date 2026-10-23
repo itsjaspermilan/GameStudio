@@ -5,7 +5,7 @@ local run = require "lib.run"
 local audio = require "lib.audio"
 
 local Boomer = gs.entity(Enemy, {
-  kind = "boomer", sprite = "spr_e_boomer", hitbox = { r = 6 },
+  kind = "boomer", sprite = "spr_e_boomer", hitbox = { r = 9 },
   cap = 10, hp = 16, spd = 52, dmg = 4, xp = 2,
 })
 

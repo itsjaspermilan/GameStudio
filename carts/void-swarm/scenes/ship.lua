@@ -7,7 +7,7 @@ local ui = require "lib.ui"
 local menu = require "lib.menu"
 
 local floor = math.floor
-local spr, txt, txtr, box = ui.spr, ui.txt, ui.txtr, ui.box
+local spr, txt, txtr, box, item = ui.spr, ui.txt, ui.txtr, ui.box, ui.item
 
 local Ship = gs.scene{}
 
@@ -40,8 +40,8 @@ function Ship:draw_ui()
   for i, path in ipairs(data.SHIP_PATHS) do
     local y = 30 + (i - 1) * 36
     local rank, on = s.ship[i], (i == self.cur)
-    box(6, y, 308, 32, on and 25 or 0, on and 26 or 1, 215)
-    spr("spr_ico_" .. path.icon, 0, 24, y + 16, 1.5)
+    item(6, y, 308, 32, on, 215)
+    spr("spr_ico_" .. path.icon, 0, 24, y + 16, 1)
     txt(path.name, 44, y + 5, on and 14 or 3, 1, 102)
     menu.pips(44, y + 18, rank, 5, 22)
     if rank < 5 then

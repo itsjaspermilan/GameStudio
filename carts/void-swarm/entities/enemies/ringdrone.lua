@@ -2,7 +2,7 @@
 local Enemy = require "entities.enemy"
 
 local RingDrone = gs.entity(Enemy, {
-  kind = "ringdrone", sprite = "spr_e_ringdrone", hitbox = { r = 6 },
+  kind = "ringdrone", sprite = "spr_e_ringdrone", hitbox = { r = 9 },
   hp = 14, spd = 58, dmg = 5, xp = 2,
 })
 

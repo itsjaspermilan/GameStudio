@@ -50,7 +50,7 @@ return {
     { "SURVIVE THE SWARM", 160, 228, name = "tagline", color = 1, size = 1, align = "center" },
   },
   pictures = {
-    { "spr_planet_a", 252, 168, name = "planet_a", scale = 2.2 },
-    { "spr_planet_b", 40, 205, name = "planet_b", scale = 0.7 },
+    { "spr_planet_a", 252, 168, name = "planet_a", scale = 1.47 },
+    { "spr_planet_b", 40, 205, name = "planet_b", scale = 0.47 },
   },
 }

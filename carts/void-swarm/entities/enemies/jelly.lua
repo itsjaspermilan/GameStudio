@@ -2,7 +2,7 @@
 local Enemy = require "entities.enemy"
 
 local Jelly = gs.entity(Enemy, {
-  kind = "jelly", sprite = "spr_e_jelly", hitbox = { r = 6 },
+  kind = "jelly", sprite = "spr_e_jelly", hitbox = { r = 9 },
   hp = 18, spd = 46, dmg = 6, xp = 2,
 })
 

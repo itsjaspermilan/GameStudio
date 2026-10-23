@@ -2,9 +2,10 @@
  "image": "sprites/spr_e_golem.png",
  "frames": 4,
  "origin": [
-  16,
-  16
+  24,
+  24
  ],
  "mask": null,
- "fps": 6
+ "fps": 6,
+ "bank": "cold"
 }

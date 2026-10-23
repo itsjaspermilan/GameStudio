@@ -2,9 +2,10 @@
  "image": "sprites/spr_fx_spark.png",
  "frames": 3,
  "origin": [
-  4,
-  4
+  6,
+  6
  ],
  "mask": null,
- "fps": 12
+ "fps": 12,
+ "bank": "items_hot"
 }

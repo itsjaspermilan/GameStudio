@@ -2,11 +2,12 @@
  "image": "sprites/spr_pilot_nova.png",
  "frames": 8,
  "origin": [
-  12,
-  12
+  16,
+  16
  ],
  "mask": null,
  "fps": 6,
+ "bank": "nova_lancer",
  "animations": {
   "idle": {
    "from": 0,

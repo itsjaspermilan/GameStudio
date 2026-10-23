@@ -9,7 +9,7 @@ local ui = require "lib.ui"
 local menu = require "lib.menu"
 
 local floor = math.floor
-local spr, txt, txtr, box = ui.spr, ui.txt, ui.txtr, ui.box
+local spr, txt, txtr, box, item = ui.spr, ui.txt, ui.txtr, ui.box, ui.item
 
 local Weapons = gs.scene{}
 
@@ -44,13 +44,13 @@ function Weapons:draw_ui()
   for i, id in ipairs(data.WEAPON_ORDER) do
     local y = 26 + (i - 1) * 19
     local on = (i == self.cur)
-    box(4, y, 40, 17, on and 25 or 0, on and 26 or 1, 215)
-    spr("spr_ico_" .. data.WEAPONS[id].icon, 0, 14, y + 9)
+    item(4, y, 40, 17, on, 215)
+    spr("spr_ico_" .. data.WEAPONS[id].icon, 0, 14, y + 9, 0.67)
     txt(tostring(s.wa[i] + s.wb[i]), 26, y + 5, on and 14 or 2)
   end
   local id = data.WEAPON_ORDER[self.cur]
   local def = data.WEAPONS[id]
-  spr("spr_ico_" .. def.icon, 0, 68, 46, 2)
+  spr("spr_ico_" .. def.icon, 0, 68, 46, 1.33)
   txt(def.name, 90, 34, 14, 1, 312)
   for i, l in ipairs(ui.wrap(def.blurb, 27)) do txt(l, 90, 46 + (i - 1) * 9, 2, 1, 312) end
   txt("DMG " .. def.dmg .. "  SHOTS " .. def.count .. "  EVERY " .. def.cd .. "S", 56, 74, 1, 1, 312)
@@ -61,7 +61,7 @@ function Weapons:draw_ui()
   for k, row in ipairs(rows) do
     local y = 92 + (k - 1) * 58
     local on = (self.sub == k)
-    box(54, y, 256, 52, on and 25 or 0, on and 26 or 1, 215)
+    item(54, y, 256, 52, on, 215)
     txt("PATH " .. (k == 1 and "A" or "B") .. ": " .. row.name, 62, y + 6, on and 14 or 3, 1, 268)
     menu.pips(62, y + 20, row.rank, 5, row.ci)
     if row.rank < 5 then

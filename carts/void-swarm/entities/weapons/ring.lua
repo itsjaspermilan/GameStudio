@@ -39,7 +39,9 @@ function Ring:on_collide_enemy(e)
 end
 
 function Ring:draw()
-  ui.spr("spr_p_ring", 0, self.x, self.y, self.r / 32, false, 0, 255 * (1 - self.t / 0.6))
+  gs.draw.blend("add")
+  ui.spr("spr_p_ring", 0, self.x, self.y, self.r / 48, false, 0, 255 * (1 - self.t / 0.6))
+  gs.draw.blend()
 end
 
 return Ring

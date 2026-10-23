@@ -3,7 +3,7 @@ local Enemy = require "entities.enemy"
 local run = require "lib.run"
 
 local Vortex = gs.entity(Enemy, {
-  kind = "vortex", sprite = "spr_e_vortex", hitbox = { r = 7 },
+  kind = "vortex", sprite = "spr_e_vortex", hitbox = { r = 11 },
   cap = 4, hp = 50, spd = 18, dmg = 5, xp = 6,
 })
 

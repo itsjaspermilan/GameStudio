@@ -6,7 +6,7 @@ local ui = require "lib.ui"
 local Blade = gs.entity{
   tags = { "blade" },
   depth = 19,
-  hitbox = { r = 8 },
+  hitbox = { r = 12 },
   dmg = 1,
   spin = 0,                           -- the angle it is at, for knocking enemies sideways
   look = 1,                           -- how big the blade is drawn (the hit area follows sx and sy)

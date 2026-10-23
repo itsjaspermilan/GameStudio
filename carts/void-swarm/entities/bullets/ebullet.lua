@@ -5,7 +5,7 @@ local run = require "lib.run"
 local EBullet = gs.entity{
   tags = { "ebullet" },
   depth = 40,
-  hitbox = { r = 2 },
+  hitbox = { r = 3 },
   kind = "shot",
   dmg = 5,
   life = 3.2,

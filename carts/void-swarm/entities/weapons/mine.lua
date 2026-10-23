@@ -5,7 +5,7 @@ local run = require "lib.run"
 local Mine = gs.entity{
   tags = { "mine" },
   depth = 85,
-  hitbox = { r = 11 },
+  hitbox = { r = 17 },
   sprite = "spr_p_mine",
   anim_speed = 0,
   t = 9,

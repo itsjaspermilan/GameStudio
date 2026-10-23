@@ -13,7 +13,7 @@ local sqrt, max, min, random = math.sqrt, math.max, math.min, math.random
 local Enemy = gs.entity{
   tags = { "enemy" },
   depth = 50,
-  hitbox = { r = 6 },
+  hitbox = { r = 9 },
   kind = "enemy",
   hp = 10, spd = 38, dmg = 5, xp = 1, armor = 0,
   slows = false,                      -- touching it slows the player
@@ -70,7 +70,7 @@ end
 
 function Enemy:kill()
   run.R.kills = run.R.kills + 1
-  run.fx("pop", self.x, self.y, 0.3, self:hit_radius() > 8 and 1.5 or 1)
+  run.fx("pop", self.x, self.y, 0.3, self:hit_radius() > 12 and 1.5 or 1)
   audio.sfx("sfx_kill", 4)
   run.drop(self)
   if self.split then
@@ -111,7 +111,7 @@ function Enemy:draw()
   local sx, sy = self.x - cam.x, self.y - cam.y
   if sx < -40 or sx > 360 or sy < -40 or sy > 280 then return end      -- off the screen: nothing to draw
   self:draw_sprite()
-  if self.flash > 0 then gs.draw.sprite("spr_fx_spark", self.x, self.y, { scale = self:width() / 8 }) end
+  if self.flash > 0 then gs.draw.sprite("spr_fx_spark", self.x, self.y, { scale = self:width() / 12, blend = "add" }) end
   self:draw_extras()
 end
 

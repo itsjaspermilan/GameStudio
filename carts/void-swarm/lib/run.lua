@@ -99,7 +99,8 @@ end
 -- ---------------------------------------------------------------- making things
 function M.fx(name, x, y, life, scale, vx, vy)
   if gs.count("fx") > FX_CAP then return end
-  gs.spawn("fx", x, y, { sprite = "spr_fx_" .. name, life = life or 0.4, sx = scale or 1, sy = scale or 1, vx = vx or 0, vy = vy or 0 })
+  gs.spawn("fx", x, y, { sprite = "spr_fx_" .. name, life = life or 0.4, sx = scale or 1, sy = scale or 1, vx = vx or 0, vy = vy or 0,
+    blend = name ~= "puff" and "add" or nil })          -- blasts, sparks and pops are light: they glow over what is behind
 end
 
 -- a point on a ring around the player
@@ -144,7 +145,7 @@ end
 
 -- everything within r of (x, y) takes damage and is thrown outward
 function M.explode(x, y, r, dmg, scale)
-  M.fx("boom", x, y, 0.45, scale or r / 16)
+  M.fx("boom", x, y, 0.45, scale or r / 24)
   audio.sfx("sfx_explode", 4)
   local list = gs.all("enemy")
   for i = 1, #list do

@@ -3,7 +3,7 @@
 local Enemy = require "entities.enemy"
 
 local Rammer = gs.entity(Enemy, {
-  kind = "rammer", sprite = "spr_e_rammer", hitbox = { r = 6 },
+  kind = "rammer", sprite = "spr_e_rammer", hitbox = { r = 9 },
   cap = 10, hp = 28, spd = 40, dmg = 12, xp = 3,
 })
 

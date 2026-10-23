@@ -3,7 +3,7 @@
 local EBullet = require "entities.bullets.ebullet"
 local ui = require "lib.ui"
 
-local Meteor = gs.entity(EBullet, { kind = "meteor", sprite = "spr_p_meteor", hitbox = { r = 6 }, delay = 0.8, life = 3 })
+local Meteor = gs.entity(EBullet, { kind = "meteor", sprite = "spr_p_meteor", hitbox = { r = 9 }, delay = 0.8, life = 3 })
 
 function Meteor:create()
   EBullet.create(self)

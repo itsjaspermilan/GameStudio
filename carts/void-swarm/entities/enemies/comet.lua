@@ -3,7 +3,7 @@ local Enemy = require "entities.enemy"
 local audio = require "lib.audio"
 
 local Comet = gs.entity(Enemy, {
-  kind = "comet", sprite = "spr_e_comet", hitbox = { r = 6 },
+  kind = "comet", sprite = "spr_e_comet", hitbox = { r = 9 },
   cap = 5, hp = 14, spd = 190, dmg = 10, xp = 2,
   strays = false, turns = false,
 })
