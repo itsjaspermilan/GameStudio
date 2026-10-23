@@ -1,7 +1,9 @@
-# runtime/: the `gs` player (C, SDL3, Lua 5.4)
+# runtime/: the `gs` player (C, SDL2, Lua 5.4)
 
-Three files. `main.c` (~920 lines) is the player and CLI, `synth.c`/`synth.h` (~650/100) is the sound engine. SDL3, Lua, stb_image and
-TinySoundFont are vendored in `../third_party` and built by `../CMakeLists.txt`. After any change here: `./scripts/build.sh`, `./tests/run.sh`,
+`main.c` (~2100 lines) is the player and CLI, `synth.c`/`synth.h` (~650/100) is the sound engine, `font8x8.h` the glyphs of `gs.print`. SDL2 (2.28.5,
+the version muOS ships: call nothing newer), Lua, stb_image and TinySoundFont are vendored in `../third_party` and built by `../CMakeLists.txt`. The
+desktop build links SDL2 in; the handheld build (`GS_SYSTEM_SDL2`) uses the system's `libSDL2-2.0.so.0`, which has the device's GPU driver, reads
+the frontend's controller mapping as written, and is what muOS's overlays hook (see "Video output" below). After any change here: `./scripts/build.sh`, `./tests/run.sh`,
 `cd studio && npm test` (the synth tests render through the real binary), and `./scripts/build-aarch64.sh` before telling the user it works on the device.
 
 ## main.c
@@ -49,15 +51,27 @@ convention; the engine passes the negative of `image_angle`) happen around the p
 
 ## Controllers on handheld frontends
 
-Knulli and muOS hand games a mapping in `SDL_GAMECONTROLLERCONFIG`, written for SDL2. `apply_env_gamepad_mapping` registers it under
-SDL3's own id for the joystick, and renumbers its buttons: SDL2 (as muOS builds it) counted a Linux joystick's keys below the gamepad
-range (BTN_MISC: Escape and the volume keys on the RG35XX Pro) first, SDL3 counts them last, so the raw mapping pointed three buttons too
-far (X acted as A; A, B, Y did nothing). `GS_MAPPING_SHIFT=0` turns the renumbering off; `GS_DEBUG_INPUT=1` prints the mapping used.
-A `padmap.txt` from the Pad setup cart still wins over the mapping.
+Knulli and muOS hand games a mapping in `SDL_GAMECONTROLLERCONFIG`, written for their SDL2, which gs uses on the handheld, so SDL reads it
+as it is (muOS picks it from the player's "modern" or "retro" layout). `open_controllers` opens every controller and joystick; `GS_DEBUG_INPUT=1`
+prints them and every press. A `padmap.txt` from the Pad setup cart still wins over the mapping.
+
+## Video output
+
+Three ways a frame reaches the screen, chosen in `main`:
+
+- **Window** (a desktop, or a handheld whose SDL2 has a GPU driver: muOS's `mali` on the RG35XX Pro). The game draws into a texture at the
+  console's size (`g_target`, made by `screen_logical`); `present_window` enlarges it by a whole number and presents. Drawing at the console's
+  size keeps sprites on the same pixel grid as the other two outputs. On a handheld the window is fullscreen and SDL2's GLES2 renderer draws
+  every sprite on the GPU (about 1.5 ms of CPU a frame for Then & Now's title, against 9.6 ms in software). **muOS's overlays** (volume,
+  brightness, battery: `libmustage.so`) are preloaded by the launcher (`scripts/push.sh` calls muOS's own `SETUP_STAGE_OVERLAY`) and hook
+  `SDL_RenderPresent`: they draw over the enlarged picture, so `present_window` must leave the screen, not the texture, as the target.
+  Without real vsync (the dummy driver of the tests) the loop holds itself to 60 frames a second.
+- **Embedded** (`GS_EMBED`, the studio's Play panel): software renderer, see the table below.
+- **Framebuffer** (SDL finds no video device, or `SDL_VIDEODRIVER=none` to force it): below.
 
 ## Framebuffer output and measuring (devices with no display server)
 
-When SDL finds no video device (Knulli and muOS on the RG35XX Pro: no `/dev/dri`), `main` falls back to `fb_open` / `fb_present`: the software renderer draws at the **console's own size** into
+When SDL finds no video device (a system SDL2 without the device's GPU driver; no `/dev/dri` on the RG35XX Pro), `main` falls back to `fb_open` / `fb_present`: the software renderer draws at the **console's own size** into
 the top-left corner of a surface (viewport, no logical presentation), and `fb_present` enlarges it by a whole number into `/dev/fb0` (double buffered when the driver has two pages, centred, black bars).
 Drawing at 640x480 instead cost about 19 ms a frame; this costs about 2.6 ms. The copy and the flip run on a thread of their own
 (`fb_thread_main`): on this panel the flip must come several ms before the refresh, which left a game waiting for it only about 11 ms a

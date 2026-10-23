@@ -2,7 +2,7 @@
 
 | Folder | What | Notes |
 | --- | --- | --- |
-| `sdl3/` (52 MB) | SDL3, built statically by CMake | Never grep inside; it will flood your context |
+| `sdl2/` (22 MB) | SDL2 2.28.5 (zlib; the release tarball, sha256 332cb37d...6666e4, without its tests and IDE projects). Built statically for the desktop; for the handheld only to link against (the system's copy is used) | Never grep inside; it will flood your context. Stay at the oldest SDL2 the handhelds ship |
 | `lua/` | Lua 5.4 sources (no standalone interpreter) | |
 | `stb/` | `stb_image.h` (PNG only) | |
 | `tsf/` | `tsf.h`, TinySoundFont v0.9 (MIT): General MIDI playback from a SoundFont | `synth.c` defines `TSF_IMPLEMENTATION` |

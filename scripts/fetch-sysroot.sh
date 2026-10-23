@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds a headers+libs sysroot for cross-compiling to aarch64 Linux, from Debian bookworm arm64 packages.
-# Used only so SDL3's configure step can find KMSDRM/GBM/EGL/ALSA/udev headers and sonames;
+# Used only so SDL2's configure step can find KMSDRM/GBM/EGL/ALSA/udev headers and sonames;
 # SDL dlopens these at runtime, so nothing from here is linked into the binary.
 # Output: third_party/sysroot-aarch64/   (re-run to rebuild)
 set -e

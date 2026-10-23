@@ -58,6 +58,18 @@ if [ -n "$DEVICE_PORTS_DIR" ] || [ "$DEVICE_OS" = muos ]; then
   elif [ -n "$GS_DEBUG" ]; then GS_ENV="GS_DEBUG_INPUT=1 GS_MAX_SECONDS=${GS_DEBUG_SECONDS:-60}"; GS_LOG="last-run.log"; fi
   {
     echo '#!/bin/sh'
+    if [ "$DEVICE_OS" = muos ]; then
+      # muOS draws its volume, brightness and battery notices over a game with libmustage, preloaded into it to hook SDL2's present. Its
+      # ports launcher (ext-general.sh) leaves that out for the "external" core our folders use, so the launcher asks for it with muOS's own
+      # function: that keeps up with muOS updates and respects its settings (the overlays can be switched off there). The controller mapping
+      # is already set up by ext-general.sh.
+      cat <<'MUOS'
+if [ -f /opt/muos/script/var/func.sh ]; then
+  . /opt/muos/script/var/func.sh
+  command -v SETUP_STAGE_OVERLAY >/dev/null 2>&1 && SETUP_STAGE_OVERLAY
+fi
+MUOS
+    fi
     echo "cd \"$DEVICE_DIR\""
     # The runtime raises the CPU's lowest clock while frames are late and puts it back when it exits (GS_NO_BOOST=1 turns that off). This puts it
     # back as well when the game is killed: the runtime keeps the original value in /tmp/gs-cpu-min while it has the clock raised.

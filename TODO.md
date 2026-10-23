@@ -9,6 +9,12 @@ the old `dot` system and its folder stay until removed by hand.
 
 ## Lua engine and studio (design in `docs/lua-engine-design.md`)
 
+Runtime on SDL2 (2026-10-23)
+- [x] The runtime moved from SDL3 to SDL2; on the handheld it uses the system's `libSDL2`. On muOS that means the GPU (`mali`, GLES2) and muOS's own volume / brightness / battery overlays (the launcher calls muOS's `SETUP_STAGE_OVERLAY`). Checked on the muOS card with Then & Now: 60 fps, the volume bar shows, the CPU idles at 480 MHz.
+- [ ] The GPU path has a few more single late frames than the framebuffer path (on Then & Now's title, 3 in 10 s against 1 in 9 s; the wait for the screen runs to 22 ms). Find out whether it is the overlay library, the CPU at 480 MHz (the CPU floor controller only runs on the framebuffer path), or the driver; play a busy room with `GS_PERF=1`.
+- [ ] Knulli: push a game to the Knulli card and see which output its SDL2 gives (`GS_PERF=1` prints `video: ...`). Without a GPU driver it uses the framebuffer path as before; check the buttons there (the SDL3 renumbering is gone).
+- [ ] Play a Glow43 game on muOS from the menu (not over SSH): buttons in both the "modern" and "retro" layouts, HOTKEY + Start, brightness and battery overlays.
+
 Housekeeping
 - [x] `main` (one fresh commit) is pushed to `git@github.com:itsjaspermilan/GameStudio.git`.
 - [x] Void Swarm, Breakout, Panel Pop, Button test and Pad setup were pushed again on 2026-10-22 (plain launchers, new runtime with HOTKEY + Start, `.keys` files beside each launcher). Void Swarm's new art and walk look good on the device; HOTKEY + Start works. The old `stress.cart` test is deleted from the console.

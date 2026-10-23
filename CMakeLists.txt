@@ -5,13 +5,21 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# SDL3, built from source and linked statically so the device needs nothing installed.
-set(SDL_STATIC ON CACHE BOOL "" FORCE)
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
-set(SDL_TESTS OFF CACHE BOOL "" FORCE)
-set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
-add_subdirectory(third_party/sdl3 EXCLUDE_FROM_ALL)
+# SDL2. On a desktop it is built from source and linked in statically. With GS_SYSTEM_SDL2 (the handheld build) gs links against
+# libSDL2-2.0.so.0 by name and uses the copy the handheld's system ships: that SDL2 knows the device's GPU, its controller mappings, and
+# the frontend's overlays (volume, brightness, battery), and it is updated with the system. The copy built here only serves the linker.
+option(GS_SYSTEM_SDL2 "Use the system's libSDL2-2.0.so.0 at run time instead of linking SDL2 in" OFF)
+set(SDL2_DISABLE_SDL2MAIN ON CACHE BOOL "" FORCE)
+set(SDL2_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
+set(SDL_TEST OFF CACHE BOOL "" FORCE)
+if(GS_SYSTEM_SDL2)
+  set(SDL_SHARED ON CACHE BOOL "" FORCE)
+  set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+else()
+  set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+  set(SDL_STATIC ON CACHE BOOL "" FORCE)
+endif()
+add_subdirectory(third_party/sdl2 EXCLUDE_FROM_ALL)
 
 # Lua 5.4 (everything except the standalone interpreter/compiler)
 file(GLOB LUA_SRC third_party/lua/src/*.c)
@@ -61,7 +69,11 @@ embed_file("${CMAKE_BINARY_DIR}/gs_framework.lua" gs_framework_lua EMBED_FRAMEWO
 
 add_executable(gs runtime/main.c runtime/synth.c ${EMBED_FRAMEWORK})
 target_include_directories(gs PRIVATE third_party/tsf)
-target_link_libraries(gs PRIVATE lua SDL3::SDL3-static)
+if(GS_SYSTEM_SDL2)
+  target_link_libraries(gs PRIVATE lua SDL2::SDL2)
+else()
+  target_link_libraries(gs PRIVATE lua SDL2::SDL2-static)
+endif()
 if(NOT WIN32)
   target_link_libraries(gs PRIVATE m)
 endif()

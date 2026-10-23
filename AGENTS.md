@@ -9,7 +9,7 @@ GBA-like limits). This file is the map; each folder has its own `AGENTS.md` with
 
 | Path | What | Guide |
 | --- | --- | --- |
-| `runtime/` | C: SDL3 + Lua 5.4 player (`gs`), the synth (`synth.c`), TinySoundFont for General MIDI | `runtime/AGENTS.md` |
+| `runtime/` | C: SDL2 + Lua 5.4 player (`gs`), the synth (`synth.c`), TinySoundFont for General MIDI | `runtime/AGENTS.md` |
 | `engine/` | The `gs` Lua framework (`engine/gs/`), built-in instruments, console specs. Embedded into `gs` | `engine/AGENTS.md` |
 | `studio/` | The app: Vite + vanilla JS front end, Rust (Tauri) back end | `studio/AGENTS.md` |
 | `tests/` | Headless engine fixtures and `run.sh` | `tests/AGENTS.md` |

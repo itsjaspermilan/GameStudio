@@ -130,7 +130,7 @@ Still to build: the level (room) editor for the data-file rooms, a path editor, 
 
 ## 7. The runtime
 
-The C player (`runtime/`: SDL3, drawing, input, the synth, TinySoundFont, saves, framebuffer path) is a thin layer; the embedded Lua part is a small, readable
+The C player (`runtime/`: SDL2, drawing, input, the synth, TinySoundFont, saves, framebuffer path) is a thin layer; the embedded Lua part is a small, readable
 framework (`engine/gs/*.lua`: `entity`, `world`, `scene`, `timers`, `ui`, `camera`, ...) that is itself good example Lua.
 
 ## 8. Build order and status

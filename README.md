@@ -1,6 +1,6 @@
 # GameStudio
 
-A cheap Linux handheld (an Anbernic RG35XX Pro) becomes a small console for 2D games. This repository has the runtime (C + SDL3 + Lua 5.4), a Lua game framework (`gs`: entities, scenes with layouts, conversations, sound), the **Studio** (a desktop app with a Lua code editor, a layout editor, sprite, tileset and sound editors, the game running beside the code with live reload, and in-app tutorials) and scripts to build everything, pack games into cartridges and push them to a device.
+A cheap Linux handheld (an Anbernic RG35XX Pro) becomes a small console for 2D games. This repository has the runtime (C + SDL2 + Lua 5.4), a Lua game framework (`gs`: entities, scenes with layouts, conversations, sound), the **Studio** (a desktop app with a Lua code editor, a layout editor, sprite, tileset and sound editors, the game running beside the code with live reload, and in-app tutorials) and scripts to build everything, pack games into cartridges and push them to a device.
 
 ## Quick start (desktop)
 
@@ -129,7 +129,7 @@ Saves go to the OS per-user data folder under `gs/<cart name>/` (override with t
 ## Device (aarch64 Linux)
 
 ```sh
-./scripts/build-aarch64.sh     # -> build-aarch64/gs (zig cc, SDL3 statically linked, KMSDRM + ALSA via dlopen)
+./scripts/build-aarch64.sh     # -> build-aarch64/gs (zig cc; uses the handheld's own libSDL2, for its GPU and overlays)
 cp scripts/device.env.example scripts/device.env   # then edit host/user/dir
 ./scripts/push.sh carts/breakout  # pack + scp the runtime and cartridge
 ./scripts/run.sh carts/breakout   # push, then launch over SSH
@@ -224,7 +224,7 @@ top of `render_audio` in `runtime/main.c`; samples resolve relative to the curre
 ## Licences
 
 - The runtime, studio and framework are this project's own code.
-- Lua is MIT, SDL3 is zlib, and TinySoundFont (`third_party/tsf/tsf.h`) is MIT. The studio's optional Lua language server (LuaLS, downloaded by `scripts/fetch-luals.sh`, never part of a game) is MIT.
+- Lua is MIT, SDL2 is zlib, the 8x8 font (`runtime/font8x8.h`, IBM VGA glyphs) is public domain, and TinySoundFont (`third_party/tsf/tsf.h`) is MIT. The studio's optional Lua language server (LuaLS, downloaded by `scripts/fetch-luals.sh`, never part of a game) is MIT.
 - **`assets/soundfonts/TimGM6mb.sf2` is licensed GPL-2.0** (Tim Brechbill and David Bolton, as shipped with MuseScore and packaged by
   Debian as `timgm6mb-soundfont`). It is a separate data file that is distributed beside the runtime, not linked into it. If you
   distribute the SoundFont (for example inside a release), the GPL-2 applies to that file: keep its licence with it, and note that

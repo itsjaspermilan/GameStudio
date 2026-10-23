@@ -1,4 +1,4 @@
-/* gs: tiny SDL3 + Lua 2D game runtime.
+/* gs: tiny SDL2 + Lua 2D game runtime.
  *
  *   gs <cart.cart | dir>      run a cartridge (or an unpacked directory)
  *   gs pack <dir> <out.cart>  pack a directory into a cartridge
@@ -6,8 +6,11 @@
  * A cartridge is a game built on the embedded framework (engine/gs/): it has a game.lua, which names its console (screen size, palette,
  * limits). The framework defines the init(), update(dt), draw() this file calls every frame.
  */
-#include <SDL3/SDL.h>
+#define SDL_MAIN_HANDLED
+#include <SDL.h>
+#include <stdbool.h>
 #include "synth.h"
+#include "font8x8.h"
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
@@ -18,6 +21,8 @@
 #include <sys/stat.h>
 #include <math.h>
 #include <stdarg.h>
+#include <ctype.h>
+#include <time.h>
 #ifdef __linux__
 #include <fcntl.h>
 #include <unistd.h>
@@ -57,6 +62,33 @@ extern const unsigned long gs_framework_lua_len;
 #define DEFAULT_SCREEN_H 480
 static int g_screen_w = DEFAULT_SCREEN_W, g_screen_h = DEFAULT_SCREEN_H;
 static SDL_Window *g_win;
+
+/* Time in nanoseconds, and a wait as fine as the system allows: SDL2 counts milliseconds, and a frame paced to whole milliseconds drifts. */
+static Uint64 ticks_ns(void) {
+    static Uint64 freq;
+    if (!freq) freq = SDL_GetPerformanceFrequency();
+    const Uint64 c = SDL_GetPerformanceCounter();
+    return c / freq * 1000000000ULL + c % freq * 1000000000ULL / freq;
+}
+/* A sleep can wake a few ms late (macOS gathers timers), which costs a frame: sleep until 2 ms before the end, then wait out the rest. */
+static void delay_ns(Uint64 ns) {
+    const Uint64 end = ticks_ns() + ns;
+    if (ns > 2000000) {
+#ifdef _WIN32
+        SDL_Delay((Uint32)((ns - 2000000) / 1000000));
+#else
+        struct timespec ts = { (time_t)((ns - 2000000) / 1000000000ULL), (long)((ns - 2000000) % 1000000000ULL) };
+        while (nanosleep(&ts, &ts) != 0 && errno == EINTR) {}
+#endif
+    }
+    while (ticks_ns() < end) {}
+}
+/* The folder the program is in, with a trailing slash (SDL2 hands out a fresh copy each call, so it is asked once). */
+static const char *base_path(void) {
+    static char *p; static bool asked;
+    if (!asked) { p = SDL_GetBasePath(); asked = true; }
+    return p;
+}
 
 /* ---------- virtual filesystem: directory or packed cart ---------- */
 
@@ -147,13 +179,13 @@ static const SDL_Scancode key_map[B_COUNT] = {
     SDL_SCANCODE_Z, SDL_SCANCODE_X, SDL_SCANCODE_A, SDL_SCANCODE_S,
     SDL_SCANCODE_Q, SDL_SCANCODE_W, SDL_SCANCODE_RETURN, SDL_SCANCODE_RSHIFT,
     SDL_SCANCODE_E, SDL_SCANCODE_R, SDL_SCANCODE_D, SDL_SCANCODE_F };
-/* Face buttons follow physical position (SOUTH = bottom), like a Nintendo-style layout is not assumed.
+/* Face buttons follow physical position (SDL2's A is the bottom one, B the right, X the left, Y the top), so a Nintendo-style layout is not assumed.
  * L2/R2 are analog triggers in SDL, so they have no button here: poll_buttons reads the trigger axes for them. */
-static const SDL_GamepadButton pad_map[B_COUNT] = {
-    SDL_GAMEPAD_BUTTON_DPAD_UP, SDL_GAMEPAD_BUTTON_DPAD_DOWN, SDL_GAMEPAD_BUTTON_DPAD_LEFT, SDL_GAMEPAD_BUTTON_DPAD_RIGHT,
-    SDL_GAMEPAD_BUTTON_SOUTH, SDL_GAMEPAD_BUTTON_EAST, SDL_GAMEPAD_BUTTON_WEST, SDL_GAMEPAD_BUTTON_NORTH,
-    SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, SDL_GAMEPAD_BUTTON_START, SDL_GAMEPAD_BUTTON_BACK,
-    SDL_GAMEPAD_BUTTON_INVALID, SDL_GAMEPAD_BUTTON_INVALID, SDL_GAMEPAD_BUTTON_LEFT_STICK, SDL_GAMEPAD_BUTTON_RIGHT_STICK };
+static const SDL_GameControllerButton pad_map[B_COUNT] = {
+    SDL_CONTROLLER_BUTTON_DPAD_UP, SDL_CONTROLLER_BUTTON_DPAD_DOWN, SDL_CONTROLLER_BUTTON_DPAD_LEFT, SDL_CONTROLLER_BUTTON_DPAD_RIGHT,
+    SDL_CONTROLLER_BUTTON_A, SDL_CONTROLLER_BUTTON_B, SDL_CONTROLLER_BUTTON_X, SDL_CONTROLLER_BUTTON_Y,
+    SDL_CONTROLLER_BUTTON_LEFTSHOULDER, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, SDL_CONTROLLER_BUTTON_START, SDL_CONTROLLER_BUTTON_BACK,
+    SDL_CONTROLLER_BUTTON_INVALID, SDL_CONTROLLER_BUTTON_INVALID, SDL_CONTROLLER_BUTTON_LEFTSTICK, SDL_CONTROLLER_BUTTON_RIGHTSTICK };
 static bool btn_now[B_COUNT], btn_prev[B_COUNT];
 static Uint16 g_embed_buttons; /* buttons held in the studio's embedded preview (bit i = button i), see "embedded preview" */
 static Uint16 g_embed_tapped;  /* buttons pressed there since the last frame: a tap shorter than a frame still counts once */
@@ -163,9 +195,9 @@ static bool g_start_raw;            /* START as pressed, before the hotkey hides
  * A button pressed during the hotkey stays hidden until it is let go, so releasing the hotkey first does not press it in the game. */
 static bool g_swallow[B_COUNT];
 
-/* Handheld frontends describe the handheld's buttons in SDL_GAMECONTROLLERCONFIG, but with an SDL2-style device id that SDL3
- * does not compute the same way, so SDL3 falls back to a guessed layout. Re-register that mapping under each joystick's real id, then
- * open the ones that are now gamepads. GS_DEBUG_INPUT=1 prints every joystick and button press to stderr, to find out what a device does. */
+/* Handheld frontends describe the handheld's buttons in SDL_GAMECONTROLLERCONFIG, which SDL2 reads by itself: on the handheld gs uses the
+ * system's SDL2, the one the mapping was written for. GS_DEBUG_INPUT=1 prints every joystick and button press to stderr, to find out what a
+ * device does. */
 static bool g_debug_input;
 
 /* Per-device button map. SDL's guessed gamepad layout is wrong for some handhelds, so the "pad setup" cart asks the player to press the
@@ -177,9 +209,10 @@ static int g_raw_last = -1;         /* last raw joystick button pressed, for the
  * Knulli. The pad setup cart can record it as "hotkey" in padmap.txt; without an entry it is the gamepad's guide button. */
 static int g_raw_hotkey = -1;
 static SDL_Joystick *g_joys[8]; static int g_njoys;
+static SDL_GameController *g_pads[8]; static int g_npads;
 
 static bool padmap_path(char *out, size_t cap) {
-    const char *base = SDL_GetBasePath(); if (!base) return false;
+    const char *base = base_path(); if (!base) return false;
     snprintf(out, cap, "%spadmap.txt", base); return true;
 }
 static void padmap_load(void) {
@@ -230,98 +263,53 @@ static void evdev_debug_poll(void) {
 }
 #endif
 
-/* Frontends write their mapping for SDL2's numbering of a Linux joystick's buttons, and SDL3 numbers them differently: the RG35XX Pro's
- * muOS-Keys has three keys below the gamepad range (Escape and the two volume keys); muOS's SDL2 counted those first (A is button 3),
- * SDL3 counts the gamepad buttons first (A is button 0) and those three last. Used as it is, the mapping pointed three buttons too far
- * (on muOS X acted as A, and A, B and Y did nothing). So a mapping from the environment is renumbered: with k keys below the gamepad
- * range (BTN_MISC) out of n buttons, SDL2's button N >= k is SDL3's N - k, and N < k is SDL3's n - k + N. GS_MAPPING_SHIFT=0 turns it off.
- * Returns k (0: nothing to change, or not Linux), and the button count in *count. */
-static int sdl2_low_keys(SDL_JoystickID id, int *count) {
-    *count = 0;
-#ifdef __linux__
-    const char *off = getenv("GS_MAPPING_SHIFT");
-    if (off && !strcmp(off, "0")) return 0;
-    SDL_Joystick *j = SDL_OpenJoystick(id);
-    *count = j ? SDL_GetNumJoystickButtons(j) : 0;
-    if (j) SDL_CloseJoystick(j);
-    const char *path = SDL_GetJoystickPathForID(id);
-    int fd = path ? open(path, O_RDONLY | O_NONBLOCK) : -1;
-    if (fd < 0) return 0;
-    unsigned long bits[(KEY_MAX + 1) / (8 * sizeof(unsigned long)) + 1] = {0};
-    int below = 0;
-    if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof bits), bits) >= 0)
-        for (int code = 0; code < BTN_MISC; code++) if (bits[code / (8 * sizeof(unsigned long))] >> (code % (8 * sizeof(unsigned long))) & 1) below++;
-    close(fd);
-    return below < *count ? below : 0;
-#else
-    (void)id; return 0;
-#endif
-}
-/* the mapping with every "b<N>" renumbered from SDL2's order to SDL3's (see above) */
-static char *renumber_mapping_buttons(const char *map, int low, int count) {
-    size_t cap = strlen(map) + 16; char *out = SDL_malloc(cap), *o = out;
-    if (!out) return NULL;
-    for (const char *p = map; *p;) {
-        const char *comma = strchr(p, ','); size_t len = comma ? (size_t)(comma - p) : strlen(p);
-        const char *colon = memchr(p, ':', len);
-        if (colon && colon[1] == 'b' && colon[2] >= '0' && colon[2] <= '9') {
-            const int v = atoi(colon + 2), w = v >= low ? v - low : count - low + v;
-            o += SDL_snprintf(o, cap - (size_t)(o - out), "%.*sb%d,", (int)(colon + 1 - p), p, w);
-        } else { memcpy(o, p, len); o += len; *o++ = ','; }
-        p += len + (comma ? 1 : 0);
+/* Open every controller SDL knows a mapping for, and every joystick (for raw button numbers: pad setup, the hotkey). A controller that is
+ * already open is skipped, so this also serves the "device added" event SDL sends for each one at start-up. */
+static void open_controller(int index) {
+    if (SDL_IsGameController(index) && g_npads < 8) {
+        const SDL_JoystickID id = SDL_JoystickGetDeviceInstanceID(index);
+        if (!SDL_GameControllerFromInstanceID(id)) { SDL_GameController *c = SDL_GameControllerOpen(index); if (c) g_pads[g_npads++] = c; }
     }
-    *o = 0;
-    return out;
+    if (g_debug_input) {
+        char guid[64]; SDL_JoystickGetGUIDString(SDL_JoystickGetDeviceGUID(index), guid, sizeof guid);
+        fprintf(stderr, "joystick %d: %s guid=%s gamepad=%d\n", index, SDL_JoystickNameForIndex(index), guid, (int)SDL_IsGameController(index));
+    }
 }
-
-static void apply_env_gamepad_mapping(void) {
-    const char *cfg = getenv("SDL_GAMECONTROLLERCONFIG");
-    int n = 0; SDL_JoystickID *ids = SDL_GetJoysticks(&n);
+static void open_controllers(void) {
+    const int n = SDL_NumJoysticks();
     for (int i = 0; i < n; i++) {
-        char guid[64]; SDL_GUIDToString(SDL_GetJoystickGUIDForID(ids[i]), guid, sizeof guid);
-        if (cfg && strchr(cfg, ',')) {
-            const char *rest = strchr(cfg, ',');
-            int count = 0; const int low = sdl2_low_keys(ids[i], &count);
-            char *shifted = low > 0 ? renumber_mapping_buttons(rest, low, count) : NULL;
-            char *line = NULL; SDL_asprintf(&line, "%s%s", guid, shifted ? shifted : rest);
-            if (line && g_debug_input) fprintf(stderr, "mapping: %s\n", line);
-            SDL_free(shifted);
-            if (line) { if (SDL_AddGamepadMapping(line) < 0) fprintf(stderr, "mapping rejected: %s\n", SDL_GetError()); SDL_free(line); }
-        }
-        if (SDL_IsGamepad(ids[i])) SDL_OpenGamepad(ids[i]);
-        if (g_njoys < 8) { SDL_Joystick *j = SDL_OpenJoystick(ids[i]); if (j) g_joys[g_njoys++] = j; }
-        if (g_debug_input) fprintf(stderr, "joystick %d: %s guid=%s gamepad=%d\n", (int)ids[i], SDL_GetJoystickNameForID(ids[i]), guid, (int)SDL_IsGamepad(ids[i]));
+        open_controller(i);
+        if (g_njoys < 8) { SDL_Joystick *j = SDL_JoystickOpen(i); if (j) g_joys[g_njoys++] = j; }
     }
-    SDL_free(ids);
+}
+static void close_controller(SDL_JoystickID id) {
+    for (int i = 0; i < g_npads; i++)
+        if (SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(g_pads[i])) == id) { SDL_GameControllerClose(g_pads[i]); g_pads[i] = g_pads[--g_npads]; return; }
 }
 
 static void poll_buttons(void) {
     memcpy(btn_prev, btn_now, sizeof btn_now);
-    const bool *keys = SDL_GetKeyboardState(NULL);
-    int n = 0; SDL_JoystickID *ids = SDL_GetGamepads(&n);
+    const Uint8 *keys = SDL_GetKeyboardState(NULL);
     for (int i = 0; i < B_COUNT; i++) {
         bool down = keys[key_map[i]] || ((g_embed_buttons | g_embed_tapped) >> i & 1);
-        if (g_rawmap[i] >= 0) for (int j = 0; j < g_njoys && !down; j++) if (SDL_GetJoystickButton(g_joys[j], g_rawmap[i])) down = true;
-        for (int g = 0; g < n && !down && g_rawmap[i] < 0; g++) {
-            SDL_Gamepad *pad = SDL_GetGamepadFromID(ids[g]);
-            if (!pad) continue;
-            if (i == B_L2) down = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > 16000;
-            else if (i == B_R2) down = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > 16000;
-            else if (SDL_GetGamepadButton(pad, pad_map[i])) down = true;
+        if (g_rawmap[i] >= 0) for (int j = 0; j < g_njoys && !down; j++) if (SDL_JoystickGetButton(g_joys[j], g_rawmap[i])) down = true;
+        for (int g = 0; g < g_npads && !down && g_rawmap[i] < 0; g++) {
+            SDL_GameController *pad = g_pads[g];
+            if (i == B_L2) down = SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_TRIGGERLEFT) > 16000;
+            else if (i == B_R2) down = SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16000;
+            else if (SDL_GameControllerGetButton(pad, pad_map[i])) down = true;
         }
         btn_now[i] = down;
     }
     g_hotkey = false;
-    if (g_raw_hotkey >= 0) for (int j = 0; j < g_njoys && !g_hotkey; j++) g_hotkey = SDL_GetJoystickButton(g_joys[j], g_raw_hotkey);
-    else for (int g = 0; g < n && !g_hotkey; g++) { SDL_Gamepad *pad = SDL_GetGamepadFromID(ids[g]); g_hotkey = pad && SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_GUIDE); }
+    if (g_raw_hotkey >= 0) for (int j = 0; j < g_njoys && !g_hotkey; j++) g_hotkey = SDL_JoystickGetButton(g_joys[j], g_raw_hotkey);
+    else for (int g = 0; g < g_npads && !g_hotkey; g++) g_hotkey = SDL_GameControllerGetButton(g_pads[g], SDL_CONTROLLER_BUTTON_GUIDE);
     /* left stick acts as d-pad */
-    for (int g = 0; g < n; g++) {
-        SDL_Gamepad *pad = SDL_GetGamepadFromID(ids[g]); if (!pad) continue;
-        Sint16 ax = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTX), ay = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTY);
+    for (int g = 0; g < g_npads; g++) {
+        Sint16 ax = SDL_GameControllerGetAxis(g_pads[g], SDL_CONTROLLER_AXIS_LEFTX), ay = SDL_GameControllerGetAxis(g_pads[g], SDL_CONTROLLER_AXIS_LEFTY);
         if (ax < -16000) btn_now[B_LEFT] = true; if (ax > 16000) btn_now[B_RIGHT] = true;
         if (ay < -16000) btn_now[B_UP] = true;   if (ay > 16000) btn_now[B_DOWN] = true;
     }
-    SDL_free(ids);
     g_embed_tapped = 0;
     g_start_raw = btn_now[B_START];
     for (int i = 0; i < B_COUNT; i++) {
@@ -335,8 +323,9 @@ static void poll_buttons(void) {
 
 static SDL_Renderer *g_ren;
 static bool g_use_fb; /* drawing into the framebuffer ourselves (see "framebuffer output" below) */
-/* Sets the logical screen: scaled by SDL on a window, or drawn 1:1 into the top-left corner of the framebuffer surface and enlarged by fb_present. */
-static void screen_logical(int w, int h, SDL_RendererLogicalPresentation mode);
+/* Sets the logical screen: drawn into a texture of its size and enlarged by present_window on a window, or drawn 1:1 into the top-left corner of the
+ * framebuffer surface and enlarged by fb_present. */
+static void screen_logical(int w, int h);
 
 /* gs.camera(x, y): everything drawn afterwards is shifted by -(x, y), so a world bigger than the screen can scroll.
  * gs.camera() puts it back at 0,0 (for a heads-up display). It is reset at the start of every frame. */
@@ -360,7 +349,7 @@ static int l_set_resolution(lua_State *L) {
     int w = (int)luaL_checkinteger(L, 1), h = (int)luaL_checkinteger(L, 2);
     if (w < 64 || h < 64 || w > 2048 || h > 2048) return luaL_error(L, "resolution out of range (64..2048): %dx%d", w, h);
     g_screen_w = w; g_screen_h = h;
-    screen_logical(w, h, SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
+    screen_logical(w, h);
     if (g_win && !(SDL_GetWindowFlags(g_win) & SDL_WINDOW_FULLSCREEN)) {
         int k = SDL_max(1, SDL_min(960 / w, 720 / h));
         SDL_SetWindowSize(g_win, w * k, h * k);
@@ -408,26 +397,61 @@ static int l_blend(lua_State *L) {
 }
 static int l_rect(lua_State *L) { /* x,y,w,h,r,g,b[,a] */
     SDL_FRect r = {ZX(luaL_checknumber(L,1)), ZY(luaL_checknumber(L,2)), (float)luaL_checknumber(L,3) * g_zoom, (float)luaL_checknumber(L,4) * g_zoom};
-    set_color(L, 5); SDL_RenderFillRect(g_ren, &r); count_px(r.x, r.y, r.w, r.h); return 0;
+    set_color(L, 5); SDL_RenderFillRectF(g_ren, &r); count_px(r.x, r.y, r.w, r.h); return 0;
 }
 static int l_line(lua_State *L) { /* x1,y1,x2,y2,r,g,b[,a] */
     set_color(L, 5);
-    SDL_RenderLine(g_ren, ZX(luaL_checknumber(L,1)), ZY(luaL_checknumber(L,2)), ZX(luaL_checknumber(L,3)), ZY(luaL_checknumber(L,4))); return 0;
+    SDL_RenderDrawLineF(g_ren, ZX(luaL_checknumber(L,1)), ZY(luaL_checknumber(L,2)), ZX(luaL_checknumber(L,3)), ZY(luaL_checknumber(L,4))); return 0;
+}
+/* The 8x8 font (font8x8.h) as one picture of glyphs, made the first time something is printed. Each glyph has a blank pixel around it so an
+ * enlarged glyph never picks up its neighbour's edge. */
+#define FONT8_PER_ROW 14
+static SDL_Texture *g_font_tex;
+static bool font_texture(void) {
+    if (g_font_tex) return true;
+    const int rows = FONT8_GLYPHS / FONT8_PER_ROW + 1, w = FONT8_PER_ROW * 10, h = rows * 10;
+    Uint32 *px = calloc((size_t)w * h, 4);
+    if (!px) return false;
+    for (int g = 0; g < FONT8_GLYPHS; g++) {
+        const int ox = g % FONT8_PER_ROW * 10 + 1, oy = g / FONT8_PER_ROW * 10 + 1;
+        for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++) if (font8x8[g * 8 + y] >> x & 1) px[(oy + y) * w + ox + x] = 0xffffffff;
+    }
+    g_font_tex = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
+    if (g_font_tex) { SDL_UpdateTexture(g_font_tex, NULL, px, w * 4); SDL_SetTextureBlendMode(g_font_tex, SDL_BLENDMODE_BLEND); SDL_SetTextureScaleMode(g_font_tex, SDL_ScaleModeNearest); }
+    free(px);
+    return g_font_tex != NULL;
+}
+/* The next character of UTF-8 text (a broken sequence counts as one unknown character). */
+static Uint32 utf8_next(const char **s) {
+    const unsigned char *p = (const unsigned char *)*s;
+    int n = p[0] < 0x80 ? 0 : p[0] >= 0xf0 ? 3 : p[0] >= 0xe0 ? 2 : p[0] >= 0xc0 ? 1 : -1;
+    if (n < 0) { (*s)++; return 0xfffd; }
+    Uint32 c = n ? p[0] & (0x3f >> n) : p[0];
+    for (int i = 1; i <= n; i++) { if ((p[i] & 0xc0) != 0x80) { *s += i; return 0xfffd; } c = c << 6 | (p[i] & 0x3f); }
+    *s += n + 1; return c;
 }
 static int l_print(lua_State *L) { /* text,x,y[,r,g,b,a,scale] — 8x8 built-in font, integer scale looks best */
-    const char *s = luaL_checkstring(L, 1); set_color(L, 4);
+    const char *s = luaL_checkstring(L, 1);
     const float sc = (float)luaL_optnumber(L, 8, 1) * g_zoom, x = ZX(luaL_checknumber(L,2)), y = ZY(luaL_checknumber(L,3));
-    SDL_SetRenderScale(g_ren, sc, sc);
-    SDL_RenderDebugText(g_ren, x / sc, y / sc, s);
-    SDL_SetRenderScale(g_ren, 1, 1);
-    count_px(x, y, (float)strlen(s) * 8 * sc, 8 * sc); return 0;
+    if (!font_texture()) return 0;
+    SDL_SetTextureColorMod(g_font_tex, cu8(L, 4, 255), cu8(L, 5, 255), cu8(L, 6, 255)); SDL_SetTextureAlphaMod(g_font_tex, cu8(L, 7, 255));
+    float cx = x; int count = 0;
+    for (const char *p = s; *p; cx += 8 * sc, count++) {
+        Uint32 g = utf8_next(&p);
+        if (g <= 32 || (g >= 127 && g <= 160)) continue; /* blank */
+        g = g >= FONT8_GLYPHS + 66 ? FONT8_GLYPHS - 1 : g < 127 ? g - 33 : g - 67; /* past the last glyph: the "unknown" checkerboard */
+        const SDL_Rect src = { (int)g % FONT8_PER_ROW * 10 + 1, (int)g / FONT8_PER_ROW * 10 + 1, 8, 8 };
+        const SDL_FRect dst = { cx, y, 8 * sc, 8 * sc };
+        SDL_RenderCopyF(g_ren, g_font_tex, &src, &dst);
+    }
+    count_px(x, y, (float)count * 8 * sc, 8 * sc); return 0;
 }
 static int l_circle(lua_State *L) { /* cx,cy,radius,r,g,b[,a] filled */
     float cx = ZX(luaL_checknumber(L,1)), cy = ZY(luaL_checknumber(L,2)), r = (float)luaL_checknumber(L,3) * g_zoom;
     set_color(L, 4);
     for (float dy = -r; dy <= r; dy += 1) {
         float dx = sqrtf(fmaxf(r * r - dy * dy, 0));
-        SDL_RenderLine(g_ren, cx - dx, cy + dy, cx + dx, cy + dy);
+        SDL_RenderDrawLineF(g_ren, cx - dx, cy + dy, cx + dx, cy + dy);
     }
     g_px_frame += 3.14159 * r * r; g_calls_frame++;
     return 0;
@@ -438,7 +462,7 @@ static int l_circle(lua_State *L) { /* cx,cy,radius,r,g,b[,a] filled */
 static struct { char *name; SDL_Texture *tex; unsigned char *px; int w, h; } g_images[MAX_IMAGES]; static int g_nimages; /* px: the decoded RGBA pixels, kept for gs.compose (NULL for composed pictures) */
 
 static void push_image(lua_State *L, int id) {
-    float w, h; SDL_GetTextureSize(g_images[id].tex, &w, &h);
+    int w, h; SDL_QueryTexture(g_images[id].tex, NULL, NULL, &w, &h);
     lua_createtable(L, 0, 3);
     lua_pushinteger(L, id); lua_setfield(L, -2, "id");
     lua_pushinteger(L, (lua_Integer)w); lua_setfield(L, -2, "w");
@@ -461,7 +485,7 @@ static int l_image(lua_State *L) {
     if (!t) { stbi_image_free(px); return luaL_error(L, "texture: %s", SDL_GetError()); }
     SDL_UpdateTexture(t, NULL, px, w * 4);
     SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
-    SDL_SetTextureScaleMode(t, SDL_SCALEMODE_NEAREST); /* crisp pixel art */
+    SDL_SetTextureScaleMode(t, SDL_ScaleModeNearest); /* crisp pixel art */
     if (slot >= 0) { /* a reload: swap the picture in the same slot */
         SDL_DestroyTexture(g_images[slot].tex); stbi_image_free(g_images[slot].px);
         g_images[slot].tex = t; g_images[slot].px = px; g_images[slot].w = w; g_images[slot].h = h;
@@ -515,7 +539,7 @@ static int l_compose(lua_State *L) {
     if (!t) { free(out); return luaL_error(L, "compose: %s", SDL_GetError()); }
     SDL_UpdateTexture(t, NULL, out, W * 4); free(out);
     SDL_SetTextureBlendMode(t, opaque ? SDL_BLENDMODE_NONE : SDL_BLENDMODE_BLEND);
-    SDL_SetTextureScaleMode(t, SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureScaleMode(t, SDL_ScaleModeNearest);
     int id = -1;
     if (lua_istable(L, 11)) { /* reuse the slot of an earlier picture from this function */
         lua_getfield(L, 11, "id"); const int oid = (int)luaL_optinteger(L, -1, -1); lua_pop(L, 1);
@@ -559,7 +583,7 @@ static int l_recolor(lua_State *L) {
     if (!t) { free(out); return luaL_error(L, "recolor: %s", SDL_GetError()); }
     SDL_UpdateTexture(t, NULL, out, w * 4);
     SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
-    SDL_SetTextureScaleMode(t, SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureScaleMode(t, SDL_ScaleModeNearest);
     int id = -1;
     if (lua_istable(L, 4)) {
         lua_getfield(L, 4, "id"); const int oid = (int)luaL_optinteger(L, -1, -1); lua_pop(L, 1);
@@ -581,17 +605,24 @@ static SDL_Texture *check_image(lua_State *L, int i) {
     if (id < 0 || id >= g_nimages) luaL_error(L, "invalid image");
     return g_images[id].tex;
 }
+/* SDL2 takes the part of a picture to draw in whole pixels: edges are rounded to the nearest one (a sprite cut at the screen edge can start
+ * mid-pixel). */
+static SDL_Rect src_rect(SDL_FRect f) {
+    const int x0 = (int)floorf(f.x + 0.5f), y0 = (int)floorf(f.y + 0.5f);
+    return (SDL_Rect){ x0, y0, (int)floorf(f.x + f.w + 0.5f) - x0, (int)floorf(f.y + f.h + 0.5f) - y0 };
+}
 static void draw_tex(SDL_Texture *t, SDL_FRect src, float x, float y, float scale, bool flipx) {
     SDL_FRect dst = {ZX(x), ZY(y), src.w * scale * g_zoom, src.h * scale * g_zoom};
     SDL_BlendMode own = SDL_BLENDMODE_BLEND; SDL_GetTextureBlendMode(t, &own);
     if (g_blend != SDL_BLENDMODE_BLEND) SDL_SetTextureBlendMode(t, g_blend);
-    SDL_RenderTextureRotated(g_ren, t, &src, &dst, 0, NULL, flipx ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
+    const SDL_Rect s = src_rect(src);
+    SDL_RenderCopyExF(g_ren, t, &s, &dst, 0, NULL, flipx ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
     if (g_blend != SDL_BLENDMODE_BLEND) SDL_SetTextureBlendMode(t, own);
     count_px(dst.x, dst.y, dst.w, dst.h);
 }
 static int l_sprite(lua_State *L) { /* img,x,y[,scale,flipx] whole image */
-    SDL_Texture *t = check_image(L, 1); float w, h; SDL_GetTextureSize(t, &w, &h);
-    draw_tex(t, (SDL_FRect){0, 0, w, h}, luaL_checknumber(L,2), luaL_checknumber(L,3), (float)luaL_optnumber(L,4,1), lua_toboolean(L,5));
+    SDL_Texture *t = check_image(L, 1); int w, h; SDL_QueryTexture(t, NULL, NULL, &w, &h);
+    draw_tex(t, (SDL_FRect){0, 0, (float)w, (float)h}, luaL_checknumber(L,2), luaL_checknumber(L,3), (float)luaL_optnumber(L,4,1), lua_toboolean(L,5));
     return 0;
 }
 static int l_tile(lua_State *L) { /* img,sx,sy,sw,sh,x,y[,scale,flipx,angle,yscale,alpha,pivotx,pivoty] sub-rectangle of a sheet.
@@ -627,7 +658,8 @@ static int l_tile(lua_State *L) { /* img,sx,sy,sw,sh,x,y[,scale,flipx,angle,ysca
     const SDL_BlendMode use = g_blend != SDL_BLENDMODE_BLEND ? g_blend : (own == SDL_BLENDMODE_NONE && alpha < 255) ? SDL_BLENDMODE_BLEND : own;
     if (alpha < 255) SDL_SetTextureAlphaMod(t, (Uint8)(alpha < 0 ? 0 : alpha));
     if (use != own) SDL_SetTextureBlendMode(t, use);
-    SDL_RenderTextureRotated(g_ren, t, &src, &dst, angle, &c, (SDL_FlipMode)((flipx ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE) | (flipy ? SDL_FLIP_VERTICAL : 0)));
+    const SDL_Rect s = src_rect(src);
+    SDL_RenderCopyExF(g_ren, t, &s, &dst, angle, &c, (SDL_RendererFlip)((flipx ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE) | (flipy ? SDL_FLIP_VERTICAL : 0)));
     if (use != own) SDL_SetTextureBlendMode(t, own);
     if (alpha < 255) SDL_SetTextureAlphaMod(t, 255);
     count_px(dst.x, dst.y, dst.w, dst.h);
@@ -640,7 +672,7 @@ static int btn_index(lua_State *L) {
 }
 static int l_btn(lua_State *L)  { lua_pushboolean(L, btn_now[btn_index(L)]); return 1; }
 static int l_btnp(lua_State *L) { int i = btn_index(L); lua_pushboolean(L, btn_now[i] && !btn_prev[i]); return 1; }
-static int l_clock(lua_State *L) { lua_pushnumber(L, SDL_GetTicksNS() / 1e9); return 1; } /* gs.clock(): seconds since start, fine-grained (for timing) */
+static int l_clock(lua_State *L) { lua_pushnumber(L, ticks_ns() / 1e9); return 1; } /* gs.clock(): seconds since start, fine-grained (for timing) */
 static int l_time(lua_State *L) { lua_pushnumber(L, SDL_GetTicks() / 1000.0); return 1; }
 static int l_quit(lua_State *L) { (void)L; g_quit = true; return 0; }
 /* gs.pad_last(): the number of the raw joystick button pressed most recently (then forgotten), or nil. For the pad setup cart. */
@@ -670,7 +702,7 @@ static char g_savedir[1024];
 static bool valid_key(const char *k) {
     if (!*k || strlen(k) > 64 || k[0] == '.') return false;
     for (; *k; k++)
-        if (!(SDL_isalnum((unsigned char)*k) || *k == '_' || *k == '-' || *k == '.')) return false;
+        if (!(isalnum((unsigned char)*k) || *k == '_' || *k == '-' || *k == '.')) return false;
     return true;
 }
 static int l_save(lua_State *L) { /* gs.save(key, string) -> ok */
@@ -708,7 +740,7 @@ static void init_savedir(const char *cartpath) {
     if (g_savedir[0]) mkdir(g_savedir, 0755);
 }
 
-/* audio: WAV only. One persistent output stream; a small software mixer runs in SDL's audio thread.
+/* audio: WAV only. One audio device; a small software mixer runs in SDL's audio thread.
  * Sounds are converted to the mix format (float stereo 44.1k) at load time so play() is cheap. */
 #define MAX_SOUNDS 128
 #define MAX_VOICES 16
@@ -718,7 +750,7 @@ static bool g_perf_on;
 static double g_lock_wait_max, g_lock_wait_sum, g_lock_count, g_cb_max, g_cb_sum, g_cb_count;
 static struct { char *name; float *pcm; Uint32 frames; } g_sounds[MAX_SOUNDS]; static int g_nsounds;
 static struct { bool active, loop; int snd; Uint32 pos; float gain; } g_voices[MAX_VOICES];
-static SDL_AudioStream *g_mix_stream;
+static SDL_AudioDeviceID g_audio_dev; /* 0: no sound */
 static bool g_audio_ok;
 
 /* Starting and stopping sounds is posted to a small queue instead of done under the audio lock. The audio thread holds that lock for the whole of
@@ -729,7 +761,7 @@ static bool g_audio_ok;
 enum { SC_SFX_PLAY, SC_SFX_STOP, SC_MUSIC_PLAY, SC_SONG_PLAY, SC_MUSIC_STOP };
 typedef struct { int op, n, hs[SYNTH_MAX_SFX_CHANNELS], arg; float v; } SoundCmd;
 #define SOUND_QUEUE 128
-static SoundCmd g_sound_q[SOUND_QUEUE]; static int g_sound_head, g_sound_count; static SDL_Mutex *g_sound_mutex; static long g_sound_ran; /* commands carried out so far */
+static SoundCmd g_sound_q[SOUND_QUEUE]; static int g_sound_head, g_sound_count; static SDL_mutex *g_sound_mutex; static long g_sound_ran; /* commands carried out so far */
 static void sound_post(const SoundCmd *c) {
     if (!g_sound_mutex) return;
     SDL_LockMutex(g_sound_mutex);
@@ -755,15 +787,16 @@ static void sound_run_commands(void) {
     }
 }
 
-/* Audio thread. SDL holds the stream lock while calling this, and the main thread takes the same lock to touch voices. */
-static void SDLCALL mix_cb(void *ud, SDL_AudioStream *stream, int additional, int total) {
-    (void)ud; (void)total;
-    const Uint64 cb_start = g_perf_on ? SDL_GetTicksNS() : 0;
+/* Audio thread. SDL holds the device lock while calling this, and the main thread takes the same lock to touch voices. */
+static void SDLCALL mix_cb(void *ud, Uint8 *stream, int len) {
+    (void)ud;
+    const Uint64 cb_start = g_perf_on ? ticks_ns() : 0;
     sound_run_commands();
-    float buf[1024]; /* 512 stereo frames */
-    while (additional > 0) {
-        int frames = SDL_min(additional / (int)(2 * sizeof(float)), 512);
-        if (frames <= 0) break;
+    float *out = (float *)stream;
+    int left = len / (int)(2 * sizeof(float)); /* stereo frames still to fill */
+    while (left > 0) {
+        const int frames = SDL_min(left, 512);
+        float *buf = out;
         memset(buf, 0, frames * 2 * sizeof(float));
         for (int v = 0; v < MAX_VOICES; v++) {
             if (!g_voices[v].active) continue;
@@ -779,27 +812,39 @@ static void SDLCALL mix_cb(void *ud, SDL_AudioStream *stream, int additional, in
         }
         synth_mix(buf, frames); /* the chiptune channels (sound effects and music) */
         for (int i = 0; i < frames * 2; i++) buf[i] = SDL_clamp(buf[i], -1.0f, 1.0f);
-        SDL_PutAudioStreamData(stream, buf, frames * 2 * sizeof(float));
-        additional -= frames * 2 * sizeof(float);
+        out += frames * 2; left -= frames;
     }
-    if (g_perf_on) { const double ms = (SDL_GetTicksNS() - cb_start) * 1e-6; g_cb_sum += ms; g_cb_count++; if (ms > g_cb_max) g_cb_max = ms; }
+    if (g_perf_on) { const double ms = (ticks_ns() - cb_start) * 1e-6; g_cb_sum += ms; g_cb_count++; if (ms > g_cb_max) g_cb_max = ms; }
 }
 
 static void init_audio(void) {
     synth_reset(MIX_FREQ); /* so sound effects and music can be loaded even when there is no audio device */
     g_sound_mutex = SDL_CreateMutex();
-    g_audio_ok = SDL_InitSubSystem(SDL_INIT_AUDIO); /* no audio device is not fatal: play() becomes a no-op */
+    g_audio_ok = SDL_InitSubSystem(SDL_INIT_AUDIO) == 0; /* no audio device is not fatal: play() becomes a no-op */
     if (g_audio_ok) {
-        SDL_AudioSpec spec = {SDL_AUDIO_F32, 2, MIX_FREQ};
-        /* GS_AUDIO_FRAMES=N asks for a device buffer of N frames. Not used by default: measured on the RG35XX Pro, the game's wait for the audio lock
-         * was under 3 ms with SDL's own buffer, and 512 frames made no difference to the hitches. */
-        { const char *af = getenv("GS_AUDIO_FRAMES"); const int n = af ? atoi(af) : 0; if (n > 0) { char s[16]; snprintf(s, sizeof s, "%d", n); SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, s); } }
-        g_mix_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, mix_cb, NULL);
-        if (g_mix_stream) SDL_ResumeAudioStreamDevice(g_mix_stream); else g_audio_ok = false;
+        /* GS_AUDIO_FRAMES=N asks for a device buffer of N frames. The default, 1024 (23 ms), is what SDL3 chose here before: measured on the
+         * RG35XX Pro, the game's wait for the audio lock was under 3 ms with it, and 512 frames made no difference to the hitches. */
+        const char *af = getenv("GS_AUDIO_FRAMES"); const int n = af ? atoi(af) : 0;
+        SDL_AudioSpec want = { .freq = MIX_FREQ, .format = AUDIO_F32SYS, .channels = 2, .samples = (Uint16)(n > 0 && n <= 8192 ? n : 1024), .callback = mix_cb };
+        g_audio_dev = SDL_OpenAudioDevice(NULL, 0, &want, NULL, 0); /* SDL converts to what the device wants */
+        if (g_audio_dev) SDL_PauseAudioDevice(g_audio_dev, 0); else g_audio_ok = false;
     }
     if (!g_audio_ok) fprintf(stderr, "audio disabled: %s\n", SDL_GetError());
 }
 
+/* Converts sound data to float samples with the given channels and rate. *out is SDL_malloc'd (the caller frees it). */
+static bool convert_audio(const SDL_AudioSpec *from, const Uint8 *data, int len, int channels, int freq, Uint8 **out, int *outlen) {
+    *out = NULL; *outlen = 0;
+    SDL_AudioStream *st = SDL_NewAudioStream(from->format, from->channels, from->freq, AUDIO_F32SYS, (Uint8)channels, freq);
+    if (!st) return false;
+    bool ok = SDL_AudioStreamPut(st, data, len) == 0 && SDL_AudioStreamFlush(st) == 0;
+    const int avail = ok ? SDL_AudioStreamAvailable(st) : 0;
+    if (ok) { *out = SDL_malloc(avail ? avail : 1); ok = *out != NULL; }
+    if (ok) { *outlen = SDL_AudioStreamGet(st, *out, avail); ok = *outlen >= 0; }
+    SDL_FreeAudioStream(st);
+    if (!ok) { SDL_free(*out); *out = NULL; *outlen = 0; }
+    return ok;
+}
 static int l_sound(lua_State *L) { /* gs.sound("hit.wav") -> handle (cached by name) */
     const char *name = luaL_checkstring(L, 1);
     for (int i = 0; i < g_nsounds; i++)
@@ -808,13 +853,12 @@ static int l_sound(lua_State *L) { /* gs.sound("hit.wav") -> handle (cached by n
     size_t n; unsigned char *buf = vfs_read(name, &n);
     if (!buf) return luaL_error(L, "sound not found: %s", name);
     SDL_AudioSpec spec; Uint8 *wav; Uint32 wavlen;
-    bool ok = SDL_LoadWAV_IO(SDL_IOFromConstMem(buf, n), true, &spec, &wav, &wavlen);
+    bool ok = SDL_LoadWAV_RW(SDL_RWFromConstMem(buf, (int)n), 1, &spec, &wav, &wavlen) != NULL;
     free(buf);
     if (!ok) return luaL_error(L, "bad wav %s: %s", name, SDL_GetError());
-    SDL_AudioSpec mix = {SDL_AUDIO_F32, 2, MIX_FREQ};
     Uint8 *out; int outlen;
-    ok = SDL_ConvertAudioSamples(&spec, wav, (int)wavlen, &mix, &out, &outlen);
-    SDL_free(wav);
+    ok = convert_audio(&spec, wav, (int)wavlen, 2, MIX_FREQ, &out, &outlen);
+    SDL_FreeWAV(wav);
     if (!ok) return luaL_error(L, "convert %s: %s", name, SDL_GetError());
     int i = g_nsounds;
     g_sounds[i].name = strdup(name); g_sounds[i].pcm = (float *)out; g_sounds[i].frames = outlen / (2 * sizeof(float));
@@ -828,33 +872,33 @@ static int l_play(lua_State *L) { /* gs.play(snd[,volume 0..1][,loop]) -> voice 
     if (!g_audio_ok) return 0;
     float gain = (float)luaL_optnumber(L, 2, 1); bool loop = lua_toboolean(L, 3);
     int v = -1;
-    SDL_LockAudioStream(g_mix_stream);
+    SDL_LockAudioDevice(g_audio_dev);
     for (int i = 0; i < MAX_VOICES; i++) if (!g_voices[i].active) { v = i; break; }
     if (v >= 0) {
         g_voices[v].snd = id; g_voices[v].pos = 0; g_voices[v].gain = gain; g_voices[v].loop = loop; g_voices[v].active = true;
     }
-    SDL_UnlockAudioStream(g_mix_stream);
+    SDL_UnlockAudioDevice(g_audio_dev);
     if (v < 0) return 0; /* all voices busy: drop the sound */
     lua_pushinteger(L, v + 1); return 1;
 }
 static int l_stop(lua_State *L) { /* gs.stop(voice) or gs.stop() for everything */
     int v = (int)luaL_optinteger(L, 1, 0) - 1;
     if (!g_audio_ok) return 0;
-    SDL_LockAudioStream(g_mix_stream);
+    SDL_LockAudioDevice(g_audio_dev);
     for (int i = 0; i < MAX_VOICES; i++) if (v < 0 || v == i) g_voices[i].active = false;
-    SDL_UnlockAudioStream(g_mix_stream);
+    SDL_UnlockAudioDevice(g_audio_dev);
     return 0;
 }
 
 /* ---- chiptune: instruments, sound effects and music (see synth.h) ---- */
 static void synth_lock(void) {
-    if (!g_mix_stream) return;
-    if (!g_perf_on) { SDL_LockAudioStream(g_mix_stream); sound_run_commands(); return; }
-    const Uint64 t = SDL_GetTicksNS();
-    SDL_LockAudioStream(g_mix_stream); sound_run_commands();
-    const double ms = (SDL_GetTicksNS() - t) * 1e-6; g_lock_wait_sum += ms; g_lock_count++; if (ms > g_lock_wait_max) g_lock_wait_max = ms;
+    if (!g_audio_dev) return;
+    if (!g_perf_on) { SDL_LockAudioDevice(g_audio_dev); sound_run_commands(); return; }
+    const Uint64 t = ticks_ns();
+    SDL_LockAudioDevice(g_audio_dev); sound_run_commands();
+    const double ms = (ticks_ns() - t) * 1e-6; g_lock_wait_sum += ms; g_lock_count++; if (ms > g_lock_wait_max) g_lock_wait_max = ms;
 }
-static void synth_unlock(void) { if (g_mix_stream) SDL_UnlockAudioStream(g_mix_stream); }
+static void synth_unlock(void) { if (g_audio_dev) SDL_UnlockAudioDevice(g_audio_dev); }
 static int clampi(lua_Integer v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : (int)v; }
 static lua_Integer table_int(lua_State *L, int t, int i) { lua_rawgeti(L, t, i); lua_Integer v = lua_tointeger(L, -1); lua_pop(L, 1); return v; }
 static double field_num(lua_State *L, int t, const char *k, double def) {
@@ -864,11 +908,10 @@ static double field_num(lua_State *L, int t, const char *k, double def) {
 /* Decode a WAV file in memory to mono float samples at its own rate and register it with the synth. -1 if it can't be used. */
 static int sample_from_wav(const unsigned char *bytes, size_t n) {
     SDL_AudioSpec spec; Uint8 *data = NULL; Uint32 len = 0;
-    if (!SDL_LoadWAV_IO(SDL_IOFromConstMem(bytes, n), true, &spec, &data, &len)) return -1;
-    SDL_AudioSpec dst = {SDL_AUDIO_F32, 1, spec.freq};
+    if (!SDL_LoadWAV_RW(SDL_RWFromConstMem(bytes, (int)n), 1, &spec, &data, &len)) return -1;
     Uint8 *out = NULL; int outlen = 0;
-    bool ok = SDL_ConvertAudioSamples(&spec, data, (int)len, &dst, &out, &outlen);
-    SDL_free(data);
+    bool ok = convert_audio(&spec, data, (int)len, 1, spec.freq, &out, &outlen);
+    SDL_FreeWAV(data);
     if (!ok) return -1;
     int h = synth_add_sample((const float *)out, outlen / (int)sizeof(float), spec.freq);
     SDL_free(out);
@@ -879,7 +922,7 @@ static int sample_from_wav(const unsigned char *bytes, size_t n) {
  * the executable, in a soundfonts/ folder there, or in the repository's assets/soundfonts/ (found from build/ and build-aarch64/). */
 static int ensure_soundfont(char *err, size_t errlen) {
     if (synth_have_soundfont()) return 1;
-    const char *base = SDL_GetBasePath(), *env = getenv("GS_SOUNDFONT");
+    const char *base = base_path(), *env = getenv("GS_SOUNDFONT");
     char path[1024];
     const char *tries[5]; int n = 0;
     if (env && *env) tries[n++] = env;
@@ -1373,13 +1416,13 @@ static bool fb_open(void) {
     if (v->bits_per_pixel != 32 && v->bits_per_pixel != 16) { fprintf(stderr, "fb: %u bits per pixel is not supported\n", v->bits_per_pixel); return false; }
     Uint32 rm = ((1u << v->red.length) - 1) << v->red.offset, gm = ((1u << v->green.length) - 1) << v->green.offset;
     Uint32 bm = ((1u << v->blue.length) - 1) << v->blue.offset, am = v->transp.length ? ((1u << v->transp.length) - 1) << v->transp.offset : 0;
-    SDL_PixelFormat pf = SDL_GetPixelFormatForMasks(v->bits_per_pixel, rm, gm, bm, am);
+    const Uint32 pf = SDL_MasksToPixelFormatEnum((int)v->bits_per_pixel, rm, gm, bm, am);
     if (pf == SDL_PIXELFORMAT_UNKNOWN) { fprintf(stderr, "fb: unknown pixel layout\n"); return false; }
     g_fb.map = mmap(NULL, g_fb.fix.smem_len, PROT_READ | PROT_WRITE, MAP_SHARED, g_fb.fd, 0);
     if (g_fb.map == MAP_FAILED) { perror("mmap framebuffer"); return false; }
     g_fb.pages = v->yres_virtual >= 2 * v->yres ? 2 : 1;
     g_fb.shown = g_fb.pages == 2 && v->yres ? (int)(v->yoffset / v->yres) % 2 : 0;
-    g_fb.surf = SDL_CreateSurface((int)v->xres, (int)v->yres, pf);
+    g_fb.surf = SDL_CreateRGBSurfaceWithFormat(0, (int)v->xres, (int)v->yres, (int)v->bits_per_pixel, pf);
     if (!g_fb.surf) { fprintf(stderr, "fb surface: %s\n", SDL_GetError()); return false; }
     return true;
 }
@@ -1393,7 +1436,7 @@ static void fb_clear_pages(void) { g_fb.dirty_pages = g_fb.pages; }
 static double g_fb_copy_ms, g_fb_copy_max; static long g_fb_copy_n; /* GS_PERF: the copy into the framebuffer, apart from the pan and the wait for the screen */
 /* Copy a finished frame (lw x lh pixels at src) into the hidden page, enlarged, and flip to it. */
 static void fb_copy_and_flip(const unsigned char *src, size_t pitch, int lw, int lh) {
-    const Uint64 t_copy0 = SDL_GetTicksNS();
+    const Uint64 t_copy0 = ticks_ns();
     struct fb_var_screeninfo *v = &g_fb.var;
     const int target = g_fb.pages == 2 ? 1 - g_fb.shown : 0, bpp = (int)v->bits_per_pixel / 8;
     const size_t line = g_fb.fix.line_length;
@@ -1418,7 +1461,7 @@ static void fb_copy_and_flip(const unsigned char *src, size_t pitch, int lw, int
         for (int j = 0; j < k; j++)
             memcpy(page + (size_t)(oy + y * k + j) * line + (size_t)ox * bpp, rb, (size_t)lw * k * bpp);
     }
-    { const double ms = (SDL_GetTicksNS() - t_copy0) * 1e-6; g_fb_copy_last = ms; g_fb_copy_ms += ms; g_fb_copy_n++; if (ms > g_fb_copy_max) g_fb_copy_max = ms; }
+    { const double ms = (ticks_ns() - t_copy0) * 1e-6; g_fb_copy_last = ms; g_fb_copy_ms += ms; g_fb_copy_n++; if (ms > g_fb_copy_max) g_fb_copy_max = ms; }
     if (g_fb.pages == 2) {
         v->yoffset = (unsigned)target * v->yres;
         static int wait = -1; /* GS_FB_WAIT=0: flip only, without the extra wait for the refresh (a test: some drivers already wait in the flip) */
@@ -1433,18 +1476,18 @@ static void fb_copy_and_flip(const unsigned char *src, size_t pitch, int lw, int
  * light. So a thread of its own copies each finished frame to the screen and flips, while the game already makes the next one; the game
  * waits only when the frame before is not on the screen yet, which also paces it to the screen's own refresh. A frame reaches the screen
  * one refresh later than before. GS_FB_THREAD=0 presents on the game's thread as before. */
-static struct { SDL_Thread *th; SDL_Mutex *mu; SDL_Condition *cv; unsigned char *stage; size_t cap, pitch; int w, h; bool busy, quit; } g_fbt;
+static struct { SDL_Thread *th; SDL_mutex *mu; SDL_cond *cv; unsigned char *stage; size_t cap, pitch; int w, h; bool busy, quit; } g_fbt;
 static int fb_thread_main(void *unused) {
     (void)unused;
     SDL_LockMutex(g_fbt.mu);
     for (;;) {
-        while (!g_fbt.busy && !g_fbt.quit) SDL_WaitCondition(g_fbt.cv, g_fbt.mu);
+        while (!g_fbt.busy && !g_fbt.quit) SDL_CondWait(g_fbt.cv, g_fbt.mu);
         if (!g_fbt.busy) break;
         SDL_UnlockMutex(g_fbt.mu);
         fb_copy_and_flip(g_fbt.stage, g_fbt.pitch, g_fbt.w, g_fbt.h);
         SDL_LockMutex(g_fbt.mu);
         g_fbt.busy = false;
-        SDL_SignalCondition(g_fbt.cv);
+        SDL_CondSignal(g_fbt.cv);
     }
     SDL_UnlockMutex(g_fbt.mu);
     return 0;
@@ -1452,12 +1495,12 @@ static int fb_thread_main(void *unused) {
 static void fb_thread_start(void) {
     const char *t = getenv("GS_FB_THREAD");
     if (g_fb.pages != 2 || (t && !strcmp(t, "0"))) return;
-    g_fbt.mu = SDL_CreateMutex(); g_fbt.cv = SDL_CreateCondition();
+    g_fbt.mu = SDL_CreateMutex(); g_fbt.cv = SDL_CreateCond();
     if (g_fbt.mu && g_fbt.cv) g_fbt.th = SDL_CreateThread(fb_thread_main, "gs-present", NULL);
 }
 static void fb_thread_stop(void) {
     if (!g_fbt.th) return;
-    SDL_LockMutex(g_fbt.mu); g_fbt.quit = true; SDL_SignalCondition(g_fbt.cv); SDL_UnlockMutex(g_fbt.mu);
+    SDL_LockMutex(g_fbt.mu); g_fbt.quit = true; SDL_CondSignal(g_fbt.cv); SDL_UnlockMutex(g_fbt.mu);
     SDL_WaitThread(g_fbt.th, NULL); g_fbt.th = NULL;
 }
 static void fb_present(void) {
@@ -1465,12 +1508,12 @@ static void fb_present(void) {
     const size_t row = (size_t)lw * (g_fb.var.bits_per_pixel / 8);
     if (!g_fbt.th) { fb_copy_and_flip(g_fb.surf->pixels, (size_t)g_fb.surf->pitch, lw, lh); return; }
     SDL_LockMutex(g_fbt.mu);
-    while (g_fbt.busy) SDL_WaitCondition(g_fbt.cv, g_fbt.mu); /* the frame before is still on its way to the screen */
+    while (g_fbt.busy) SDL_CondWait(g_fbt.cv, g_fbt.mu); /* the frame before is still on its way to the screen */
     if (g_fbt.cap < row * lh) { unsigned char *n = SDL_realloc(g_fbt.stage, row * lh); if (n) { g_fbt.stage = n; g_fbt.cap = row * lh; } }
     if (g_fbt.cap >= row * lh) {
         for (int y = 0; y < lh; y++) memcpy(g_fbt.stage + (size_t)y * row, (const unsigned char *)g_fb.surf->pixels + (size_t)y * g_fb.surf->pitch, row);
         g_fbt.pitch = row; g_fbt.w = lw; g_fbt.h = lh; g_fbt.busy = true;
-        SDL_SignalCondition(g_fbt.cv);
+        SDL_CondSignal(g_fbt.cv);
     }
     SDL_UnlockMutex(g_fbt.mu);
 }
@@ -1492,9 +1535,9 @@ static const char *g_api_name[MAX_API]; static double g_api_sum[MAX_API], g_api_
 static int timed_call(lua_State *L) {
     lua_CFunction f = lua_tocfunction(L, lua_upvalueindex(1));
     const int idx = (int)lua_tointeger(L, lua_upvalueindex(2));
-    const Uint64 t = SDL_GetTicksNS();
+    const Uint64 t = ticks_ns();
     const int r = f(L);
-    const double ms = (SDL_GetTicksNS() - t) * 1e-6;
+    const double ms = (ticks_ns() - t) * 1e-6;
     g_api_sum[idx] += ms; g_api_n[idx]++; if (ms > g_api_max[idx]) g_api_max[idx] = ms;
     return r;
 }
@@ -1594,7 +1637,7 @@ static bool embed_open(const char *port, const char *size) {
 #else
     fcntl(g_embed, F_SETFL, fcntl(g_embed, F_GETFL, 0) | O_NONBLOCK);
 #endif
-    g_embed_surf = SDL_CreateSurface(w, h, SDL_PIXELFORMAT_ABGR8888); /* RGBA in memory: the bytes a canvas wants */
+    g_embed_surf = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_ABGR8888); /* RGBA in memory: the bytes a canvas wants */
     if (!g_embed_surf) { fprintf(stderr, "embed surface: %s\n", SDL_GetError()); return false; }
     /* no window means no focus: a gamepad plugged into the computer must still count */
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
@@ -1607,9 +1650,9 @@ static bool embed_send(const unsigned char *p, size_t n) {
         const long k = (long)send(g_embed, (const char *)p, (int)SDL_min(n, (size_t)1 << 30), 0);
         if (k > 0) { p += k; n -= (size_t)k; continue; }
 #ifdef _WIN32
-        if (k < 0 && WSAGetLastError() == WSAEWOULDBLOCK) { SDL_DelayNS(200000); continue; }
+        if (k < 0 && WSAGetLastError() == WSAEWOULDBLOCK) { delay_ns(200000); continue; }
 #else
-        if (k < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) { SDL_DelayNS(200000); continue; }
+        if (k < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) { delay_ns(200000); continue; }
 #endif
         return false;
     }
@@ -1640,14 +1683,14 @@ static void put_u32(unsigned char *p, Uint32 v) { put_u16(p, v & 0xffff); put_u1
 /* The game's corner of the surface, sent when it changed. Pixel art is mostly runs of one colour, so a frame is usually a few tens of KB. */
 static double g_embed_copy_last;
 static void embed_present(void) {
-    const Uint64 t0 = SDL_GetTicksNS();
+    const Uint64 t0 = ticks_ns();
     const int w = SDL_min(g_screen_w, g_embed_surf->w), h = SDL_min(g_screen_h, g_embed_surf->h);
     const size_t npx = (size_t)w * h;
     if (g_embed_prev_len < npx) { g_embed_prev = SDL_realloc(g_embed_prev, npx * 4); g_embed_prev_len = npx; g_embed_prev_w = 0; }
     const unsigned char *base = g_embed_surf->pixels; const size_t pitch = (size_t)g_embed_surf->pitch;
     bool same = w == g_embed_prev_w && h == g_embed_prev_h;
     for (int y = 0; y < h && same; y++) same = !memcmp(g_embed_prev + (size_t)y * w, base + (size_t)y * pitch, (size_t)w * 4);
-    if (same) { g_embed_copy_last = (SDL_GetTicksNS() - t0) * 1e-6; return; }
+    if (same) { g_embed_copy_last = (ticks_ns() - t0) * 1e-6; return; }
     for (int y = 0; y < h; y++) memcpy(g_embed_prev + (size_t)y * w, base + (size_t)y * pitch, (size_t)w * 4);
     g_embed_prev_w = w; g_embed_prev_h = h;
     const size_t cap = 9 + npx * 5;
@@ -1661,27 +1704,56 @@ static void embed_present(void) {
     const size_t len = (size_t)(o - g_embed_out) - 9;
     g_embed_out[0] = 'F'; put_u16(g_embed_out + 1, (unsigned)w); put_u16(g_embed_out + 3, (unsigned)h); put_u32(g_embed_out + 5, (Uint32)len);
     if (!embed_send(g_embed_out, len + 9)) g_quit = true;
-    g_embed_copy_last = (SDL_GetTicksNS() - t0) * 1e-6;
+    g_embed_copy_last = (ticks_ns() - t0) * 1e-6;
 }
 
-static void screen_logical(int w, int h, SDL_RendererLogicalPresentation mode) {
+/* On a window (a desktop, or a handheld whose SDL2 has a GPU driver) the game draws into a texture at its own size, which present_window
+ * enlarges by a whole number onto the screen. Drawing straight at the screen's size would put a sprite at half pixels whenever the camera
+ * moved by one, unlike the handheld's framebuffer output and the studio's preview, which draw at the console's size. Whatever the system draws
+ * over the game when it presents (muOS's volume, brightness and battery overlays) goes over the enlarged picture. */
+static SDL_Texture *g_target;
+static void screen_logical(int w, int h) {
     if (g_embed_surf) { /* 1:1 into the corner of the surface; the studio enlarges it */
-        SDL_SetRenderLogicalPresentation(g_ren, 0, 0, SDL_LOGICAL_PRESENTATION_DISABLED);
         SDL_Rect r = { 0, 0, SDL_min(w, g_embed_surf->w), SDL_min(h, g_embed_surf->h) };
-        SDL_SetRenderViewport(g_ren, &r);
+        SDL_RenderSetViewport(g_ren, &r);
         return;
     }
 #ifdef __linux__
     if (g_use_fb) {
         /* draw 1:1 into the corner of the framebuffer-sized surface; fb_present enlarges it */
-        SDL_SetRenderLogicalPresentation(g_ren, 0, 0, SDL_LOGICAL_PRESENTATION_DISABLED);
         SDL_Rect r = { 0, 0, SDL_min(w, g_fb.surf->w), SDL_min(h, g_fb.surf->h) };
-        SDL_SetRenderViewport(g_ren, &r);
+        SDL_RenderSetViewport(g_ren, &r);
         fb_clear_pages();
         return;
     }
 #endif
-    SDL_SetRenderLogicalPresentation(g_ren, w, h, mode);
+    SDL_SetRenderTarget(g_ren, NULL);
+    if (g_target) SDL_DestroyTexture(g_target);
+    g_target = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_TARGET, w, h);
+    if (g_target) {
+        SDL_SetTextureBlendMode(g_target, SDL_BLENDMODE_NONE);
+        SDL_SetTextureScaleMode(g_target, SDL_ScaleModeNearest);
+        SDL_SetRenderTarget(g_ren, g_target);
+    } else { /* a renderer without render targets: let SDL scale every draw instead */
+        SDL_RenderSetLogicalSize(g_ren, w, h);
+        SDL_RenderSetIntegerScale(g_ren, SDL_TRUE);
+    }
+}
+static void present_window(void) {
+    if (!g_target) { SDL_RenderPresent(g_ren); return; }
+    SDL_SetRenderTarget(g_ren, NULL);
+    SDL_SetRenderDrawColor(g_ren, 0, 0, 0, 255); SDL_RenderClear(g_ren);
+    int ow = 0, oh = 0; SDL_GetRendererOutputSize(g_ren, &ow, &oh);
+    const int k = SDL_min(ow / g_screen_w, oh / g_screen_h);
+    SDL_Rect dst;
+    if (k >= 1) dst = (SDL_Rect){ (ow - g_screen_w * k) / 2, (oh - g_screen_h * k) / 2, g_screen_w * k, g_screen_h * k };
+    else { /* a window smaller than the screen: fit it, not pixel-exact */
+        const float f = fminf((float)ow / g_screen_w, (float)oh / g_screen_h); const int dw = (int)(g_screen_w * f), dh = (int)(g_screen_h * f);
+        dst = (SDL_Rect){ (ow - dw) / 2, (oh - dh) / 2, dw, dh };
+    }
+    SDL_RenderCopy(g_ren, g_target, NULL, &dst);
+    SDL_RenderPresent(g_ren);
+    SDL_SetRenderTarget(g_ren, g_target);
 }
 
 /* ---------- adaptive CPU floor ----------
@@ -1794,11 +1866,13 @@ int main(int argc, char **argv) {
     else if (!load_cart(argv[1])) { fprintf(stderr, "%s: not a valid cartridge\n", argv[1]); return 1; }
 
     bool use_fb = false;
-    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
+    bool win_vsync = false; /* the window's renderer waits for the screen; without it (the dummy driver of the tests) the game is held to 60 a second */
+    SDL_SetMainReady();
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
 #ifdef __linux__
         fprintf(stderr, "no video device: drawing to the framebuffer instead\n");
-        if (!SDL_Init(SDL_INIT_GAMEPAD) || !fb_open()) { fprintf(stderr, "framebuffer output failed: %s\n", SDL_GetError()); return 1; }
+        if (SDL_Init(SDL_INIT_GAMECONTROLLER) != 0 || !fb_open()) { fprintf(stderr, "framebuffer output failed: %s\n", SDL_GetError()); return 1; }
         fb_thread_start();
         use_fb = true;
 #else
@@ -1808,7 +1882,7 @@ int main(int argc, char **argv) {
     g_debug_input = getenv("GS_DEBUG_INPUT") != NULL;
     g_perf_on = getenv("GS_PERF") != NULL;
     padmap_load();
-    apply_env_gamepad_mapping();
+    open_controllers();
 #ifdef __linux__
     if (g_debug_input) evdev_debug_open();
 #endif
@@ -1819,24 +1893,31 @@ int main(int argc, char **argv) {
         if (!embed_open(embed_port, getenv("GS_EMBED_SIZE"))) return 1;
         g_ren = SDL_CreateSoftwareRenderer(g_embed_surf);
         if (!g_ren) { fprintf(stderr, "software renderer: %s\n", SDL_GetError()); return 1; }
-        screen_logical(g_screen_w, g_screen_h, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+        screen_logical(g_screen_w, g_screen_h);
     } else
 #ifdef __linux__
     if (use_fb) {
         g_ren = SDL_CreateSoftwareRenderer(g_fb.surf);
         if (!g_ren) { fprintf(stderr, "software renderer: %s\n", SDL_GetError()); return 1; }
         g_use_fb = true;
-        screen_logical(g_screen_w, g_screen_h, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+        screen_logical(g_screen_w, g_screen_h);
         if (!getenv("GS_NO_BOOST")) boost_init(getenv("GS_CPUFREQ_DIR") ? getenv("GS_CPUFREQ_DIR") : "/sys/devices/system/cpu/cpu0/cpufreq");
     } else
 #endif
     {
-        SDL_Window *win = g_win = SDL_CreateWindow("gs", g_screen_w, g_screen_h, SDL_WINDOW_RESIZABLE);
-        g_ren = win ? SDL_CreateRenderer(win, NULL) : NULL;
+        /* A desktop gets a window; on a handheld (SDL2 with the device's own GPU driver, such as muOS's "mali") the window is the whole screen. */
+        const char *drv = SDL_GetCurrentVideoDriver();
+        const bool desktop = drv && (!strcmp(drv, "cocoa") || !strcmp(drv, "windows") || !strcmp(drv, "x11") || !strcmp(drv, "wayland") || !strcmp(drv, "dummy") || !strcmp(drv, "offscreen"));
+        SDL_Window *win = g_win = SDL_CreateWindow("gs", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, g_screen_w, g_screen_h, desktop ? SDL_WINDOW_RESIZABLE : SDL_WINDOW_FULLSCREEN);
+        g_ren = win ? SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_TARGETTEXTURE) : NULL;
+        if (!g_ren && win) g_ren = SDL_CreateRenderer(win, -1, 0); /* no GPU (tests run with the dummy driver): any renderer, unpaced */
         if (!g_ren) { fprintf(stderr, "window/renderer: %s\n", SDL_GetError()); return 1; }
-        screen_logical(g_screen_w, g_screen_h, SDL_LOGICAL_PRESENTATION_LETTERBOX);
-        SDL_SetRenderVSync(g_ren, 1);
-        SDL_HideCursor();
+        SDL_RendererInfo ri; SDL_GetRendererInfo(g_ren, &ri);
+        /* the dummy driver (tests) reports vsync but has no screen to wait for */
+        win_vsync = (ri.flags & SDL_RENDERER_PRESENTVSYNC) && strcmp(drv ? drv : "", "dummy") && strcmp(drv ? drv : "", "offscreen");
+        if (g_debug_input || g_perf_on) fprintf(stderr, "video: %s, renderer %s%s\n", drv ? drv : "?", ri.name, win_vsync ? ", vsync" : "");
+        screen_logical(g_screen_w, g_screen_h);
+        SDL_ShowCursor(SDL_DISABLE);
     }
     /* gs.rect / gs.line / gs.print take an alpha: without this the renderer ignores it and every translucent rectangle comes out solid */
     if (g_ren) SDL_SetRenderDrawBlendMode(g_ren, SDL_BLENDMODE_BLEND);
@@ -1864,7 +1945,7 @@ int main(int argc, char **argv) {
     if (luaL_dostring(L, "require('gs.boot')")) { fprintf(stderr, "boot: %s\n", lua_tostring(L, -1)); return 1; }
     call_global(L, "init", 0, 0);
 
-    Uint64 last = SDL_GetTicksNS();
+    Uint64 last = ticks_ns();
     /* GS_MAX_FRAMES=N exits after N frames: for automated tests */
     const char *mf = getenv("GS_MAX_FRAMES");
     long max_frames = mf ? atol(mf) : 0, frame = 0;
@@ -1874,10 +1955,10 @@ int main(int argc, char **argv) {
     /* GS_PERF=1 prints one line a second to stderr: frames, how long they took (average and worst) and where the time went. Times in ms. */
     const bool perf = getenv("GS_PERF") != NULL;
     struct PerfStat { double n, frame, frame_max, upd, upd_max, draw, draw_max, pres, pres_max, fb, fb_max, slow, snapped; } ps = {0};
-    Uint64 perf_report = SDL_GetTicksNS(), prev_end = perf_report; int slow_lines = 0;
+    Uint64 perf_report = ticks_ns(), prev_end = perf_report; int slow_lines = 0;
     /* Always on: a game that cannot keep up says so once, with where the time goes (checked every 2 seconds, not during the first 4). */
     double wd_dt = 0, wd_upd = 0, wd_draw = 0, wd_pres = 0, wd_fb = 0; int wd_n = 0; long wd_frames = 0; bool wd_warned = false;
-    Uint64 bw_t0 = SDL_GetTicksNS(); long bw_n = 0, bw_late = 0; double bw_dt = 0, bw_work = 0; /* a one-second window for the CPU floor controller */
+    Uint64 bw_t0 = ticks_ns(); long bw_n = 0, bw_late = 0; double bw_dt = 0, bw_work = 0; /* a one-second window for the CPU floor controller */
     double prev_upd = 0, prev_draw = 0, prev_pres = 0, prev_fb = 0, prev_wait = 0; /* the previous frame's phases: a frame's time (now minus the last now) is that frame's work */
     while (!g_quit) {
         if (max_frames && ++frame > max_frames) break;
@@ -1885,32 +1966,33 @@ int main(int argc, char **argv) {
 #ifdef __linux__
         if (g_debug_input) evdev_debug_poll();
 #endif
-        const Uint64 t_loop = SDL_GetTicksNS();
+        const Uint64 t_loop = ticks_ns();
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
-            if (e.type == SDL_EVENT_QUIT) g_quit = true;
-            if (e.type == SDL_EVENT_GAMEPAD_ADDED) SDL_OpenGamepad(e.gdevice.which);
-            if (e.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN) g_raw_last = e.jbutton.button;
+            if (e.type == SDL_QUIT) g_quit = true;
+            if (e.type == SDL_CONTROLLERDEVICEADDED) open_controller(e.cdevice.which);
+            if (e.type == SDL_CONTROLLERDEVICEREMOVED) close_controller(e.cdevice.which);
+            if (e.type == SDL_JOYBUTTONDOWN) g_raw_last = e.jbutton.button;
             if (g_debug_input) {
-                if (e.type == SDL_EVENT_JOYSTICK_BUTTON_DOWN) fprintf(stderr, "joystick button %d down\n", e.jbutton.button);
-                if (e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) fprintf(stderr, "gamepad button %s down\n", SDL_GetGamepadStringForButton((SDL_GamepadButton)e.gbutton.button));
-                if (e.type == SDL_EVENT_JOYSTICK_HAT_MOTION) fprintf(stderr, "joystick hat %d value %d\n", e.jhat.hat, e.jhat.value);
-                if (e.type == SDL_EVENT_JOYSTICK_BUTTON_UP) fprintf(stderr, "joystick button %d up\n", e.jbutton.button);
+                if (e.type == SDL_JOYBUTTONDOWN) fprintf(stderr, "joystick button %d down\n", e.jbutton.button);
+                if (e.type == SDL_CONTROLLERBUTTONDOWN) fprintf(stderr, "gamepad button %s down\n", SDL_GameControllerGetStringForButton((SDL_GameControllerButton)e.cbutton.button));
+                if (e.type == SDL_JOYHATMOTION) fprintf(stderr, "joystick hat %d value %d\n", e.jhat.hat, e.jhat.value);
+                if (e.type == SDL_JOYBUTTONUP) fprintf(stderr, "joystick button %d up\n", e.jbutton.button);
 #ifdef __linux__
                 fsync(2); /* a hard reset must not lose the last presses: they are what we read afterwards */
 #endif
             }
-            if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_ESCAPE) g_quit = true;
+            if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) g_quit = true;
         }
         embed_poll();
-        const Uint64 t_events = SDL_GetTicksNS();
+        const Uint64 t_events = ticks_ns();
         poll_buttons();
-        const Uint64 t_buttons = SDL_GetTicksNS();
+        const Uint64 t_buttons = ticks_ns();
         /* HOTKEY + START leaves the game, as in every other app on the handheld. Holding START + SELECT for three seconds also does, a way out on a
          * device whose hotkey SDL cannot see (run pad setup to teach it); it is long so that games can use the two together. */
         if (g_hotkey && g_start_raw) g_quit = true;
 
-        Uint64 now = SDL_GetTicksNS();
+        Uint64 now = ticks_ns();
         double dt = (now - last) / 1e9; last = now;
         if (dt > 0.1) dt = 0.1;
         const double raw_dt = dt;
@@ -1921,33 +2003,38 @@ int main(int argc, char **argv) {
         start_select_held = btn_now[B_START] && btn_now[B_SELECT] ? start_select_held + raw_dt : 0;
         if (start_select_held >= 3.0) g_quit = true;
         call_global(L, "update", 1, dt);
-        const Uint64 t_upd = SDL_GetTicksNS();
+        const Uint64 t_upd = ticks_ns();
         SDL_SetRenderDrawColor(g_ren, 0, 0, 0, 255); SDL_RenderClear(g_ren);
         g_cam_x = g_cam_y = 0; g_zoom = 1; /* every frame starts with no scroll and no zoom */
         g_blend = SDL_BLENDMODE_BLEND; SDL_SetRenderDrawBlendMode(g_ren, g_blend); /* ... and normal blending */
         call_global(L, "draw", 0, 0);
         if (g_blend != SDL_BLENDMODE_BLEND) { g_blend = SDL_BLENDMODE_BLEND; SDL_SetRenderDrawBlendMode(g_ren, g_blend); } /* a draw left it set */
-        const Uint64 t_draw = SDL_GetTicksNS();
+        const Uint64 t_draw = ticks_ns();
         g_px_last = g_px_frame; g_calls_last = g_calls_frame; g_px_frame = 0; g_calls_frame = 0;
-        SDL_RenderPresent(g_ren);
-        const Uint64 t_pres = SDL_GetTicksNS();
+        if (g_win) present_window(); else SDL_RenderPresent(g_ren);
+        const Uint64 t_pres = ticks_ns();
         Uint64 t_fb = t_pres;
+        if (g_win && !win_vsync) {
+            t_fb = ticks_ns();
+            Uint64 want = now + 16666667ULL;
+            if (t_fb < want) delay_ns(want - t_fb);
+        }
         if (g_embed_surf) { /* no window, so no vsync: hold the game to 60 frames a second ourselves, as on the handheld */
             embed_present();
-            t_fb = SDL_GetTicksNS();
+            t_fb = ticks_ns();
             Uint64 want = now + 16666667ULL;
-            if (t_fb < want) SDL_DelayNS(want - t_fb);
+            if (t_fb < want) delay_ns(want - t_fb);
         }
 #ifdef __linux__
         if (use_fb) { /* the screen's refresh paces the game when frames are flipped on their own thread; otherwise hold it to 60 a second */
             fb_present();
-            t_fb = SDL_GetTicksNS();
+            t_fb = ticks_ns();
             Uint64 want = now + 16666667ULL;
-            if (!g_fbt.th && t_fb < want) SDL_DelayNS(want - t_fb);
+            if (!g_fbt.th && t_fb < want) delay_ns(want - t_fb);
         }
 #endif
         if (perf) {
-            const double ms_ = 1e-6, pre = (now - prev_end) * ms_, wait = (SDL_GetTicksNS() - t_fb) * ms_;
+            const double ms_ = 1e-6, pre = (now - prev_end) * ms_, wait = (ticks_ns() - t_fb) * ms_;
             /* one line per slow interval (up to 40 a run). An interval is the previous frame's work plus this frame's event polling, so both are shown. */
             if (raw_dt > 0.020 && slow_lines < 40) {
                 slow_lines++;
@@ -1956,7 +2043,7 @@ int main(int argc, char **argv) {
                         raw_dt * 1e3, prev_upd, prev_draw, prev_pres, prev_fb, prev_wait, (now - t_loop) * ms_, raw_dt * 1e3 - known, lua_gc(L, LUA_GCCOUNT, 0));
             }
             prev_upd = (t_upd - now) * ms_; prev_draw = (t_draw - t_upd) * ms_; prev_pres = (t_pres - t_draw) * ms_; prev_fb = (t_fb - t_pres) * ms_; prev_wait = wait;
-            prev_end = SDL_GetTicksNS();
+            prev_end = ticks_ns();
         }
         if (perf) {
             const double ms_ = 1e-6, upd = (t_upd - now) * ms_, draw = (t_draw - t_upd) * ms_, pres = (t_pres - t_draw) * ms_, fb = (t_fb - t_pres) * ms_, fr = raw_dt * 1e3;
@@ -2003,8 +2090,12 @@ int main(int argc, char **argv) {
     { /* GS_DUMP_FRAME=file.bmp saves the last frame (the logical screen) so a test can compare two ways of drawing */
         const char *dump = getenv("GS_DUMP_FRAME");
         if (dump && g_ren) {
-            SDL_Surface *shot = SDL_RenderReadPixels(g_ren, NULL);
-            if (shot) { SDL_SaveBMP(shot, dump); SDL_DestroySurface(shot); } else fprintf(stderr, "frame dump: %s\n", SDL_GetError());
+            /* the viewport: the game's corner of a surface, or the whole of the window's texture */
+            SDL_Rect vp; SDL_RenderGetViewport(g_ren, &vp);
+            SDL_Surface *shot = SDL_CreateRGBSurfaceWithFormat(0, vp.w, vp.h, 32, SDL_PIXELFORMAT_ARGB8888);
+            if (shot && SDL_RenderReadPixels(g_ren, NULL, SDL_PIXELFORMAT_ARGB8888, shot->pixels, shot->pitch) == 0) SDL_SaveBMP(shot, dump);
+            else fprintf(stderr, "frame dump: %s\n", SDL_GetError());
+            SDL_FreeSurface(shot);
         }
     }
     embed_close();
