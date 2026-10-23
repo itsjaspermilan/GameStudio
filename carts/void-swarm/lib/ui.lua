@@ -23,8 +23,8 @@ local function tint(ci, a)
   return c
 end
 
--- Text in the built-in letters with a drop shadow (GBA style): round_small unless `font` names another
--- (round_tall for menus and names, bold_small for big numbers and headings).
+-- Text in the built-in letters with a drop shadow (GBA style): round_small unless `font` names
+-- another (round_tall for menus and names, bold_small for big numbers and headings).
 local text_opts = {}
 function M.txt(s, x, y, ci, scale, limit, font)
   scale, font = scale or 1, font or "round_small"
@@ -69,7 +69,8 @@ end
 
 -- A GBA window drawn in code (the same look as the layouts' ts_panel tiles): rounded corners, a
 -- bevelled border lit on the top and left, a black line inside it and a see-through deep blue body
--- with a sheen along the top. edge: "teal" (the default), "gold" or "red"; alpha: the body's, 0-255.
+-- with a sheen along the top. edge: "teal" (the default), "gold" or "red"; alpha: the body's,
+-- 0-255.
 local EDGES = { teal = { { 122, 238, 222 }, { 43, 143, 148 } }, gold = { { 255, 226, 122 }, { 184, 134, 44 } }, red = { { 240, 112, 106 }, { 134, 32, 46 } } }
 local BODY, SHEEN, BLACK = { 10, 16, 36 }, { 24, 35, 74 }, { 0, 0, 0, 255 }
 local function rgba(c, a) return { c[1], c[2], c[3], a } end
