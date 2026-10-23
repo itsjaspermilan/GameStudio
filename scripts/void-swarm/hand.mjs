@@ -1,28 +1,39 @@
 // Hand-drawn pilots: every pixel placed by hand, as GBA sprites were made, instead of painted from shapes (pilots.mjs paints the others
-// for now). A drawing is a list of runs [x, y, "pixels"] on the 32 x 32 frame, one row of pixels each: "." leaves a pixel clear, "#" is the
-// outline, other letters are places of the pilot's colour bank. The lit top and left of a part are outlined in its own darkest shade, not
-// black (GBA selective outlining). The legs and the near arm have a drawing for each pose; everything else moves with the body's
-// one-pixel dip. In the legs A B C / D E F are the far leg and boot (on the left, a step darker) and K L M / N O P the near one.
-//
-// The walk is a shuffle in the way of Vampire Survivors and GBA overworld sprites, not a side-on stride: four frames at six a second,
-// standing, then one foot lifting a pixel and stepping while the other stays planted, standing, then the other foot. The body dips a
-// pixel on each step and each arm swings a pixel against its own leg. At this size a full stride reads as a limp or a scramble.
-export const WALK_CLIPS = { idle: { from: 0, to: 1, fps: 3, loop: true }, walk: { from: 2, to: 5, fps: 6, loop: true } };
+// for now). A drawing is a list of runs [x, y, "pixels"], one row of pixels each: "." leaves a pixel clear, "#" is the dark outline, other
+// letters are places of the pilot's colour bank. Drawn to the craft in .claude/skills/pixel-craft:
+//   - light from the top left: highlights as one compact cluster, shadow only on the far side (no pillow shading, no parallel bands);
+//   - selective outline: lit edges outlined in a mid shade of their own colour, shadow edges in the dark outline;
+//   - proportions for 32 x 32: a helmet of about 14 rows, a torso of 6, legs of 7; arms and legs 3 pixels wide, never 1;
+//   - a four-frame walk (contact, passing, contact, passing) at about 8 frames a second. Both contacts have the same stride, the second
+//     with the legs crossing (the far leg comes forward behind the near one); the body rises a pixel as a foot passes under it.
+// In the legs A B C / D E F are the far leg and boot (a step darker) and K L M / N O P the near one.
 
-const LEFT = { // the far leg: standing, and lifted a pixel and stepped forward
-  stand: [[7, 24, "#ABBC#"], [7, 25, "#ABC#"], [7, 26, "#ABC#"], [6, 27, "#DDEF#"], [6, 28, "#EEFF#"], [7, 29, "####"]],
-  step: [[7, 24, "#ABBC#"], [7, 25, "#ABC#"], [7, 26, "#DDEF#"], [7, 27, "#EEFF#"], [8, 28, "####"]],
+export const WALK_CLIPS = { idle: { from: 0, to: 1, fps: 3, loop: true }, walk: { from: 2, to: 5, fps: 8, loop: true } };
+
+const LEGS = { // hips at y 22, boots' soles on y 27 (the whole figure is drawn 2 rows lower)
+  far: {
+    stand: [[10, 22, "#ABC#"], [10, 23, "#ABC#"], [10, 24, "#ABC#"], [9, 25, "#DDEF#"], [9, 26, "#EEFF#"], [10, 27, "####"]],
+    back: [[10, 22, "#ABC#"], [9, 23, "#ABC#"], [8, 24, "#ABC#"], [6, 25, "#DDEF#"], [6, 26, "#EEFF#"], [7, 27, "####"]],
+    passing: [[10, 22, "#ABC#"], [11, 23, "#ABC#"], [11, 24, "#DDEF#"], [11, 25, "#EEFF#"], [12, 26, "####"]],
+    front: [[10, 22, "#ABC#"], [12, 23, "#ABC#"], [14, 24, "#ABC#"], [16, 25, "#DDEF#"], [16, 26, "#EEFF#"], [17, 27, "####"]],
+  },
+  near: {
+    stand: [[14, 22, "#KLM#"], [14, 23, "#KLM#"], [14, 24, "#KLM#"], [14, 25, "#NNOP#"], [14, 26, "#OOPP#"], [15, 27, "####"]],
+    front: [[14, 22, "#KLM#"], [15, 23, "#KLM#"], [16, 24, "#KLM#"], [16, 25, "#NNOP#"], [16, 26, "#OOPP#"], [17, 27, "####"]],
+    passing: [[14, 22, "#KLM#"], [13, 23, "#KLM#"], [13, 24, "#NNOP#"], [13, 25, "#OOPP#"], [14, 26, "####"]],
+    back: [[14, 22, "#KLM#"], [12, 23, "#KLM#"], [10, 24, "#KLM#"], [7, 25, "#NNOP#"], [7, 26, "#OOPP#"], [8, 27, "####"]],
+  },
 };
-const RIGHT = { // the near leg, drawn after the far one
-  stand: [[12, 24, "#KLLM#"], [12, 25, "#KLM#"], [12, 26, "#KLM#"], [12, 27, "#NNOP#"], [12, 28, "#OOPP#"], [13, 29, "####"]],
-  step: [[12, 24, "#KLLM#"], [12, 25, "#KLM#"], [13, 26, "#NNOP#"], [13, 27, "#OOPP#"], [14, 28, "####"]],
-};
-// frame by frame (0-1 idle, 2-5 walk; 6-7 repeat 2-3): the legs, the body's dip, the near and far arms
-const STAND = { left: "stand", right: "stand", bob: 0, arm: "mid", far: "mid" };
+// frame by frame (0-1 idle, 2-5 walk; 6-7 repeat 2-3): the legs, the body's rise (-1 is a pixel up), the near and far arms; each arm
+// swings against its own leg
 const FRAMES = [
-  STAND, { ...STAND, bob: 1 },
-  STAND, { left: "step", right: "stand", bob: 1, arm: "fwd", far: "back" }, STAND, { left: "stand", right: "step", bob: 1, arm: "back", far: "fwd" },
-  STAND, { left: "step", right: "stand", bob: 1, arm: "fwd", far: "back" },
+  { far: "stand", near: "stand", bob: 0, arm: "mid", farArm: "mid" }, { far: "stand", near: "stand", bob: 1, arm: "mid", farArm: "mid" },
+  { far: "back", near: "front", bob: 0, arm: "back", farArm: "front" },
+  { far: "passing", near: "stand", bob: -1, arm: "mid", farArm: "mid" },
+  { far: "front", near: "back", bob: 0, arm: "front", farArm: "back" },
+  { far: "stand", near: "passing", bob: -1, arm: "mid", farArm: "mid" },
+  { far: "back", near: "front", bob: 0, arm: "back", farArm: "front" },
+  { far: "passing", near: "stand", bob: -1, arm: "mid", farArm: "mid" },
 ];
 
 function put(c, runs, map, dy = 0) {
@@ -31,42 +42,40 @@ function put(c, runs, map, dy = 0) {
 
 // ---------------------------------------------------------------- Nova: a round helmet with a big visor, a red scarf, a blue suit
 const NOVA = {
-  head: [ // the dome is lit from the top left, the visor turned to the right with two eyes and a glint
-    [9, 1, "eeeeeeee"],
-    [7, 2, "eehhhhgggg##"],
-    [6, 3, "ehhhhhggggggf#"],
-    [5, 4, "ehhhhgggggggfff#"],
-    [4, 5, "ehhhgggg#########"],
-    [4, 6, "ehhgggg#vvvvhhvvu#"],
-    [3, 7, "ehhgggg#vvhhvvvvvuu#"],
-    [3, 8, "#hgggg#vvvvvavvvauu#"],
-    [3, 9, "#ggggf#vvvvvavvvauu#"],
-    [3, 10, "#gggff#uvvvvvvvvuuu#"],
-    [3, 11, "#ggfff#uuuvvvvvuuua#"],
-    [3, 12, "#gfffff#uuuuuuuuuaa#"],
-    [4, 13, "#ffffff#aaaaaaaaa#"],
-    [4, 14, "#efffffff########"],
-    [5, 15, "#eeffffffffffe#"],
-    [6, 16, "##eeeeeeeeee##"],
+  helmet: [ // the highlight is one cluster at the top left; the visor sits in the shadow of the brim, a glint and two eyes behind it
+    [12, 1, "fffff##"],
+    [11, 2, "fhhgggg#"],
+    [10, 3, "fhhhgggggf#"],
+    [9, 4, "fhhgggggggff#"],
+    [8, 5, "fhggggaaaaaaae#"],
+    [8, 6, "fggggavvhhvvua#"],
+    [8, 7, "fgggfavvavvaua#"],
+    [8, 8, "fggffauvavvaua#"],
+    [8, 9, "fgfffauuuuuuua#"],
+    [8, 10, "fffffeaaaaaaae#"],
+    [9, 11, "#fffffeeeeee#"],
+    [10, 12, "#ffffeeeee#"],
+    [11, 13, "#feeeeee#"],
+    [12, 14, "#######"],
   ],
-  scarf: [[4, 17, "##tt#tttsssstss#"], [3, 18, "#sttss#ssrrrrsr#"]],
-  tail: [[[1, 17, "###"], [0, 18, "#tsr"], [1, 19, "##"]], [[2, 16, "##"], [1, 17, "#ts"], [0, 18, "#sr#"], [1, 19, "#"]]], // its end flutters, above the far arm
-  torso: [ // a chest light and a belt with a gold buckle
-    [6, 19, "#ddddcccbb#"],
-    [6, 20, "#ddvvdccccb#"],
-    [6, 21, "#ddvudccccb#"],
-    [6, 22, "#dddddcccbb#"],
-    [6, 23, "#effgyygffe#"],
+  scarf: [[9, 15, "#ttttssssr#"], [9, 16, "#ssrrrrrrr#"]],
+  tail: [[[5, 15, "#tt"], [4, 16, "#sr#"]], [[5, 16, "#ts"], [4, 17, "#sr#"]]], // its end flutters behind, two drawings
+  torso: [ // a teal chest light, a belt with a gold buckle; the lit left edge outlined in mid blue
+    [9, 17, "bddccccbba#"],
+    [9, 18, "bdvvcccbba#"],
+    [9, 19, "bdvucccbaa#"],
+    [9, 20, "bdcccccbaa#"],
+    [9, 21, "#ffgyygffe#"],
   ],
-  farArm: { // the far arm, a shade darker, showing at the torso's left when it is not swung forward behind the body
-    mid: [[4, 19, "#bb"], [3, 20, "#bba"], [3, 21, "#baa"], [3, 22, "#gfe"], [4, 23, "###"]],
-    back: [[4, 19, "#bb"], [3, 20, "#bba"], [2, 21, "#baa#"], [2, 22, "#gfe#"], [3, 23, "###"]],
-    fwd: [[4, 19, "#bb"], [4, 20, "#bba"], [4, 21, "#baa"], [4, 22, "#gfe"], [5, 23, "##"]],
+  arm: { // the near arm, in front of the torso's right side, a white glove at the end
+    mid: [[18, 17, "#cb#"], [18, 18, "#cbb#"], [18, 19, "#cba#"], [18, 20, "#cba#"], [18, 21, "#hgf#"], [19, 22, "###"]],
+    front: [[18, 17, "#cb#"], [18, 18, "#cbb#"], [19, 19, "#cba#"], [20, 20, "#cba#"], [20, 21, "#hgf#"], [21, 22, "###"]],
+    back: [[17, 17, "#cb#"], [17, 18, "#cbb#"], [16, 19, "#cba#"], [16, 20, "#cba#"], [16, 21, "#hgf#"], [17, 22, "###"]],
   },
-  arm: { // the near arm at the torso's right, a white glove at the end
-    mid: [[17, 19, "#cb#"], [17, 20, "#cbb#"], [17, 21, "#cba#"], [17, 22, "#hgf#"], [17, 23, "#ggf#"], [18, 24, "###"]],
-    fwd: [[17, 19, "#cb#"], [17, 20, "#cbb#"], [18, 21, "#cba#"], [18, 22, "#hgf#"], [18, 23, "#ggf#"], [19, 24, "###"]],
-    back: [[17, 19, "#cb#"], [17, 20, "#cbb#"], [16, 21, "#cba#"], [16, 22, "#hgf#"], [16, 23, "#ggf#"], [17, 24, "###"]],
+  farArm: { // the far arm, a step darker, behind the torso's left side
+    mid: [[6, 17, "#bb"], [6, 18, "#bba"], [6, 19, "#baa"], [6, 20, "#baa"], [6, 21, "#gfe"], [7, 22, "##"]],
+    front: [[7, 17, "#bb"], [7, 18, "#bba"], [8, 19, "#ba"], [8, 20, "#ba"], [8, 21, "#g"]],
+    back: [[6, 17, "#bb"], [5, 18, "#bba"], [4, 19, "#baa#"], [4, 20, "#baa#"], [4, 21, "#gfe#"], [5, 22, "###"]],
   },
 };
 
@@ -74,17 +83,17 @@ const NOVA = {
 export function drawNova(c, f, b) {
   const map = { "#": b.out[0], a: b.blue[0], b: b.blue[1], c: b.blue[2], d: b.blue[3], e: b.grey[0], f: b.grey[1], g: b.grey[2], h: b.grey[3],
     r: b.red[0], s: b.red[1], t: b.red[2], u: b.teal[0], v: b.teal[1], y: b.flame[0] };
-  const fr = FRAMES[f];
+  const fr = FRAMES[f], dy = 2 + fr.bob, feet = 2; // the legs stay on the ground; the body above them rises and dips
   const far = [b.blue[2], b.blue[1], b.blue[0], b.grey[2], b.grey[1], b.grey[0]], near = [b.blue[3], b.blue[2], b.blue[1], b.grey[3], b.grey[2], b.grey[1]];
   const legMap = { "#": b.out[0] };
   "ABCDEF".split("").forEach((k, i) => { legMap[k] = far[i]; });
   "KLMNOP".split("").forEach((k, i) => { legMap[k] = near[i]; });
-  put(c, NOVA.farArm[fr.far], map, fr.bob);
-  put(c, LEFT[fr.left], legMap);
-  put(c, RIGHT[fr.right], legMap);
-  put(c, NOVA.torso, map, fr.bob);
-  put(c, NOVA.arm[fr.arm], map, fr.bob);
-  put(c, NOVA.tail[f % 2], map, fr.bob);
-  put(c, NOVA.scarf, map, fr.bob);
-  put(c, NOVA.head, map, fr.bob);
+  put(c, NOVA.farArm[fr.farArm], map, dy);
+  put(c, LEGS.far[fr.far], legMap, feet);
+  put(c, LEGS.near[fr.near], legMap, feet);
+  put(c, NOVA.torso, map, dy);
+  put(c, NOVA.arm[fr.arm], map, dy);
+  put(c, NOVA.tail[f % 2], map, dy);
+  put(c, NOVA.scarf, map, dy);
+  put(c, NOVA.helmet, map, dy);
 }

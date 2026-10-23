@@ -14,7 +14,7 @@ GBA-like limits). This file is the map; each folder has its own `AGENTS.md` with
 | `studio/` | The app: Vite + vanilla JS front end, Rust (Tauri) back end | `studio/AGENTS.md` |
 | `tests/` | Headless engine fixtures and `run.sh` | `tests/AGENTS.md` |
 | `tools/mcp/` | The MCP server for agents (`.mcp.json` starts it): API lookup, game overview, check, run with screenshots, inspect, sprites and tilesets, rooms, sound and songs with a music-theory reading, push | `tools/mcp/AGENTS.md` |
-| `.claude/skills/` | Claude Code skills `pixel-art`, `room-design`, `game-music`: short pointers to the craft guides in `docs/help/93-95` (which the MCP server also serves) | `tools/mcp/AGENTS.md` |
+| `.claude/skills/` | Claude Code skills `pixel-art`, `room-design`, `game-music`: short pointers to the craft guides in `docs/help/93-95` (which the MCP server also serves); `pixel-craft`: general pixel-art technique and anti-patterns (Apache-2.0, from omer-metin/skills-for-antigravity) to judge sprites by | `tools/mcp/AGENTS.md` |
 | `scripts/` | Desktop/aarch64 builds, push to the device | `scripts/AGENTS.md` |
 | `carts/` | Sample games (and the user's own projects live here too) | `carts/AGENTS.md` |
 | `third_party/`, `assets/` | Vendored libraries, the General MIDI SoundFont | `third_party/AGENTS.md`, `assets/AGENTS.md` |

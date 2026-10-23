@@ -18,7 +18,7 @@
   "walk": {
    "from": 2,
    "to": 5,
-   "fps": 6,
+   "fps": 8,
    "loop": true
   }
  }
