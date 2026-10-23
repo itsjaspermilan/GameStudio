@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_hero.png",
+ "frames": 26,
+ "origin": [
+  16,
+  32
+ ],
+ "mask": null,
+ "fps": 0
+}
