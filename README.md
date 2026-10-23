@@ -78,6 +78,8 @@ through the server (`help`, and the prompts `draw-art`, `design-level`, `compose
 ## Console limits
 
 A console (`engine/consoles/dot.json`, `dash.json`) says what a game made for it may use: screen size, palette, sprite and tile sizes, room size, limits and budgets. Built in: **Dot** (4:3, 320x240) and **Dash** (16:9, 320x180).
+Both have GBA-style **colour banks**: a game's `palette.json` holds up to 16 sprite banks and 16 tile banks of 15 colours (place 0 is see-through), each from 15-bit colour, so up to 512 colours show at once.
+A sprite names its bank (`"bank": "hero"` in its JSON), a tileset the banks its tiles use (`"banks": ["forest", "water"]`, each tile keeps to one), an entity can draw its sprite with another bank (`bank = "red_soldier"`, a palette swap) and code can name a bank colour as `"sky:3"`. A game without `palette.json` keeps the console's 32 classic colours (`palette.colors`).
 A game names its console in `game.lua`; one of your own consoles (made in the studio) travels with the game as `consoles/<id>.json`. At most 512 entities are alive at once on both (more are ignored with one warning). The studio's **Handheld** tab shows size, art and sound against the console, and while the game runs how many
 entities are alive and how long a frame takes. See `engine/consoles/README.md` for every field and the measured numbers, and the Help page "Working inside the handheld's limits".
 
@@ -97,6 +99,7 @@ The framework is built on these calls. A game with `game.lua` normally uses the 
 | `gs.clock()` | seconds since start with nanosecond steps (`gs.time()` has millisecond steps): for timing |
 | `gs.mark(text)` | writes a line into the `GS_PERF=1` log, in order with its per-second lines (a scripted run says which scenario each line belongs to); does nothing otherwise |
 | `gs.stats()` | `pixels, draw_calls, screen_pixels` of the last finished frame |
+| `gs.recolor(img,from,to[,old])` | a copy of a picture with colour `from[i]` replaced by `to[i]` (lists of `0xRRGGBB`), for palette swaps; the framework uses it for an entity's `bank`. Pass the picture it returned as `old` to reuse its slot |
 | `gs.compose(sheet,tw,th,sheet_cols,count,cw,ch,grid_cols,grid_rows,rows[,old])` | one picture of a whole tile grid (cell `c,r` shows tile `rows[r][c]` of `sheet`), so a layer that does not change is one `gs.tile` call a frame instead of hundreds. The framework uses it for tile layers; tiles must be the size of the cells. Pass the picture it returned as `old` to reuse its slot |
 | `gs.tile(img,sx,sy,sw,sh,x,y[,scale,flipx,angle,yscale,alpha,pivotx,pivoty])` | draw a sub-rectangle of a sheet; `angle` (degrees, clockwise), the scales and `alpha` (0-255) act around the pivot, a point in the sprite (default top-left) that stays where it is |
 | `gs.btn(name)` / `gs.btnp(name)` | held / pressed this frame: `up down left right a b x y l r start select l2 r2 l3 r3` (L2/R2 are the triggers, L3/R3 the stick clicks, on devices that have them) |

@@ -12,7 +12,9 @@ Nothing has to be listed or registered anywhere.</p>
 <ol>
 <li>In the list on the left, press <strong>+</strong> next to <em>Sprites</em> and type a name such as <code>hero</code>. The pixel editor opens with a blank 32x32 picture.
 (Not sure about the size? See <a href="help:sizes">Sprite and tile sizes</a>.)</li>
-<li>Draw. The palette on the left holds the console's colours: Dot has 32 of them, so every game made for it shares one look. A picture with colours outside the palette is flagged, and <em>Snap to palette</em> fixes it.</li>
+<li>Draw. Pick the sprite's <strong>colour bank</strong> at the top left; its 15 colours and see-through are below it (Dot works like a GBA:
+each sprite uses one bank of the game's colours, see <a href="help:art">Drawing pixel art</a>). Choosing another bank moves every pixel to the same place in the new one.
+Pixels outside the bank are flagged, and <em>Snap to bank</em> fixes them. A tileset ticks the tile banks it uses instead, and each tile keeps to one of them.</li>
 <li>Add frames with <em>+ New</em> or <em>Copy</em> (copying the last frame and changing a little is the quick way to animate). The preview plays them at the speed you set.</li>
 <li>Set the <strong>origin</strong>: the point of the picture that sits on the entity's position. For a character that walks on the ground, put it between the feet. For a ball, the middle.</li>
 <li>Leave the <strong>collision box</strong> alone, and the whole picture is the hitbox. Make it smaller (just the body, not the sword) for collisions that feel fair.</li>

@@ -460,6 +460,53 @@ static int l_compose(lua_State *L) {
     g_images[id].tex = t; g_images[id].px = NULL; g_images[id].w = W; g_images[id].h = H;
     push_image(L, id); return 1;
 }
+/* gs.recolor(img, from, to[, old]) -> picture
+ * A copy of a picture with colour from[i] replaced by to[i] (both lists of 0xRRGGBB numbers), for GBA-style palette swaps: the same sprite drawn
+ * with another bank's colours, place for place. Transparency is kept; colours not in `from` stay as they are. `old` is a picture this call made
+ * before, whose slot is reused (live reload, a bank edited). Done once per sprite and bank, so a plain search of at most 16 colours is fine. */
+static int l_recolor(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_getfield(L, 1, "id"); const int sid = (int)luaL_checkinteger(L, -1); lua_pop(L, 1);
+    if (sid < 0 || sid >= g_nimages || !g_images[sid].px) return luaL_error(L, "recolor: that picture has no pixels to copy from");
+    luaL_checktype(L, 2, LUA_TTABLE); luaL_checktype(L, 3, LUA_TTABLE);
+    unsigned from[64], to[64]; int n = (int)lua_rawlen(L, 2);
+    if (n > 64) n = 64;
+    if ((int)lua_rawlen(L, 3) < n) n = (int)lua_rawlen(L, 3);
+    for (int i = 0; i < n; i++) {
+        lua_rawgeti(L, 2, i + 1); from[i] = (unsigned)luaL_checkinteger(L, -1) & 0xffffff; lua_pop(L, 1);
+        lua_rawgeti(L, 3, i + 1); to[i] = (unsigned)luaL_checkinteger(L, -1) & 0xffffff; lua_pop(L, 1);
+    }
+    const int w = g_images[sid].w, h = g_images[sid].h;
+    const size_t bytes = (size_t)w * h * 4;
+    unsigned char *out = malloc(bytes);
+    if (!out) return luaL_error(L, "recolor: out of memory");
+    memcpy(out, g_images[sid].px, bytes);
+    for (size_t p = 0; p < bytes; p += 4) {
+        if (!out[p + 3]) continue;
+        const unsigned c = ((unsigned)out[p] << 16) | ((unsigned)out[p + 1] << 8) | out[p + 2];
+        for (int i = 0; i < n; i++)
+            if (from[i] == c) { out[p] = (unsigned char)(to[i] >> 16); out[p + 1] = (unsigned char)(to[i] >> 8); out[p + 2] = (unsigned char)to[i]; break; }
+    }
+    SDL_Texture *t = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
+    if (!t) { free(out); return luaL_error(L, "recolor: %s", SDL_GetError()); }
+    SDL_UpdateTexture(t, NULL, out, w * 4);
+    SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(t, SDL_SCALEMODE_NEAREST);
+    int id = -1;
+    if (lua_istable(L, 4)) {
+        lua_getfield(L, 4, "id"); const int oid = (int)luaL_optinteger(L, -1, -1); lua_pop(L, 1);
+        if (oid >= 0 && oid < g_nimages && g_images[oid].tex && !strcmp(g_images[oid].name, "(recolored)")) {
+            SDL_DestroyTexture(g_images[oid].tex); free(g_images[oid].px); id = oid;
+        }
+    }
+    if (id < 0) {
+        if (g_nimages >= MAX_IMAGES) { SDL_DestroyTexture(t); free(out); return luaL_error(L, "too many images"); }
+        id = g_nimages++; g_images[id].name = strdup("(recolored)");
+    }
+    /* the pixels are kept (like a loaded picture), so a recoloured sheet can itself be composed into a tile layer */
+    g_images[id].tex = t; g_images[id].px = out; g_images[id].w = w; g_images[id].h = h;
+    push_image(L, id); return 1;
+}
 static SDL_Texture *check_image(lua_State *L, int i) {
     luaL_checktype(L, i, LUA_TTABLE);
     lua_getfield(L, i, "id"); int id = (int)luaL_checkinteger(L, -1); lua_pop(L, 1);
@@ -992,7 +1039,7 @@ static const luaL_Reg gs_lib[] = {
     {"synth_config", l_synth_config}, {"soundfont_load", l_soundfont_load}, {"sample_load", l_sample_load}, {"inst_load", l_inst_load}, {"song_load", l_song_load}, {"song_play", l_song_play},
     {"save", l_save}, {"loadsave", l_loadsave}, {"sound", l_sound}, {"play", l_play}, {"stop", l_stop},
     {"clear", l_clear}, {"rect", l_rect}, {"line", l_line}, {"print", l_print},
-    {"camera", l_camera}, {"compose", l_compose}, {"stats", l_stats}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
+    {"camera", l_camera}, {"compose", l_compose}, {"recolor", l_recolor}, {"stats", l_stats}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
     {"btn", l_btn}, {"btnp", l_btnp}, {"time", l_time}, {"clock", l_clock}, {"quit", l_quit}, {"zoom", l_zoom}, {"load", l_load}, {"list", l_list}, {"mtime", l_mtime},
     {"pad_last", l_pad_last}, {"pad_set", l_pad_set}, {"pad_reset", l_pad_reset}, {NULL, NULL}};
 

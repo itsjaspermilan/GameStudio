@@ -1,0 +1,9 @@
+{
+  "sprites": [
+    { "name": "blue", "colors": ["#0000ff", "#00ffff", "#ffffff"] },
+    { "name": "red", "colors": ["#ff0000", "#ff8400", "#ffff00"] }
+  ],
+  "tiles": [
+    { "name": "sky", "colors": ["#101820", "#2142a5"] }
+  ]
+}

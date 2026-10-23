@@ -13,7 +13,7 @@ GameStudio tells you where the limits are and warns you before a game stops fitt
 <table>
 <tr><th></th><th>Dot</th><th>Dash</th></tr>
 <tr><td>Screen</td><td>320&times;240 (4:3)</td><td>320&times;180 (16:9)</td></tr>
-<tr><td>Colours</td><td colspan="2">32 fixed colours (seven ramps of four, plus four neutrals)</td></tr>
+<tr><td>Colours</td><td colspan="2">GBA-style colour banks: 16 for sprites and 16 for tiles, 15 colours each from 32,768 (up to 512 on screen); older games keep 32 classic colours</td></tr>
 <tr><td>Sprites</td><td colspan="2">multiples of 8 pixels, up to 64&times;64</td></tr>
 <tr><td>Tiles</td><td colspan="2">8&times;8 or 16&times;16</td></tr>
 <tr><td>Music / sound effects</td><td colspan="2">4 music tracks and 4 sound effect channels at once</td></tr>
@@ -23,7 +23,7 @@ GameStudio tells you where the limits are and warns you before a game stops fitt
 
 <h2>Hard limits and budgets</h2>
 <ul>
-<li><strong>Hard limits</strong> are enforced. At most <strong>512 entities alive at once</strong>: more are ignored, with one warning in the Output. Sprites must be the right sizes and colours.</li>
+<li><strong>Hard limits</strong> are enforced. At most <strong>512 entities alive at once</strong>: more are ignored, with one warning in the Output. Sprites must be the right sizes and keep to their colour bank.</li>
 <li><strong>Budgets</strong> are soft: a game can go over them, and the Handheld tab shows where it stands. Game size (16 MB, like a GBA cartridge) and frames in a sprite are measured from your files. The console spec also lists 1000 collision checks a step and about six screens of drawing a frame, from tests on the device; the Handheld tab measures both while the game runs (the busiest step and frame of each second), exactly the same as on the device.</li>
 </ul>
 <p>The limits are ceilings, not targets. A typical GBA-style game has 20 to 100 things alive and a few hundred collision checks a step; the handheld holds more than that, so you have room for modern touches, but a game that stays near the typical numbers never worries.
@@ -33,7 +33,7 @@ Particles are entities too, so they count toward the 512: make them short-lived 
 <p>Under the editor, next to <em>Output</em>. It shows:</p>
 <ul>
 <li><strong>Size</strong> of the game against the budget.</li>
-<li><strong>Art</strong>: your biggest sprite and tileset against what the console allows, frames per sprite, and any pixels outside the palette.</li>
+<li><strong>Art</strong>: your biggest sprite and tileset against what the console allows, frames per sprite, your colour banks against the console's 16 + 16, and any art outside its banks (or, in an older game, outside the classic palette).</li>
 <li><strong>Sound</strong>: how many songs and effects you have, and the most tracks any song uses.</li>
 <li><strong>While it runs</strong>: how many things are alive now and at most, how long a frame takes on <em>your computer</em>, the frame rate, and the memory the code uses.</li>
 </ul>

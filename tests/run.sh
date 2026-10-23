@@ -45,6 +45,15 @@ echo "$last" | grep -q '"paused":true' && echo "$last" | grep -q '"classes":\[' 
 out="$(run ./build/gs tests/customconsole)"
 echo "$out" | grep -q 'CUSTOM CONSOLE Tiny 240x160' || { echo "$out"; echo "FAIL: a game's own console was not used"; status=1; }
 
+# Colour banks (palette.json): bank lookups, "bank:place" colours, and a palette swap that must look exactly like rectangles in the new colours.
+out="$(FRAMES=60 run ./build/gs tests/banks)"
+echo "$out" | grep -q 'BANKS TEST PASS' || { echo "$out"; echo "FAIL: colour banks"; status=1; }
+tmp="$(mktemp -d)"
+GS_DUMP_FRAME="$tmp/swap.bmp" FRAMES=60 run ./build/gs tests/banks >/dev/null
+GS_BANKS_PLAIN=1 GS_DUMP_FRAME="$tmp/plain.bmp" FRAMES=60 run ./build/gs tests/banks >/dev/null
+[ -s "$tmp/swap.bmp" ] && cmp -s "$tmp/swap.bmp" "$tmp/plain.bmp" || { echo "FAIL: a palette-swapped sprite does not show the other bank's colours"; status=1; }
+rm -rf "$tmp"
+
 # A plain main.lua game (the format before game.lua) is refused with a message that says what to do, not run or crashed.
 plain="$(mktemp -d)"; printf 'function draw() end\n' > "$plain/main.lua"
 out="$(run ./build/gs "$plain")"; rm -rf "$plain"
@@ -75,6 +84,13 @@ echo "$out" | grep -qi 'error' && { echo "$out"; echo "FAIL: void-swarm menus pr
 # Panel Pop tests itself (lib/tests.lua): board rules, chains, garbage, the CPU player, every puzzle and stage.
 out="$(GS_SELFTEST=1 run ./build/gs carts/panel-pop)"; echo "$out" | tail -3
 echo "$out" | grep -q 'PANEL POP TEST PASS' || { echo "$out"; echo "FAIL: panel-pop self-test"; status=1; }
+
+# Kitchen Rush tests itself (lib/tests.lua): the kitchen's rules, then the bot cooks every day and must earn a star. Then its menus
+# lead into Monday, every food button, L, R and the pause menu's How to play are pressed, and nothing prints an error.
+out="$(GS_SELFTEST=1 run ./build/gs carts/kitchen-rush)"; echo "$out" | tail -3
+echo "$out" | grep -q 'KITCHEN RUSH TEST PASS' || { echo "$out"; echo "FAIL: kitchen-rush self-test"; status=1; }
+out="$(GS_BOT_LUA=tests/keys-bot.lua GS_KEYS='a,wait*30,a,wait*160,x,a,b,y,up,right,down,left,r,l,r,start,wait*10,down,a,wait*40,a,wait*10,up,a,wait*30,start,down,down,down,a,wait*30' FRAMES=800 run ./build/gs carts/kitchen-rush)"
+echo "$out" | grep -qi 'error' && { echo "$out"; echo "FAIL: kitchen-rush menus printed an error"; status=1; }
 
 # Then & Now checks every room (lib/debug.lua): Wren never arrives at a door inside a wall, in either era.
 out="$(GS_SELFTEST=1 FRAMES=300 run ./build/gs carts/then-and-now)"; echo "$out" | tail -2

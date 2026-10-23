@@ -14,7 +14,7 @@ reads, so the game runs the same on another computer and on the device.
 | --- | --- |
 | `screen` | Logical resolution. `scale: "integer"` shows it at the largest whole-number scale that fits the real display, with bars around it. |
 | `room_speed` | Game steps per second. |
-| `palette` | `mode: "fixed"` means only these colours exist. (Later modes: `limited`, at most N colours of your choice, and `free`.) |
+| `palette` | `mode: "banks"` (Dot, Dash): GBA-style colour banks. `sprite_banks` and `tile_banks` (16 each) are how many banks a game's `palette.json` may hold, `bank_colors` (16) the places in a bank (place 0 is see-through), `color_bits` (15) the colour depth every bank colour is rounded to; `colors` are the 32 classic colours that games without a `palette.json` keep, and that palette numbers in code (`gs.draw.rect(..., 5)`) mean. Other modes: `fixed` (only `colors` exist), `limited` (at most `size` colours of your choice) and `free`. |
 | `graphics.sprite_size` | Sprites are multiples of 8 pixels, up to 64x64. |
 | `graphics.tile_sizes` | Allowed tile sizes. |
 | `graphics.tileset_max` | Largest tileset sheet. |
@@ -35,9 +35,10 @@ The numbers for Dot and Dash come from stress tests on an RG35XX Pro (normal CPU
   Everything else is a soft budget. Say if anything should move between the two.
 - **GBA-style rooms** means: rooms up to 1024x1024, one scrolling view, up to four tile layers with parallax,
   and a soft cap of 128 sprites visible at once (like the GBA's 128 hardware sprites).
-- **Palette**: 32 fixed colours: seven ramps of four (red, orange/brown/skin, yellow, green, teal, blue, purple)
-  plus four neutrals. It is a draft and easy to swap.
-- **Not yet specified**: palette banks (16 colours per sprite, GBA style) and a code-size limit. `budgets.cart_kb` is 16384 (a typical GBA ROM).
+- **Palette**: GBA-exact colour banks (decided 2026-10-23): 16 sprite banks and 16 tile banks of 16 places, 15-bit colour, one bank per sprite and
+  one per tile, so up to 512 colours on screen. New games start with ready-made banks (`studio/src/palette-core.js`, `starterPalette`): three
+  five-shade ramps each, shadows cool and highlights warm. The 32 classic colours (seven ramps of four plus four neutrals) stay for older games.
+- **Not yet specified**: a code-size limit. `budgets.cart_kb` is 16384 (a typical GBA ROM).
 
 ## The limits are ceilings, not targets
 

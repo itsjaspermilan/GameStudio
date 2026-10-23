@@ -3,7 +3,7 @@
 -- (studio/src/lua-intel-core.js) and by the Lua language server. It is NOT part of a game and is never packed. Keep it in step with engine/gs/*.lua:
 -- a doc line ("---") above a function is its hover text, "---@param name type description" documents an argument.
 
----@alias Color string|integer|number[]  "#rrggbb", "#rrggbbaa" (aa: 00 invisible to ff solid), a number from the console's palette, or {r, g, b [, a]}
+---@alias Color string|integer|number[]  "#rrggbb", "#rrggbbaa" (aa: 00 invisible to ff solid), "bank:place" (a colour of the game's colour banks, like "sky:3"), a number from the console's classic palette, or {r, g, b [, a]}
 ---@alias Easing "linear"|"in_quad"|"out_quad"|"in_out_quad"|"in_cubic"|"out_cubic"|"in_out_cubic"|"out_back"|"out_bounce"
 ---@alias Button "up"|"down"|"left"|"right"|"a"|"b"|"x"|"y"|"l"|"r"|"start"|"select"|"l2"|"r2"|"l3"|"r3"
 
@@ -26,6 +26,7 @@
 ---@field anim_speed number 1 is normal speed.
 ---@field depth number Draw order: larger is further back.
 ---@field sprite string|nil Name of a file in sprites/.
+---@field bank string|nil Draw the sprite with another colour bank, place for place (a palette swap: one drawing, red and blue soldiers).
 ---@field screen boolean|nil True draws in screen space (a HUD piece), ignoring the camera.
 ---@field id integer A number that is different for every entity.
 Entity = {}
@@ -495,7 +496,7 @@ function gs.draw.wrap(text, width, scale) end
 ---@param name string A file in sprites/
 ---@param x number
 ---@param y number
----@param opts? { frame: number, angle: number, scale: number, sx: number, sy: number, alpha: number, flip: boolean }
+---@param opts? { frame: number, angle: number, scale: number, sx: number, sy: number, alpha: number, flip: boolean, bank: string } bank: draw it with another colour bank's colours (a palette swap)
 function gs.draw.sprite(name, x, y, opts) end
 ---A box with a border, for menus and dialogs.
 ---@param opts? { fill: Color, border: Color }
@@ -558,6 +559,15 @@ function gs.assets.tileset(name) end
 ---Load every sprite and tileset now.
 ---@return integer
 function gs.assets.preload() end
+---One of the game's colour banks (palette.json) by name: { name, colors = { {r, g, b}, ... } } with places 1 to 15.
+---@param name string
+---@return table
+function gs.assets.bank(name) end
+---A sprite as it looks with another bank's colours, place for place (what an entity's bank field draws). Made once, then kept.
+---@param sprite table What gs.assets.sprite returns
+---@param bank string
+---@return table
+function gs.assets.swapped(sprite, bank) end
 
 gs.world = {}
 ---How many entities are alive.

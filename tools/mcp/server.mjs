@@ -52,10 +52,13 @@ tool("sprite_view", "See a sprite", "Shows a sprite (all frames) as a picture. a
 tool("sprite_write", "Draw a sprite", "Writes sprites/<name>.png and .json and returns a picture. Each frame is rows of palette letters (as sprite_view shows; '.' see-through) and/or drawing ops: " +
   "['rect',x,y,w,h,c] ['frame',x,y,w,h,c] ['px',x,y,c] ['line',x0,y0,x1,y1,c] ['disc',cx,cy,r,c] ['ellipse',cx,cy,rx,ry,c] ['ring',cx,cy,r,thick,c] ['poly',[[x,y],...],c] " +
   "['sphere',cx,cy,r,[dark,mid,light,highlight]] ['dither',x,y,w,h,c] ['outline',c] ['mirror'] (copies the left half to the right) ['erase',x,y,w,h]. Colours are the console's palette places (numbers, or letters as sprite_view lists them). " +
+  "In a game with colour banks (palette.json) a sprite draws with one sprite bank (bank, default the first) and colours are its places 1-15 (numbers or hex digits 1-f, 0 or '.' see-through); a tileset lists tile banks (banks) and each tile may name its own (frame.bank), like the GBA. " +
   "Sizes for a 320x240 screen: hero 24-32, common enemy 16-24, boss 48-64, bullet/pickup 8-12, multiples of 8 up to 64. Origin defaults to the centre.",
   {
     game, name: z.string(), w: z.number().int(), h: z.number().int(),
-    frames: z.array(z.object({ rows: z.array(z.string()).optional(), ops: z.array(z.array(z.any())).optional() })),
+    frames: z.array(z.object({ rows: z.array(z.string()).optional(), ops: z.array(z.array(z.any())).optional(), bank: z.string().optional().describe("A tileset with banks: this tile's bank (default the first of banks)") })),
+    bank: z.string().optional().describe("A game with colour banks: the sprite bank this sprite draws with (default the first)"),
+    banks: z.array(z.string()).optional().describe("A game with colour banks, writing a tileset: the tile banks it uses (default the first tile bank)"),
     origin: z.array(z.number()).length(2).optional(), fps: z.number().optional(),
     animations: z.record(z.string(), z.object({ from: z.number().int(), to: z.number().int(), fps: z.number(), loop: z.boolean() })).optional().describe("Named clips, frames counted from 0: { walk: { from: 2, to: 7, fps: 12, loop: true } }"),
     outline: z.union([z.number(), z.string()]).optional().describe("Outline every frame in this colour"),

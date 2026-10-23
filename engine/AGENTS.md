@@ -18,6 +18,10 @@ Design and rationale: `docs/lua-engine-design.md`. Every cart has a `game.lua` a
 | `inspect.lua` | the studio's Inspector (GS_INSPECT=<file>): reads pause / step / speed / what to look at from the file, answers with `@@gsi {json}` (kinds with update/draw/collision time, a kind's entities, one entity's values, watch expressions); `world.profile` turns the timing on only while it is open |
 | `particles.lua` | `gs.burst`: particles as plain arrays (not entities), capped by the console's `particles` limit, drawn at a depth |
 
+Colour banks: `assets.lua` reads `palette.json` (`all_banks`, `bank`) and makes palette swaps (`swapped`, through the runtime's `gs.recolor`) for an
+entity's `bank` field and `gs.draw.sprite`'s `bank` option; `draw.lua` reads `"bank:place"` colours; live reload forgets both when palette.json changes.
+`tests/banks` checks it (and that a swap looks exactly like rectangles in the new colours).
+
 Added while porting Void Swarm (the stress test): `gs.pause()` (freeze the world, only the scene updates: pause menus, level-up choices), `gs.defaults(name)` (an entity's starting values without making one),
 `collide_every = { tag = n }` in an entity spec (check that handler every nth step, staggered), `gs.goto_scene(name, nil, args...)` (nil options), and a faster collision candidate merge (no sorting).
 After it: `gs.in_radius` / `gs.in_rect` take an optional list to refill (no garbage), `Entity:hit_radius()` (a round hitbox's radius with scale), and `"#rrggbbaa"` colors.

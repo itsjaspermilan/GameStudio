@@ -9,6 +9,7 @@ Each folder is a tiny cart run by the real runtime with dummy video/audio, drive
 | `songtest` | Pulse, wavetable, noise and sample instruments, a tracker song and an effect naming an instrument |
 | `bandtest` | Ready-made instruments, multi-track effects (and the older one-row form), songs with an instrument per track |
 | `customconsole` | A game carrying its own console (`consoles/tiny.json`, 240x160); prints `CUSTOM CONSOLE Tiny 240x160` |
+| `banks` | Colour banks (`palette.json`): bank lookups, `"bank:place"` colours, a palette swap; prints `BANKS TEST PASS`, and with `GS_BANKS_PLAIN=1` draws the same frame with rectangles for `run.sh` to compare |
 | `song-bad`, `band-bad` | An unknown instrument name stops loading with a readable message |
 | `keys-bot.lua` | A `GS_BOT_LUA` script that presses keys on a schedule (for driving menus in a cart) |
 | `random-bot.lua` | A `GS_BOT_LUA` script that plays any game at random (`GS_SEED`); the studio's Help tests use it on every tutorial |

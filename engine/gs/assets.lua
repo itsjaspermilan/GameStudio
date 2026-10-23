@@ -1,10 +1,12 @@
 -- Assets: sprites and tilesets (and the tile layers of a level). Everything is looked up by file name, without the extension:
 --   sprites/<name>.json + .png   {image, frames, origin = {x, y}, mask = {x, y, w, h}, fps, animations = {name = {from, to, fps, loop}}}
 --   tilesets/<name>.json + .png  {image, tile_w, tile_h}
+--   palette.json                 {sprites = {{name, colors = {"#rrggbb" x 15}}, ...}, tiles = {...}}: the game's colour banks (GBA style). Place 0 of a
+--                                bank is see-through, so `colors` holds places 1 to 15. A sprite names its bank ({bank = "hero"}), a tileset its banks.
 -- The folder IS the list: there is no index file. Sprites and tilesets load the first time they are asked for (or all at once with preload()).
 local json = require("gs.json")
 
-local M = { sprites = {}, tilesets = {}, fresh = false } -- fresh: re-read picture files (set while live-reloading)
+local M = { sprites = {}, tilesets = {}, fresh = false, banks = nil } -- fresh: re-read picture files (set while live-reloading)
 
 local function read_json(path)
   local text = gs.load(path)
@@ -25,7 +27,7 @@ function M.sprite(name, level)
   local fw, fh = img.w // frames, img.h
   local o = d.origin
   s = { name = name, img = img, frames = frames, fw = fw, fh = fh, ox = o and o[1] or fw // 2, oy = o and o[2] or fh // 2,
-    mask = d.mask or { 0, 0, fw, fh }, fps = d.fps or 0, anims = d.animations or {} }
+    mask = d.mask or { 0, 0, fw, fh }, fps = d.fps or 0, anims = d.animations or {}, bank = d.bank, swaps = {} }
   M.sprites[name] = s
   return s
 end
@@ -38,7 +40,7 @@ function M.tileset(name, level)
   local img = gs.image(d.image or ("tilesets/" .. name .. ".png"), M.fresh)
   local tw, th = d.tile_w or 16, d.tile_h or 16
   local cols, rows = img.w // tw, img.h // th
-  t = { name = name, img = img, tw = tw, th = th, cols = cols, rows = rows, count = cols * rows }
+  t = { name = name, img = img, tw = tw, th = th, cols = cols, rows = rows, count = cols * rows, banks = d.banks }
   M.tilesets[name] = t
   return t
 end
@@ -57,9 +59,62 @@ function M.preload()
   return n
 end
 
--- Forget a sprite or tileset so the next use reads the files again (live reload).
+-- Forget a sprite or tileset so the next use reads the files again (live reload); "palette" forgets the banks and every palette swap.
+local swap_pictures = {} -- by sprite and bank, so a swap made again (live reload) reuses its picture slot
 function M.forget(kind, name)
-  if kind == "sprites" then M.sprites[name] = nil elseif kind == "tilesets" then M.tilesets[name] = nil end
+  if kind == "sprites" then M.sprites[name] = nil elseif kind == "tilesets" then M.tilesets[name] = nil
+  elseif kind == "palette" then
+    M.banks = nil
+    for _, s in pairs(M.sprites) do s.swaps = {} end
+  end
+end
+
+-- ---------------------------------------------------------------- colour banks
+-- The game's banks by name: {colors = {{r, g, b}, ...}, hex = {0xRRGGBB, ...}} with places 1 to 15. Sprite and tile banks share one set of names.
+-- A game without palette.json has none (it uses the console's classic colours).
+local function rgb_of(hex)
+  local h = type(hex) == "string" and hex:match("^#(%x%x%x%x%x%x)$")
+  if not h then return nil end
+  return { tonumber(h:sub(1, 2), 16), tonumber(h:sub(3, 4), 16), tonumber(h:sub(5, 6), 16) }
+end
+function M.all_banks()
+  if M.banks then return M.banks end
+  local banks, d = {}, read_json("palette.json")
+  for _, list in ipairs({ d and d.sprites or {}, d and d.tiles or {} }) do
+    for _, b in ipairs(list) do
+      if type(b.name) == "string" and not banks[b.name] then
+        local colors, hex = {}, {}
+        for i, c in ipairs(b.colors or {}) do
+          local v = rgb_of(c) or { 0, 0, 0 }
+          colors[i], hex[i] = v, (v[1] << 16) | (v[2] << 8) | v[3]
+        end
+        banks[b.name] = { name = b.name, colors = colors, hex = hex }
+      end
+    end
+  end
+  M.banks = banks
+  return banks
+end
+function M.bank(name, level)
+  local b = M.all_banks()[name]
+  if not b then error("unknown colour bank '" .. tostring(name) .. "' (palette.json has no bank of that name)", (level or 1) + 1) end
+  return b
+end
+
+-- The sprite drawn with another bank's colours, place for place (a palette swap: red and blue soldiers from one drawing). The sprite must name
+-- its own bank, so its places are known. The copy is made the first time and kept.
+function M.swapped(s, bank, level)
+  if bank == nil or bank == s.bank then return s end
+  local v = s.swaps[bank]
+  if v then return v end
+  if not s.bank then error("sprite '" .. s.name .. "' has no colour bank of its own, so it cannot be drawn with bank '" .. tostring(bank) .. "'", (level or 1) + 1) end
+  local from, to = M.bank(s.bank, (level or 1) + 1), M.bank(bank, (level or 1) + 1)
+  local key = s.name .. "@" .. bank
+  local img = gs.recolor(s.img, from.hex, to.hex, swap_pictures[key])
+  swap_pictures[key] = img
+  v = setmetatable({ img = img }, { __index = s })
+  s.swaps[bank] = v
+  return v
 end
 
 -- Draw one frame of a sprite with its origin at (x, y). angle is degrees clockwise; sx, sy scale (negative mirrors); alpha is 0 to 1.

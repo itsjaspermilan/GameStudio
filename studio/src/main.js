@@ -36,6 +36,8 @@ import { SPEEDS, parseInspectLine, commandText, classRows, fmtMs } from "./inspe
 import { createRoomEditor, PLACE } from "./room-editor.js";
 import { GROUPS, group, validName, folderTree, movedName, resourceFiles, layoutFile, scanProject, consoleIdOf, setConsoleInGame, TEMPLATES, LAYOUT_TEMPLATE, LAYOUT_COMMENT, newGameFiles, renameProblem } from "./project-core.js";
 import { setupPanels } from "./panels.js";
+import { createPaletteEditor } from "./palette-editor.js";
+import { normalizePalette, paletteText, bankRgb, tilesOutsideBanks, bankLimits, checkPalette } from "./palette-core.js";
 import { createPlayPanel } from "./play-panel.js";
 import "./style.css";
 
@@ -60,7 +62,7 @@ let luaServer = null; // the Lua language server (optional), created at boot
 let play = null; // the Play panel (the game inside the studio), created at boot
 const luaTexts = {}; // every Lua file of the open game, for completion and warnings
 let consoleEditor;
-let view, spriteEditor, tilesetEditor, sfxEditor, musicEditor, instrumentEditor, roomEditor;
+let view, spriteEditor, tilesetEditor, sfxEditor, musicEditor, instrumentEditor, roomEditor, paletteEditor;
 
 // ---------- output log ----------
 function log(text, cls = "") {
@@ -142,8 +144,8 @@ function setDoc(text) {
 }
 
 // The editors other than the code editor, by view. Each has the element that holds it and the folder its files live in.
-const editors = () => ({ sprite: spriteEditor, tileset: tilesetEditor, sfx: sfxEditor, music: musicEditor, instrument: instrumentEditor, room: roomEditor });
-const PANES = { sprite: "sprite-editor", tileset: "tileset-editor", sfx: "sfx-editor", music: "music-editor", instrument: "instrument-editor", room: "room-editor" };
+const editors = () => ({ sprite: spriteEditor, tileset: tilesetEditor, sfx: sfxEditor, music: musicEditor, instrument: instrumentEditor, room: roomEditor, palette: paletteEditor });
+const PANES = { sprite: "sprite-editor", tileset: "tileset-editor", sfx: "sfx-editor", music: "music-editor", instrument: "instrument-editor", room: "room-editor", palette: "palette-editor" };
 
 function showView(which) {
   state.view = which;
@@ -191,6 +193,7 @@ function renderTitle() {
   let title = "No file open";
   if (state.view === "code" && state.file) title = `${state.cart} / ${state.file}`;
   else if (state.view === "room" && state.name) title = state.layoutKind === "layout" ? `${state.cart} / scenes / ${state.name}  ·  layout` : `${state.cart} / rooms / ${state.name}`;
+  else if (state.view === "palette") title = `${state.cart} / Colours (palette.json)`;
   else if (state.view !== "code" && state.name) title = `${state.cart} / ${GROUPS.find((g) => g.kind === state.view).dir} / ${state.name}`;
   $("editor-title").textContent = title + (currentDirty() ? "  ●" : "");
   noteTab(); renderTabs(); renderCodeTools();
@@ -231,6 +234,10 @@ function render() {
   const gameFile = $("game-file");
   gameFile.hidden = !isGame;
   gameFile.className = "tree-item game-file" + (state.view === "code" && state.file === "game.lua" ? " active" : "");
+  const palFile = $("palette-file");
+  palFile.hidden = !isGame || paletteOf(conInfo()).mode !== "banks";
+  palFile.className = "tree-item game-file" + (state.view === "palette" ? " active" : "");
+  palFile.querySelector(".name").textContent = state.palette ? "Colours" : "Colours (classic)";
   $("btn-run").disabled = !state.cart || state.busy;
   $("btn-run").textContent = state.running ? "↻ Restart" : "▶ Run";
   $("btn-stop").disabled = !state.running && !state.pushing;
@@ -263,6 +270,12 @@ async function refreshFiles() {
   if (state.files.includes("meta/info.json")) {
     try { state.info = await readJson("meta/info.json"); } catch (e) { fail("meta/info.json: " + e); }
   }
+  state.palette = null;
+  if (state.files.includes("palette.json")) {
+    try { state.palette = normalizePalette(await readJson("palette.json")); } catch (e) { fail("palette.json: " + e); }
+  }
+  if (spriteEditor) spriteEditor.refreshPalette();
+  if (tilesetEditor) tilesetEditor.refreshPalette();
   const carried = consoleFileOf(consoleIdOf(state.info));
   if (carried && state.files.includes(carried)) {
     try { state.carriedConsole = await invoke("read_file", { cart: state.cart, rel: carried }); } catch { /* the console falls back to Dot */ }
@@ -425,19 +438,33 @@ $("btn-new-console").onclick = () => newConsoleFrom(BUILTIN_CONSOLES[0], "My con
 
 // ---------- changing a game's console ----------
 // Gather what the game uses, so checkProject can say what no longer fits the target console (art sizes and palette; rooms are Lua now).
+// With colour banks (and a palette.json), a sprite is measured against its own bank and a tileset tile by tile against its banks; a game on a
+// banks console without palette.json is measured against the classic colours, like a fixed palette.
 async function projectFacts(target) {
   const facts = { rooms: {}, sprites: {}, tilesets: {} };
-  const rgbList = target.palette && target.palette.mode === "fixed" ? target.palette.colors.map((h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))) : null;
-  const measure = async (rel, frames) => {
+  const tp = target.palette || {}, banks = tp.mode === "banks" && state.palette;
+  const classic = tp.mode === "fixed" || (tp.mode === "banks" && !state.palette) ? (tp.colors || []) : null;
+  const rgbList = classic ? classic.map((h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))) : null;
+  if (banks) facts.palette = { sprites: state.palette.sprites.length, tiles: state.palette.tiles.length, problems: checkPalette(state.palette, target) };
+  const measure = async (rel, frames, m, tile) => {
     const img = await decodeSpritePng(await invoke("read_binary", { cart: state.cart, rel }), frames);
     const sp = { w: img.w, h: img.h, frames: img.frames };
-    return { w: img.w, h: img.h, offPalette: rgbList ? offPaletteCount(sp, rgbList) : 0, colors: usedColors(sp).size };
+    const out = { w: img.w, h: img.h, offPalette: rgbList ? offPaletteCount(sp, rgbList) : 0, colors: usedColors(sp).size };
+    if (banks && !tile) {
+      const b = m.bank && state.palette.sprites.find((x) => x.name === m.bank);
+      if (!b) out.noBank = m.bank || true; else out.offBank = offPaletteCount(sp, bankRgb(b));
+    }
+    if (banks && tile) {
+      const list = (m.banks || []).map((n) => state.palette.tiles.find((x) => x.name === n)).filter(Boolean);
+      if (!list.length) out.noBank = true; else out.tilesOff = tilesOutsideBanks({ ...sp, tile }, list).length;
+    }
+    return out;
   };
   for (const n of state.scan.groups.sprites) {
-    try { const m = await readJson(`sprites/${n}.json`); facts.sprites[n] = { ...(await measure(m.image || `sprites/${n}.png`, m.frames || 1)), frames: m.frames || 1 }; } catch { /* skip */ }
+    try { const m = await readJson(`sprites/${n}.json`); facts.sprites[n] = { ...(await measure(m.image || `sprites/${n}.png`, m.frames || 1, m)), frames: m.frames || 1 }; } catch { /* skip */ }
   }
   for (const n of state.scan.groups.tilesets) {
-    try { const m = await readJson(`tilesets/${n}.json`); facts.tilesets[n] = { ...(await measure(m.image || `tilesets/${n}.png`, 1)), tile_w: m.tile_w || 16, tile_h: m.tile_h || 16 }; } catch { /* skip */ }
+    try { const m = await readJson(`tilesets/${n}.json`), tile = [m.tile_w || 16, m.tile_h || 16]; facts.tilesets[n] = { ...(await measure(m.image || `tilesets/${n}.png`, 1, m, tile)), tile_w: tile[0], tile_h: tile[1] }; } catch { /* skip */ }
   }
   return facts;
 }
@@ -525,6 +552,7 @@ async function saveCurrent() {
   if (state.view === "room") return saveRoom();
   if (state.view === "sprite") return saveSprite();
   if (state.view === "tileset") return saveTileset();
+  if (state.view === "palette") return savePalette();
   if (JSON_VIEWS[state.view]) return saveJsonResource(state.view);
   if (!state.file) return;
   try {
@@ -1075,6 +1103,7 @@ async function openSprite(name) {
       name, w: img.w, h: img.h, frames: img.frames,
       origin: meta.origin || [0, 0], mask: meta.mask || null, fps: meta.fps ?? 6,
       animations: normalizeAnimations(meta.animations, img.frames.length, meta.fps ?? 6),
+      ...(meta.bank ? { bank: meta.bank } : {}),
     });
     state.name = name;
     showView("sprite");
@@ -1116,7 +1145,9 @@ async function createNewSprite(name) {
   checkNew(group("sprites"), name, state.scan.groups.sprites);
   const size = await askSpriteSize(name);
   if (!size) return;
-  spriteEditor.load(createSprite(name, size.w, size.h));
+  const sp = createSprite(name, size.w, size.h);
+  if (state.palette && state.palette.sprites.length) sp.bank = state.palette.sprites[0].name; // a new sprite starts in the first sprite bank
+  spriteEditor.load(sp);
   state.name = name;
   showView("sprite");
   await saveSprite();
@@ -1142,7 +1173,7 @@ async function openTileset(name) {
     const meta = await readJson(`tilesets/${name}.json`);
     const b64 = await invoke("read_binary", { cart: state.cart, rel: meta.image || `tilesets/${name}.png` });
     const img = await decodeSpritePng(b64, 1);
-    tilesetEditor.load({ name, w: img.w, h: img.h, frames: img.frames, origin: [0, 0], mask: null, fps: 0, tile: [meta.tile_w || 16, meta.tile_h || 16] });
+    tilesetEditor.load({ name, w: img.w, h: img.h, frames: img.frames, origin: [0, 0], mask: null, fps: 0, tile: [meta.tile_w || 16, meta.tile_h || 16], ...(Array.isArray(meta.banks) ? { banks: meta.banks } : {}) });
     state.name = name;
     showView("tileset");
   } catch (e) { fail(e); }
@@ -1151,11 +1182,62 @@ async function openTileset(name) {
 
 async function createNewTileset(name) {
   checkNew(group("tilesets"), name, state.scan.groups.tilesets);
-  tilesetEditor.load(createTileset(name, 16, 16, 8, 4));
+  const ts = createTileset(name, 16, 16, 8, 4);
+  if (state.palette && state.palette.tiles.length) ts.banks = [state.palette.tiles[0].name];
+  tilesetEditor.load(ts);
   state.name = name;
   showView("tileset");
   await saveTileset();
 }
+
+// ---------- colours (palette.json: the game's colour banks) ----------
+// What the sprite and tileset editors may draw with: the game's banks on a console with banks, the classic colours for a game that has none yet.
+function artPalette() {
+  const p = paletteOf(conInfo());
+  if (p.mode !== "banks") return p;
+  return state.palette ? { mode: "banks", sprites: state.palette.sprites, tiles: state.palette.tiles } : { mode: "fixed", colors: p.colors };
+}
+// The sprites and tilesets that use a bank (asked before one is deleted).
+async function bankUsers(name) {
+  const out = [];
+  for (const n of state.scan.groups.sprites) { try { if ((await readJson(`sprites/${n}.json`)).bank === name) out.push("sprite " + n); } catch { /* skip */ } }
+  for (const n of state.scan.groups.tilesets) { try { if (((await readJson(`tilesets/${n}.json`)).banks || []).includes(name)) out.push("tileset " + n); } catch { /* skip */ } }
+  return out;
+}
+let bankUsersCache = {};
+async function openPalette() {
+  if (state.view === "palette") return;
+  if (!(await confirmDiscard())) return;
+  paletteEditor.load(state.palette);
+  state.name = "palette";
+  showView("palette");
+  render();
+  // the delete button asks synchronously, so who uses which bank is read once now
+  bankUsersCache = {};
+  if (state.palette) for (const b of [...state.palette.sprites, ...state.palette.tiles]) bankUsersCache[b.name] = await bankUsers(b.name);
+}
+async function savePalette() {
+  const def = paletteEditor.getDef();
+  if (!def) return; // still on the classic colours: nothing to write
+  try {
+    await invoke("write_file", { cart: state.cart, rel: "palette.json", content: paletteText(def) });
+    // a renamed bank: the sprites and tilesets that named it follow
+    for (const [from, to] of paletteEditor.getRenames()) {
+      for (const n of state.scan.groups.sprites) {
+        const rel = `sprites/${n}.json`, m = await readJson(rel);
+        if (m.bank === from) await writeJson(rel, { ...m, bank: to });
+      }
+      for (const n of state.scan.groups.tilesets) {
+        const rel = `tilesets/${n}.json`, m = await readJson(rel);
+        if ((m.banks || []).includes(from)) await writeJson(rel, { ...m, banks: m.banks.map((b) => (b === from ? to : b)) });
+      }
+    }
+    paletteEditor.markClean();
+    await refreshFiles();
+    render();
+  } catch (e) { fail(e); }
+}
+$("palette-file").onclick = () => run("open", openPalette);
 
 // ---------- samples (imported WAV sounds) ----------
 let sampleAudio = null;
@@ -1470,7 +1552,8 @@ const createProject = () => run("create", async () => {
   if (!validName(name)) { $("np-error").textContent = "Use letters, digits, - and _ for the name."; return; }
   try {
     await invoke("new_cart", { name });
-    for (const [rel, content] of Object.entries(newGameFiles(defaultTitle(name), chosenConsole.id))) await invoke("write_file", { cart: name, rel, content });
+    const banks = paletteOf(chosenConsole).mode === "banks";
+    for (const [rel, content] of Object.entries(newGameFiles(defaultTitle(name), chosenConsole.id, { banks }))) await invoke("write_file", { cart: name, rel, content });
     const copy = consoleFileOf(chosenConsole.id);
     if (copy) await invoke("write_file", { cart: name, rel: copy, content: consoleFileText(chosenConsole) });
   } catch (e) { $("np-error").textContent = String(e); return; }
@@ -1542,6 +1625,7 @@ async function openTab(k) {
   if (kind === "room") return openRoom(name);
   if (kind === "layout") return openLayout(name);
   if (kind === "scene") return openScene(name);
+  if (kind === "palette") return openPalette();
   const g = GROUPS.find((x) => x.kind === kind);
   if (g) return openers[kind](g, name);
 }
@@ -1553,6 +1637,7 @@ function renderTabs() {
     if (kind === "file") return state.files.includes(name);
     if (kind === "layout") return !!state.scan && state.scan.layouts.includes(name);
     if (kind === "scene") return !!state.scan && state.scan.groups.scenes.includes(name);
+    if (kind === "palette") return !!state.scan && state.scan.hasGame;
     const g = kind === "room" ? group("rooms") : GROUPS.find((x) => x.kind === kind);
     return g && state.scan && state.scan.groups[g.key].includes(name);
   });
@@ -1560,7 +1645,7 @@ function renderTabs() {
   // one tab alone is not worth the room, unless it is a scene: its tab is where Layout and Code are
   if (state.tabs.length < 2 && !(cur && cur.startsWith("scene:"))) return;
   for (const k of state.tabs) {
-    const label = k.split(":").slice(1).join(":").split("/").pop() + (k.startsWith("layout:") ? " · layout" : "");
+    const label = k === "palette:palette" ? "Colours" : k.split(":").slice(1).join(":").split("/").pop() + (k.startsWith("layout:") ? " · layout" : "");
     const t = document.createElement("div"); t.className = "tab-item" + (k === cur ? " on" : ""); t.title = k.replace(":", ": ");
     const x = document.createElement("button"); x.textContent = "\u00D7"; x.title = "Close this tab";
     x.onclick = (e) => { e.stopPropagation(); state.tabs = state.tabs.filter((y) => y !== k); renderTabs(); };
@@ -1840,7 +1925,10 @@ $("settings").addEventListener("close", async () => {
   help = createHelp($("help-dialog"), { getApi: () => luaApi, hasGame: () => !!state.scan && state.scan.hasGame, addFile: addHelpFile, makeGame: makeHelpGame,
     getConsoles: () => allConsoles(state.customConsoles), openGame: openExample, onPage: (id) => { if (id === "first-game") stepDone("tutorial"); } });
   makeEditor();
-  const palette = () => paletteOf(conInfo());
+  const palette = artPalette;
+  paletteEditor = createPaletteEditor($("palette-editor"), {
+    onChange: renderTitle, getLimits: () => bankLimits(conInfo()), getUsers: (name) => bankUsersCache[name] || [],
+  });
   spriteEditor = createSpriteEditor($("sprite-editor"), { onChange: renderTitle, getPalette: palette, getBudgets: () => conInfo().budgets, getScreen: () => conInfo().screen });
   consoleEditor = createConsoleEditor($("console-dialog"), { takenIds: takenConsoleIds });
   roomEditor = createRoomEditor($("room-editor"), {
@@ -1848,7 +1936,8 @@ $("settings").addEventListener("close", async () => {
     loadTileset: loadRoomTileset, entityLook, getScreen: () => conInfo().screen,
     editAsText: async () => { await save(); await openFile(dataRel(roomEditor.getKind(), roomEditor.getName()), true); },
     getSprites: () => state.scan.groups.sprites, getScenes: () => state.scan.groups.scenes, spriteLook,
-    getPalette: () => { const p = paletteOf(conInfo()); return { colors: p.colors || [], fixed: p.mode === "fixed" }; },
+    // a text's colour: a place in the classic palette, or (with colour banks) any of the game's bank colours, written as #rrggbb
+    getPalette: () => { const p = artPalette(); return p.mode === "banks" ? { colors: [...new Set([...p.sprites, ...p.tiles].flatMap((b) => b.colors))], fixed: false } : { colors: p.colors || [], fixed: p.mode === "fixed" }; },
   });
   // The runtime's own synth makes every preview, so it sounds exactly like the game.
   sfxEditor = createSfxEditor($("sfx-editor"), {

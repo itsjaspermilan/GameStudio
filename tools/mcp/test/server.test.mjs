@@ -2,12 +2,13 @@
 // (studio/test/music-core.test.mjs); here the point is that every tool answers and pictures arrive as PNGs.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, cpSync, rmSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, cpSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { decodePng } from "../../../scripts/png.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url)), root = join(here, "../../..");
 const skip = !existsSync(join(root, "build/gs"));
@@ -66,6 +67,18 @@ test("writing: a sprite, a sound and a song land in a game and come back checked
     const ts = await call("sprite_write", { game: "breakout", name: "ts_cave", w: 16, h: 16, tileset: { cols: 2 }, frames: [{ ops: [["rect", 0, 0, 16, 16, 9]] }, { ops: [["rect", 0, 0, 16, 16, 17]] }, { ops: [["rect", 0, 4, 16, 12, 1]] }] });
     assert.match(ts.content[0].text, /3 tiles of 16x16 in rows of 2/);
     assert.deepEqual(JSON.parse(readFileSync(join(ws, "carts/breakout/tilesets/ts_cave.json"), "utf8")), { image: "tilesets/ts_cave.png", tile_w: 16, tile_h: 16 });
+    // a game with colour banks: a sprite in one bank (places as hex digits), a tileset whose tiles each keep to one of its banks
+    writeFileSync(join(ws, "carts/breakout/palette.json"), JSON.stringify({ sprites: [{ name: "hero", colors: ["#102030", "#406080"] }], tiles: [{ name: "grass", colors: ["#00ff00"] }, { name: "sea", colors: ["#0000ff"] }] }));
+    const hero = await call("sprite_write", { game: "breakout", name: "spr_hero", w: 2, h: 1, frames: [{ rows: ["12"] }] });
+    assert.match(hero.content[0].text, /bank hero/);
+    assert.equal(JSON.parse(readFileSync(join(ws, "carts/breakout/sprites/spr_hero.json"), "utf8")).bank, "hero");
+    const heroView = await call("sprite_view", { game: "breakout", name: "spr_hero", as_text: true });
+    assert.match(heroView.content[0].text, /frame 1:\n {2}12\n[\s\S]*places in bank hero: 1=#102030 2=#406080/);
+    await call("sprite_write", { game: "breakout", name: "ts_coast", w: 1, h: 1, banks: ["grass", "sea"], tileset: { cols: 2 }, frames: [{ rows: ["1"] }, { rows: ["1"], bank: "sea" }] });
+    assert.deepEqual(JSON.parse(readFileSync(join(ws, "carts/breakout/tilesets/ts_coast.json"), "utf8")).banks, ["grass", "sea"]);
+    const coast = decodePng(readFileSync(join(ws, "carts/breakout/tilesets/ts_coast.png")));
+    assert.deepEqual([...coast.data.slice(0, 8)], [0, 255, 0, 255, 0, 0, 255, 255]);
+    rmSync(join(ws, "carts/breakout/palette.json"));
     const changed = await call("room_write", { game: "breakout", name: "level1", entities: { remove: ["ghost"] }, layers: [{ name: "ground", paint: [["rect", 8, 12, 4, 1, 1]] }] });
     assert.match(changed.content[0].text, /paddle x1, ball x1 \(/);
   } finally { await client.close(); rmSync(ws, { recursive: true, force: true }); }

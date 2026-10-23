@@ -20,7 +20,7 @@ export function parseStatsLine(line) {
 
 export function consoleSummary(c) {
   const pal = c.palette || {};
-  const colors = pal.mode === "fixed" ? `${pal.colors.length} colours` : pal.mode === "limited" ? `up to ${pal.size} colours` : "any colour";
+  const colors = pal.mode === "banks" ? `colour banks: ${pal.sprite_banks || 16} sprite, ${pal.tile_banks || 16} tile` : pal.mode === "fixed" ? `${pal.colors.length} colours` : pal.mode === "limited" ? `up to ${pal.size} colours` : "any colour";
   const audio = c.audio || {};
   return [`${c.name} ${screenText(c)}`, colors, `${audio.music_tracks || 4} music tracks`, `${audio.sfx_channels || 4} sound effect channels`];
 }
@@ -59,7 +59,14 @@ export function budgetRows(c, facts, live) {
     row("Art", "Biggest tileset", `${tn}: ${t.w}×${t.h}, ${t.tile_w}×${t.tile_h} tiles`, bad ? "over" : "ok", Math.max(t.w / g.tileset_max.width, t.h / g.tileset_max.height), `Up to ${g.tileset_max.width}×${g.tileset_max.height}; tiles ${(g.tile_sizes || []).map((n) => `${n}×${n}`).join(" or ")}.`);
   }
   const off = [...sprites, ...tilesets].reduce((n, [, a]) => n + (a.offPalette || 0), 0);
-  if ((c.palette || {}).mode === "fixed") row("Art", "Colours outside the palette", off ? `${off} pixels` : "none", off ? "over" : "ok", null, "Open the sprite and use Snap to palette.");
+  const pm = (c.palette || {}).mode;
+  if (pm === "banks" && facts.palette) {
+    const p = c.palette, fp = facts.palette;
+    const full = fp.sprites > (p.sprite_banks || 16) || fp.tiles > (p.tile_banks || 16);
+    row("Art", "Colour banks", `${fp.sprites} sprite, ${fp.tiles} tile`, full ? "over" : "ok", Math.max(fp.sprites / (p.sprite_banks || 16), fp.tiles / (p.tile_banks || 16)), `Up to ${p.sprite_banks || 16} sprite banks and ${p.tile_banks || 16} tile banks of ${(p.bank_colors || 16) - 1} colours: at most ${((p.sprite_banks || 16) + (p.tile_banks || 16)) * ((p.bank_colors || 16) - 1)} on screen.`);
+    const bad = [...sprites, ...tilesets].filter(([, a]) => a.noBank || a.offBank > 0 || a.tilesOff > 0).map(([n]) => n);
+    row("Art", "Art outside its banks", bad.length ? `${bad.length}: ${bad.slice(0, 3).join(", ")}${bad.length > 3 ? "…" : ""}` : "none", bad.length ? "over" : "ok", null, "Open each one: choose its bank, or use Snap to bank.");
+  } else if (pm === "fixed" || pm === "banks") row("Art", "Colours outside the palette", off ? `${off} pixels` : "none", off ? "over" : "ok", null, "Open the sprite and use Snap to palette.");
 
   // ---- sound
   const songs = Object.entries(facts.songs || {});

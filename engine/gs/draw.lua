@@ -1,10 +1,11 @@
 -- Drawing helpers. Positions are in pixels. A color is "#rrggbb", "#rrggbbaa" (the last two digits are how solid it is: 00 invisible,
--- ff solid), { r, g, b [, a] } (0 to 255) or a number (a place in the console's palette). The strings are read once and remembered,
+-- ff solid), "bank:place" (place 1 to 15 of one of the game's colour banks, like "sky:3"), { r, g, b [, a] } (0 to 255) or a number (a place in
+-- the console's classic palette). The strings are read once and remembered,
 -- so a see-through color written as a string costs nothing per frame, unlike a new table.
 --   gs.draw.rect(10, 10, 40, 8, "#ff0000")         gs.draw.frame(...)  gs.draw.line(...)  gs.draw.circle(x, y, r, color)
 --   gs.draw.text("SCORE 10", 4, 4, "#ffffff", 1)   gs.draw.text_centered("GAME OVER", 100, "#ffd08a", 2)
 --   gs.draw.font_text("spr_font", "SCORE 10", 4, 4)  text in a font drawn as a sprite (a frame a letter)
---   gs.draw.sprite("star", x, y, { frame = 1, angle = 45, scale = 2, alpha = 0.5 })
+--   gs.draw.sprite("star", x, y, { frame = 1, angle = 45, scale = 2, alpha = 0.5, bank = "gold" })  bank: drawn with another bank's colours
 --   gs.draw.panel(x, y, w, h)   gs.draw.bar(x, y, w, h, value, max, { color = "#4ade80" })
 -- The built-in font is 8x8 plain ASCII; text at scale 1 is the right size for most UI.
 local assets = require("gs.assets")
@@ -19,8 +20,15 @@ local function parse(c)
     local v = cache[c]
     if not v then
       local h = c:match("^#(%x%x%x%x%x%x)$") or c:match("^#(%x%x%x%x%x%x%x%x)$")
-      if not h then error("bad color '" .. c .. "' (write it like \"#ff8800\", or \"#ff880080\" for half see-through)", 3) end
-      v = { tonumber(h:sub(1, 2), 16), tonumber(h:sub(3, 4), 16), tonumber(h:sub(5, 6), 16), #h == 8 and tonumber(h:sub(7, 8), 16) or 255 }
+      local bank, place = c:match("^([%w_%-/]+):(%d+)$")
+      if bank then
+        local b = assets.all_banks()[bank]
+        if not b then error("bad color '" .. c .. "': the game has no colour bank called " .. bank, 3) end
+        local p = b.colors[tonumber(place)]
+        if not p then error("bad color '" .. c .. "': bank " .. bank .. " has places 1 to " .. #b.colors, 3) end
+        v = { p[1], p[2], p[3], 255 }
+      elseif not h then error("bad color '" .. c .. "' (write it like \"#ff8800\", \"#ff880080\" for half see-through, or \"sky:3\" for a bank colour)", 3)
+      else v = { tonumber(h:sub(1, 2), 16), tonumber(h:sub(3, 4), 16), tonumber(h:sub(5, 6), 16), #h == 8 and tonumber(h:sub(7, 8), 16) or 255 } end
       cache[c] = v
     end
     return v[1], v[2], v[3], v[4]
@@ -33,6 +41,8 @@ local function parse(c)
   error("a color must be \"#rrggbb\", \"#rrggbbaa\", {r, g, b} or a palette number, not " .. t, 3)
 end
 M.color = parse
+-- Bank colours are remembered like any other string: forget them when palette.json changes (live reload).
+function M.forget_colors() for k in pairs(cache) do if not k:find("^#") then cache[k] = nil end end end
 
 local raw = gs.raw
 function M.rect(x, y, w, h, color) local r, g, b, a = parse(color); raw.rect(x, y, w, h, r, g, b, a) end
@@ -71,6 +81,7 @@ end
 function M.sprite(name, x, y, opts)
   opts = opts or {}
   local s = assets.sprite(name, 2)
+  if opts.bank then s = assets.swapped(s, opts.bank, 2) end
   local sc = opts.scale or 1
   assets.draw(s, opts.frame or 0, x, y, opts.angle or 0, opts.sx or sc, opts.sy or sc, opts.alpha or 1, opts.flip)
 end

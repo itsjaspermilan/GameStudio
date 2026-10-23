@@ -32,6 +32,16 @@ test("things over the console's limits are flagged", () => {
   assert.equal(find(rows, "Most tracks in a song").level, "over");
 });
 
+test("a game with colour banks: the banks against the console, and art outside its banks", () => {
+  const ok = budgetRows(dot, { palette: { sprites: 3, tiles: 2, problems: [] }, sprites: { hero: { w: 32, h: 32, frames: 1, offBank: 0 } }, tilesets: { t: { w: 64, h: 64, tile_w: 16, tile_h: 16, tilesOff: 0 } }, lua: { files: 0, lines: 0 } }, null);
+  assert.equal(find(ok, "Colour banks").text, "3 sprite, 2 tile");
+  assert.equal(find(ok, "Art outside its banks").level, "ok");
+  assert.equal(find(ok, "Colours outside the palette"), undefined);
+  const bad = budgetRows(dot, { palette: { sprites: 17, tiles: 2, problems: [] }, sprites: { hero: { w: 32, h: 32, frames: 1, noBank: true } }, tilesets: { t: { w: 64, h: 64, tile_w: 16, tile_h: 16, tilesOff: 2 } }, lua: { files: 0, lines: 0 } }, null);
+  assert.equal(find(bad, "Colour banks").level, "over");
+  assert.equal(find(bad, "Art outside its banks").text, "2: hero, t");
+});
+
 test("a sprite that is not a multiple of 8 is a warning, not an error", () => {
   const rows = budgetRows(dot, { sprites: { odd: { w: 12, h: 12, frames: 1 } }, lua: { files: 0, lines: 0 } }, null);
   assert.equal(find(rows, "Biggest sprite").level, "warn");
@@ -57,5 +67,5 @@ test("the stats line and the console summary", () => {
   assert.equal(parseStatsLine("hello"), null);
   assert.equal(parseStatsLine("@@gs not json"), null);
   assert.equal(parseStatsLine('@@gs {"x":1}'), null);
-  assert.deepEqual(consoleSummary(dot), ["Dot 320×240", "32 colours", "4 music tracks", "4 sound effect channels"]);
+  assert.deepEqual(consoleSummary(dot), ["Dot 320×240", "colour banks: 16 sprite, 16 tile", "4 music tracks", "4 sound effect channels"]);
 });

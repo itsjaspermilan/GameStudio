@@ -417,6 +417,34 @@ a.help-open { font-weight: 600; }
 .se-banner { display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: color-mix(in srgb, var(--warn) 18%, var(--panel)); color: var(--text); border-bottom: 1px solid var(--border); font-size: 12px; }
 .se-banner[hidden] { display: none; }
 .swatch.sel { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* colour banks: place 0 is see-through, drawn as a checkerboard */
+.swatch.see-through { background: repeating-conic-gradient(var(--checker-a) 0% 25%, var(--checker-b) 0% 50%) 50% / 10px 10px; }
+.se-banks { margin-top: 12px; }
+.se-bank-pick select { max-width: 100%; }
+.se-bank-head { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.se-bank-ticks { display: flex; flex-direction: column; gap: 2px; font-size: 12px; max-height: 140px; overflow: auto; }
+.se-bank-cap { grid-column: 1 / -1; font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* the Colours editor (colour banks) */
+.pe { flex: 1; min-height: 0; display: flex; background: var(--surface); }
+.pe[hidden] { display: none; }
+.pe-scroll { flex: 1; overflow: auto; padding: 16px 20px; max-width: 900px; }
+.pe-intro h2 { margin: 0 0 6px; font-size: 16px; }
+.pe-classic { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin: 12px 0; }
+.pe-classic[hidden] { display: none; }
+.pe-problems { background: color-mix(in srgb, var(--warn) 18%, var(--panel)); border-radius: 6px; padding: 4px 12px; margin: 10px 0; font-size: 12px; }
+.pe-problems[hidden] { display: none; }
+.pe-problems p { margin: 4px 0; }
+.pe-kind h3 { margin: 18px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.pe-count { text-transform: none; letter-spacing: 0; font-weight: normal; }
+.pe-bank { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.pe-name { width: 110px; }
+.pe-name.bad { outline: 2px solid var(--warn); }
+.pe-places { display: flex; gap: 3px; }
+.pe-places .swatch { height: 24px; width: 24px; flex: none; }
+.pe-places .swatch:nth-child(2), .pe-places .swatch:nth-child(7), .pe-places .swatch:nth-child(12) { margin-left: 6px; } /* three ramps of five */
+.pe-empty { background: none; border: 1px dashed var(--border); color: var(--muted); font-size: 12px; }
+.pe-tools { display: flex; gap: 4px; }
 
 /* consoles */
 .link { background: none; border: none; padding: 0; color: var(--accent); cursor: pointer; font-size: 12px; margin-top: 2px; }

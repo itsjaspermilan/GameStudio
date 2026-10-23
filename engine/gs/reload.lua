@@ -14,7 +14,7 @@ local function module_of(path) return (path:gsub("%.lua$", ""):gsub("/", ".")) e
 local function scan()
   local found = {}
   for _, p in ipairs(gs.list("")) do
-    if p:find("%.lua$") or p:find("^sprites/.+%.json$") or p:find("^tilesets/.+%.json$") or p:find("^sprites/.+%.png$") or p:find("^tilesets/.+%.png$") then
+    if p:find("%.lua$") or p:find("^sprites/.+%.json$") or p:find("^tilesets/.+%.json$") or p:find("^sprites/.+%.png$") or p:find("^tilesets/.+%.png$") or p == "palette.json" then
       found[p] = gs.mtime(p)
     end
   end
@@ -78,6 +78,10 @@ function M.poll()
             if ok then message = "reloaded " .. path; M.last_error = nil
             else M.last_error = path .. ": " .. tostring(err):gsub("^[^\n]-:%d+: ", function(m) return m end); message = "could not reload " .. path end
           end
+        elseif path == "palette.json" then -- new bank colours: palette swaps are made again from them, and code colours like "sky:3" change
+          assets.forget("palette")
+          require("gs.draw").forget_colors()
+          message = "reloaded palette.json"
         else
           local kind, name = path:match("^(%a+)/(.+)%.%a+$")
           if kind and (kind == "sprites" or kind == "tilesets") then

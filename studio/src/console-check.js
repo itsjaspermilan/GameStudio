@@ -5,6 +5,8 @@
 //   rooms:    { name: {width, height, instances: n, layers: n} },
 //   sprites:  { name: {w, h, frames, offPalette?, colors?} },
 //   tilesets: { name: {w, h, tile_w, tile_h, offPalette?, colors?} },
+//   palette:  { sprites: n, tiles: n, problems: [text] }   only for a game with colour banks (palette.json); its sprites then carry
+//             noBank (true, or the missing bank's name) or offBank (pixels outside their bank), its tilesets noBank or tilesOff (tiles that keep to no bank)
 // }
 // Returns [{ level: "problem" | "note", text }], problems first.
 export function checkProject(oldConsole, c, facts) {
@@ -34,9 +36,18 @@ export function checkProject(oldConsole, c, facts) {
     if (t.w > g.tileset_max.width || t.h > g.tileset_max.height) problem(`Tileset ${name} is ${t.w}×${t.h}; this console allows up to ${g.tileset_max.width}×${g.tileset_max.height}.`);
   }
   const pal = c.palette || {};
+  const banks = pal.mode === "banks" && facts.palette;
+  if (banks) for (const t of facts.palette.problems || []) problem(`Colours: ${t}`);
+  if (facts.palette && pal.mode !== "banks") note("The game's colour banks (palette.json) are not used on this console.");
   for (const [kind, group] of [["Sprite", facts.sprites], ["Tileset", facts.tilesets]]) {
     for (const [name, a] of Object.entries(group || {})) {
-      if (pal.mode === "fixed" && a.offPalette > 0) problem(`${kind} ${name} has ${a.offPalette} pixels outside this console's palette (open it and use "Snap to palette").`);
+      if (banks) {
+        if (a.noBank) problem(typeof a.noBank === "string" ? `${kind} ${name} uses bank ${a.noBank}, which the game's colours do not have.` : `${kind} ${name} has no colour bank yet (open it and choose ${kind === "Sprite" ? "one" : "its banks"}).`);
+        else if (a.offBank > 0) problem(`${kind} ${name} has ${a.offBank} pixels outside its bank (open it and use "Snap to bank").`);
+        else if (a.tilesOff > 0) problem(`${kind} ${name} has ${a.tilesOff} tile${a.tilesOff === 1 ? "" : "s"} that mix colours from more than one bank (open it and use "Snap tiles to banks").`);
+        continue;
+      }
+      if ((pal.mode === "fixed" || pal.mode === "banks") && a.offPalette > 0) problem(`${kind} ${name} has ${a.offPalette} pixels outside this console's ${pal.mode === "banks" ? "classic colours" : "palette"} (open it and use "Snap to palette").`);
       if (pal.mode === "limited" && a.colors > pal.size) problem(`${kind} ${name} uses ${a.colors} colours; this console allows ${pal.size}.`);
     }
   }

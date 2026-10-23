@@ -71,15 +71,19 @@ export function createConsoleEditor(dialog, hooks = {}) {
 
   section("Colours");
   const mode = el("select");
-  [["fixed", "Fixed palette: only these colours"], ["limited", "Limited: any colours, at most N"], ["free", "Free: any colours"]].forEach(([v, l]) => mode.appendChild(new Option(l, v)));
+  [["banks", "Colour banks, GBA style: 15 colours a bank"], ["fixed", "Fixed palette: only these colours"], ["limited", "Limited: any colours, at most N"], ["free", "Free: any colours"]].forEach(([v, l]) => mode.appendChild(new Option(l, v)));
   mode.onchange = () => {
-    if (mode.value === "fixed") c.palette = { mode: "fixed", colors: (c.palette && c.palette.colors) || ["#000000", "#ffffff"] };
+    if (mode.value === "banks") c.palette = { mode: "banks", color_bits: 15, bank_colors: 16, sprite_banks: 16, tile_banks: 16, ...(c.palette && c.palette.colors ? { colors: c.palette.colors } : {}) };
+    else if (mode.value === "fixed") c.palette = { mode: "fixed", colors: (c.palette && c.palette.colors) || ["#000000", "#ffffff"] };
     else if (mode.value === "limited") c.palette = { mode: "limited", size: (c.palette && c.palette.size) || 16 };
     else c.palette = { mode: "free" };
     refresh();
   };
   field("Mode", mode);
   const sizeRow = field("Most colours", numInput("palette.size", { min: 2, max: 256 }));
+  const spriteBanksRow = field("Sprite banks", numInput("palette.sprite_banks", { min: 1, max: 16 }));
+  const tileBanksRow = field("Tile banks", numInput("palette.tile_banks", { min: 1, max: 16 }));
+  spriteBanksRow.title = tileBanksRow.title = "How many colour banks a game may have (each game picks its own colours, 15 a bank, in Colours)";
   const swatches = el("div", "ce-swatches");
   const palBox = el("div", "ce-palette");
   const picker = el("input"); picker.type = "color"; picker.value = "#ff004d";
@@ -153,6 +157,7 @@ export function createConsoleEditor(dialog, hooks = {}) {
     const m = (c.palette && c.palette.mode) || "free";
     mode.value = m;
     sizeRow.hidden = m !== "limited"; palBox.hidden = m !== "fixed";
+    spriteBanksRow.hidden = tileBanksRow.hidden = m !== "banks";
     if (m === "fixed") {
       swatches.replaceChildren();
       c.palette.colors.forEach((h, i) => {

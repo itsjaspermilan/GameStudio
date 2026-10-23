@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { inflateSync } from "node:zlib";
 import { parseApi, buildIndex, diagnose } from "../../studio/src/lua-intel-core.js";
 import { scanProject, consoleIdOf } from "../../studio/src/project-core.js";
+import { normalizePalette } from "../../studio/src/palette-core.js";
 import { parseSong, serializeSong, normalizeSfx, renderSongDesc, renderSfxWith, setBuiltinInstruments, builtinInstruments, songSeconds } from "../../studio/src/audio-core.js";
 import { analyzeSong, describeAnalysis } from "../../studio/src/music-core.js";
 import { parseRoom, normalizeRoom, serializeRoom, fitLayer } from "../../studio/src/room-core.js";
@@ -51,6 +52,18 @@ function consoleOf(dir) {
   return readJson(join(ROOT, "engine/consoles/dot.json"));
 }
 const palOf = (con) => (con.palette && con.palette.colors) || [];
+// A game with colour banks (a console with palette.mode "banks" and a palette.json): its banks, else null (the classic palette is used).
+function banksOf(dir) {
+  const con = consoleOf(dir);
+  if (!con.palette || con.palette.mode !== "banks" || !existsSync(join(dir, "palette.json"))) return null;
+  return normalizePalette(readJson(join(dir, "palette.json")));
+}
+// A bank as a palette for Canvas: place 0 see-through (null), places 1 to 15 its colours. Places are written as one hex digit, 1 to f.
+function bankPal(banks, kind, name) {
+  const list = banks[kind], b = name ? list.find((x) => x.name === name) : list[0];
+  if (!b) throw new Error(name ? `the game has no ${kind === "sprites" ? "sprite" : "tile"} bank called ${name} (it has: ${list.map((x) => x.name).join(", ") || "none"})` : `the game has no ${kind === "sprites" ? "sprite" : "tile"} banks yet (palette.json)`);
+  return { name: b.name, pal: [null, ...b.colors] };
+}
 
 // ---------- pictures ----------
 // PNG reader for the pictures the studio writes (8-bit RGB, RGBA or palette, not interlaced)
@@ -276,7 +289,8 @@ export function sprite_view({ game, name, scale, as_text = false }) {
   const L = [`${n}: ${fw}x${img.height}, ${frames} frame${frames === 1 ? "" : "s"}, origin ${JSON.stringify(meta.origin || [0, 0])}${meta.animations ? `, animations ${JSON.stringify(meta.animations)}` : ""}`];
   if (as_text && fw * img.height <= 48 * 48) {
     // colours as letters, so the picture can be read and rewritten exactly with sprite_write
-    const pal = palOf(consoleOf(dir)), letters = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", used = new Map();
+    const banks = banksOf(dir), bank = banks && meta.bank ? banks.sprites.find((b) => b.name === meta.bank) : null;
+    const pal = bank ? [null, ...bank.colors] : palOf(consoleOf(dir)), letters = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", used = new Map();
     for (let f = 0; f < frames; f++) {
       L.push(`frame ${f + 1}:`);
       for (let y = 0; y < img.height; y++) {
@@ -293,26 +307,34 @@ export function sprite_view({ game, name, scale, as_text = false }) {
         L.push("  " + row);
       }
     }
-    L.push(`letters are the console's palette: ${pal.map((c, i) => `${letters[i]}=${c}`).join(" ")}${used.size ? `; ! is a colour outside the palette (${[...used.keys()].join(", ")})` : ""}; . is see-through`);
+    if (bank) L.push(`letters are places in bank ${bank.name}: ${bank.colors.map((c, i) => `${letters[i + 1]}=${c}`).join(" ")}${used.size ? `; ! is a colour outside the bank (${[...used.keys()].join(", ")})` : ""}; . is see-through`);
+    else L.push(`letters are the console's palette: ${pal.map((c, i) => `${letters[i]}=${c}`).join(" ")}${used.size ? `; ! is a colour outside the palette (${[...used.keys()].join(", ")})` : ""}; . is see-through`);
   }
   return { text: L.join("\n"), images: [picture(img.width, img.height, img.data, scale || fit(img.width, img.height))] };
 }
 
 // frames: each { rows: ["..aa..", ...] } (letters = palette places, as sprite_view shows them) or { ops: [["rect", x, y, w, h, c], ...] }
 // With tileset = { cols }, the frames are tiles: written to tilesets/<name>.png in rows of `cols` with a .json giving the tile size.
-export function sprite_write({ game, name, w, h, frames, origin, fps, animations, outline, tileset }) {
-  const dir = gameDir(game), n = resName(name), pal = palOf(consoleOf(dir));
+// In a game with colour banks a sprite draws with one sprite bank (`bank`, default the first) and its colours are places 1 to 15 of it
+// (hex digits 1-f, or numbers); a tileset lists its tile banks (`banks`) and each tile (frame) may name its own (`bank`), the first by default.
+export function sprite_write({ game, name, w, h, frames, origin, fps, animations, outline, tileset, bank, banks: tileBanks }) {
+  const dir = gameDir(game), n = resName(name), banks = banksOf(dir);
+  let pal = palOf(consoleOf(dir)), own = null;
+  if (banks && !tileset) { own = bankPal(banks, "sprites", bank); pal = own.pal; }
+  const tsBanks = banks && tileset ? (tileBanks && tileBanks.length ? tileBanks : [banks.tiles[0] && banks.tiles[0].name]).map((b) => bankPal(banks, "tiles", b)) : null;
   if (!(w >= 1 && w <= 256 && h >= 1 && h <= 256)) throw new Error("w and h must be 1 to 256");
   if (!Array.isArray(frames) || !frames.length || frames.length > 64) throw new Error("frames is a list of 1 to 64 frames");
   const letters = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const colour = (c) => {
     if (typeof c === "number") return c;
     if (typeof c === "string" && c.length === 1 && letters.includes(c)) return letters.indexOf(c);
-    if (typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c)) { const k = pal.indexOf(c.toLowerCase()); if (k >= 0) return k; throw new Error(`${c} is not in the console's palette`); }
-    throw new Error(`colour ${JSON.stringify(c)}: use a palette place (number or letter as sprite_view shows) or a palette hex`);
+    if (typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c)) { const k = pal.indexOf(c.toLowerCase()); if (k >= 0) return k; throw new Error(`${c} is not in ${banks ? "the bank" : "the console's palette"}`); }
+    throw new Error(`colour ${JSON.stringify(c)}: use a ${banks ? "bank place (1 to 15, or a hex digit 1-f)" : "palette place (number or letter as sprite_view shows)"} or one of its colours as hex`);
   };
+  const tilePal = []; // a tileset with banks: the palette each tile was drawn with
   const canvases = frames.map((fr, i) => {
     const c = new Canvas(w, h);
+    if (tsBanks) { const b = fr.bank ? tsBanks.find((x) => x.name === fr.bank) : tsBanks[0]; if (!b) throw new Error(`tile ${i}: bank ${fr.bank} is not in this tileset's banks (${tsBanks.map((x) => x.name).join(", ")})`); pal = b.pal; tilePal.push(pal); }
     if (fr.rows) fr.rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== "." && ch !== " ") c.px(x, y, colour(ch)); }));
     for (const op of fr.ops || []) {
       const [kind, ...a] = op;
@@ -338,20 +360,29 @@ export function sprite_write({ game, name, w, h, frames, origin, fps, animations
     const cols = Math.max(1, Math.min(canvases.length, tileset.cols || 8)), rows = Math.ceil(canvases.length / cols);
     if (cols * w > 256 || rows * h > 256) throw new Error(`a tileset sheet is at most 256x256 (this would be ${cols * w}x${rows * h})`);
     const sheet = new Canvas(cols * w, rows * h);
-    canvases.forEach((c, i) => sheet.stamp(c, (i % cols) * w, Math.floor(i / cols) * h));
-    const rgba = sheet.rgba(pal);
+    let rgba;
+    if (tsBanks) { // each tile in its own bank's colours
+      rgba = new Uint8ClampedArray(sheet.w * sheet.h * 4);
+      canvases.forEach((c, i) => {
+        const t = c.rgba(tilePal[i]), x0 = (i % cols) * w, y0 = Math.floor(i / cols) * h;
+        for (let y = 0; y < h; y++) rgba.set(t.subarray(y * w * 4, (y + 1) * w * 4), ((y0 + y) * sheet.w + x0) * 4);
+      });
+    } else {
+      canvases.forEach((c, i) => sheet.stamp(c, (i % cols) * w, Math.floor(i / cols) * h));
+      rgba = sheet.rgba(pal);
+    }
     mkdirSync(join(dir, "tilesets", dirname(n)), { recursive: true });
     writeFileSync(join(dir, "tilesets", `${n}.png`), png(sheet.w, sheet.h, rgba));
-    writeFileSync(join(dir, "tilesets", `${n}.json`), JSON.stringify({ image: `tilesets/${n}.png`, tile_w: w, tile_h: h }, null, 2) + "\n");
+    writeFileSync(join(dir, "tilesets", `${n}.json`), JSON.stringify({ image: `tilesets/${n}.png`, tile_w: w, tile_h: h, ...(tsBanks ? { banks: tsBanks.map((b) => b.name) } : {}) }, null, 2) + "\n");
     return { text: `wrote tilesets/${n}.png and .json: ${canvases.length} tiles of ${w}x${h} in rows of ${cols} (tile numbers count from 0, left to right then down)`, images: [picture(sheet.w, sheet.h, rgba, fit(sheet.w, sheet.h))] };
   }
   const s = strip(canvases), rgba = s.rgba(pal);
   mkdirSync(join(dir, "sprites", dirname(n)), { recursive: true });
   writeFileSync(join(dir, "sprites", `${n}.png`), png(s.w, s.h, rgba));
-  const meta = { image: `sprites/${n}.png`, frames: frames.length, origin: origin || [w >> 1, h >> 1], mask: null, fps: fps ?? (frames.length > 1 ? 8 : 0) };
+  const meta = { image: `sprites/${n}.png`, frames: frames.length, origin: origin || [w >> 1, h >> 1], mask: null, fps: fps ?? (frames.length > 1 ? 8 : 0), ...(own ? { bank: own.name } : {}) };
   if (animations) meta.animations = animations;
   writeFileSync(join(dir, "sprites", `${n}.json`), JSON.stringify(meta, null, 1) + "\n");
-  return { text: `wrote sprites/${n}.png and .json: ${w}x${h}, ${frames.length} frame${frames.length === 1 ? "" : "s"}, origin ${JSON.stringify(meta.origin)}`, images: [picture(s.w, s.h, rgba, fit(s.w, s.h))] };
+  return { text: `wrote sprites/${n}.png and .json: ${w}x${h}, ${frames.length} frame${frames.length === 1 ? "" : "s"}, origin ${JSON.stringify(meta.origin)}${own ? `, bank ${own.name}` : ""}`, images: [picture(s.w, s.h, rgba, fit(s.w, s.h))] };
 }
 
 // ---------- sound ----------

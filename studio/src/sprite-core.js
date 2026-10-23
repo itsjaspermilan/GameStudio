@@ -127,6 +127,7 @@ export function clampMask(s, m) {
 export function snapshot(s) {
   return {
     w: s.w, h: s.h, origin: [...s.origin], mask: s.mask ? [...s.mask] : null, fps: s.fps, tile: s.tile ? [...s.tile] : null,
+    bank: s.bank, banks: s.banks ? [...s.banks] : undefined,
     animations: JSON.parse(JSON.stringify(s.animations || {})),
     frames: s.frames.map((f) => new Uint8ClampedArray(f)),
   };
@@ -136,6 +137,8 @@ export function restore(s, snap) {
   s.fps = snap.fps; s.frames = snap.frames.map((f) => new Uint8ClampedArray(f));
   s.animations = JSON.parse(JSON.stringify(snap.animations || {}));
   if (snap.tile) s.tile = [...snap.tile]; else delete s.tile;
+  if (snap.bank) s.bank = snap.bank; else delete s.bank;
+  if (snap.banks) s.banks = [...snap.banks]; else delete s.banks;
 }
 
 export class History {
@@ -171,6 +174,7 @@ export function toJSON(s) {
     fps: s.fps,
   };
   if (Object.keys(s.animations || {}).length) out.animations = JSON.parse(JSON.stringify(s.animations));
+  if (s.bank) out.bank = s.bank; // its colour bank (palette.json), on a console with banks
   return out;
 }
 
@@ -292,7 +296,9 @@ export function resizeSheet(s, tw, th, cols, rows) {
 }
 
 export function tilesetToJSON(s) {
-  return { image: `tilesets/${s.name}.png`, tile_w: s.tile[0], tile_h: s.tile[1] };
+  const out = { image: `tilesets/${s.name}.png`, tile_w: s.tile[0], tile_h: s.tile[1] };
+  if (s.banks && s.banks.length) out.banks = [...s.banks]; // the tile banks it uses; each tile keeps to one
+  return out;
 }
 
 // Replace the sheet with imported pixels (RGBA, width x height). The tile size is kept.

@@ -10,7 +10,11 @@
   },
   "room_speed": 60,
   "palette": {
-    "mode": "fixed",
+    "mode": "banks",
+    "color_bits": 15,
+    "bank_colors": 16,
+    "sprite_banks": 16,
+    "tile_banks": 16,
     "colors": [
       "#000000",
       "#3b3f55",

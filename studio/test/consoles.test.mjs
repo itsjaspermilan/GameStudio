@@ -33,6 +33,9 @@ test("validateConsole reports clear problems", () => {
   assert.match(problems((c) => { c.rooms.max_width = 100; })[0], /at least as big as the screen/);
   assert.match(problems((c) => { c.rooms.tile_layers = 0; })[0], /tile layers/);
   assert.match(problems((c) => { c.limits.instances_per_room = -1; })[0], /limit instances_per_room/);
+  assert.match(problems((c) => { c.palette.sprite_banks = 40; })[0], /sprite_banks/);
+  assert.match(problems((c) => { c.palette.color_bits = 12; })[0], /color_bits/);
+  assert.deepEqual(problems((c) => { c.palette = { mode: "fixed", colors: ["#000000", "#ffffff"] }; }), []);
   assert.deepEqual(problems((c) => { c.palette = { mode: "free" }; }), []);
   assert.deepEqual(problems((c) => { c.palette = { mode: "limited", size: 16 }; }), []);
   assert.ok(K.validateConsole(null).length);
@@ -66,8 +69,9 @@ test("duplicateConsole makes an independent copy for a custom console", () => {
 
 test("paletteOf describes what colours a console allows", () => {
   const dot = K.paletteOf(K.BUILTIN_CONSOLES[0]);
-  assert.equal(dot.mode, "fixed");
-  assert.equal(dot.colors.length, 32);
+  assert.equal(dot.mode, "banks");
+  assert.deepEqual([dot.spriteBanks, dot.tileBanks, dot.places, dot.bits], [16, 16, 15, 15]);
+  assert.equal(dot.colors.length, 32); // the classic colours, for games made before banks
   assert.ok(dot.colors.every((c) => c === c.toLowerCase()));
   assert.deepEqual(K.paletteOf(K.LEGACY_CONSOLE), { mode: "free" });
   assert.deepEqual(K.paletteOf({ palette: { mode: "limited", size: 16 } }), { mode: "limited", size: 16 });

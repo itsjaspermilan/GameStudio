@@ -1,6 +1,8 @@
 // The project is its folder. There is no index file: what the tree shows is found by scanning the file list, so a file added outside the studio
 // (or by git) appears at once. This module knows the folders, how names map to files and Lua module names, and the starter text of new files.
 
+import { paletteText, starterPalette } from "./palette-core.js";
+
 // kind: how the studio opens it ("code" = the Lua editor, otherwise the named editor). nested: names may contain folders (entities/enemies/grub,
 // sprites/ui/logo is the sprite "ui/logo"): a folder is part of the name, and moving something to another folder renames it.
 // layout: a scene is its code (scenes/title.lua), its layout (scenes/title.layout.lua, edited in the layout editor), or both.
@@ -90,8 +92,8 @@ export function scanProject(files) {
     }
     groups[g.key] = [...names].sort();
   }
-  const other = files.filter((f) => !claimed.has(f) && !f.startsWith("meta/") && f !== "game.lua").sort();
-  return { hasGame: files.includes("game.lua"), groups, layouts: layouts.sort(), code: code.sort(), other };
+  const other = files.filter((f) => !claimed.has(f) && !f.startsWith("meta/") && f !== "game.lua" && f !== "palette.json").sort();
+  return { hasGame: files.includes("game.lua"), hasPalette: files.includes("palette.json"), groups, layouts: layouts.sort(), code: code.sort(), other };
 }
 
 // The console named in a game's meta/info.json (new games write it there; game.lua says the same in code). Defaults to Dot.
@@ -159,14 +161,15 @@ return {
 }
 `;
 
-// Starter files of a new game.
-export function newGameFiles(title, consoleId) {
+// Starter files of a new game. On a console with colour banks it starts with the ready-made banks (palette.json).
+export function newGameFiles(title, consoleId, { banks = false } = {}) {
   const safe = String(title).replace(/[\\"]/g, "");
   return {
     "game.lua": `-- ${safe}\nreturn gs.game{\n  title = "${safe}",\n  console = "${consoleId}",\n  start = "scenes.main",\n}\n`,
     "scenes/main.lua": `local Main = gs.scene{}\n\nfunction Main:enter()\n  gs.spawn("player", 160, 120)\nend\n\nreturn Main\n`,
     "entities/player.lua": `-- The player moves with the D-pad. Save the file while the game runs and the change shows at once.\nlocal Player = gs.entity{\n  tags = { "player" },\n  speed = 90,                     -- pixels a second\n}\n\nfunction Player:update(dt)\n  local dx, dy = gs.input.dir()\n  self.x = self.x + dx * self.speed * dt\n  self.y = self.y + dy * self.speed * dt\nend\n\nfunction Player:draw()\n  gs.draw.rect(self.x - 8, self.y - 8, 16, 16, "#ea5a4b")\nend\n\nreturn Player\n`,
     "meta/info.json": JSON.stringify({ title, console: consoleId }, null, 2) + "\n",
+    ...(banks ? { "palette.json": paletteText(starterPalette()) } : {}),
   };
 }
 

@@ -51,6 +51,19 @@ test("palettes: a fixed palette flags stray pixels, a limited one flags too many
   assert.deepEqual(checkProject(dot, free, facts), []);
 });
 
+test("colour banks: each sprite needs its bank, each tile keeps to one of its banks", () => {
+  const facts = { palette: { sprites: 2, tiles: 1, problems: ["Two banks are called \"a\": every bank needs its own name."] },
+    sprites: { a: { w: 8, h: 8, frames: 1, noBank: true }, b: { w: 8, h: 8, frames: 1, noBank: "gone" }, c: { w: 8, h: 8, frames: 1, offBank: 4 }, d: { w: 8, h: 8, frames: 1, offBank: 0, offPalette: 9 } },
+    tilesets: { t: { w: 16, h: 16, tile_w: 16, tile_h: 16, tilesOff: 1 } } };
+  const t = texts(checkProject(dot, dot, facts)).join(" | ");
+  assert.match(t, /Colours: Two banks/);
+  assert.match(t, /Sprite a has no colour bank yet/);
+  assert.match(t, /Sprite b uses bank gone/);
+  assert.match(t, /Sprite c has 4 pixels outside its bank/);
+  assert.match(t, /Tileset t has 1 tile that mix/);
+  assert.doesNotMatch(t, /Sprite d/); // inside its bank: the classic colours do not matter any more
+});
+
 test("moving to the legacy console has no limits to break", () => {
   const facts = { rooms: { r: { width: 5000, height: 5000, instances: 9999, layers: 12 } }, sprites: { s: { w: 130, h: 33, frames: 90, offPalette: 7 } } };
   assert.deepEqual(checkProject(dot, K.LEGACY_CONSOLE, facts).filter((x) => x.level === "problem"), []);

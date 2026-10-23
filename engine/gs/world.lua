@@ -188,7 +188,11 @@ function Entity.tween(self, props, seconds, easing, on_done) return timers.tween
 -- the default drawing: the sprite at the entity's position
 function Entity.draw(self)
   local name = self.sprite
-  if name then assets.draw(sprite_of(name), self.frame, self.x, self.y, self.angle, self.sx, self.sy, self.alpha, self.flip) end
+  if name then
+    local s = sprite_of(name)
+    if self.bank then s = assets.swapped(s, self.bank, 2) end -- a palette swap: self.bank = "red_soldier"
+    assets.draw(s, self.frame, self.x, self.y, self.angle, self.sx, self.sy, self.alpha, self.flip)
+  end
 end
 Entity.draw_sprite = Entity.draw
 local default_draw = Entity.draw

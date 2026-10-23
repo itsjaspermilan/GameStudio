@@ -56,8 +56,13 @@ export function validateConsole(c) {
   const s = c.screen || {};
   if (!int(s.width, 64, 2048) || !int(s.height, 64, 2048)) bad.push("screen width and height must be whole numbers from 64 to 2048");
   const p = c.palette || {};
-  if (!["fixed", "limited", "free"].includes(p.mode)) bad.push("palette mode must be fixed, limited or free");
-  if (p.mode === "fixed") {
+  if (!["fixed", "limited", "free", "banks"].includes(p.mode)) bad.push("palette mode must be fixed, limited, free or banks");
+  if (p.mode === "banks") {
+    if (!int(p.sprite_banks, 1, 16) || !int(p.tile_banks, 1, 16)) bad.push("colour banks: sprite_banks and tile_banks must be whole numbers from 1 to 16");
+    if (p.bank_colors !== undefined && !int(p.bank_colors, 2, 16)) bad.push("colour banks: bank_colors must be from 2 to 16 (place 0 is see-through)");
+    if (p.color_bits !== undefined && ![15, 24].includes(p.color_bits)) bad.push("colour banks: color_bits must be 15 (GBA) or 24");
+  }
+  if (p.mode === "fixed" || (p.mode === "banks" && p.colors !== undefined)) {
     const cols = p.colors;
     if (!Array.isArray(cols) || cols.length < 2 || cols.length > 256) bad.push("a fixed palette needs 2 to 256 colours");
     else if (!cols.every((x) => /^#[0-9a-fA-F]{6}$/.test(x))) bad.push("palette colours must look like #rrggbb");
@@ -113,9 +118,12 @@ export function duplicateConsole(c, id, name) {
   return copy;
 }
 
-// What colours a console allows: {mode: "fixed", colors: ["#rrggbb", ...]}, {mode: "limited", size}, or {mode: "free"}.
+// What colours a console allows: {mode: "fixed", colors: ["#rrggbb", ...]}, {mode: "limited", size}, {mode: "free"}, or
+// {mode: "banks", colors, spriteBanks, tileBanks, places, bits}: the game's own banks (palette.json), with `colors` the classic palette
+// that games made before banks keep using.
 export function paletteOf(c) {
   const p = (c && c.palette) || {};
+  if (p.mode === "banks") return { mode: "banks", colors: (p.colors || []).map((x) => x.toLowerCase()), spriteBanks: p.sprite_banks || 16, tileBanks: p.tile_banks || 16, places: Math.min(15, (p.bank_colors || 16) - 1), bits: p.color_bits || 15 };
   if (p.mode === "fixed" && Array.isArray(p.colors)) return { mode: "fixed", colors: p.colors.map((x) => x.toLowerCase()) };
   if (p.mode === "limited") return { mode: "limited", size: p.size };
   return { mode: "free" };

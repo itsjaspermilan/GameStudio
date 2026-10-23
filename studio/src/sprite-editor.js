@@ -1,6 +1,7 @@
 // Pixel-art sprite editor UI. Pure editing logic is in sprite-core.js.
 import { color as themeColor, ink, tint } from "./theme.js";
 import * as C from "./sprite-core.js";
+import * as P from "./palette-core.js";
 
 const PALETTE = ["#000000", "#1d2b53", "#7e2553", "#008751", "#ab5236", "#5f574f", "#c2c3c7", "#fff1e8",
   "#ff004d", "#ffa300", "#ffec27", "#00e436", "#29adff", "#83769c", "#ff77a8", "#ffccaa"];
@@ -15,6 +16,7 @@ export function createSpriteEditor(root, hooks = {}) {
   root.innerHTML = `
     <div class="se-left">
       <div class="se-toolbtns"></div>
+      <div class="se-banks"></div>
       <div class="se-palette"></div>
       <label class="se-color">Color <input type="color" class="se-colorinput" value="#ff004d"></label>
       <div class="se-row"><button data-act="undo">Undo</button><button data-act="redo">Redo</button></div>
@@ -116,20 +118,48 @@ export function createSpriteEditor(root, hooks = {}) {
   }
   // ---------- palette: the console decides which colours exist ----------
   // fixed: only the console's colours (the free colour picker is hidden); limited: any colours, but at most N distinct;
-  // free: anything.
-  const pal = $(".se-palette");
+  // free: anything; banks: the game's colour banks (palette.json). A sprite draws with its one sprite bank; a tileset with the tile banks
+  // it lists, each tile keeping to one of them.
+  const pal = $(".se-palette"), bankBox = $(".se-banks");
   const palInfo = () => (hooks.getPalette ? hooks.getPalette() : { mode: "free" });
-  const fixedRgb = () => { const p = palInfo(); return p.mode === "fixed" ? p.colors.map((h) => C.hexToRgba(h).slice(0, 3)) : null; };
+  const banksMode = () => palInfo().mode === "banks";
+  const bankList = () => { const p = palInfo(); return (isTS() ? p.tiles : p.sprites) || []; };
+  // the banks this picture draws with now (those that still exist)
+  const myBanks = () => {
+    if (!s || !banksMode()) return [];
+    const list = bankList(), names = isTS() ? s.banks || [] : s.bank ? [s.bank] : [];
+    return names.map((n) => list.find((b) => b.name === n)).filter(Boolean);
+  };
+  const fixedRgb = () => {
+    const p = palInfo();
+    if (p.mode === "fixed") return p.colors.map((h) => C.hexToRgba(h).slice(0, 3));
+    if (p.mode === "banks" && !isTS()) { const b = myBanks()[0]; return b ? P.bankRgb(b) : null; }
+    return null;
+  };
   const colorLimit = () => { const p = palInfo(); return p.mode === "limited" ? p.size : 0; };
   let note = ""; // a message shown in the banner until the next action
   function markSelected() {
     const cur = colorInput.value.toLowerCase();
     pal.querySelectorAll(".swatch").forEach((b) => b.classList.toggle("sel", b.title.toLowerCase() === cur));
   }
+  function swatch(hex, title) {
+    const b = document.createElement("button");
+    b.className = "swatch"; b.style.background = hex; b.title = title || hex;
+    b.onclick = () => { colorInput.value = hex; if (tool === "eraser") setTool("pencil"); markSelected(); };
+    return b;
+  }
+  // Place 0 of a bank is see-through: its swatch picks the eraser.
+  function clearSwatch() {
+    const b = document.createElement("button");
+    b.className = "swatch see-through"; b.title = "Place 0: see-through (the eraser)";
+    b.onclick = () => setTool("eraser");
+    return b;
+  }
   function buildPalette() {
     const info = palInfo(), fixed = info.mode === "fixed";
-    pal.replaceChildren();
-    $(".se-color").hidden = fixed;
+    pal.replaceChildren(); bankBox.replaceChildren();
+    $(".se-color").hidden = fixed || info.mode === "banks";
+    if (info.mode === "banks") return buildBanks();
     for (const hex of fixed ? info.colors : PALETTE) {
       const b = document.createElement("button");
       b.className = "swatch"; b.style.background = hex; b.title = hex;
@@ -139,6 +169,57 @@ export function createSpriteEditor(root, hooks = {}) {
     if (fixed && !info.colors.includes(colorInput.value.toLowerCase())) colorInput.value = info.colors[Math.min(1, info.colors.length - 1)];
     markSelected();
   }
+  // The bank chooser and the bank's 16 places (4 x 4, like the GBA's palette RAM). A tileset can tick several banks.
+  function buildBanks() {
+    const list = bankList();
+    if (!s) return;
+    if (!list.length) {
+      bankBox.innerHTML = `<p class="se-hint">This game has no ${isTS() ? "tile" : "sprite"} banks yet. Open <b>Colours</b> in the side bar to add some.</p>`;
+      return;
+    }
+    if (isTS()) {
+      const h = document.createElement("div"); h.className = "se-bank-head"; h.textContent = "Tile banks";
+      h.title = "The colour banks this tileset uses. Each tile keeps to one of them, like on a GBA.";
+      const box = document.createElement("div"); box.className = "se-bank-ticks";
+      for (const b of list) {
+        const l = document.createElement("label"), c = document.createElement("input");
+        c.type = "checkbox"; c.checked = (s.banks || []).includes(b.name);
+        c.onchange = () => commit(() => { const now = new Set(s.banks || []); c.checked ? now.add(b.name) : now.delete(b.name); s.banks = list.map((x) => x.name).filter((n) => now.has(n)); buildPalette(); });
+        l.append(c, " " + b.name); box.appendChild(l);
+      }
+      bankBox.append(h, box);
+    } else {
+      const l = document.createElement("label"); l.className = "se-field se-bank-pick";
+      l.title = "The colour bank this sprite draws with: 15 colours and see-through. Picking another moves every pixel to the same place in the new bank.";
+      const sel = document.createElement("select");
+      if (!s.bank || !list.some((b) => b.name === s.bank)) sel.add(new Option(s.bank ? `${s.bank} (missing)` : "Choose a bank", s.bank || ""));
+      for (const b of list) sel.add(new Option(b.name, b.name));
+      sel.value = s.bank || "";
+      sel.onchange = () => setBank(sel.value);
+      l.append("Bank ", sel); bankBox.appendChild(l);
+    }
+    const mine = myBanks();
+    for (const b of mine) {
+      if (isTS()) { const cap = document.createElement("div"); cap.className = "se-bank-cap"; cap.textContent = b.name; pal.appendChild(cap); }
+      pal.appendChild(clearSwatch());
+      b.colors.forEach((hex, i) => pal.appendChild(swatch(hex, `Place ${i + 1}: ${hex}  (in code: "${b.name}:${i + 1}")`)));
+    }
+    const all = mine.flatMap((b) => b.colors);
+    if (all.length && !all.includes(colorInput.value.toLowerCase())) colorInput.value = all[Math.min(1, all.length - 1)];
+    markSelected();
+  }
+  // A sprite moved to another bank keeps its shading: each pixel takes the colour in the same place of the new bank.
+  function setBank(name) {
+    const from = myBanks()[0], to = bankList().find((b) => b.name === name);
+    commit(() => {
+      s.bank = name || undefined;
+      if (from && to) {
+        const n = s.frames.reduce((k, fr) => k + P.recolorByPlace(fr, from, to), 0);
+        if (n) note = `Moved to bank ${name}: each pixel took the colour in the same place.`;
+      }
+    });
+    buildPalette(); updateBanner();
+  }
   colorInput.addEventListener("input", markSelected);
 
   function updateBanner() {
@@ -146,13 +227,30 @@ export function createSpriteEditor(root, hooks = {}) {
     if (!s) { box.hidden = true; return; }
     const rgb = fixedRgb(), lim = colorLimit();
     let text = note;
+    if (banksMode()) {
+      const add = (t) => { text += `${text ? "  " : ""}${t}`; };
+      if (isTS()) {
+        const mine = myBanks();
+        if (!mine.length) add("Tick the tile banks this tileset uses.");
+        else {
+          const bad = P.tilesOutsideBanks(s, mine);
+          if (bad.length) {
+            add(`${bad.length === 1 ? "Tile" : "Tiles"} ${bad.slice(0, 8).join(", ")}${bad.length > 8 ? "…" : ""} ${bad.length === 1 ? "uses" : "use"} colours from more than one bank (or from none). Each tile keeps to one bank.`);
+            const b = document.createElement("button"); b.textContent = "Snap tiles to banks";
+            b.title = "Each tile goes to the bank closest to its colours";
+            b.onclick = () => commit(() => P.snapTilesToBanks(s, mine));
+            box.append(document.createTextNode(text), b); box.hidden = false; return;
+          }
+        }
+      } else if (!rgb) add(s.bank ? `Bank ${s.bank} is not in the game's colours any more: choose a bank.` : "Choose a colour bank for this sprite.");
+    }
     const frameBudget = !isTS() && hooks.getBudgets ? (hooks.getBudgets() || {}).frames_per_sprite : 0;
     if (frameBudget && s.frames.length > frameBudget) text += `${text ? "  " : ""}This sprite has ${s.frames.length} frames; the console's budget is ${frameBudget}.`;
     if (rgb) {
       const off = C.offPaletteCount(s, rgb);
       if (off > 0) {
-        text += `${text ? "  " : ""}${off} pixel${off === 1 ? "" : "s"} use colours outside this console's palette.`;
-        const b = document.createElement("button"); b.textContent = "Snap to palette";
+        text += `${text ? "  " : ""}${off} pixel${off === 1 ? "" : "s"} use colours outside ${banksMode() ? `bank ${s.bank}` : "this console's palette"}.`;
+        const b = document.createElement("button"); b.textContent = banksMode() ? "Snap to bank" : "Snap to palette";
         b.onclick = () => commit(() => C.snapToPalette(s, rgb));
         box.append(document.createTextNode(text), b); box.hidden = false; return;
       }
@@ -437,11 +535,11 @@ export function createSpriteEditor(root, hooks = {}) {
   // ---------- buttons and property fields ----------
   function undo() {
     const snap = history.undo(C.snapshot(s));
-    if (snap) { C.restore(s, snap); f = Math.min(f, s.frames.length - 1); markDirty(); fitIfNeeded(); renderAll(); }
+    if (snap) { C.restore(s, snap); f = Math.min(f, s.frames.length - 1); note = ""; markDirty(); fitIfNeeded(); buildPalette(); renderAll(); }
   }
   function redo() {
     const snap = history.redo(C.snapshot(s));
-    if (snap) { C.restore(s, snap); f = Math.min(f, s.frames.length - 1); markDirty(); fitIfNeeded(); renderAll(); }
+    if (snap) { C.restore(s, snap); f = Math.min(f, s.frames.length - 1); note = ""; markDirty(); fitIfNeeded(); buildPalette(); renderAll(); }
   }
   function fitIfNeeded() { if (!userZoom) fitZoom(); }
 
@@ -485,9 +583,9 @@ export function createSpriteEditor(root, hooks = {}) {
       const cx = c.getContext("2d", { willReadFrequently: true }); cx.drawImage(bmp, 0, 0);
       const img = cx.getImageData(0, 0, bmp.width, bmp.height);
       const rgb = fixedRgb(); // a console with a fixed palette: imported pixels are moved onto it
-      const snapped = rgb ? C.snapPixels(img.data, rgb) : 0;
-      commit(() => C.importSheet(s, img.width, img.height, img.data));
-      if (snapped) { note = `Imported, and moved ${snapped} pixel${snapped === 1 ? "" : "s"} onto the console's palette.`; updateBanner(); }
+      let snapped = rgb ? C.snapPixels(img.data, rgb) : 0;
+      commit(() => { C.importSheet(s, img.width, img.height, img.data); if (banksMode() && myBanks().length) snapped = P.snapTilesToBanks(s, myBanks()); });
+      if (snapped) { note = `Imported, and moved ${snapped} pixel${snapped === 1 ? "" : "s"} onto ${banksMode() ? "the tileset's banks" : "the console's palette"}.`; updateBanner(); }
       fitIfNeeded(); renderCanvas();
     } catch (err) { hooks.onError ? hooks.onError(err) : alert(err.message); }
   });
@@ -533,6 +631,7 @@ export function createSpriteEditor(root, hooks = {}) {
     },
     refit() { if (s && !userZoom) { fitZoom(); renderCanvas(); } },
     redraw() { if (s) renderAll(); }, // the look changed
+    refreshPalette() { if (s) { buildPalette(); updateBanner(); } }, // the game's colours changed
     getSprite: () => s,
     isDirty: () => dirty,
     markClean() { dirty = false; },
