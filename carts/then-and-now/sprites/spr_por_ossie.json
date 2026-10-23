@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_por_ossie.png",
+ "frames": 3,
+ "origin": [
+  0,
+  0
+ ],
+ "mask": null,
+ "fps": 0
+}

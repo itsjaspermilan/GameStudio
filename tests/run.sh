@@ -28,7 +28,7 @@ echo "$out" | grep -qi 'error' && { echo "FAIL: band test reported an error"; st
 out="$(run ./build/gs tests/band-bad)"; echo "$out" | grep -q 'unknown instrument: nopiano' || { echo "FAIL: unknown track instrument not reported"; status=1; }
 
 # The sample games must load and run without errors or warnings (GS_SAVE_DIR keeps the test away from real saves).
-for game in carts/breakout carts/void-swarm carts/panel-pop carts/derelict carts/buttontest carts/padsetup; do
+for game in carts/breakout carts/void-swarm carts/panel-pop carts/then-and-now carts/buttontest carts/padsetup; do
   out="$(run ./build/gs "$game")"
   echo "$out" | grep -qiE 'error|^warning:' && { echo "$out"; echo "FAIL: $game printed an error or warning"; status=1; }
 done
@@ -75,6 +75,10 @@ echo "$out" | grep -qi 'error' && { echo "$out"; echo "FAIL: void-swarm menus pr
 # Panel Pop tests itself (lib/tests.lua): board rules, chains, garbage, the CPU player, every puzzle and stage.
 out="$(GS_SELFTEST=1 run ./build/gs carts/panel-pop)"; echo "$out" | tail -3
 echo "$out" | grep -q 'PANEL POP TEST PASS' || { echo "$out"; echo "FAIL: panel-pop self-test"; status=1; }
+
+# Then & Now checks every room (lib/debug.lua): Wren never arrives at a door inside a wall, in either era.
+out="$(GS_SELFTEST=1 FRAMES=300 run ./build/gs carts/then-and-now)"; echo "$out" | tail -2
+echo "$out" | grep -q 'THEN AND NOW TEST PASS' || { echo "$out"; echo "FAIL: then-and-now self-test"; status=1; }
 
 # The adaptive CPU floor (raised while frames are late, put back afterwards, recovered after a killed game) on made-up files.
 dir="$(mktemp -d)"

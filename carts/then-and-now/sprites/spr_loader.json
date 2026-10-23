@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_loader.png",
+ "frames": 3,
+ "origin": [
+  12,
+  24
+ ],
+ "mask": null,
+ "fps": 0
+}

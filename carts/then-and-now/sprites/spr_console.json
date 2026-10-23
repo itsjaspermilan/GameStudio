@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_console.png",
+ "frames": 2,
+ "origin": [
+  12,
+  32
+ ],
+ "mask": null,
+ "fps": 0
+}

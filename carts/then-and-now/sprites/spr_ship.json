@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_ship.png",
+ "frames": 2,
+ "origin": [
+  32,
+  48
+ ],
+ "mask": null,
+ "fps": 0
+}

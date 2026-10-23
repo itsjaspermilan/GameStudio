@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_jacket.png",
+ "frames": 1,
+ "origin": [
+  16,
+  16
+ ],
+ "mask": null,
+ "fps": 0
+}

@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_shuttle.png",
+ "frames": 2,
+ "origin": [
+  32,
+  20
+ ],
+ "mask": null,
+ "fps": 0
+}

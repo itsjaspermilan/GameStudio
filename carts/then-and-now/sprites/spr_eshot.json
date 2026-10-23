@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_eshot.png",
+ "frames": 3,
+ "origin": [
+  4,
+  4
+ ],
+ "mask": null,
+ "fps": 0
+}

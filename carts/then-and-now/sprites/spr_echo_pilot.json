@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_echo_pilot.png",
+ "frames": 4,
+ "origin": [
+  12,
+  32
+ ],
+ "mask": null,
+ "fps": 0
+}

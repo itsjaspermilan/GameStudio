@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_door.png",
+ "frames": 4,
+ "origin": [
+  0,
+  48
+ ],
+ "mask": null,
+ "fps": 0
+}
