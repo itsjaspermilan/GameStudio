@@ -10,7 +10,7 @@ import { color as themeColor } from "./theme.js";
 import * as R from "./room-core.js";
 import { History } from "./sprite-core.js";
 import { settleRenames } from "./rename-core.js";
-import { FONT8, FONT8_FIRST } from "./font8.js";
+import { FONTS } from "./fonts.js";
 
 const TOOLS = [
   ["select", "Select", "Click a thing to select it; drag to move it (Shift: in a straight line), drag a panel's handles to resize it. Arrow keys nudge, Delete removes. The other tools only place. (V, or Escape)", "v"],
@@ -76,10 +76,11 @@ export function createRoomEditor(root, hooks = {}) {
         <div class="re-sel-text">
           <label class="se-field">Text <input class="re-text" spellcheck="false"></label>
           <div class="se-row se-fields">
-            <label title="How big: the built-in font is 8 pixels a letter at size 1">Size <select class="re-size"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+            <label title="How many times bigger: the small built-in fonts are 8 pixels high at size 1, the tall ones 12">Size <select class="re-size"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
             <label title="Where the text sits against its point">Align <select class="re-align"><option value="left">left</option><option value="center">centre</option><option value="right">right</option></select></label>
           </div>
-          <label class="se-field" title="Built in: 8 x 8 letters in any colour of the palette. A sprite: its frames are the letters, from the space on in ASCII order (! &quot; # ... 0-9 ... A-Z), in the sprite's own colours.">Font <select class="re-font"></select></label>
+          <label class="se-field" title="Built in: round, square or bold letters, small (8 pixels high, for scores and labels) or tall (12 high, for talking and menus), in any colour of the palette. A sprite: its frames are the letters, from the space on in ASCII order (! &quot; # ... 0-9 ... A-Z), in the sprite's own colours.">Font <select class="re-font"></select></label>
+          <label class="se-field re-shadow-row" title="A darker (or, for dark letters, paler) copy of the letters one pixel right and down, as GBA games drew their words"><input type="checkbox" class="re-shadow"> Shadow</label>
           <div class="re-colors re-text-colors" title="The text's colour, from the console's palette (the built-in font only)"></div>
         </div>
         <div class="re-sel-panel">
@@ -188,13 +189,13 @@ export function createRoomEditor(root, hooks = {}) {
     for (const n of new Set([...room.panels.map((p) => p.tileset), panelTs].filter(Boolean))) if (!tilesets[n] && tilesets[n] !== null) {
       try { tilesets[n] = await hooks.loadTileset(n); } catch { tilesets[n] = null; }
     }
-    const sprites = new Set([...room.pictures.map((p) => p.sprite), ...room.texts.map((t) => t.font).filter(Boolean)]);
+    const sprites = new Set([...room.pictures.map((p) => p.sprite), ...room.texts.map((t) => t.font).filter((f) => !R.isBuiltinFont(f))]);
     if (spriteName) sprites.add(spriteName);
     for (const n of sprites) if (!(n in pics)) { try { pics[n] = hooks.spriteLook ? await hooks.spriteLook(n) : null; } catch { pics[n] = null; } }
     render();
   }
   // a text's box, in its font's letter size
-  const fontSize = (t) => { const f = t.font && pics[t.font]; return f ? [f.fw, f.fh] : undefined; };
+  const fontSize = (t) => { const f = !R.isBuiltinFont(t.font) && pics[t.font]; return f ? [f.fw, f.fh] : undefined; };
   const textBoxOf = (t) => R.textBox(t, fontSize(t));
   // a picture's box in the room, from its sprite (its origin is where x, y is)
   function pictureBox(p) {
@@ -223,16 +224,39 @@ export function createRoomEditor(root, hooks = {}) {
   }
 
   // ---------- drawing ----------
-  // the built-in font as a strip of letters in one colour, made once for each colour used
-  const font8Strips = new Map();
-  function font8(colour) {
-    let c = font8Strips.get(colour);
+  // a built-in font as a strip of its letters in one colour, made once for each font and colour used: each glyph in a cell as wide as
+  // the widest, ink in the top row of cells and shadow (right of, under and diagonally under the ink) in the bottom row, as the runtime has it
+  const fontStrips = new Map();
+  function fontStrip(name, colour) {
+    const key = name + colour;
+    let c = fontStrips.get(key);
     if (c) return c;
-    c = document.createElement("canvas"); c.width = FONT8.length * 8; c.height = 8;
-    const g = c.getContext("2d"); g.fillStyle = colour;
-    FONT8.forEach((hex, i) => { for (let y = 0; y < 8; y++) { const v = parseInt(hex.slice(y * 2, y * 2 + 2), 16); for (let x = 0; x < 8; x++) if (v & (0x80 >> x)) g.fillRect(i * 8 + x, y, 1, 1); } });
-    font8Strips.set(colour, c);
+    const f = FONTS[name], cw = Math.max(...f.glyphs.map((g) => g[0])) + 1, ink = (g, x, y) => x >= 0 && y >= 0 && y < f.h && (g[1 + y] >> x & 1) === 1;
+    c = document.createElement("canvas"); c.width = f.glyphs.length * cw; c.height = (f.h + 1) * 2; c.cw = cw;
+    const g2 = c.getContext("2d"); g2.fillStyle = colour;
+    f.glyphs.forEach((g, i) => {
+      for (let y = 0; y <= f.h; y++) for (let x = 0; x <= g[0]; x++) {
+        if (ink(g, x, y)) g2.fillRect(i * cw + x, y, 1, 1);
+        else if (ink(g, x - 1, y) || ink(g, x, y - 1) || ink(g, x - 1, y - 1)) g2.fillRect(i * cw + x, f.h + 1 + y, 1, 1);
+      }
+    });
+    fontStrips.set(key, c);
     return c;
+  }
+  // a text in a built-in font: the shadow for the whole text first (so it never covers the next letter), then the letters
+  function builtinText(t, s, x0, y0, size) {
+    const name = t.font || "round_small", f = FONTS[name], hex = ctx.fillStyle;
+    const rgb = /^#[0-9a-f]{6}/i.test(hex) ? [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) : [255, 255, 255];
+    const shadow = t.shadow === true ? "#" + R.shadowOf(rgb).map((v) => v.toString(16).padStart(2, "0")).join("") : typeof t.shadow === "string" || typeof t.shadow === "number" ? colorOf(t.shadow) : null;
+    for (const [colour, row] of shadow ? [[shadow, 1], [hex, 0]] : [[hex, 0]]) {
+      const strip = fontStrip(name, colour);
+      let x = x0;
+      for (const ch of s) {
+        const code = ch.codePointAt(0), g = R.glyphOf(name, code), i = f.glyphs.indexOf(g);
+        if (code > 32) ctx.drawImage(strip, i * strip.cw, row * (f.h + 1), g[0] + 1, f.h + 1, x * zoom, y0 * zoom, (g[0] + 1) * size * zoom, (f.h + 1) * size * zoom);
+        x += (g[0] + 1) * size;
+      }
+    }
   }
   // a thing's look as the game draws it: its blend mode, and its alpha times how faint the editor shows it now
   const COMPOSITE = { add: "lighter", darken: "multiply" };
@@ -314,22 +338,18 @@ export function createRoomEditor(root, hooks = {}) {
       if (nm) labels.push([`self.${nm}`, x, y - (look ? look.oy : 6), "entities", i]);
       else if (!look || isSel("entities", i)) { ctx.fillStyle = "#ffffff"; ctx.fillText(n, px, py - 10); }
     });
-    // texts: a sprite font as the game draws it; the built-in font in its size (8 pixels a letter), the Play panel shows its real letters
+    // texts as the game draws them: a built-in font (and its shadow) in the text's colour, or a sprite font
     room.texts.forEach((t, i) => {
-      const size = Number(t.size) || 1, [x0, y0, x1, y1] = textBoxOf(t), font = t.font && pics[t.font];
+      const size = Number(t.size) || 1, [x0, y0, x1, y1] = textBoxOf(t), font = !R.isBuiltinFont(t.font) && pics[t.font];
       looks_(t, dim("texts", 0.8));
       ctx.imageSmoothingEnabled = false;
       ctx.fillStyle = colorOf(t.color);
       const s = String(t.text ?? "");
       const frames = font ? Math.max(1, Math.floor(font.img.width / font.fw)) : 0;
-      for (let k = 0; k < s.length; k++) {
-        if (!font) { // the runtime's own letters (font8.js), in the text's colour
-          const f = s.charCodeAt(k) - FONT8_FIRST;
-          if (f >= 0 && f < FONT8.length) ctx.drawImage(font8(ctx.fillStyle), f * 8, 0, 8, 8, (x0 + k * 8 * size) * zoom, y0 * zoom, 8 * size * zoom, 8 * size * zoom);
-          continue;
-        }
+      if (!font && R.isBuiltinFont(t.font)) builtinText(t, s, x0, y0, size);
+      else for (let k = 0; k < s.length; k++) {
         const f = s.charCodeAt(k) - 32;
-        if (f >= 0 && f < frames) ctx.drawImage(font.img, f * font.fw, 0, font.fw, font.fh, (x0 + k * font.fw * size) * zoom, y0 * zoom, font.fw * size * zoom, font.fh * size * zoom);
+        if (font && f >= 0 && f < frames) ctx.drawImage(font.img, f * font.fw, 0, font.fw, font.fh, (x0 + k * font.fw * size) * zoom, y0 * zoom, font.fw * size * zoom, font.fh * size * zoom);
       }
       if (!s) { ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.strokeRect(x0 * zoom, y0 * zoom, (x1 - x0) * zoom, (y1 - y0) * zoom); }
       plain();
@@ -509,10 +529,13 @@ export function createRoomEditor(root, hooks = {}) {
     if (k === "texts") {
       keep($(".re-text"), item.text ?? "");
       $(".re-size").value = String(item.size || 1); $(".re-align").value = item.align || "left";
-      const fonts = ["", ...(hooks.getSprites ? hooks.getSprites() : [])], fsel = $(".re-font");
-      if ([...fsel.options].map((o) => o.value).join("|") !== fonts.join("|")) fsel.replaceChildren(...fonts.map((n) => new Option(n || "built in (8 × 8)", n)));
-      fsel.value = item.font || "";
-      $(".re-text-colors").hidden = !!item.font;
+      const fonts = [...R.BUILTIN_FONTS, ...(hooks.getSprites ? hooks.getSprites() : [])], fsel = $(".re-font");
+      const label = (n) => R.isBuiltinFont(n) ? n.replace(/^(\w)(\w*)_(\w+)$/, (_, a, b, c) => a.toUpperCase() + b + ", " + c) : "Sprite: " + n;
+      if ([...fsel.options].map((o) => o.value).join("|") !== fonts.join("|")) fsel.replaceChildren(...fonts.map((n) => new Option(label(n), n)));
+      fsel.value = item.font || "round_small";
+      const sprite = !R.isBuiltinFont(item.font);
+      $(".re-text-colors").hidden = sprite; $(".re-shadow-row").hidden = sprite;
+      $(".re-shadow").checked = !!item.shadow;
       swatches($(".re-text-colors"), item.color ?? (pal().fixed ? palette().indexOf("#ffffff") : "#ffffff"), (v) => { item.color = v; });
     }
     if (k === "panels") {
@@ -753,7 +776,7 @@ export function createRoomEditor(root, hooks = {}) {
         drag = { kind: "draw", before, x0: snapped(x), y0: snapped(y), then: "select" };
         render();
       } else if (k === "texts") {
-        commit(() => { room.texts.push({ text: "TEXT", x: snapped(x), y: snapped(y), name: freshName("text"), size: 1 }); sel = { kind: k, i: room.texts.length - 1 }; tool = "select"; });
+        commit(() => { room.texts.push({ text: "Text", x: snapped(x), y: snapped(y), name: freshName("text"), size: 1, font: "round_tall", shadow: true }); sel = { kind: k, i: room.texts.length - 1 }; tool = "select"; });
         requestAnimationFrame(() => { $(".re-text").focus(); $(".re-text").select(); });
       } else {
         if (!spriteName) { status("Pick a sprite on the left first."); return; }
@@ -911,7 +934,8 @@ export function createRoomEditor(root, hooks = {}) {
   }
   $(".re-search").oninput = () => renderSide();
   $(".re-search").onkeydown = (e) => { if (e.key === "Escape") { $(".re-search").value = ""; renderSide(); } };
-  $(".re-font").onchange = () => { const t = selected(); if (!t || sel.kind !== "texts") return; commit(() => { if ($(".re-font").value) t.font = $(".re-font").value; else delete t.font; }); loadAssets(); };
+  $(".re-font").onchange = () => { const t = selected(); if (!t || sel.kind !== "texts") return; commit(() => { if ($(".re-font").value !== "round_small") t.font = $(".re-font").value; else delete t.font; }); loadAssets(); };
+  $(".re-shadow").onchange = () => { const t = selected(); if (!t || sel.kind !== "texts") return; commit(() => { if ($(".re-shadow").checked) t.shadow = true; else delete t.shadow; }); };
   $(".re-panel-ts").onchange = async () => { panelTs = $(".re-panel-ts").value; panelTile = 0; await loadAssets(); drawBlockPicker(); };
   $(".re-screen").onchange = () => commit(() => { if ($(".re-screen").checked) selected().screen = true; else delete selected().screen; });
 

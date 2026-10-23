@@ -34,20 +34,21 @@ function Menu:draw(x, y)
   local at = o.at
   if at then at.visible = false; x, y = x or at.x, y or at.y end
   local scale = o.scale or (at and at.size) or 1
-  local font = at and at.font
-  local fh = font and require("gs.assets").sprite(font, 2).fh or 8
+  local font, shadow = at and at.font, at and at.shadow
+  local sprite_font = font and not draw.font_of(font)
+  local fh = draw.any_height(font)
   local step = o.line or (at and (fh + 4) * scale) or style.line * scale
-  local cw = font and require("gs.assets").sprite(font, 2).fw * scale or 8 * scale
+  local cw = sprite_font and require("gs.assets").sprite(font, 2).fw * scale or 8 * scale
   for i, text in ipairs(self.items) do
     local on = i == self.cur
     local ly = y + (i - 1) * step
-    if font then draw.font_text(font, tostring(text), x + cw * 2, ly, scale)
-    else draw.text(tostring(text), x + 16 * scale, ly, on and style.selected or (at and at.color) or style.color, scale) end
+    if sprite_font then draw.font_text(font, tostring(text), x + cw * 2, ly, scale)
+    else draw.text(tostring(text), x + 16 * scale, ly, on and style.selected or (at and at.color) or style.color, scale, { font = font, shadow = shadow }) end
     if on then
       local c = o.cursor
       if c then c.visible = false; require("gs.assets").draw(require("gs.assets").sprite(c.sprite, 2), c.frame, x + cw / 2, ly + fh * scale / 2, 0, c.sx, c.sy, 1, false)
-      elseif font then draw.font_text(font, style.cursor, x, ly, scale)
-      else draw.text(style.cursor, x, ly, style.selected, scale) end
+      elseif sprite_font then draw.font_text(font, style.cursor, x, ly, scale)
+      else draw.text(style.cursor, x, ly, style.selected, scale, { font = font, shadow = shadow }) end
     end
   end
 end

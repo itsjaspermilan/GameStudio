@@ -38,6 +38,8 @@ Public names are documented at the top of each module. The runtime's own low-lev
 - `api/gs.d.lua`: the API as annotations (hover text, completion, the Help page and the language server all read it). **Add every new `gs.*` function or Entity method here**; `studio/test/lua-intel-core.test.mjs` fails if one is missing. Not embedded, not packed.
 
 - `instruments.json`: ready-made instruments for the synth (type `gm` uses the SoundFont).
+- `fonts/round-small.txt`, `fonts/round-tall.txt`: the built-in letters, drawn as text. They reach `gs` through `runtime/fonts.h`, which
+  `scripts/make-fonts.mjs` writes (with the square and bold styles made from them), not through CMake: run it, then `build.sh`.
 - `consoles/*.json`: console specs (screen, palette, limits, budgets, audio). See `consoles/README.md`. A cart names its console in `game.lua`.
 
 ## Testing

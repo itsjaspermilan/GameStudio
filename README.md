@@ -55,7 +55,7 @@ Entities are classes (a Lua file that returns `gs.entity{ ... }`, optionally bui
 sprites, finds collisions by tags with a spatial grid and calls `update`, `draw`, `on_collide_<tag>` and the other hooks. Timers, tweens and coroutines belong to the entity or scene that made them.
 Run a game from the studio (Run): it plays in the **Play panel** beside the code (or in a window of its own, in Settings), drawn by the runtime the handheld uses. Saving a Lua file or an asset updates the running game without a restart (`GS_DEV=1`, which the studio sets); saving a scene's layout starts that scene again with it.
 
-**Layouts.** A scene's layout is plain data the layout editor writes: tile layers, entities, texts, pictures, panels (a 3×3 block of tiles stretched to a size) and paths. It is built when the scene starts, and anything given a name is a field of the scene's code: a text named `prompt` is `self.prompt` (renaming it in the layout renames it in the code). Texts use the built-in 8×8 font or a sprite font (a frame a letter). `gs.say(name, text)` and `gs.ask(question, answers)` show a text box and wait for the player, styled by the layout's `dialogue_box`, `dialogue_text`, `dialogue_name` and `dialogue_cursor`. The Help window's "Layouts" and "Talking" pages walk through both.
+**Layouts.** A scene's layout is plain data the layout editor writes: tile layers, entities, texts, pictures, panels (a 3×3 block of tiles stretched to a size) and paths. It is built when the scene starts, and anything given a name is a field of the scene's code: a text named `prompt` is `self.prompt` (renaming it in the layout renames it in the code). Texts use a built-in font (round, square or bold letters, small or tall, with an optional drop shadow) or a sprite font (a frame a letter). `gs.say(name, text)` and `gs.ask(question, answers)` show a text box and wait for the player, styled by the layout's `dialogue_box`, `dialogue_text`, `dialogue_name` and `dialogue_cursor`. The Help window's "Layouts" and "Talking" pages walk through both.
 
 - The **full reference** is `engine/api/gs.d.lua` (typed notes the studio's editor, its Help window and the language server all read); the Help window turns it into the API page.
 - The **tutorials** are in `docs/help/` (Your first game, scenes and saving, collisions and tags, timers and tweens, a platformer, a survivors-style game, big levels and tile layers, sprites and sound, the handheld's limits,
@@ -93,7 +93,8 @@ The framework is built on these calls. A game with `game.lua` normally uses the 
 | `gs.rect(x,y,w,h,r,g,b[,a])` | filled rectangle |
 | `gs.line(x1,y1,x2,y2,r,g,b[,a])` | line |
 | `gs.circle(cx,cy,radius,r,g,b[,a])` | filled circle |
-| `gs.print(text,x,y[,r,g,b,a,scale])` | built-in 8x8 font; integer scale looks best |
+| `gs.print(text,x,y[,r,g,b,a,scale,font,sr,sg,sb,sa])` | a built-in font (0 = round_small, see `gs.raw.font`), with a shadow in the colour `sr,sg,sb,sa` if given; integer scale looks best |
+| `gs.raw.text_width(text[,font])`, `gs.raw.font(name)` | width at scale 1; a built-in font's number, height and line height (nil if there is none) |
 | `gs.image(name)` | load a PNG, returns `{id,w,h}` (cached) |
 | `gs.sprite(img,x,y[,scale,flipx])` | draw a whole image |
 | `gs.clock()` | seconds since start with nanosecond steps (`gs.time()` has millisecond steps): for timing |
@@ -224,7 +225,7 @@ top of `render_audio` in `runtime/main.c`; samples resolve relative to the curre
 ## Licences
 
 - The runtime, studio and framework are this project's own code.
-- Lua is MIT, SDL2 is zlib, the 8x8 font (`runtime/font8x8.h`, IBM VGA glyphs) is public domain, and TinySoundFont (`third_party/tsf/tsf.h`) is MIT. The studio's optional Lua language server (LuaLS, downloaded by `scripts/fetch-luals.sh`, never part of a game) is MIT.
+- Lua is MIT, SDL2 is zlib, the built-in fonts (`engine/fonts/`, drawn for GameStudio) are the project's own, and TinySoundFont (`third_party/tsf/tsf.h`) is MIT. The studio's optional Lua language server (LuaLS, downloaded by `scripts/fetch-luals.sh`, never part of a game) is MIT.
 - **`assets/soundfonts/TimGM6mb.sf2` is licensed GPL-2.0** (Tim Brechbill and David Bolton, as shipped with MuseScore and packaged by
   Debian as `timgm6mb-soundfont`). It is a separate data file that is distributed beside the runtime, not linked into it. If you
   distribute the SoundFont (for example inside a release), the GPL-2 applies to that file: keep its licence with it, and note that

@@ -454,26 +454,35 @@ function gs.draw.line(x1, y1, x2, y2, color) end
 ---A filled circle.
 ---@param color Color
 function gs.draw.circle(x, y, radius, color) end
----Text in the built-in 8x8 font.
+---@alias BuiltinFont "round_small"|"round_tall"|"square_small"|"square_tall"|"bold_small"|"bold_tall"
+---@class TextOptions
+---@field font? BuiltinFont Small fonts are 8 pixels high (scores, labels), tall ones 12 (talking, menus). round_small when left out
+---@field shadow? boolean|Color A drop shadow right of and under the letters: true makes one from the text's colour
+---@field alpha? number 0 to 1
+---Text in a built-in font: round, square or bold letters, small or tall, each letter as wide as it needs to be.
+---  gs.draw.text("Hello!", 8, 8, "#404040", 1, { font = "round_tall", shadow = true })
 ---@param str any
 ---@param x number
 ---@param y number
 ---@param color? Color
 ---@param scale? number
-function gs.draw.text(str, x, y, color, scale) end
+---@param opts? TextOptions
+function gs.draw.text(str, x, y, color, scale, opts) end
 ---Text centered on the screen.
 ---@param str any
 ---@param y number
 ---@param color? Color
 ---@param scale? number
-function gs.draw.text_centered(str, y, color, scale) end
+---@param opts? TextOptions
+function gs.draw.text_centered(str, y, color, scale, opts) end
 ---Text that ends at x (right aligned).
 ---@param str any
 ---@param x number
 ---@param y number
 ---@param color? Color
 ---@param scale? number
-function gs.draw.text_right(str, x, y, color, scale) end
+---@param opts? TextOptions
+function gs.draw.text_right(str, x, y, color, scale, opts) end
 ---Text in a font of your own: a sprite whose frames are the letters, from the space (frame 0) on in ASCII order. Each letter is a frame
 ---wide; letters the sprite has no frame for leave a gap. The sprite's own colours are used.
 ---@param font string A sprite name
@@ -488,17 +497,19 @@ function gs.draw.font_text(font, str, x, y, scale) end
 ---@param scale? number
 ---@return number
 function gs.draw.font_width(font, str, scale) end
----Width of text in pixels.
+---Width of text in pixels, in a built-in font (round_small when left out).
 ---@param str any
 ---@param scale? number
+---@param font? BuiltinFont
 ---@return number
-function gs.draw.text_width(str, scale) end
+function gs.draw.text_width(str, scale, font) end
 ---Split text into lines that fit a width in pixels.
 ---@param text string
 ---@param width number
 ---@param scale? number
+---@param font? string A built-in font or a sprite font (round_small when left out)
 ---@return string[]
-function gs.draw.wrap(text, width, scale) end
+function gs.draw.wrap(text, width, scale, font) end
 ---Draw a sprite by name at a position.
 ---@param name string A file in sprites/
 ---@param x number

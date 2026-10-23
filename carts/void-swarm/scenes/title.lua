@@ -27,8 +27,9 @@ end
 function Title:place()
   ui.drift(self.tick, 0.6)
   local y = 26 + floor(sin(self.tick / 40) * 3)
-  self.void.y, self.void_shadow.y = y, y + 3
-  self.swarm.y, self.swarm_shadow.y = y + 48, y + 51
+  -- the shadow sits one letter-pixel (6 at size 6) right of and under the words
+  self.void.y, self.void_shadow.y = y, y + 6
+  self.swarm.y, self.swarm_shadow.y = y + 48, y + 54
   self.prompt.visible = floor(self.tick / 30) % 2 == 0
 end
 

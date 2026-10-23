@@ -100,7 +100,9 @@ test("a scene layout keeps texts, pictures, names and the code it runs", () => {
   assert.match(nameProblem("logo", room), /already/);
   assert.equal(nameProblem("logo", room, "logo"), null, "a thing keeps its own name");
   assert.match(nameProblem("2fast", room), /letters/);
-  assert.deepEqual(textBox({ text: "ABCD", x: 100, y: 10, size: 2, align: "center" }), [68, 10, 132, 26]);
+  // round_small: A to D are 4 wide with a pixel between, 19 in all; twice that at size 2
+  assert.deepEqual(textBox({ text: "ABCD", x: 100, y: 10, size: 2, align: "center" }), [81, 10, 119, 26]);
+  assert.deepEqual(textBox({ text: "Hi", x: 0, y: 0, font: "round_tall" }), [0, 0, 8, 12], "H 5, a gap, i 1, and at least 8 wide");
 });
 
 test("the sample games' layouts are exactly what the layout editor writes", () => {

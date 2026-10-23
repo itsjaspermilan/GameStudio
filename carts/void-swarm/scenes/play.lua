@@ -359,9 +359,9 @@ function Play:draw_levelup()
     spr("spr_ico_" .. c.icon, 0, x + cw / 2, y + 24, 1.6)
     if c.new then txt("NEW!", x + cw / 2 - 16, y + 46, 6) end
     local ty = y + 58
-    for _, l in ipairs(ui.wrap(c.title, 11)) do txt(l, x + (cw - #l * 8) / 2, ty, on and 14 or 3, 1, x + cw - 2); ty = ty + 9 end
+    for _, l in ipairs(ui.wrap(c.title, 11)) do txt(l, x + (cw - gs.draw.text_width(l)) // 2, ty, on and 14 or 3, 1, x + cw - 2); ty = ty + 9 end
     ty = ty + 5
-    for _, l in ipairs(ui.wrap(c.text, 11)) do if ty < y + 134 then txt(l, x + (cw - #l * 8) / 2, ty, on and 3 or 2, 1, x + cw - 2) end; ty = ty + 9 end
+    for _, l in ipairs(ui.wrap(c.text, 11)) do if ty < y + 134 then txt(l, x + (cw - gs.draw.text_width(l)) // 2, ty, on and 3 or 2, 1, x + cw - 2) end; ty = ty + 9 end
   end
   txtc("A: PICK" .. (R.rerolls > 0 and ("   Y: REROLL (" .. R.rerolls .. ")") or ""), 202, 3)
   local wl = ""

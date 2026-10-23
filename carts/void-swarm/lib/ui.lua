@@ -26,15 +26,17 @@ end
 function M.txt(s, x, y, ci, scale, limit)
   scale = scale or 1
   limit = limit or SW
-  local room = floor((limit - x) / (8 * scale))
-  if #s > room then
+  local width = gs.draw.text_width
+  if x + width(s, scale) > limit then
     if M.audit then M.audit(s, x, limit) end
-    s = s:sub(1, max(0, room))
+    local n = #s
+    while n > 0 and x + width(s:sub(1, n), scale) > limit do n = n - 1 end
+    s = s:sub(1, n)
   end
   gs.draw.text(s, floor(x), floor(y), ci or 3, scale)
 end
-function M.txtc(s, y, ci, scale, limit) M.txt(s, (SW - #s * 8 * (scale or 1)) * 0.5, y, ci, scale, limit) end
-function M.txtr(s, x, y, ci, scale) M.txt(s, max(0, x - #s * 8 * (scale or 1)), y, ci, scale) end
+function M.txtc(s, y, ci, scale, limit) M.txt(s, floor((SW - gs.draw.text_width(s, scale)) * 0.5), y, ci, scale, limit) end
+function M.txtr(s, x, y, ci, scale) M.txt(s, max(0, x - gs.draw.text_width(s, scale)), y, ci, scale) end
 
 function M.box(x, y, w, h, fill, edge, alpha)
   gs.draw.rect(x, y, w, h, tint(fill or 0, alpha))

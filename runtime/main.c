@@ -10,7 +10,7 @@
 #include <SDL.h>
 #include <stdbool.h>
 #include "synth.h"
-#include "font8x8.h"
+#include "fonts.h"
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
@@ -403,23 +403,32 @@ static int l_line(lua_State *L) { /* x1,y1,x2,y2,r,g,b[,a] */
     set_color(L, 5);
     SDL_RenderDrawLineF(g_ren, ZX(luaL_checknumber(L,1)), ZY(luaL_checknumber(L,2)), ZX(luaL_checknumber(L,3)), ZY(luaL_checknumber(L,4))); return 0;
 }
-/* The 8x8 font (font8x8.h) as one picture of glyphs, made the first time something is printed. Each glyph has a blank pixel around it so an
- * enlarged glyph never picks up its neighbour's edge. */
-#define FONT8_PER_ROW 14
-static SDL_Texture *g_font_tex;
-static bool font_texture(void) {
-    if (g_font_tex) return true;
-    const int rows = FONT8_GLYPHS / FONT8_PER_ROW + 1, w = FONT8_PER_ROW * 10, h = rows * 10;
+/* The built-in fonts (fonts.h) as one picture each, made the first time a font is used: the glyphs in a row, and under them the same
+ * glyphs' shadows (the pixels right of, under and diagonally under the ink that are not ink themselves), so a shadow is one more copy
+ * in another colour. Each glyph has a blank pixel around it so an enlarged glyph never picks up its neighbour's edge. */
+static SDL_Texture *g_font_tex[GS_FONTS];
+static int g_font_x[GS_FONTS][GS_FONT_GLYPHS];
+static bool font_texture(int f) {
+    if (g_font_tex[f]) return true;
+    const GsFont *ft = &gs_fonts[f];
+    int w = 0;
+    for (int g = 0; g < GS_FONT_GLYPHS; g++) { g_font_x[f][g] = w + 1; w += ft->w[g] + 3; }
+    const int ch = ft->h + 2, h = ch * 2;
     Uint32 *px = calloc((size_t)w * h, 4);
     if (!px) return false;
-    for (int g = 0; g < FONT8_GLYPHS; g++) {
-        const int ox = g % FONT8_PER_ROW * 10 + 1, oy = g / FONT8_PER_ROW * 10 + 1;
-        for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++) if (font8x8[g * 8 + y] >> x & 1) px[(oy + y) * w + ox + x] = 0xffffffff;
+    for (int g = 0; g < GS_FONT_GLYPHS; g++) {
+        const unsigned short *rows = ft->rows + g * ft->h;
+        for (int y = 0; y <= ft->h; y++) for (int x = 0; x <= ft->w[g]; x++) {
+            const bool ink = y < ft->h && (rows[y] >> x & 1);
+            const bool near = (y < ft->h && x > 0 && (rows[y] >> (x - 1) & 1)) || (y > 0 && (rows[y - 1] >> x & 1)) || (y > 0 && x > 0 && (rows[y - 1] >> (x - 1) & 1));
+            if (ink) px[(1 + y) * w + g_font_x[f][g] + x] = 0xffffffff;
+            else if (near) px[(ch + 1 + y) * w + g_font_x[f][g] + x] = 0xffffffff;
+        }
     }
-    g_font_tex = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
-    if (g_font_tex) { SDL_UpdateTexture(g_font_tex, NULL, px, w * 4); SDL_SetTextureBlendMode(g_font_tex, SDL_BLENDMODE_BLEND); SDL_SetTextureScaleMode(g_font_tex, SDL_ScaleModeNearest); }
+    g_font_tex[f] = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
+    if (g_font_tex[f]) { SDL_UpdateTexture(g_font_tex[f], NULL, px, w * 4); SDL_SetTextureBlendMode(g_font_tex[f], SDL_BLENDMODE_BLEND); SDL_SetTextureScaleMode(g_font_tex[f], SDL_ScaleModeNearest); }
     free(px);
-    return g_font_tex != NULL;
+    return g_font_tex[f] != NULL;
 }
 /* The next character of UTF-8 text (a broken sequence counts as one unknown character). */
 static Uint32 utf8_next(const char **s) {
@@ -430,21 +439,52 @@ static Uint32 utf8_next(const char **s) {
     for (int i = 1; i <= n; i++) { if ((p[i] & 0xc0) != 0x80) { *s += i; return 0xfffd; } c = c << 6 | (p[i] & 0x3f); }
     *s += n + 1; return c;
 }
-static int l_print(lua_State *L) { /* text,x,y[,r,g,b,a,scale] — 8x8 built-in font, integer scale looks best */
+static int glyph_of(Uint32 c) { return c >= GS_FONT_FIRST && c < GS_FONT_FIRST + GS_FONT_GLYPHS - 1 ? (int)(c - GS_FONT_FIRST) : c == '\t' ? 0 : GS_FONT_GLYPHS - 1; }
+static int font_arg(lua_State *L, int i) {
+    const int f = (int)luaL_optinteger(L, i, 0);
+    if (f < 0 || f >= GS_FONTS) luaL_error(L, "there is no built-in font %d", f);
+    return f;
+}
+/* How wide text is in a built-in font at scale 1: each letter's width, and a gap between letters (none after the last). */
+static int text_width(const char *s, int f) {
+    int w = 0, n = 0;
+    for (const char *p = s; *p; n++) w += gs_fonts[f].w[glyph_of(utf8_next(&p))];
+    return n ? w + (n - 1) * GS_FONT_GAP : 0;
+}
+static int l_print(lua_State *L) { /* text,x,y[,r,g,b,a,scale,font,sr,sg,sb,sa] — a built-in font (fonts.h, 0 = round_small); the shadow colour is optional */
     const char *s = luaL_checkstring(L, 1);
     const float sc = (float)luaL_optnumber(L, 8, 1) * g_zoom, x = ZX(luaL_checknumber(L,2)), y = ZY(luaL_checknumber(L,3));
-    if (!font_texture()) return 0;
-    SDL_SetTextureColorMod(g_font_tex, cu8(L, 4, 255), cu8(L, 5, 255), cu8(L, 6, 255)); SDL_SetTextureAlphaMod(g_font_tex, cu8(L, 7, 255));
-    float cx = x; int count = 0;
-    for (const char *p = s; *p; cx += 8 * sc, count++) {
-        Uint32 g = utf8_next(&p);
-        if (g <= 32 || (g >= 127 && g <= 160)) continue; /* blank */
-        g = g >= FONT8_GLYPHS + 66 ? FONT8_GLYPHS - 1 : g < 127 ? g - 33 : g - 67; /* past the last glyph: the "unknown" checkerboard */
-        const SDL_Rect src = { (int)g % FONT8_PER_ROW * 10 + 1, (int)g / FONT8_PER_ROW * 10 + 1, 8, 8 };
-        const SDL_FRect dst = { cx, y, 8 * sc, 8 * sc };
-        SDL_RenderCopyF(g_ren, g_font_tex, &src, &dst);
+    const int f = font_arg(L, 9);
+    if (!font_texture(f)) return 0;
+    const GsFont *ft = &gs_fonts[f];
+    SDL_Texture *tex = g_font_tex[f];
+    /* the shadow first, for the whole text, so it never covers the letter beside it */
+    for (int pass = lua_isnoneornil(L, 10) ? 1 : 0; pass < 2; pass++) {
+        if (pass == 0) { SDL_SetTextureColorMod(tex, cu8(L, 10, 0), cu8(L, 11, 0), cu8(L, 12, 0)); SDL_SetTextureAlphaMod(tex, cu8(L, 13, 255)); }
+        else { SDL_SetTextureColorMod(tex, cu8(L, 4, 255), cu8(L, 5, 255), cu8(L, 6, 255)); SDL_SetTextureAlphaMod(tex, cu8(L, 7, 255)); }
+        float cx = x;
+        for (const char *p = s; *p;) {
+            const Uint32 c = utf8_next(&p);
+            const int g = glyph_of(c), gw = ft->w[g];
+            if (c > 32) {
+                const SDL_Rect src = { g_font_x[f][g], 1 + (pass == 0 ? ft->h + 2 : 0), gw + 1, ft->h + 1 };
+                const SDL_FRect dst = { cx, y, (float)(gw + 1) * sc, (float)(ft->h + 1) * sc };
+                SDL_RenderCopyF(g_ren, tex, &src, &dst);
+            }
+            cx += (float)(gw + GS_FONT_GAP) * sc;
+        }
     }
-    count_px(x, y, (float)count * 8 * sc, 8 * sc); return 0;
+    count_px(x, y, (float)text_width(s, f) * sc, (float)ft->h * sc); return 0;
+}
+static int l_text_width(lua_State *L) { /* text[,font] -> pixels at scale 1 */
+    lua_pushinteger(L, text_width(luaL_checkstring(L, 1), font_arg(L, 2))); return 1;
+}
+static int l_font(lua_State *L) { /* name -> number, height, line height (or nil when there is no built-in font of that name) */
+    const char *name = luaL_checkstring(L, 1);
+    for (int f = 0; f < GS_FONTS; f++) if (!strcmp(gs_fonts[f].name, name)) {
+        lua_pushinteger(L, f); lua_pushinteger(L, gs_fonts[f].h); lua_pushinteger(L, gs_fonts[f].line); return 3;
+    }
+    return 0;
 }
 static int l_circle(lua_State *L) { /* cx,cy,radius,r,g,b[,a] filled */
     float cx = ZX(luaL_checknumber(L,1)), cy = ZY(luaL_checknumber(L,2)), r = (float)luaL_checknumber(L,3) * g_zoom;
@@ -1161,7 +1201,7 @@ static const luaL_Reg gs_lib[] = {
     {"music_load", l_music_load}, {"music_play", l_music_play}, {"music_stop", l_music_stop},
     {"synth_config", l_synth_config}, {"soundfont_load", l_soundfont_load}, {"sample_load", l_sample_load}, {"inst_load", l_inst_load}, {"song_load", l_song_load}, {"song_play", l_song_play},
     {"save", l_save}, {"loadsave", l_loadsave}, {"sound", l_sound}, {"play", l_play}, {"stop", l_stop},
-    {"clear", l_clear}, {"rect", l_rect}, {"line", l_line}, {"print", l_print},
+    {"clear", l_clear}, {"rect", l_rect}, {"line", l_line}, {"print", l_print}, {"text_width", l_text_width}, {"font", l_font},
     {"camera", l_camera}, {"compose", l_compose}, {"recolor", l_recolor}, {"blend", l_blend}, {"stats", l_stats}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
     {"btn", l_btn}, {"btnp", l_btnp}, {"time", l_time}, {"clock", l_clock}, {"quit", l_quit}, {"zoom", l_zoom}, {"load", l_load}, {"list", l_list}, {"mtime", l_mtime},
     {"pad_last", l_pad_last}, {"pad_set", l_pad_set}, {"pad_reset", l_pad_reset}, {NULL, NULL}};

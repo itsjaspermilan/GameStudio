@@ -362,8 +362,9 @@ end
 -- kinds gs.world.Text, gs.world.Picture and gs.world.Panel: move them, hide them (visible = false), change their text or tile, tween them.
 -- In one layout panels are drawn first, then pictures, then texts (a panel under its picture under its words), each in the order listed.
 -- A panel is a 3x3 block of tiles from a tileset (`tile` is its top-left one): the corners stay as drawn, the edges and the middle repeat
--- to fill the size. One tile high (or wide) it is a bar: only the block's top row (or left column). A text with a `font` is drawn with that
--- sprite, one frame a letter from " " (frame 0) on in ASCII order; without one it uses the built-in 8x8 font and its color.
+-- to fill the size. One tile high (or wide) it is a bar: only the block's top row (or left column). A text's `font` is a built-in font
+-- ("round_small" when there is none, "round_tall", "square_small", ... see gs.draw) in its color, or a sprite, one frame a letter from
+-- " " (frame 0) on in ASCII order, in the sprite's own colours. `shadow = true` (or a colour) gives built-in letters a drop shadow.
 -- rooms/<name>.lua holds the same data without a scene; gs.load_room(name) builds one into the scene that is running.
 
 -- Classes are named after the file that is loading; this file makes three, so each gets a name of its own (one name would be one class).
@@ -380,12 +381,9 @@ function W.Text.draw(self)
   if s == nil or s == "" then return end
   s = tostring(s)
   local font = self.font
-  local w = font and draw.font_width(font, s, self.size) or draw.text_width(s, self.size)
+  local w = draw.any_width(font, s, self.size)
   local x = self.align == "center" and self.x - w / 2 or self.align == "right" and self.x - w or self.x
-  local alpha = self.alpha or 1
-  if font then draw.font_text(font, s, x, self.y, self.size, alpha)
-  elseif alpha < 1 then local r, g, b, a = draw.color(self.color); draw.text(s, x, self.y, { r, g, b, a * alpha }, self.size)
-  else draw.text(s, x, self.y, self.color, self.size) end
+  draw.any_text(font, s, x, self.y, self.color, self.size, self.alpha, self.shadow)
 end
 W.Picture = builtin("gs.picture", "entity", {})
 -- A panel's tiles are put together once into one picture (gs.compose) for each tileset, block and size, and drawn in at most four pieces:
@@ -454,7 +452,7 @@ local function build(data, where, scene)
       alpha = t.alpha or 1, blend = t.blend }))
   end
   for _, t in ipairs(data.texts or {}) do
-    named(t, W.spawn(W.Text, t[2] or t.x, t[3] or t.y, { text = t[1] or t.text or "", color = t.color or "#ffffff", size = t.size or 1, align = t.align or "left", font = t.font,
+    named(t, W.spawn(W.Text, t[2] or t.x, t[3] or t.y, { text = t[1] or t.text or "", color = t.color or "#ffffff", size = t.size or 1, align = t.align or "left", font = t.font, shadow = t.shadow,
       depth = t.depth or -10, screen = t.screen or false, alpha = t.alpha or 1, blend = t.blend }))
   end
   return data

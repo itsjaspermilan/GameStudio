@@ -4,13 +4,18 @@
 -- so a see-through color written as a string costs nothing per frame, unlike a new table.
 --   gs.draw.rect(10, 10, 40, 8, "#ff0000")         gs.draw.frame(...)  gs.draw.line(...)  gs.draw.circle(x, y, r, color)
 --   gs.draw.text("SCORE 10", 4, 4, "#ffffff", 1)   gs.draw.text_centered("GAME OVER", 100, "#ffd08a", 2)
+--   gs.draw.text("Hello!", 8, 8, "#404040", 1, { font = "round_tall", shadow = true })  another built-in font, with a drop shadow
 --   gs.draw.font_text("spr_font", "SCORE 10", 4, 4)  text in a font drawn as a sprite (a frame a letter)
 --   gs.draw.sprite("star", x, y, { frame = 1, angle = 45, scale = 2, alpha = 0.5, bank = "gold" })  bank: drawn with another bank's colours
 --   gs.draw.panel(x, y, w, h)   gs.draw.bar(x, y, w, h, value, max, { color = "#4ade80" })
 --   gs.draw.blend("add") ... gs.draw.blend()   how what is drawn next mixes in: "normal", "add" (light, glow) or "darken" (shadow, tint)
 -- An entity, a tile layer, a picture or text in a layout, gs.draw.sprite and gs.burst take `blend = "add"` (or "darken") as well, and
 -- their alpha is the strength, like the GBA's blending of layers and sprites.
--- The built-in font is 8x8 plain ASCII; text at scale 1 is the right size for most UI.
+-- The built-in fonts come in three styles, round, square and bold, each small (8 pixels high, for scores and labels) and tall
+-- (12 high, for talking and menus): "round_small" (the one used when no font is named), "round_tall", "square_small", "square_tall",
+-- "bold_small", "bold_tall". Letters are as wide as they need to be, so measure text with gs.draw.text_width. They know " " to "~";
+-- any other character is drawn as a box. A shadow (true for one made from the text's colour, or a colour) sits right of and under
+-- every pixel, the way GBA games drew their words.
 local assets = require("gs.assets")
 
 local M = { palette = {} }
@@ -62,16 +67,65 @@ function M.frame(x, y, w, h, color)
 end
 function M.line(x1, y1, x2, y2, color) local r, g, b, a = parse(color); raw.line(x1, y1, x2, y2, r, g, b, a) end
 function M.circle(x, y, radius, color) local r, g, b, a = parse(color); raw.circle(x, y, radius, r, g, b, a) end
-function M.text(str, x, y, color, scale)
+local builtin = {}
+-- A built-in font's number and height, or nil when the name is not one (then it is a sprite font).
+local function font_of(name)
+  if name == nil then return 0, 8, 10 end
+  local f = builtin[name]
+  if f == nil then local n, h, line = raw.font(name); f = n and { n, h, line } or false; builtin[name] = f end
+  if f then return f[1], f[2], f[3] end
+end
+M.font_of = font_of
+-- The shadow made from a colour: light letters get a dark shadow of their own hue, dark letters a pale one.
+local function shadow_of(r, g, b)
+  if r * 0.3 + g * 0.59 + b * 0.11 > 110 then return r * 0.3 // 1, g * 0.3 // 1, b * 0.36 // 1 end
+  return (r + (255 - r) * 0.7) // 1, (g + (255 - g) * 0.7) // 1, (b + (255 - b) * 0.66) // 1
+end
+local function shadow_color(shadow, r, g, b, a)
+  if shadow == true then local sr, sg, sb = shadow_of(r, g, b); return sr, sg, sb, a end
+  local sr, sg, sb, sa = parse(shadow)
+  return sr, sg, sb, sa * a // 255
+end
+-- opts: font (a built-in font's name), shadow (true or a colour), alpha (0 to 1, on top of the colour's own)
+function M.text(str, x, y, color, scale, opts)
   local r, g, b, a = parse(color)
-  raw.print(tostring(str), math.floor(x), math.floor(y), r, g, b, a, scale or 1)
+  local font, shadow = 0, nil
+  if opts then
+    if opts.font then
+      font = font_of(opts.font)
+      if not font then error("there is no built-in font called '" .. tostring(opts.font) .. "' (round_small, round_tall, square_small, square_tall, bold_small, bold_tall); for a sprite font use gs.draw.font_text", 2) end
+    end
+    if opts.alpha then a = a * opts.alpha // 1 end
+    shadow = opts.shadow
+  end
+  if shadow then
+    local sr, sg, sb, sa = shadow_color(shadow, r, g, b, a)
+    raw.print(tostring(str), math.floor(x), math.floor(y), r, g, b, a, scale or 1, font, sr, sg, sb, sa)
+  else raw.print(tostring(str), math.floor(x), math.floor(y), r, g, b, a, scale or 1, font) end
 end
-function M.text_width(str, scale) return #tostring(str) * 8 * (scale or 1) end
-function M.text_centered(str, y, color, scale)
+function M.text_width(str, scale, font) return raw.text_width(tostring(str), font and font_of(font) or 0) * (scale or 1) end
+function M.text_centered(str, y, color, scale, opts)
   local w = gs.screen()
-  M.text(str, (w - M.text_width(str, scale)) / 2, y, color, scale)
+  M.text(str, (w - M.text_width(str, scale, opts and opts.font)) // 2, y, color, scale, opts)
 end
-function M.text_right(str, x, y, color, scale) M.text(str, x - M.text_width(str, scale), y, color, scale) end
+function M.text_right(str, x, y, color, scale, opts) M.text(str, x - M.text_width(str, scale, opts and opts.font), y, color, scale, opts) end
+
+-- Text in any font, built-in or a sprite: what layouts, menus and talk boxes draw with. `font` nil is round_small.
+function M.any_text(font, str, x, y, color, scale, alpha, shadow)
+  if font and not font_of(font) then M.font_text(font, str, x, y, scale, alpha)
+  else M.text(str, x, y, color, scale, { font = font, alpha = alpha, shadow = shadow }) end
+end
+function M.any_width(font, str, scale)
+  if font and not font_of(font) then return M.font_width(font, str, scale) end
+  return M.text_width(str, scale, font)
+end
+-- how tall the letters are and how far apart lines sit, at scale 1
+function M.any_height(font)
+  local _, h, line = font_of(font)
+  if h then return h, line end
+  local fh = assets.sprite(font, 3).fh
+  return fh, fh + 2
+end
 
 -- Text in a font of your own: a sprite whose frames are the letters, from " " (frame 0) on in ASCII order (! " # ... 0-9 ... A-Z ...).
 -- Letters it has no frame for are left as a gap. Every letter is as wide as a frame; the sprite's own colours are used.
@@ -111,13 +165,20 @@ function M.bar(x, y, w, h, value, max, opts)
   if opts.border then M.frame(x, y, w, h, opts.border) end
 end
 
--- Split text into lines of at most `width` pixels (at the given scale), breaking at spaces.
-function M.wrap(text, width, scale)
-  local per = math.max(1, math.floor(width / (8 * (scale or 1))))
+-- Split text into lines of at most `width` pixels (at the given scale, in a font: nil is round_small), breaking at spaces. A word
+-- longer than a line is cut.
+function M.wrap(text, width, scale, font)
   local lines, line = {}, ""
+  local fits = function(s) return M.any_width(font, s, scale) <= width end
   for word in tostring(text):gmatch("%S+") do
-    if #line + #word + (line == "" and 0 or 1) > per then lines[#lines + 1] = line; line = word
-    else line = (line == "" and "" or line .. " ") .. word end
+    while not fits(word) and #word > 1 do
+      local n = #word - 1
+      while n > 1 and not fits(word:sub(1, n)) do n = n - 1 end
+      if line ~= "" then lines[#lines + 1] = line; line = "" end
+      lines[#lines + 1] = word:sub(1, n); word = word:sub(n + 1)
+    end
+    local joined = line == "" and word or line .. " " .. word
+    if line ~= "" and not fits(joined) then lines[#lines + 1] = line; line = word else line = joined end
   end
   if line ~= "" then lines[#lines + 1] = line end
   return lines

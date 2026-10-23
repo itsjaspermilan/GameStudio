@@ -1,6 +1,6 @@
 # runtime/: the `gs` player (C, SDL2, Lua 5.4)
 
-`main.c` (~2100 lines) is the player and CLI, `synth.c`/`synth.h` (~650/100) is the sound engine, `font8x8.h` the glyphs of `gs.print`. SDL2 (2.28.5,
+`main.c` (~2100 lines) is the player and CLI, `synth.c`/`synth.h` (~650/100) is the sound engine, `fonts.h` the glyphs of `gs.print` (written by `scripts/make-fonts.mjs` from `engine/fonts/*.txt`; don't edit it). SDL2 (2.28.5,
 the version muOS ships: call nothing newer), Lua, stb_image and TinySoundFont are vendored in `../third_party` and built by `../CMakeLists.txt`. The
 desktop build links SDL2 in; the handheld build (`GS_SYSTEM_SDL2`) uses the system's `libSDL2-2.0.so.0`, which has the device's GPU driver, reads
 the frontend's controller mapping as written, and is what muOS's overlays hook (see "Video output" below). After any change here: `./scripts/build.sh`, `./tests/run.sh`,
@@ -8,7 +8,7 @@ the frontend's controller mapping as written, and is what muOS's overlays hook (
 
 ## main.c
 
-Order of sections: virtual file system (a directory, or a packed `GSC1` cart; `vfs_read`) → drawing (rect, line, circle, 8x8 font, images,
+Order of sections: virtual file system (a directory, or a packed `GSC1` cart; `vfs_read`) → drawing (rect, line, circle, built-in fonts with shadows, images,
 tiles, camera, resolution) → input (keyboard, gamepad; 12 named buttons) → audio device and the SDL callback (takes `synth_lock()`) → Lua
 bindings (`static int l_*`, registered in the `gs_lib` table near line 620) → `render_audio` (CLI) → `main` (boot, cartridge
 detection: `game.lua` boots the embedded `gs` framework (`require('gs.boot')`); a cart without one is refused; frame loop).

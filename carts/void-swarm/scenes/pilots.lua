@@ -65,7 +65,7 @@ function Pilots:draw_ui()
   local p = data.PILOTS[self.cur]
   local owned = s.unl[self.cur] == 1
   spr("spr_pilot_" .. p.id, 2 + floor(self.tick / 5) % 6, 238, 66, 2, false, 0, owned and 255 or 120)
-  txt(p.name, 238 - #p.name * 8, 102, 14, 2, 312)
+  txt(p.name, 238 - gs.draw.text_width(p.name, 2) / 2, 102, 14, 2, 312)
   for i, l in ipairs(ui.wrap(p.blurb, 17)) do txt(l, 168, 122 + (i - 1) * 9, 2, 1, 312) end
   spr("spr_ico_" .. data.WEAPONS[p.weapon].icon, 0, 176, 156)
   -- drawn here, not in the layout: a long blurb's third line reaches it, and it must stay on top

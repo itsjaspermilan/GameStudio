@@ -9,7 +9,7 @@
 -- The look comes from the scene's layout, from things with these names (they are only the pattern, so the game never shows them
 -- itself): dialogue_box (a panel: where the box is and its tiles), dialogue_text (a text: where the words start, their font, colour and
 -- size), dialogue_name (a text: where the speaker's name goes) and dialogue_cursor (a picture: the arrow in front of the chosen answer
--- and at the end of a page). Without them a plain box sits at the bottom of the screen in the built-in font.
+-- and at the end of a page). Without them a pale box sits at the bottom of the screen with dark round_tall letters and their shadow.
 local draw = require("gs.draw")
 local input = require("gs.input")
 local timers = require("gs.timers")
@@ -19,39 +19,27 @@ local M = { speed = 40, active = nil } -- speed: letters a second
 local PATTERN = { dialogue_box = true, dialogue_text = true, dialogue_name = true, dialogue_cursor = true }
 M.pattern = PATTERN
 
--- the look: the scene's named things, or a plain box
+-- the look: the scene's named things, or a pale box with tall letters
 local function style(scene, w, h)
   local box, text = scene and scene.dialogue_box, scene and scene.dialogue_text
   local s = {
     box = box, name = scene and scene.dialogue_name, cursor = scene and scene.dialogue_cursor,
     x = box and box.x or 4, y = box and box.y or h - 60, w = box and box.w or w - 8, h = box and box.h or 56,
-    font = text and text.font, color = text and text.color or "#ffffff", size = text and text.size or 1,
+    font = text and text.font or (not text and "round_tall" or nil), size = text and text.size or 1,
+    color = text and text.color or (box and "#ffffff" or "#404048"), shadow = text and text.shadow or (not text and true or nil),
   }
   s.tx, s.ty = text and text.x or s.x + 8, text and text.y or s.y + 8
   -- the words keep the same distance from the right and bottom edges as from the left and top
   s.right, s.bottom = s.x + s.w - (s.tx - s.x), s.y + s.h - (s.ty - s.y)
-  local fw, fh = 8, 8
-  if s.font then local f = require("gs.assets").sprite(s.font, 3); fw, fh = f.fw, f.fh end
-  s.cw, s.lh = fw * s.size, fh * s.size + 2 * s.size
+  local _, line = draw.any_height(s.font)
+  s.lh = line * s.size
+  -- the cursor's room in front of an answer: a sprite font's letter, or the built-in ">" and a little space
+  s.cw = (s.font and not draw.font_of(s.font)) and require("gs.assets").sprite(s.font, 3).fw * s.size or draw.any_width(s.font, ">", s.size) + 2 * s.size
   return s
 end
 
--- words into lines that fit the box (a word longer than a line is cut)
-local function wrap(text, per)
-  local lines, line = {}, ""
-  for word in tostring(text):gmatch("%S+") do
-    while #word > per do
-      if line ~= "" then lines[#lines + 1] = line; line = "" end
-      lines[#lines + 1] = word:sub(1, per); word = word:sub(per + 1)
-    end
-    if line == "" then line = word elseif #line + 1 + #word <= per then line = line .. " " .. word else lines[#lines + 1] = line; line = word end
-  end
-  if line ~= "" then lines[#lines + 1] = line end
-  return lines
-end
-
 local function text_at(s, str, x, y, color)
-  if s.font then draw.font_text(s.font, str, x, y, s.size) else draw.text(str, x, y, color or s.color, s.size) end
+  draw.any_text(s.font, str, x, y, color or s.color, s.size, nil, s.shadow)
 end
 
 local function open(name, text, answers)
@@ -60,10 +48,9 @@ local function open(name, text, answers)
     error("gs.say and gs.ask wait for the player, so they go inside a script that can wait: gs.go(function() ... end)", 3)
   end
   local s = style(W.scene, W.view_w, W.view_h)
-  local per = math.max(1, math.floor((s.right - s.tx) / s.cw))
   -- the name goes in its own place, or in front of the words
   local words = (name and not s.name) and (name .. ": " .. text) or text
-  local lines = wrap(words, per)
+  local lines = draw.wrap(words, s.right - s.tx, s.size, s.font)
   local rows = math.max(1, math.floor((s.bottom - s.ty + 2 * s.size) / s.lh))
   local pages = {}
   for i = 1, math.max(1, #lines), rows do
@@ -125,7 +112,11 @@ function M.draw()
   local t = M.active
   if not t or t.done then return end
   local s = t.style
-  if s.box then s.box.draw(s.box) else draw.rect(s.x, s.y, s.w, s.h, "#000000d8"); draw.frame(s.x, s.y, s.w, s.h, "#ffffff") end
+  if s.box then s.box.draw(s.box)
+  else -- a rounded dark edge, a light line inside it, and a pale page
+    draw.rect(s.x + 1, s.y, s.w - 2, s.h, "#38486a"); draw.rect(s.x, s.y + 1, s.w, s.h - 2, "#38486a")
+    draw.rect(s.x + 2, s.y + 2, s.w - 4, s.h - 4, "#a8c4e0"); draw.rect(s.x + 3, s.y + 3, s.w - 6, s.h - 6, "#f8f8f0")
+  end
   if t.name and s.name then text_at(s, t.name, s.name.x, s.name.y, s.name.color) end
   local page, left = t.pages[t.page], math.floor(t.shown)
   local y = s.ty

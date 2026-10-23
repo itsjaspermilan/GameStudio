@@ -42,10 +42,10 @@ return {
   entities = {
   },
   texts = {
-    { "VOID", 83, 29, name = "void_shadow", color = 28, size = 6 },
-    { "VOID", 64, 24, name = "void", color = 23, size = 6 },
-    { "SWARM", 63, 77, name = "swarm_shadow", color = 28, size = 6 },
-    { "SWARM", 40, 72, name = "swarm", color = 14, size = 6 },
+    { "VOID", 166, 30, name = "void_shadow", color = 28, size = 6, align = "center" },
+    { "VOID", 160, 24, name = "void", color = 23, size = 6, align = "center" },
+    { "SWARM", 166, 78, name = "swarm_shadow", color = 28, size = 6, align = "center" },
+    { "SWARM", 160, 72, name = "swarm", color = 14, size = 6, align = "center" },
     { "PRESS A", 160, 206, name = "prompt", color = 3, size = 2, align = "center" },
     { "SURVIVE THE SWARM", 160, 228, name = "tagline", color = 1, size = 1, align = "center" },
   },

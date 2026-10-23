@@ -4,10 +4,12 @@
 // it (a function, a variable, arithmetic) is code, not data: parseRoom says so and the studio opens it as text instead.
 //
 // A room: { width, height, background, layers: [{ name, tileset, depth, data: [[tile, ...], ...], ... }], entities: [[kind, x, y, props?, name?]],
-//           texts: [{ text, x, y, name, color, size, align, font, screen }] (font: a sprite, a frame a letter from " "), pictures: [{ sprite, x, y, name, frame, scale, screen }],
+//           texts: [{ text, x, y, name, color, size, align, font, shadow, screen }] (font: a built-in font, or a sprite, a frame a letter from " "), pictures: [{ sprite, x, y, name, frame, scale, screen }],
 //           panels: [{ x, y, w, h, tileset, tile, name, screen }] (a 3x3 block of tiles, `tile` its top-left, stretched to the size),
 //           paths: { name: { points: [[x, y], ...], loop } }, code?, ...anything else, kept as it was }
 // A name makes the thing a field of the scene's code (self.<name>), see engine/gs/world.lua "scene layouts".
+
+import { FONTS, FONT_FIRST, FONT_GAP } from "./fonts.js";
 
 // ---------- reading ----------
 function tokenize(src) {
@@ -151,7 +153,7 @@ export function luaInline(v) {
 }
 
 const ROOM_ORDER = ["width", "height", "background"];
-const TEXT_ORDER = ["name", "color", "size", "align", "font", "screen", "depth", "blend", "alpha"];
+const TEXT_ORDER = ["name", "color", "size", "align", "font", "shadow", "screen", "depth", "blend", "alpha"];
 const PICTURE_ORDER = ["name", "frame", "scale", "screen", "depth", "blend", "alpha"];
 const PANEL_ORDER = ["tileset", "tile", "name", "screen", "depth", "blend", "alpha"];
 const LAYER_ORDER = ["name", "tileset", "depth", "scroll_x", "scroll_y", "wrap_x", "wrap_y", "solid", "visible", "blend", "alpha", "cell"];
@@ -278,10 +280,29 @@ export function nameProblem(name, room, own) {
   return null;
 }
 
-// A text's box in the room, for picking it with the pointer: [x0, y0, x1, y1]. A letter is 8x8 in the built-in font, or `font` = [w, h]
-// (the size of a frame of the text's font sprite).
+// The built-in fonts (the runtime's, see fonts.js): their names, a letter's glyph ([width, row, ...]) and how wide text is at size 1.
+export const BUILTIN_FONTS = Object.keys(FONTS);
+export const isBuiltinFont = (name) => !name || name in FONTS;
+export function glyphOf(name, code) {
+  const glyphs = FONTS[name || "round_small"].glyphs, i = code - FONT_FIRST;
+  return glyphs[i >= 0 && i < glyphs.length - 1 ? i : code === 9 ? 0 : glyphs.length - 1];
+}
+export function builtinWidth(text, name) {
+  const cs = [...String(text ?? "")];
+  return cs.reduce((w, c) => w + glyphOf(name, c.codePointAt(0))[0], 0) + Math.max(0, cs.length - 1) * FONT_GAP;
+}
+// The shadow the game makes from a text's colour when `shadow = true` (gs.draw's shadow_of): light letters get a dark shadow of their
+// own hue, dark letters a pale one.
+export function shadowOf([r, g, b]) {
+  if (r * 0.3 + g * 0.59 + b * 0.11 > 110) return [Math.floor(r * 0.3), Math.floor(g * 0.3), Math.floor(b * 0.36)];
+  return [Math.floor(r + (255 - r) * 0.7), Math.floor(g + (255 - g) * 0.7), Math.floor(b + (255 - b) * 0.66)];
+}
+
+// A text's box in the room, for picking it with the pointer: [x0, y0, x1, y1]. In a built-in font its letters' own widths, or with
+// `font` = [w, h] (the size of a frame of the text's font sprite) a letter a frame.
 export function textBox(t, font) {
-  const size = Number(t.size) || 1, [fw, fh] = font || [8, 8], w = String(t.text ?? "").length * fw * size, h = fh * size;
+  const size = Number(t.size) || 1, s = String(t.text ?? "");
+  const w = (font ? s.length * font[0] : builtinWidth(s, t.font)) * size, h = (font ? font[1] : FONTS[t.font || "round_small"].h) * size;
   const x0 = t.align === "center" ? t.x - w / 2 : t.align === "right" ? t.x - w : t.x;
   return [x0, t.y, x0 + Math.max(w, 8), t.y + h];
 }
