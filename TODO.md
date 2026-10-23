@@ -7,6 +7,18 @@ Consoles were renamed on 2026-10-23: Dot is **Glow43** (4:3, G43 for short) and 
 The logos are GBA-era chrome (`scripts/make-console-logos.mjs`). On Knulli the new id means a new system folder (`/userdata/roms/glow43`):
 the old `dot` system and its folder stay until removed by hand.
 
+## GBA overhaul (2026-10-23, research in `docs/gba-style.md`)
+
+Only Void Swarm and Panel Pop remain as games (Kitchen Rush, Then & Now and the Test project were removed; Breakout lives on as the test
+fixture `tests/breakout`). Built, tested on the desktop, pushed to the muOS card; nothing below was seen by a person on the handheld yet.
+- [ ] On the handheld: the new built-in fonts (round, square, bold; small and tall) in both games, their sizes and shadows on the real screen.
+- [ ] On the handheld: mosaic transitions (`look = "mosaic"`) read the frame back from the GPU; check they stay smooth on muOS (only the
+  few frames of a transition do it).
+- [ ] On the handheld: the 240x300 covers sit beside the names in muOS's Glow43 list, and the 640x480 previews look right.
+- [ ] Void Swarm's level-up and pause screens, the HUD plates and the white hit flash during a real run.
+- [ ] Maybe next: hand-drawn square letters (they are made from the round ones and look close to them at the small size); window
+  open/close animations; GBA-style button icons in the hint rows instead of "A:" text.
+
 ## Lua engine and studio (design in `docs/lua-engine-design.md`)
 
 Runtime on SDL2 (2026-10-23)
@@ -26,8 +38,6 @@ Games
 - [x] Panel Pop and Doc Capsule are modules (`lib/`) and scenes; the generators write `lib/art.lua`. Seeded bot games give the same results as before.
 - [x] Panel Pop on its own (Doc Capsule removed): a scene with a layout for every screen (`versus` runs `play`'s code), a light 16-bit look (pastel tile skies, window panels from a tileset, sprite fonts, outlines in each colour's own dark shade, a logo of letter panels) and General MIDI songs.
 - [ ] Panel Pop's new look and songs on the device: the fonts and the sky layer, the see-through board wells, and the General MIDI music while panels pop.
-- [ ] Kitchen Rush on the device, second version: the first (shelf, chop, grill, two plates, L2/R2) was too hard and complex, so now the button in the same spot as a food puts it on the plate, R serves, L bins. Check that it feels intuitive, that the diamonds match the pad (X top, A right) and whether the star coins suit a human (tuned with the bot, `GS_BOT_RATE`).
-- [ ] Then & Now (`carts/then-and-now`, design `docs/then-and-now-design.md`): the Hangar Ring slice is built (hub, 11 rooms, the Lens with Static and phase dodge, Ossie's story, the Last Launch boss, Keep or Release, two notes, two pickups, an end-of-part screen). Play it on the device: does flipping the Lens feel good, are the mid-air flips in the Launch Shaft and the dash gaps (Cargo Hall's secret, the lift lobby) fair, is Static too fast or slow (`lib/lens.lua` RISE/FALL), is the boss too easy or hard, and is the text readable on the small screen. The songs and sound effects were written without the MCP server's song/sound checks (it was down); run them through `song_check` / `sound_check`. Next: the Overgrowth and the Ward (choose order), then the rest of the plan.
 - [x] `gs.legacy` and plain `main.lua` carts are removed (the button test, pad setup and the art tools' picture carts are framework carts now).
 
 Studio
