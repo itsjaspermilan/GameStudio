@@ -1,0 +1,27 @@
+{
+ "speed": 2,
+ "loop": null,
+ "tracks": [
+  {
+   "instrument": "sine",
+   "steps": [
+    [
+     81,
+     3,
+     5
+    ]
+   ]
+  },
+  {
+   "instrument": "tri",
+   "steps": [
+    [
+     69,
+     2,
+     5
+    ]
+   ]
+  }
+ ],
+ "key": false
+}

@@ -28,7 +28,7 @@ echo "$out" | grep -qi 'error' && { echo "FAIL: band test reported an error"; st
 out="$(run ./build/gs tests/band-bad)"; echo "$out" | grep -q 'unknown instrument: nopiano' || { echo "FAIL: unknown track instrument not reported"; status=1; }
 
 # The sample games must load and run without errors or warnings (GS_SAVE_DIR keeps the test away from real saves).
-for game in carts/breakout carts/void-swarm carts/panel-pop carts/then-and-now carts/buttontest carts/padsetup; do
+for game in carts/breakout carts/void-swarm carts/panel-pop carts/kitchen-rush carts/then-and-now carts/buttontest carts/padsetup; do
   out="$(run ./build/gs "$game")"
   echo "$out" | grep -qiE 'error|^warning:' && { echo "$out"; echo "FAIL: $game printed an error or warning"; status=1; }
 done

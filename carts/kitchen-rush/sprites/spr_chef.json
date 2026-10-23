@@ -1,0 +1,10 @@
+{
+ "image": "sprites/spr_chef.png",
+ "frames": 7,
+ "origin": [
+  0,
+  0
+ ],
+ "mask": null,
+ "fps": 0
+}
