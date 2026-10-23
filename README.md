@@ -94,6 +94,7 @@ The framework is built on these calls. A game with `game.lua` normally uses the 
 | `gs.line(x1,y1,x2,y2,r,g,b[,a])` | line |
 | `gs.circle(cx,cy,radius,r,g,b[,a])` | filled circle |
 | `gs.print(text,x,y[,r,g,b,a,scale,font,sr,sg,sb,sa])` | a built-in font (0 = round_small, see `gs.raw.font`), with a shadow in the colour `sr,sg,sb,sa` if given; integer scale looks best |
+| `gs.raw.mosaic(n)` | the GBA's mosaic over the whole frame: blocks of n x n pixels (1 is off); scene changes use it with `look = "mosaic"` |
 | `gs.raw.text_width(text[,font])`, `gs.raw.font(name)` | width at scale 1; a built-in font's number, height and line height (nil if there is none) |
 | `gs.image(name)` | load a PNG, returns `{id,w,h}` (cached) |
 | `gs.sprite(img,x,y[,scale,flipx])` | draw a whole image |

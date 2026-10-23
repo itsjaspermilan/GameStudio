@@ -18,7 +18,7 @@ GBA-like limits). This file is the map; each folder has its own `AGENTS.md` with
 | `scripts/` | Desktop/aarch64 builds, push to the device | `scripts/AGENTS.md` |
 | `carts/` | Sample games (and the user's own projects live here too) | `carts/AGENTS.md` |
 | `third_party/`, `assets/` | Vendored libraries, the General MIDI SoundFont | `third_party/AGENTS.md`, `assets/AGENTS.md` |
-| `docs/` | `lua-engine-design.md` (why the engine and studio look the way they do) and `help/` (the in-app Help pages, tested) | `studio/AGENTS.md` |
+| `docs/` | `lua-engine-design.md` (why the engine and studio look the way they do), `gba-style.md` (what makes a game look, sound and play like a GBA game; read it before art, UI or sound work) and `help/` (the in-app Help pages, tested) | `studio/AGENTS.md` |
 | `README.md` | User-facing docs: games, console limits, the low-level runtime calls, sound system, tests, licences | |
 
 There is a git repository: one branch, `main`, whose history starts with the Lua engine (the old card engine is gone, history included); it tracks `origin/main` on GitHub. `build/` and `build-aarch64/` are build outputs (gitignored); don't read them. Open work is in `TODO.md`.

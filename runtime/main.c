@@ -592,18 +592,25 @@ static int l_compose(lua_State *L) {
     g_images[id].tex = t; g_images[id].px = NULL; g_images[id].w = W; g_images[id].h = H;
     push_image(L, id); return 1;
 }
+static int l_mosaic(lua_State *L); /* with the frame's end, below */
 /* gs.recolor(img, from, to[, old]) -> picture
  * A copy of a picture with colour from[i] replaced by to[i] (both lists of 0xRRGGBB numbers), for GBA-style palette swaps: the same sprite drawn
  * with another bank's colours, place for place. Transparency is kept; colours not in `from` stay as they are. `old` is a picture this call made
- * before, whose slot is reused (live reload, a bank edited). Done once per sprite and bank, so a plain search of at most 16 colours is fine. */
+ * before, whose slot is reused (live reload, a bank edited). Done once per sprite and bank, so a plain search of at most 16 colours is fine.
+ * With `from` false and `to` one number, every pixel that shows becomes that colour: the white silhouette a hit flashes with. */
 static int l_recolor(lua_State *L) {
     luaL_checktype(L, 1, LUA_TTABLE);
     lua_getfield(L, 1, "id"); const int sid = (int)luaL_checkinteger(L, -1); lua_pop(L, 1);
     if (sid < 0 || sid >= g_nimages || !g_images[sid].px) return luaL_error(L, "recolor: that picture has no pixels to copy from");
-    luaL_checktype(L, 2, LUA_TTABLE); luaL_checktype(L, 3, LUA_TTABLE);
-    unsigned from[64], to[64]; int n = (int)lua_rawlen(L, 2);
-    if (n > 64) n = 64;
-    if ((int)lua_rawlen(L, 3) < n) n = (int)lua_rawlen(L, 3);
+    const bool all = !lua_toboolean(L, 2);
+    unsigned from[64], to[64]; int n = 0;
+    if (all) to[0] = (unsigned)luaL_checkinteger(L, 3) & 0xffffff;
+    else {
+        luaL_checktype(L, 2, LUA_TTABLE); luaL_checktype(L, 3, LUA_TTABLE);
+        n = (int)lua_rawlen(L, 2);
+        if (n > 64) n = 64;
+        if ((int)lua_rawlen(L, 3) < n) n = (int)lua_rawlen(L, 3);
+    }
     for (int i = 0; i < n; i++) {
         lua_rawgeti(L, 2, i + 1); from[i] = (unsigned)luaL_checkinteger(L, -1) & 0xffffff; lua_pop(L, 1);
         lua_rawgeti(L, 3, i + 1); to[i] = (unsigned)luaL_checkinteger(L, -1) & 0xffffff; lua_pop(L, 1);
@@ -615,6 +622,7 @@ static int l_recolor(lua_State *L) {
     memcpy(out, g_images[sid].px, bytes);
     for (size_t p = 0; p < bytes; p += 4) {
         if (!out[p + 3]) continue;
+        if (all) { out[p] = (unsigned char)(to[0] >> 16); out[p + 1] = (unsigned char)(to[0] >> 8); out[p + 2] = (unsigned char)to[0]; continue; }
         const unsigned c = ((unsigned)out[p] << 16) | ((unsigned)out[p + 1] << 8) | out[p + 2];
         for (int i = 0; i < n; i++)
             if (from[i] == c) { out[p] = (unsigned char)(to[i] >> 16); out[p + 1] = (unsigned char)(to[i] >> 8); out[p + 2] = (unsigned char)to[i]; break; }
@@ -1202,7 +1210,7 @@ static const luaL_Reg gs_lib[] = {
     {"synth_config", l_synth_config}, {"soundfont_load", l_soundfont_load}, {"sample_load", l_sample_load}, {"inst_load", l_inst_load}, {"song_load", l_song_load}, {"song_play", l_song_play},
     {"save", l_save}, {"loadsave", l_loadsave}, {"sound", l_sound}, {"play", l_play}, {"stop", l_stop},
     {"clear", l_clear}, {"rect", l_rect}, {"line", l_line}, {"print", l_print}, {"text_width", l_text_width}, {"font", l_font},
-    {"camera", l_camera}, {"compose", l_compose}, {"recolor", l_recolor}, {"blend", l_blend}, {"stats", l_stats}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
+    {"camera", l_camera}, {"compose", l_compose}, {"recolor", l_recolor}, {"mosaic", l_mosaic}, {"blend", l_blend}, {"stats", l_stats}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
     {"btn", l_btn}, {"btnp", l_btnp}, {"time", l_time}, {"clock", l_clock}, {"quit", l_quit}, {"zoom", l_zoom}, {"load", l_load}, {"list", l_list}, {"mtime", l_mtime},
     {"pad_last", l_pad_last}, {"pad_set", l_pad_set}, {"pad_reset", l_pad_reset}, {NULL, NULL}};
 
@@ -1779,6 +1787,33 @@ static void screen_logical(int w, int h) {
         SDL_RenderSetIntegerScale(g_ren, SDL_TRUE);
     }
 }
+/* The GBA's mosaic: after the frame is drawn, each block of n x n pixels takes the colour of its top-left pixel (gs.raw.mosaic(n), 1 is off).
+ * Scene changes dissolve with it. It reads the frame back, which is slow on a GPU, but it only runs for the few frames of a transition. */
+static int g_mosaic = 1;
+static void apply_mosaic(void) {
+    static SDL_Texture *tex; static int tw, th; static Uint32 *px;
+    const int w = g_screen_w, h = g_screen_h, n = g_mosaic;
+    if (tw != w || th != h) {
+        if (tex) SDL_DestroyTexture(tex);
+        free(px); px = malloc((size_t)w * h * 4);
+        tex = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, w, h);
+        tw = w; th = h;
+        if (tex) SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_NONE);
+    }
+    if (!tex || !px) return;
+    const SDL_Rect r = { 0, 0, w, h };
+    if (SDL_RenderReadPixels(g_ren, &r, SDL_PIXELFORMAT_ABGR8888, px, w * 4) != 0) return;
+    for (int by = 0; by < h; by += n) for (int bx = 0; bx < w; bx += n) {
+        const Uint32 c = px[by * w + bx];
+        for (int y = by; y < by + n && y < h; y++) for (int x = bx; x < bx + n && x < w; x++) px[y * w + x] = c;
+    }
+    SDL_UpdateTexture(tex, NULL, px, w * 4);
+    SDL_RenderCopy(g_ren, tex, NULL, &r);
+}
+static int l_mosaic(lua_State *L) { /* n: block size in pixels, 1 = off (the next frames, until changed) */
+    const int n = (int)luaL_checkinteger(L, 1);
+    g_mosaic = n < 1 ? 1 : n > 32 ? 32 : n; return 0;
+}
 static void present_window(void) {
     if (!g_target) { SDL_RenderPresent(g_ren); return; }
     SDL_SetRenderTarget(g_ren, NULL);
@@ -2049,6 +2084,7 @@ int main(int argc, char **argv) {
         g_blend = SDL_BLENDMODE_BLEND; SDL_SetRenderDrawBlendMode(g_ren, g_blend); /* ... and normal blending */
         call_global(L, "draw", 0, 0);
         if (g_blend != SDL_BLENDMODE_BLEND) { g_blend = SDL_BLENDMODE_BLEND; SDL_SetRenderDrawBlendMode(g_ren, g_blend); } /* a draw left it set */
+        if (g_mosaic > 1) apply_mosaic();
         const Uint64 t_draw = ticks_ns();
         g_px_last = g_px_frame; g_calls_last = g_calls_frame; g_px_frame = 0; g_calls_frame = 0;
         if (g_win) present_window(); else SDL_RenderPresent(g_ren);

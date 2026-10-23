@@ -238,6 +238,23 @@ function Tests:enter()
     check("moving again afterwards", mover.x > after)
     mover:destroy()
 
+    -- ---- GBA effects: a hit flash draws the sprite in one colour; a screen flash; text in the built-in fonts
+    local assets = require("gs.assets")
+    local spr = assets.sprite("ball")
+    local white = assets.silhouette(spr, "#ffffff")
+    check("a silhouette is a picture of its own", white.img.id ~= spr.img.id and white.fw == spr.fw)
+    check("a silhouette is made once", assets.silhouette(spr, "#ffffff") == white)
+    local flashed = gs.spawn("dummy", 40, 40)
+    flashed:flash(0.05)
+    gs.flash("#ffffff", 0.1)
+    gs.wait(0.1)
+    check("the flash is over", gs.world.time >= flashed._flash[1] and gs.world.flash_t == 0)
+    flashed:destroy()
+    check("proportional letters", gs.draw.text_width("il") < gs.draw.text_width("mw"), gs.draw.text_width("il"))
+    check("tall letters are wider", gs.draw.text_width("Hello", 1, "round_tall") > gs.draw.text_width("Hello"))
+    check("a missing font is an error", raises(function() gs.draw.text("x", 0, 0, "#ffffff", 1, { font = "comic" }) end, "no built-in font"))
+    check("wrapping by width", #gs.draw.wrap("one two three four five six", 40) >= 3)
+
     -- ---- scenes
     -- the scene changes at the end of the step and this script belongs to this scene, so scenes.second reports the rest
     _G.FINISH = function()

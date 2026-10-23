@@ -117,6 +117,18 @@ function M.swapped(s, bank, level)
   return v
 end
 
+-- The sprite with every pixel that shows in one colour (an entity's flash), made once for each sprite and colour.
+local silhouettes = {}
+function M.silhouette(s, color, level)
+  local key = s.name .. "#" .. color .. (s.img and tostring(s.img.id) or "")
+  local v = silhouettes[key]
+  if v then return v end
+  local r, g, b = require("gs.draw").color(color)
+  v = setmetatable({ img = gs.recolor(s.img, false, r * 65536 + g * 256 + b) }, { __index = s })
+  silhouettes[key] = v
+  return v
+end
+
 -- Draw one frame of a sprite with its origin at (x, y). angle is degrees clockwise; sx, sy scale (negative mirrors); alpha is 0 to 1.
 local tile, floor = gs.tile, math.floor -- (gs.tile, like gs.image / gs.load / gs.list, is never replaced by the framework)
 function M.draw(s, frame, x, y, angle, sx, sy, alpha, flip)

@@ -19,7 +19,7 @@ local talk = require("gs.talk")
 -- checks: hitbox comparisons so far this step (the collision pass and touching()); checks_last: the whole of the last step. The studio
 -- compares the busiest step with the console's collision_tests budget.
 local W = { all = {}, classes = {}, by_class = {}, tags = {}, layers = {}, scene = nil, alive = 0, dirty = false, step_id = 0, next_id = 1, checks = 0, checks_last = 0,
-  limits = {}, bg = "#000000", fade = 0, pending_scene = nil, view_w = 320, view_h = 240, time = 0 }
+  limits = {}, bg = "#000000", fade = 0, flash_t = 0, mosaic_now = 1, pending_scene = nil, view_w = 320, view_h = 240, time = 0 }
 
 local floor, sqrt, abs, atan2, rad, deg, cos, sin = math.floor, math.sqrt, math.abs, math.atan, math.rad, math.deg, math.cos, math.sin
 local sprite_of = assets.sprite
@@ -183,6 +183,8 @@ end
 function Entity.after(self, seconds, fn) return timers.after(self, seconds, fn) end
 function Entity.every(self, seconds, fn) return timers.every(self, seconds, fn) end
 function Entity.go(self, fn) return timers.go(self, fn) end
+-- Drawn in one colour (white unless given) for a moment: the GBA's flash when something is hit. self:flash(0.08)
+function Entity.flash(self, seconds, color) self._flash = { W.time + (seconds or 0.08), color or "#ffffff" } end
 function Entity.tween(self, props, seconds, easing, on_done) return timers.tween(self, self, props, seconds, easing, on_done) end
 
 -- the default drawing: the sprite at the entity's position
@@ -191,6 +193,8 @@ function Entity.draw(self)
   if name then
     local s = sprite_of(name)
     if self.bank then s = assets.swapped(s, self.bank, 2) end -- a palette swap: self.bank = "red_soldier"
+    local fl = self._flash
+    if fl and W.time < fl[1] then s = assets.silhouette(s, fl[2], 2) end
     assets.draw(s, self.frame, self.x, self.y, self.angle, self.sx, self.sy, self.alpha, self.flip)
   end
 end
@@ -753,12 +757,13 @@ function W.restart_scene()
   if W.scene_name then W.pending_scene = { name = W.scene_name, args = W.scene_args or {} }; W.fade_state = nil end
 end
 
--- leave for another scene. opts.fade = seconds of fade out and in (default none)
+-- leave for another scene. opts.fade = seconds of fade out and in (default none); opts.look = how: "black" (the default), "white" or
+-- "mosaic" (the picture breaks into ever bigger blocks as it darkens, as GBA games went between areas)
 function W.goto_scene(name, opts, ...)
   if opts ~= nil and type(opts) ~= "table" then
     W.pending_scene = { name = name, args = { opts, ... } }          -- no options: what follows is for enter()
   else
-    W.pending_scene = { name = name, args = { ... }, fade = opts and opts.fade }   -- options (or nil for none), then what enter() gets
+    W.pending_scene = { name = name, args = { ... }, fade = opts and opts.fade, look = opts and opts.look }   -- options (or nil for none), then what enter() gets
   end
   W.fade_state = nil
 end
@@ -769,12 +774,12 @@ function W.step(dt)
   local pending = W.pending_scene
   if pending then
     if pending.fade and pending.fade > 0 then
-      W.fade_state = W.fade_state or { phase = "out", t = 0 }
+      W.fade_state = W.fade_state or { phase = "out", t = 0, look = pending.look }
       local f = W.fade_state
       f.t = f.t + dt
       W.fade = math.min(1, f.t / pending.fade)
       if f.t >= pending.fade then
-        W.pending_scene, W.fade_state = nil, { phase = "in", t = 0, total = pending.fade }
+        W.pending_scene, W.fade_state = nil, { phase = "in", t = 0, total = pending.fade, look = pending.look }
         enter_scene(pending.name, pending.args)
       end
       return
@@ -788,6 +793,7 @@ function W.step(dt)
     W.fade = 1 - math.min(1, f.t / f.total)
     if f.t >= f.total then W.fade, W.fade_state = 0, nil end
   end
+  if W.flash_t > 0 then W.flash_t = math.max(0, W.flash_t - dt) end
   W.checks_last, W.checks = W.checks, 0
   if W.paused then -- frozen: no entity moves or thinks, no timer runs; only the scene hears about the step (so a pause menu can read buttons)
     talk.update(dt) -- and a conversation, with the script it belongs to
@@ -915,7 +921,23 @@ function W.draw()
   for i = 1, #screen_list do draw_item(screen_list[i]) end
   if scene and scene.draw_ui then scene.draw_ui(scene); draw.blend("normal") end
   talk.draw()
-  if W.fade > 0 then draw.rect(0, 0, W.view_w, W.view_h, { 0, 0, 0, math.floor(255 * W.fade) }) end
+  local look = W.fade_state and W.fade_state.look
+  if W.fade > 0 then
+    local v = look == "white" and 255 or 0
+    -- a mosaic darkens late, so the blocks are seen first
+    local a = look == "mosaic" and W.fade * W.fade or W.fade
+    draw.rect(0, 0, W.view_w, W.view_h, { v, v, v, math.floor(255 * a) })
+  end
+  local m = look == "mosaic" and W.fade > 0 and 1 + math.floor(W.fade * 15) or 1
+  if m ~= W.mosaic_now then gs.raw.mosaic(m); W.mosaic_now = m end
+  if W.flash_t > 0 then local c = W.flash_color; draw.rect(0, 0, W.view_w, W.view_h, { c[1], c[2], c[3], math.floor(c[4] * W.flash_t / W.flash_len) }) end
+end
+
+-- The whole screen lights up in a colour (white by default) and fades back over `seconds`: a level-up, a bomb, a boss going down.
+function W.flash(color, seconds)
+  local r, g, b, a = draw.color(color or "#ffffff")
+  W.flash_color, W.flash_len = { r, g, b, a }, seconds or 0.3
+  W.flash_t = W.flash_len
 end
 
 function W.count_alive() return W.alive end

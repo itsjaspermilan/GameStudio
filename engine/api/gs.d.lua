@@ -115,6 +115,10 @@ function Entity:go(fn) end
 ---@param easing? Easing
 ---@param on_done? fun()
 function Entity:tween(props, seconds, easing, on_done) end
+---Draw the sprite in one colour for a moment: the GBA's flash when something is hit. self:flash(0.08)
+---@param seconds? number 0.08 when left out
+---@param color? string white when left out ("#rrggbb")
+function Entity:flash(seconds, color) end
 ---Draw this entity. Define your own `draw` to draw something else; call this to also draw the sprite.
 function Entity:draw() end
 
@@ -249,8 +253,12 @@ function gs.defaults(name) end
 ---the scene (self.logo) before enter() runs. Anything after the options is passed to the scene's enter(). The options may be left out or be nil; to pass a table as
 ---the first argument to enter(), give the options first ({} for none).
 ---@param name string A scene, e.g. "scenes.play"
----@param opts? { fade: number } fade = seconds to fade out and in
+---@param opts? { fade: number, look: "black"|"white"|"mosaic" } fade = seconds to fade out and in; look = to black (the default), to white, or a mosaic that breaks the picture into blocks as it darkens (how GBA games went between areas)
 function gs.goto_scene(name, opts, ...) end
+---Light the whole screen up in a colour and fade back: a level-up, a bomb, a boss going down. gs.flash("#ffffff", 0.3)
+---@param color? Color white when left out
+---@param seconds? number 0.3 when left out
+function gs.flash(color, seconds) end
 ---Build a room from rooms/<name>.lua: its background, tile layers and the entities it places.
 ---@param name string
 ---@return table

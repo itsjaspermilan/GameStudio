@@ -33,6 +33,7 @@ gs.burst, gs.particle_count = particles.burst, particles.count
 gs.path = world.path
 gs.pause, gs.defaults = world.pause, world.defaults
 gs.goto_scene, gs.load_room, gs.add_layer, gs.layer, gs.tile_at, gs.set_tile = world.goto_scene, world.load_room, world.add_layer, world.layer, world.tile_at, world.set_tile
+gs.flash = world.flash
 gs.world, gs.assets = world, assets
 gs.camera = setmetatable(camera, { __call = function(_, x, y) raw.camera(x, y) end }) -- gs.camera(x, y) is still the raw offset
 gs.input, gs.draw, gs.ui, gs.save = input, dr, ui, save
