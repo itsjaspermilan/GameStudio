@@ -99,6 +99,7 @@ The framework is built on these calls. A game with `game.lua` normally uses the 
 | `gs.clock()` | seconds since start with nanosecond steps (`gs.time()` has millisecond steps): for timing |
 | `gs.mark(text)` | writes a line into the `GS_PERF=1` log, in order with its per-second lines (a scripted run says which scenario each line belongs to); does nothing otherwise |
 | `gs.stats()` | `pixels, draw_calls, screen_pixels` of the last finished frame |
+| `gs.blend(mode)` | how what is drawn next mixes in: `"normal"` (alpha), `"add"` (adds light) or `"darken"` (multiplies), like the GBA's blend register; returns the mode before. Every frame starts at `"normal"` |
 | `gs.recolor(img,from,to[,old])` | a copy of a picture with colour `from[i]` replaced by `to[i]` (lists of `0xRRGGBB`), for palette swaps; the framework uses it for an entity's `bank`. Pass the picture it returned as `old` to reuse its slot |
 | `gs.compose(sheet,tw,th,sheet_cols,count,cw,ch,grid_cols,grid_rows,rows[,old])` | one picture of a whole tile grid (cell `c,r` shows tile `rows[r][c]` of `sheet`), so a layer that does not change is one `gs.tile` call a frame instead of hundreds. The framework uses it for tile layers; tiles must be the size of the cells. Pass the picture it returned as `old` to reuse its slot |
 | `gs.tile(img,sx,sy,sw,sh,x,y[,scale,flipx,angle,yscale,alpha,pivotx,pivoty])` | draw a sub-rectangle of a sheet; `angle` (degrees, clockwise), the scales and `alpha` (0-255) act around the pivot, a point in the sprite (default top-left) that stays where it is |

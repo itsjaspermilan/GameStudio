@@ -54,6 +54,16 @@ GS_BANKS_PLAIN=1 GS_DUMP_FRAME="$tmp/plain.bmp" FRAMES=60 run ./build/gs tests/b
 [ -s "$tmp/swap.bmp" ] && cmp -s "$tmp/swap.bmp" "$tmp/plain.bmp" || { echo "FAIL: a palette-swapped sprite does not show the other bank's colours"; status=1; }
 rm -rf "$tmp"
 
+# Blend modes (gs.draw.blend; blend = "add" / "darken" and alpha on entities, tile layers, sprites, particles): the frame must have the colours
+# that plain rectangles draw (within 2 levels of rounding).
+out="$(FRAMES=60 run ./build/gs tests/blend)"
+echo "$out" | grep -q 'BLEND TEST PASS' || { echo "$out"; echo "FAIL: blend modes"; status=1; }
+tmp="$(mktemp -d)"
+GS_DUMP_FRAME="$tmp/blend.bmp" FRAMES=60 run ./build/gs tests/blend >/dev/null
+GS_BLEND_PLAIN=1 GS_DUMP_FRAME="$tmp/plain.bmp" FRAMES=60 run ./build/gs tests/blend >/dev/null
+node tests/same-frames.mjs "$tmp/blend.bmp" "$tmp/plain.bmp" 2 || { echo "FAIL: blending does not make the colours it should"; status=1; }
+rm -rf "$tmp"
+
 # A plain main.lua game (the format before game.lua) is refused with a message that says what to do, not run or crashed.
 plain="$(mktemp -d)"; printf 'function draw() end\n' > "$plain/main.lua"
 out="$(run ./build/gs "$plain")"; rm -rf "$plain"

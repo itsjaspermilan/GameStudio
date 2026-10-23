@@ -12,6 +12,10 @@ summary: A scene's layout holds what is placed where (texts, pictures, entities,
 </ul>
 <p>When the scene starts, its layout is built first, then <code>enter</code> runs. Either half can be missing: a menu may be all layout with a few lines of code, and a scene that makes everything in code needs no layout.</p>
 
+<p>A selected picture, text or panel, and the tile layer you paint on, have a <em>Look</em>: <strong>glow</strong> adds light to what is
+behind (a light shaft, fire), <strong>shadow</strong> darkens it (shade, night), and <strong>strength</strong> makes it see-through below 100%.
+The editor shows the look as the game will.</p>
+
 <h2>Names connect the two</h2>
 <p>Give something in the layout a name (in the <strong>Selected</strong> panel) and the code has it as a field: a text named <code>prompt</code> is <code>self.prompt</code>, a picture named <code>logo</code> is <code>self.logo</code>.
 Texts and pictures get a name as soon as you place them; an entity gets one only if you give it one, so forty enemies don't make forty names. The layout editor shows each name as <code>self.name</code> above the thing.</p>

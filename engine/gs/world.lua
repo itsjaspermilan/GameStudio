@@ -353,7 +353,8 @@ end
 --            layers = { { tileset = "ground", data = { {0, 1}, ... }, depth = 100, scroll_x = 1 } },
 --            entities = { { "player", 160, 120, { hp = 3 }, name = "player" }, { "brick", 32, 16 }, ... },
 --            texts = { { "PRESS A", 160, 206, name = "prompt", color = 3, size = 2, align = "center", font = "spr_font" } },
---            pictures = { { "spr_logo", 80, 20, name = "logo", frame = 0, scale = 2 } },
+--            pictures = { { "spr_logo", 80, 20, name = "logo", frame = 0, scale = 2 } },   (texts, pictures, panels and layers also take
+--            alpha = 0.5 and blend = "add" or "darken": see-through, glowing or shadowing)
 --            panels = { { 0, 0, 320, 22, tileset = "ts_ui", tile = 0, name = "bar" } },   -- x, y, w, h: panels and bars made of tiles
 --            paths = { patrol = { { 0, 0 }, { 64, 0 }, loop = true } },
 --            code = "level" }        -- optional: run another scene's code with this layout (ten levels, one set of rules)
@@ -381,7 +382,10 @@ function W.Text.draw(self)
   local font = self.font
   local w = font and draw.font_width(font, s, self.size) or draw.text_width(s, self.size)
   local x = self.align == "center" and self.x - w / 2 or self.align == "right" and self.x - w or self.x
-  if font then draw.font_text(font, s, x, self.y, self.size) else draw.text(s, x, self.y, self.color, self.size) end
+  local alpha = self.alpha or 1
+  if font then draw.font_text(font, s, x, self.y, self.size, alpha)
+  elseif alpha < 1 then local r, g, b, a = draw.color(self.color); draw.text(s, x, self.y, { r, g, b, a * alpha }, self.size)
+  else draw.text(s, x, self.y, self.color, self.size) end
 end
 W.Picture = builtin("gs.picture", "entity", {})
 -- A panel's tiles are put together once into one picture (gs.compose) for each tileset, block and size, and drawn in at most four pieces:
@@ -414,12 +418,12 @@ function W.Panel.draw(self)
   local x, y = floor(self.x), floor(self.y)
   -- what of the grid's last column and row is left over after the middle: the right and bottom edges go at the far side of the size
   local lw, lh = cols > 1 and w - tw or w, rows > 1 and h - th or h
-  local tile = gs.tile
-  tile(pic, 0, 0, lw, lh, x, y)
-  if cols > 1 then tile(pic, (cols - 1) * tw, 0, tw, lh, x + w - tw, y) end
+  local tile, a = gs.tile, (self.alpha or 1) * 255 -- the pieces meet without overlapping, so a see-through panel is even
+  tile(pic, 0, 0, lw, lh, x, y, 1, false, 0, 1, a)
+  if cols > 1 then tile(pic, (cols - 1) * tw, 0, tw, lh, x + w - tw, y, 1, false, 0, 1, a) end
   if rows > 1 then
-    tile(pic, 0, (rows - 1) * th, lw, th, x, y + h - th)
-    if cols > 1 then tile(pic, (cols - 1) * tw, (rows - 1) * th, tw, th, x + w - tw, y + h - th) end
+    tile(pic, 0, (rows - 1) * th, lw, th, x, y + h - th, 1, false, 0, 1, a)
+    if cols > 1 then tile(pic, (cols - 1) * tw, (rows - 1) * th, tw, th, x + w - tw, y + h - th, 1, false, 0, 1, a) end
   end
 end
 
@@ -442,15 +446,16 @@ local function build(data, where, scene)
   for _, t in ipairs(data.panels or {}) do
     if not t.tileset then error(where .. ": a panel needs a tileset (tileset = \"name\")", 0) end
     named(t, W.spawn(W.Panel, t[1] or t.x, t[2] or t.y, { w = t[3] or t.w or 32, h = t[4] or t.h or 32, tileset = t.tileset, tile = t.tile or 0,
-      depth = t.depth or 0, screen = t.screen or false }))
+      depth = t.depth or 0, screen = t.screen or false, alpha = t.alpha or 1, blend = t.blend }))
   end
   for _, t in ipairs(data.pictures or {}) do
     local sc = t.scale or 1
-    named(t, W.spawn(W.Picture, t[2] or t.x, t[3] or t.y, { sprite = t[1] or t.sprite, frame = t.frame or 0, sx = sc, sy = sc, depth = t.depth or 0, screen = t.screen or false }))
+    named(t, W.spawn(W.Picture, t[2] or t.x, t[3] or t.y, { sprite = t[1] or t.sprite, frame = t.frame or 0, sx = sc, sy = sc, depth = t.depth or 0, screen = t.screen or false,
+      alpha = t.alpha or 1, blend = t.blend }))
   end
   for _, t in ipairs(data.texts or {}) do
     named(t, W.spawn(W.Text, t[2] or t.x, t[3] or t.y, { text = t[1] or t.text or "", color = t.color or "#ffffff", size = t.size or 1, align = t.align or "left", font = t.font,
-      depth = t.depth or -10, screen = t.screen or false }))
+      depth = t.depth or -10, screen = t.screen or false, alpha = t.alpha or 1, blend = t.blend }))
   end
   return data
 end
@@ -835,7 +840,17 @@ end
 -- screen-fixed entities are drawn back to front (made once: a new comparison function every frame was garbage)
 local function by_depth(a, b) if a.depth ~= b.depth then return a.depth > b.depth end return a.id < b.id end
 
+-- Draw one thing in its own blend mode (blend = "add" or "darken"; its alpha is the strength), and put "normal" back after it: a draw()
+-- of your own that changed the mode and forgot cannot spill onto the next thing.
+local function draw_item(item)
+  local bm = item.blend
+  if bm and bm ~= "normal" then draw.blend(bm) end
+  item:draw()
+  if draw.mode ~= "normal" then draw.blend("normal") end
+end
+
 function W.draw()
+  draw.mode = "normal" -- the runtime starts each frame at normal blending
   local r, g, bl = draw.color(W.bg)
   gs.raw.clear(r, g, bl)
   local zoom = camera.zoom
@@ -876,28 +891,31 @@ function W.draw()
     for i = 1, b.n do
       local item = b[i]
       if item.ts then
+        local bm = item.blend
+        if bm and bm ~= "normal" then draw.blend(bm) end
         assets.draw_layer(item, cx, cy, vw, vh)
+        if draw.mode ~= "normal" then draw.blend("normal") end
       else
         gs.raw.camera(cx, cy)
         if W.profile and item.id then -- the inspector's time per kind: only while it is open
           local t0 = os.clock()
-          item:draw()
+          draw_item(item)
           local entry = W.by_class[getmetatable(item)]
           if entry then entry.t_draw = (entry.t_draw or 0) + (os.clock() - t0) end
         else
-          item:draw()
+          draw_item(item)
         end
       end
     end
   end
   gs.raw.camera(cx, cy)
   local scene = W.scene
-  if scene and scene.draw then scene.draw(scene) end
+  if scene and scene.draw then scene.draw(scene); draw.blend("normal") end
   gs.raw.camera(0, 0)
   gs.raw.zoom(1)
   if #screen_list > 1 then table.sort(screen_list, by_depth) end
-  for i = 1, #screen_list do screen_list[i]:draw() end
-  if scene and scene.draw_ui then scene.draw_ui(scene) end
+  for i = 1, #screen_list do draw_item(screen_list[i]) end
+  if scene and scene.draw_ui then scene.draw_ui(scene); draw.blend("normal") end
   talk.draw()
   if W.fade > 0 then draw.rect(0, 0, W.view_w, W.view_h, { 0, 0, 0, math.floor(255 * W.fade) }) end
 end

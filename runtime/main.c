@@ -342,6 +342,21 @@ static bool g_perf_on; static void perf_log(const char *fmt, ...); /* both defin
 static double g_fb_copy_last; /* ms the copy to the framebuffer took in the last frame (0 without it); the CPU floor controller reads it */
 static int l_mark(lua_State *L) { const char *s = luaL_checkstring(L, 1); if (g_perf_on) perf_log("mark: %s\n", s); return 0; } /* gs.mark(text): a line in the GS_PERF log; nothing otherwise */
 static int l_clear(lua_State *L) { set_color(L, 1); SDL_RenderClear(g_ren); return 0; }
+/* gs.blend(mode): how everything drawn from now on mixes with what is already there, like the GBA's blend register.
+ * "normal" (see-through by alpha), "add" (adds light: glows, fire, light shafts) or "darken" (multiplies: shadows, tinted glass, night).
+ * Alpha still sets the strength in all three. The framework sets it around a thing that asks for it and puts "normal" back; each frame
+ * starts at "normal". Returns the mode that was set before. */
+static SDL_BlendMode g_blend = SDL_BLENDMODE_BLEND;
+static const char *blend_name(SDL_BlendMode m) { return m == SDL_BLENDMODE_ADD ? "add" : m == SDL_BLENDMODE_MUL ? "darken" : "normal"; }
+static int l_blend(lua_State *L) {
+    const char *m = luaL_optstring(L, 1, "normal"), *was = blend_name(g_blend);
+    if (!strcmp(m, "normal")) g_blend = SDL_BLENDMODE_BLEND;
+    else if (!strcmp(m, "add")) g_blend = SDL_BLENDMODE_ADD;
+    else if (!strcmp(m, "darken")) g_blend = SDL_BLENDMODE_MUL;
+    else return luaL_error(L, "blend mode must be \"normal\", \"add\" or \"darken\", not \"%s\"", m);
+    SDL_SetRenderDrawBlendMode(g_ren, g_blend);
+    lua_pushstring(L, was); return 1;
+}
 static int l_rect(lua_State *L) { /* x,y,w,h,r,g,b[,a] */
     SDL_FRect r = {ZX(luaL_checknumber(L,1)), ZY(luaL_checknumber(L,2)), (float)luaL_checknumber(L,3) * g_zoom, (float)luaL_checknumber(L,4) * g_zoom};
     set_color(L, 5); SDL_RenderFillRect(g_ren, &r); count_px(r.x, r.y, r.w, r.h); return 0;
@@ -515,7 +530,9 @@ static SDL_Texture *check_image(lua_State *L, int i) {
 }
 static void draw_tex(SDL_Texture *t, SDL_FRect src, float x, float y, float scale, bool flipx) {
     SDL_FRect dst = {ZX(x), ZY(y), src.w * scale * g_zoom, src.h * scale * g_zoom};
+    if (g_blend != SDL_BLENDMODE_BLEND) SDL_SetTextureBlendMode(t, g_blend);
     SDL_RenderTextureRotated(g_ren, t, &src, &dst, 0, NULL, flipx ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
+    if (g_blend != SDL_BLENDMODE_BLEND) SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
     count_px(dst.x, dst.y, dst.w, dst.h);
 }
 static int l_sprite(lua_State *L) { /* img,x,y[,scale,flipx] whole image */
@@ -552,7 +569,9 @@ static int l_tile(lua_State *L) { /* img,sx,sy,sw,sh,x,y[,scale,flipx,angle,ysca
         }
     }
     if (alpha < 255) SDL_SetTextureAlphaMod(t, (Uint8)(alpha < 0 ? 0 : alpha));
+    if (g_blend != SDL_BLENDMODE_BLEND) SDL_SetTextureBlendMode(t, g_blend);
     SDL_RenderTextureRotated(g_ren, t, &src, &dst, angle, &c, (SDL_FlipMode)((flipx ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE) | (flipy ? SDL_FLIP_VERTICAL : 0)));
+    if (g_blend != SDL_BLENDMODE_BLEND) SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
     if (alpha < 255) SDL_SetTextureAlphaMod(t, 255);
     count_px(dst.x, dst.y, dst.w, dst.h);
     return 0;
@@ -1039,7 +1058,7 @@ static const luaL_Reg gs_lib[] = {
     {"synth_config", l_synth_config}, {"soundfont_load", l_soundfont_load}, {"sample_load", l_sample_load}, {"inst_load", l_inst_load}, {"song_load", l_song_load}, {"song_play", l_song_play},
     {"save", l_save}, {"loadsave", l_loadsave}, {"sound", l_sound}, {"play", l_play}, {"stop", l_stop},
     {"clear", l_clear}, {"rect", l_rect}, {"line", l_line}, {"print", l_print},
-    {"camera", l_camera}, {"compose", l_compose}, {"recolor", l_recolor}, {"stats", l_stats}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
+    {"camera", l_camera}, {"compose", l_compose}, {"recolor", l_recolor}, {"blend", l_blend}, {"stats", l_stats}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
     {"btn", l_btn}, {"btnp", l_btnp}, {"time", l_time}, {"clock", l_clock}, {"quit", l_quit}, {"zoom", l_zoom}, {"load", l_load}, {"list", l_list}, {"mtime", l_mtime},
     {"pad_last", l_pad_last}, {"pad_set", l_pad_set}, {"pad_reset", l_pad_reset}, {NULL, NULL}};
 
@@ -1792,7 +1811,9 @@ int main(int argc, char **argv) {
         const Uint64 t_upd = SDL_GetTicksNS();
         SDL_SetRenderDrawColor(g_ren, 0, 0, 0, 255); SDL_RenderClear(g_ren);
         g_cam_x = g_cam_y = 0; g_zoom = 1; /* every frame starts with no scroll and no zoom */
+        g_blend = SDL_BLENDMODE_BLEND; SDL_SetRenderDrawBlendMode(g_ren, g_blend); /* ... and normal blending */
         call_global(L, "draw", 0, 0);
+        if (g_blend != SDL_BLENDMODE_BLEND) { g_blend = SDL_BLENDMODE_BLEND; SDL_SetRenderDrawBlendMode(g_ren, g_blend); } /* a draw left it set */
         const Uint64 t_draw = SDL_GetTicksNS();
         g_px_last = g_px_frame; g_calls_last = g_calls_frame; g_px_frame = 0; g_calls_frame = 0;
         SDL_RenderPresent(g_ren);

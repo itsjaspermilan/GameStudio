@@ -7,7 +7,7 @@
 --   gs.particle_count()
 -- Options (all optional): count, color, size (pixels), speed and life ({ min, max } or one number), angle and spread (degrees: 0 right,
 -- 90 down; spread 360 = every way), gravity (pixels/s², down), drag (0 to 1, how much speed is lost a second), fade (default true), shrink,
--- depth (like an entity's: bigger is further back; default 0), sprite.
+-- depth (like an entity's: bigger is further back; default 0), sprite, blend ("add" makes sparks and fire glow where they overlap).
 local assets = require("gs.assets")
 local draw = require("gs.draw")
 
@@ -16,7 +16,7 @@ local random, cos, sin, rad, floor, max = math.random, math.cos, math.sin, math.
 
 -- one array per field, so making and removing particles makes no garbage
 local px, py, pvx, pvy, page, plife, psize, pgrav, pdrag, pdepth, pr, pg, pb, pa, pspr = {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}
-local pfade, pshrink = {}, {}
+local pfade, pshrink, pblend = {}, {}, {}
 local n = 0
 local warned = false
 
@@ -45,7 +45,7 @@ function M.burst(x, y, o)
     page[n], plife[n] = 0, max(0.01, pick(o.life, 0.3, 0.6))
     psize[n], pgrav[n], pdrag[n], pdepth[n] = pick(o.size, 2), o.gravity or 0, o.drag or 0, o.depth or 0
     pr[n], pg[n], pb[n], pa[n], pspr[n] = r, g, b, a, spr
-    pfade[n], pshrink[n] = o.fade ~= false, o.shrink or false
+    pfade[n], pshrink[n], pblend[n] = o.fade ~= false, o.shrink or false, o.blend or "normal"
   end
 end
 
@@ -53,7 +53,7 @@ end
 local function remove(i)
   px[i], py[i], pvx[i], pvy[i], page[i], plife[i] = px[n], py[n], pvx[n], pvy[n], page[n], plife[n]
   psize[i], pgrav[i], pdrag[i], pdepth[i], pr[i], pg[i], pb[i], pa[i], pspr[i] = psize[n], pgrav[n], pdrag[n], pdepth[n], pr[n], pg[n], pb[n], pa[n], pspr[n]
-  pfade[i], pshrink[i] = pfade[n], pshrink[n]
+  pfade[i], pshrink[i], pblend[i] = pfade[n], pshrink[n], pblend[n]
   pspr[n] = false
   n = n - 1
 end
@@ -80,6 +80,7 @@ local rect, sprite_draw = gs.raw.rect, assets.draw
 local function draw_depth(depth)
   for i = 1, n do
     if pdepth[i] == depth then
+      if pblend[i] ~= draw.mode then draw.blend(pblend[i]) end
       local left = 1 - page[i] / plife[i]
       local alpha = pfade[i] and pa[i] * left or pa[i]
       local s = pspr[i]

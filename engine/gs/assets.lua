@@ -126,7 +126,7 @@ end
 
 -- ---------------------------------------------------------------- tile layers
 -- A layer is {tileset, cell = {w, h}, data = {{tile, ...}, ...} (rows of tile numbers from 0, -1 for empty), depth, scroll_x, scroll_y,
--- wrap_x, wrap_y, visible}. It is drawn from one composed picture (gs.compose) rather than tile by tile; set_tile marks it for composing again.
+-- wrap_x, wrap_y, visible, alpha (0 to 1), blend ("normal", "add" or "darken": a layer of light shafts, mist, water or shadow)}. It is drawn from one composed picture (gs.compose) rather than tile by tile; set_tile marks it for composing again.
 local use_pictures = not os.getenv("GS_NO_LAYER_PICTURES") -- (the tests compare drawing tile by tile with drawing the picture)
 local pictures = {} -- by layer key, so a layer that is made again reuses its picture slot
 
@@ -142,7 +142,7 @@ function M.make_layer(spec)
     name = spec.name, key = tostring(spec.name or "") .. ":" .. tostring(spec.tileset), tileset = spec.tileset, ts = ts,
     cell = spec.cell or { ts.tw, ts.th }, data = data, depth = spec.depth or 100, visible = spec.visible ~= false,
     scroll_x = spec.scroll_x or 1, scroll_y = spec.scroll_y or 1, wrap_x = spec.wrap_x == true, wrap_y = spec.wrap_y == true,
-    solid = spec.solid, dirty = true,
+    solid = spec.solid, dirty = true, alpha = spec.alpha or 1, blend = spec.blend,
     x = spec.x or 0, y = spec.y or 0, -- where the layer's top-left corner is in the world: change them to slide a layer (a drifting sky)
   }
 end
@@ -168,6 +168,7 @@ function M.draw_layer(l, cam_x, cam_y, view_w, view_h)
   local ex, ey = floor(cam_x * l.scroll_x - l.x + 0.5), floor(cam_y * l.scroll_y - l.y + 0.5)
   gs.raw.camera(ex, ey)
   local cw, ch = l.cell[1], l.cell[2]
+  local a = (l.alpha or 1) * 255 -- see-through layers (the world sets the layer's blend mode around this)
   local pic = use_pictures and picture(l, cols, rows)
   if pic then
     local W, H = cols * cw, rows * ch
@@ -179,7 +180,7 @@ function M.draw_layer(l, cam_x, cam_y, view_w, view_h)
         local ox, oy = kx * W, ky * H
         local x0, y0 = math.max(ex, ox), math.max(ey, oy)
         local x1, y1 = math.min(ex + view_w, ox + W), math.min(ey + view_h, oy + H)
-        if x1 > x0 and y1 > y0 then gs.tile(pic, x0 - ox, y0 - oy, x1 - x0, y1 - y0, x0, y0) end
+        if x1 > x0 and y1 > y0 then gs.tile(pic, x0 - ox, y0 - oy, x1 - x0, y1 - y0, x0, y0, 1, false, 0, 1, a) end
       end
     end
     return
@@ -194,7 +195,7 @@ function M.draw_layer(l, cam_x, cam_y, view_w, view_h)
       for c = c0, c1 do
         local f = row[(c % cols) + 1]
         if f and f >= 0 and f < ts.count then
-          gs.tile(ts.img, (f % ts.cols) * ts.tw, (f // ts.cols) * ts.th, ts.tw, ts.th, c * cw, r * ch)
+          gs.tile(ts.img, (f % ts.cols) * ts.tw, (f // ts.cols) * ts.th, ts.tw, ts.th, c * cw, r * ch, 1, false, 0, 1, a)
         end
       end
     end

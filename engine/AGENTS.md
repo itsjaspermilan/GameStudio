@@ -22,6 +22,11 @@ Colour banks: `assets.lua` reads `palette.json` (`all_banks`, `bank`) and makes 
 entity's `bank` field and `gs.draw.sprite`'s `bank` option; `draw.lua` reads `"bank:place"` colours; live reload forgets both when palette.json changes.
 `tests/banks` checks it (and that a swap looks exactly like rectangles in the new colours).
 
+Blending: the runtime's `gs.blend(mode)` ("normal", "add", "darken", SDL's BLEND, ADD and MUL) applies to everything drawn after it; `draw.lua`'s
+`blend` keeps the mode in Lua (`draw.mode`); the world sets an item's or layer's `blend` around its draw and puts "normal" back, so a
+`draw()` that forgets cannot spill. Alpha (entities, layers, layout items) is the strength. `tests/blend` checks the colours against plain
+rectangles (`tests/same-frames.mjs`, 2 levels of rounding allowed).
+
 Added while porting Void Swarm (the stress test): `gs.pause()` (freeze the world, only the scene updates: pause menus, level-up choices), `gs.defaults(name)` (an entity's starting values without making one),
 `collide_every = { tag = n }` in an entity spec (check that handler every nth step, staggered), `gs.goto_scene(name, nil, args...)` (nil options), and a faster collision candidate merge (no sorting).
 After it: `gs.in_radius` / `gs.in_rect` take an optional list to refill (no garbage), `Entity:hit_radius()` (a round hitbox's radius with scale), and `"#rrggbbaa"` colors.

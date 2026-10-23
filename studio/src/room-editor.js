@@ -96,6 +96,10 @@ export function createRoomEditor(root, hooks = {}) {
             <label>Scale <input type="number" class="re-scale" min="0.25" max="16" step="0.25"></label>
           </div>
         </div>
+        <div class="se-row se-fields re-look re-look-item" title="How it mixes with what is behind it, like a GBA's blending: Glow adds light (fire, light shafts, magic), Shadow darkens (shade, tinted glass, night). Strength is how much: below 100% it is see-through.">
+          <label>Look <select class="re-blend"><option value="">normal</option><option value="add">glow (add)</option><option value="darken">shadow (darken)</option></select></label>
+          <label>Strength <input type="range" class="re-alpha" min="0" max="100" step="5"> <span class="re-alpha-val"></span></label>
+        </div>
         <label class="se-field re-screen-row" title="Stays put when the camera scrolls (a score, a hint). Otherwise it is part of the world."><input type="checkbox" class="re-screen"> Fixed on the screen</label>
         <div class="se-row"><button data-act="delsel">Delete</button></div>
       </div>
@@ -103,6 +107,10 @@ export function createRoomEditor(root, hooks = {}) {
         <h3>Paint tiles</h3>
         <div class="se-row"><select class="re-newlayer-ts" title="The tileset the new layer uses"></select><button data-act="addlayer" title="A new tile layer">+ Layer</button></div>
         <p class="se-hint re-layerhint"></p>
+        <div class="se-row se-fields re-look re-look-layer" title="How it mixes with what is behind it, like a GBA's blending: Glow adds light (fire, light shafts, magic), Shadow darkens (shade, tinted glass, night). Strength is how much: below 100% it is see-through.">
+          <label>Look <select class="re-blend"><option value="">normal</option><option value="add">glow (add)</option><option value="darken">shadow (darken)</option></select></label>
+          <label>Strength <input type="range" class="re-alpha" min="0" max="100" step="5"> <span class="re-alpha-val"></span></label>
+        </div>
         <div class="re-tilepal"><canvas class="re-tilecanvas"></canvas></div>
         <p class="se-hint re-tilehint"></p>
       </div>
@@ -226,6 +234,13 @@ export function createRoomEditor(root, hooks = {}) {
     font8Strips.set(colour, c);
     return c;
   }
+  // a thing's look as the game draws it: its blend mode, and its alpha times how faint the editor shows it now
+  const COMPOSITE = { add: "lighter", darken: "multiply" };
+  function looks_(item, faint) {
+    ctx.globalAlpha = faint * (item.alpha ?? 1);
+    ctx.globalCompositeOperation = COMPOSITE[item.blend] || "source-over";
+  }
+  function plain() { ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over"; }
   function render() {
     if (!room) return;
     const cw = Math.round(room.width * zoom), ch = Math.round(room.height * zoom);
@@ -237,7 +252,7 @@ export function createRoomEditor(root, hooks = {}) {
     for (const i of order) {
       const l = room.layers[i], t = ts(l);
       if (!t || l.visible === false) continue;
-      ctx.globalAlpha = tool === "tiles" && i !== layerIx ? 0.45 : 1;
+      looks_(l, tool === "tiles" && i !== layerIx ? 0.45 : 1);
       // a repeating layer is drawn as often as it takes to fill the layout, as the game shows it
       const pw = (l.data[0] || []).length * t.tw, ph = l.data.length * t.th;
       const nx = l.wrap_x && pw ? Math.ceil(room.width / pw) : 1, ny = l.wrap_y && ph ? Math.ceil(room.height / ph) : 1;
@@ -246,7 +261,7 @@ export function createRoomEditor(root, hooks = {}) {
         ctx.drawImage(t.img, (v % t.cols) * t.tw, Math.floor(v / t.cols) * t.th, t.tw, t.th, (kx * pw + c * t.tw) * zoom, (ky * ph + r * t.th) * zoom, t.tw * zoom, t.th * zoom);
       }));
     }
-    ctx.globalAlpha = 1;
+    plain();
     if ($(".re-grid").checked && zoom >= 1) {
       const g = grid() * zoom;
       ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1; ctx.beginPath();
@@ -267,9 +282,9 @@ export function createRoomEditor(root, hooks = {}) {
     const dim = (k, faint) => (selecting || KIND_OF[tool] === k ? 1 : faint);
     // panels, then pictures, then texts: the order the game builds them in
     room.panels.forEach((b, i) => {
-      ctx.globalAlpha = dim("panels", 0.9);
+      looks_(b, dim("panels", 0.9));
       drawPanel(b);
-      ctx.globalAlpha = 1;
+      plain();
       if (isSel("panels", i)) ring(b.x, b.y, b.x + b.w, b.y + b.h);
       if (selecting && sel && sel.kind === "panels" && sel.i === i) for (const [hx, hy] of handlesOf(b)) { ctx.fillStyle = "#ffffff"; ctx.strokeStyle = themeColor("accent"); ctx.lineWidth = 1; ctx.fillRect(hx * zoom - 4, hy * zoom - 4, 8, 8); ctx.strokeRect(hx * zoom - 3.5, hy * zoom - 3.5, 7, 7); }
       if (b.name) labels.push([`self.${b.name}`, b.x + b.w / 2, b.y + 14, "panels", i]);
@@ -277,12 +292,12 @@ export function createRoomEditor(root, hooks = {}) {
     // pictures
     room.pictures.forEach((p, i) => {
       const look = pics[p.sprite], s = Number(p.scale) || 1;
-      ctx.globalAlpha = dim("pictures", 0.75);
+      looks_(p, dim("pictures", 0.75));
       if (look) {
         const fr = Math.max(0, Math.floor(p.frame || 0)) % Math.max(1, Math.floor(look.img.width / look.fw));
         ctx.drawImage(look.img, fr * look.fw, 0, look.fw, look.fh, (p.x - look.ox * s) * zoom, (p.y - look.oy * s) * zoom, look.fw * s * zoom, look.fh * s * zoom);
       } else { ctx.fillStyle = "#8a90a8"; ctx.fillRect((p.x - 6) * zoom, (p.y - 6) * zoom, 12 * zoom, 12 * zoom); }
-      ctx.globalAlpha = 1;
+      plain();
       const b = pictureBox(p);
       if (isSel("pictures", i)) ring(...b);
       if (p.name) labels.push([`self.${p.name}`, (b[0] + b[2]) / 2, b[1], "pictures", i]);
@@ -302,7 +317,7 @@ export function createRoomEditor(root, hooks = {}) {
     // texts: a sprite font as the game draws it; the built-in font in its size (8 pixels a letter), the Play panel shows its real letters
     room.texts.forEach((t, i) => {
       const size = Number(t.size) || 1, [x0, y0, x1, y1] = textBoxOf(t), font = t.font && pics[t.font];
-      ctx.globalAlpha = dim("texts", 0.8);
+      looks_(t, dim("texts", 0.8));
       ctx.imageSmoothingEnabled = false;
       ctx.fillStyle = colorOf(t.color);
       const s = String(t.text ?? "");
@@ -317,7 +332,7 @@ export function createRoomEditor(root, hooks = {}) {
         if (f >= 0 && f < frames) ctx.drawImage(font.img, f * font.fw, 0, font.fw, font.fh, (x0 + k * font.fw * size) * zoom, y0 * zoom, font.fw * size * zoom, font.fh * size * zoom);
       }
       if (!s) { ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.strokeRect(x0 * zoom, y0 * zoom, (x1 - x0) * zoom, (y1 - y0) * zoom); }
-      ctx.globalAlpha = 1;
+      plain();
       if (isSel("texts", i)) ring(x0, y0, x1, y1);
       if (t.name) labels.push([`self.${t.name}`, (x0 + x1) / 2, y0, "texts", i]);
     });
@@ -360,6 +375,8 @@ export function createRoomEditor(root, hooks = {}) {
     $(".re-texts-panel").hidden = tool !== "texts"; $(".re-panels-panel").hidden = tool !== "panels";
     if (tool === "panels") drawBlockPicker();
     renderOutline();
+    $(".re-look-layer").hidden = !layer();
+    if (layer()) showLook($(".re-look-layer"), layer());
     $(".re-layerhint").textContent = room.layers.length ? `Painting on ${layer() ? layer().name || "layer " + (layerIx + 1) : "no layer"} (pick another in the list above).` : "No tile layers yet: pick a tileset and add one.";
     const tsSel = $(".re-newlayer-ts"), names = hooks.getTilesets ? hooks.getTilesets() : [];
     if (tsSel.options.length !== names.length) tsSel.replaceChildren(...names.map((n) => new Option(n, n)));
@@ -510,6 +527,33 @@ export function createRoomEditor(root, hooks = {}) {
       keep($(".re-frame"), item.frame || 0); keep($(".re-scale"), item.scale || 1);
     }
     $(".re-screen").checked = !!item.screen;
+    $(".re-look-item").hidden = k === "entities"; // an entity's look is its own code's (blend = "add" in its file, or in Values)
+    showLook($(".re-look-item"), item);
+  }
+  function showLook(row, item) {
+    if (!item) return;
+    row.querySelector(".re-blend").value = item.blend || "";
+    const a = Math.round((item.alpha ?? 1) * 100), r = row.querySelector(".re-alpha");
+    if (document.activeElement !== r) r.value = a;
+    row.querySelector(".re-alpha-val").textContent = `${a}%`;
+  }
+  // a look written only when it is not the plain one, so layouts stay short
+  function setLook(item, blend, alpha) {
+    if (blend) item.blend = blend; else delete item.blend;
+    if (alpha < 1) item.alpha = alpha; else delete item.alpha;
+  }
+  for (const [row, target] of [[".re-look-item", () => selected()], [".re-look-layer", () => layer()]]) {
+    const el = $(row), get = () => [el.querySelector(".re-blend").value, Number(el.querySelector(".re-alpha").value) / 100];
+    el.querySelector(".re-blend").onchange = () => { const t = target(); if (t) commit(() => setLook(t, ...get())); };
+    // the slider changes the look as it moves; one undo step covers the whole drag
+    let before = null;
+    el.querySelector(".re-alpha").onpointerdown = () => { before = snapshot(); };
+    el.querySelector(".re-alpha").oninput = () => {
+      const t = target(); if (!t) return;
+      if (before === null) before = snapshot();
+      setLook(t, ...get()); el.querySelector(".re-alpha-val").textContent = `${Math.round(get()[1] * 100)}%`; markDirty(); render();
+    };
+    el.querySelector(".re-alpha").onchange = () => { if (before !== null && before !== snapshot()) history.record(before); before = null; };
   }
 
   // the palette as buttons: a click sets the colour (a place in the palette when the console has a fixed one); `none` adds a "no colour" first

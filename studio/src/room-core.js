@@ -151,10 +151,10 @@ export function luaInline(v) {
 }
 
 const ROOM_ORDER = ["width", "height", "background"];
-const TEXT_ORDER = ["name", "color", "size", "align", "font", "screen", "depth"];
-const PICTURE_ORDER = ["name", "frame", "scale", "screen", "depth"];
-const PANEL_ORDER = ["tileset", "tile", "name", "screen", "depth"];
-const LAYER_ORDER = ["name", "tileset", "depth", "scroll_x", "scroll_y", "wrap_x", "wrap_y", "solid", "visible", "cell"];
+const TEXT_ORDER = ["name", "color", "size", "align", "font", "screen", "depth", "blend", "alpha"];
+const PICTURE_ORDER = ["name", "frame", "scale", "screen", "depth", "blend", "alpha"];
+const PANEL_ORDER = ["tileset", "tile", "name", "screen", "depth", "blend", "alpha"];
+const LAYER_ORDER = ["name", "tileset", "depth", "scroll_x", "scroll_y", "wrap_x", "wrap_y", "solid", "visible", "blend", "alpha", "cell"];
 
 // A room as Lua: the known parts in a fixed order and a readable shape (a tile row per line, an entity per line), the rest after them.
 export function serializeRoom(room, comment) {

@@ -7,6 +7,9 @@
 --   gs.draw.font_text("spr_font", "SCORE 10", 4, 4)  text in a font drawn as a sprite (a frame a letter)
 --   gs.draw.sprite("star", x, y, { frame = 1, angle = 45, scale = 2, alpha = 0.5, bank = "gold" })  bank: drawn with another bank's colours
 --   gs.draw.panel(x, y, w, h)   gs.draw.bar(x, y, w, h, value, max, { color = "#4ade80" })
+--   gs.draw.blend("add") ... gs.draw.blend()   how what is drawn next mixes in: "normal", "add" (light, glow) or "darken" (shadow, tint)
+-- An entity, a tile layer, a picture or text in a layout, gs.draw.sprite and gs.burst take `blend = "add"` (or "darken") as well, and
+-- their alpha is the strength, like the GBA's blending of layers and sprites.
 -- The built-in font is 8x8 plain ASCII; text at scale 1 is the right size for most UI.
 local assets = require("gs.assets")
 
@@ -45,6 +48,12 @@ M.color = parse
 function M.forget_colors() for k in pairs(cache) do if not k:find("^#") then cache[k] = nil end end end
 
 local raw = gs.raw
+-- The blend mode now in use. The runtime starts every frame at "normal"; the world puts "normal" back after each thing it draws.
+M.mode = "normal"
+function M.blend(mode)
+  mode = mode or "normal"
+  if mode ~= M.mode then raw.blend(mode); M.mode = mode end -- (raw.blend checks the name)
+end
 function M.rect(x, y, w, h, color) local r, g, b, a = parse(color); raw.rect(x, y, w, h, r, g, b, a) end
 function M.frame(x, y, w, h, color)
   local r, g, b, a = parse(color)
@@ -67,14 +76,14 @@ function M.text_right(str, x, y, color, scale) M.text(str, x - M.text_width(str,
 -- Text in a font of your own: a sprite whose frames are the letters, from " " (frame 0) on in ASCII order (! " # ... 0-9 ... A-Z ...).
 -- Letters it has no frame for are left as a gap. Every letter is as wide as a frame; the sprite's own colours are used.
 function M.font_width(font, str, scale) return #tostring(str) * assets.sprite(font, 2).fw * (scale or 1) end
-function M.font_text(font, str, x, y, scale)
-  local s, sc = assets.sprite(font, 2), scale or 1
+function M.font_text(font, str, x, y, scale, alpha)
+  local s, sc, a = assets.sprite(font, 2), scale or 1, (alpha or 1) * 255
   str = tostring(str)
   local fw, fh, img, tile = s.fw, s.fh, s.img, gs.tile
   x, y = math.floor(x), math.floor(y)
   for i = 1, #str do
     local f = str:byte(i) - 32
-    if f >= 0 and f < s.frames then tile(img, f * fw, 0, fw, fh, x + (i - 1) * fw * sc, y, sc) end
+    if f >= 0 and f < s.frames then tile(img, f * fw, 0, fw, fh, x + (i - 1) * fw * sc, y, sc, false, 0, sc, a) end
   end
 end
 
@@ -83,7 +92,10 @@ function M.sprite(name, x, y, opts)
   local s = assets.sprite(name, 2)
   if opts.bank then s = assets.swapped(s, opts.bank, 2) end
   local sc = opts.scale or 1
+  local was = M.mode
+  if opts.blend then M.blend(opts.blend) end
   assets.draw(s, opts.frame or 0, x, y, opts.angle or 0, opts.sx or sc, opts.sy or sc, opts.alpha or 1, opts.flip)
+  if opts.blend then M.blend(was) end
 end
 
 function M.panel(x, y, w, h, opts)

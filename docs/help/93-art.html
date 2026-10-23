@@ -33,6 +33,20 @@ the same places is a <strong>palette swap</strong>: set <code>bank = "red_soldie
 <p>Games made before colour banks keep the console's 32 <strong>classic colours</strong> (eight families of four shades: grey 0-3, red 4-7, orange
 and brown 8-11, yellow 12-15, green 16-19, teal 20-23, blue 24-27, purple 28-31) until you open <em>Colours</em> and start banks.</p>
 
+<h2>Glow, shadow and see-through</h2>
+<p>A GBA mixes layers and sprites with what is behind them, and so can your game. Anything that draws (an entity, a tile layer, a picture,
+text or panel in a layout, <code>gs.draw.sprite</code>, <code>gs.burst</code>) takes a <strong>blend</strong> and an <strong>alpha</strong>:</p>
+<ul>
+<li><code>blend = "add"</code>, <strong>glow</strong>: adds its light to what is behind. Fire, magic, sparks, a light shaft from a window, a
+glowing sign. Draw glows in dark-to-bright shades of one colour: black adds nothing, so the edges fade by themselves.</li>
+<li><code>blend = "darken"</code>, <strong>shadow</strong>: multiplies, so white changes nothing and darker colours shade. Shadows under
+trees, tinted glass, a blue layer for night.</li>
+<li><code>alpha</code> (0 to 1) is the <strong>strength</strong>; on its own it makes something see-through: water, ghosts, mist.</li>
+</ul>
+<p>In the layout editor, the <em>Look</em> row of a selected picture, text or panel, and of the layer you paint on, sets both. An entity sets
+them in its file: <code>blend = "add"</code>. Code can blend anything it draws: <code>gs.draw.blend("add")</code> ... <code>gs.draw.blend()</code>.
+Use it for a few things that should catch the eye; a screen where everything glows has nothing that stands out.</p>
+
 <h2>Making it readable</h2>
 <ul>
 <li><strong>Shape first.</strong> Fill the whole outline in one colour and look at it small. If you can tell what it is, add the details.

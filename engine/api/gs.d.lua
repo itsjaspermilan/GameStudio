@@ -4,6 +4,7 @@
 -- a doc line ("---") above a function is its hover text, "---@param name type description" documents an argument.
 
 ---@alias Color string|integer|number[]  "#rrggbb", "#rrggbbaa" (aa: 00 invisible to ff solid), "bank:place" (a colour of the game's colour banks, like "sky:3"), a number from the console's classic palette, or {r, g, b [, a]}
+---@alias BlendMode "normal"|"add"|"darken"  normal: see-through by alpha; add: adds light (glows); darken: multiplies (shadows, tints)
 ---@alias Easing "linear"|"in_quad"|"out_quad"|"in_out_quad"|"in_cubic"|"out_cubic"|"in_out_cubic"|"out_back"|"out_bounce"
 ---@alias Button "up"|"down"|"left"|"right"|"a"|"b"|"x"|"y"|"l"|"r"|"start"|"select"|"l2"|"r2"|"l3"|"r3"
 
@@ -28,6 +29,7 @@
 ---@field sprite string|nil Name of a file in sprites/.
 ---@field bank string|nil Draw the sprite with another colour bank, place for place (a palette swap: one drawing, red and blue soldiers).
 ---@field screen boolean|nil True draws in screen space (a HUD piece), ignoring the camera.
+---@field blend BlendMode|nil How it mixes with what is behind it: "add" glows (fire, magic, light), "darken" shades (shadows, tinted glass). Its alpha is the strength.
 ---@field id integer A number that is different for every entity.
 Entity = {}
 
@@ -224,7 +226,7 @@ function gs.in_rect(x, y, w, h, tag, out) end
 ---and are capped by the console's particle limit (300 on Dot). Example: gs.burst(x, y, { count = 20, color = "#ffd08a", gravity = 200 }).
 ---@param x number
 ---@param y number
----@param opts? { count: integer, color: Color, size: number, speed: number|number[], life: number|number[], angle: number, spread: number, gravity: number, drag: number, fade: boolean, shrink: boolean, depth: number, sprite: string } speed and life take one number or { min, max }; angle and spread in degrees (0 right, 90 down; spread 360 = every way); gravity in pixels a second squared; depth like an entity's.
+---@param opts? { count: integer, color: Color, size: number, speed: number|number[], life: number|number[], angle: number, spread: number, gravity: number, drag: number, fade: boolean, shrink: boolean, depth: number, sprite: string, blend: BlendMode } blend = "add" makes sparks glow where they overlap; speed and life take one number or { min, max }; angle and spread in degrees (0 right, 90 down; spread 360 = every way); gravity in pixels a second squared; depth like an entity's.
 function gs.burst(x, y, opts) end
 ---How many particles are alive now.
 ---@return integer
@@ -257,7 +259,8 @@ function gs.load_room(name) end
 ---@param name string
 ---@return number[][]
 function gs.path(name) end
----Add a tile layer: { tileset = "name", data = { {0, 1}, {2, 3} }, depth = 100, scroll_x = 1, wrap_x = false, ... }. A layer's x, y is where its
+---Add a tile layer: { tileset = "name", data = { {0, 1}, {2, 3} }, depth = 100, scroll_x = 1, wrap_x = false, alpha = 1, blend = "normal", ... }.
+---alpha and blend make it see-through, glowing ("add": light shafts, mist) or shading ("darken": shadows, night). A layer's x, y is where its
 ---top-left corner is in the world (0, 0): change them every step to slide it, e.g. a sky that drifts on a title screen.
 ---@param spec table
 ---@return table
@@ -427,6 +430,10 @@ function gs.input.dir() end
 
 -- ------------------------------------------------------------------ drawing (use these in draw or draw_ui)
 gs.draw = {}
+---How everything drawn next mixes with what is already there, until you change it back with gs.draw.blend(): "add" adds light
+---(glows), "darken" multiplies (shadows), "normal" is plain see-through by alpha. The world puts "normal" back after each thing it draws.
+---@param mode? BlendMode
+function gs.draw.blend(mode) end
 ---A filled rectangle.
 ---@param x number
 ---@param y number
@@ -496,7 +503,7 @@ function gs.draw.wrap(text, width, scale) end
 ---@param name string A file in sprites/
 ---@param x number
 ---@param y number
----@param opts? { frame: number, angle: number, scale: number, sx: number, sy: number, alpha: number, flip: boolean, bank: string } bank: draw it with another colour bank's colours (a palette swap)
+---@param opts? { frame: number, angle: number, scale: number, sx: number, sy: number, alpha: number, flip: boolean, bank: string, blend: BlendMode } bank: draw it with another colour bank's colours (a palette swap); blend: "add" glows, "darken" shades
 function gs.draw.sprite(name, x, y, opts) end
 ---A box with a border, for menus and dialogs.
 ---@param opts? { fill: Color, border: Color }

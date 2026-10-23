@@ -116,3 +116,18 @@ test("the sample games' layouts are exactly what the layout editor writes", () =
     assert.equal(serializeRoom(parseRoom(text).room, first), text, rel);
   }
 });
+
+test("a look (blend and alpha) on layers, pictures, texts and panels is written and read back", () => {
+  const src = `return {
+  width = 320, height = 240,
+  layers = { { name = "shafts", tileset = "ts", depth = 20, blend = "add", alpha = 0.5, data = { { 0 } } } },
+  entities = {},
+  panels = { { 0, 0, 32, 32, tileset = "ui", blend = "darken" } },
+  texts = { { "HI", 10, 10, alpha = 0.25 } },
+  pictures = { { "spr_sun", 50, 50, blend = "add", alpha = 0.75 } },
+}`;
+  const room = parseRoom(src).room, text = serializeRoom(room), again = parseRoom(text).room;
+  assert.match(text, /name = "shafts", tileset = "ts", depth = 20, blend = "add", alpha = 0\.5, data/);
+  assert.match(text, /\{ "spr_sun", 50, 50, blend = "add", alpha = 0\.75 \}/);
+  assert.deepEqual([again.layers[0].blend, again.layers[0].alpha, again.panels[0].blend, again.texts[0].alpha, again.pictures[0].blend], ["add", 0.5, "darken", 0.25, "add"]);
+});
