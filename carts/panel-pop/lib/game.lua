@@ -143,6 +143,8 @@ local function events(ps)
       end
       local cx, cy = (e.c - 1) * 16 + 8, (e.r - TOP) * 16 - sy
       if e.chain >= 2 then BOARD.fx_text(b, cx, cy - 6, "Chain x" .. e.chain, ui.GOLD, 70); shout(ps, "Chain x" .. e.chain); face(ps, "happy", 80) end
+      -- the player's own big chains light the screen for a moment, brighter the longer the chain
+      if mine and e.chain >= 3 then gs.flash({ 255, 255, 255, math.min(200, 60 + e.chain * 30) }, 0.25) end
       if e.n >= 4 then BOARD.fx_text(b, cx, cy + 6, "Combo " .. e.n, ui.GOLD, 70); shout(ps, "Combo " .. e.n); face(ps, "happy", 80) end
       BOARD.fx_text(b, cx, cy - 16, "+" .. e.gain, ui.WHITE, 40)
       if other and e.n >= 4 then for _, w in ipairs(PL.combo_blocks(e.n)) do send_garbage(ps, other, w, 1, false) end end

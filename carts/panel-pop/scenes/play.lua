@@ -75,7 +75,7 @@ function Play:show()
   local over = G.phase == "over"
   self.banner_bar.visible, self.banner.visible = over, over
   self.banner_hint.visible = over and G.over_t > 100 and (G.over_t // 20) % 2 == 0
-  if over then self.banner.text, self.banner.font = PG.banner() end
+  if over then local words, ink = PG.banner(); self.banner.text = words; ui.ink(self.banner, ink) end
   local paused = G.paused
   self.pause_box.visible, self.pause_title.visible = paused, paused
   for i = 1, 3 do
@@ -121,7 +121,7 @@ end
 function Play:draw_ui()
   local G = PG.game()
   local s = G and PG.countdown()
-  if s and not G.paused then ui.text(s, ui.SW / 2, 100, ui.GOLD, "center", 4) end
+  if s and not G.paused then ui.text(s, ui.SW / 2, 96, ui.GOLD, "center", 3, "bold_tall") end
 end
 
 return Play
