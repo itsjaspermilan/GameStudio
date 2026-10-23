@@ -4,6 +4,7 @@
 // pilot. Two pilots share each colour bank (the console has 16 sprite banks for everything), so a bank is the ramps both of them need.
 import { ramp } from "../../studio/src/palette-core.js";
 import { bank, sphere, capsule, box, plane, outline, dot } from "../lib/paint.mjs";
+import { drawNova } from "./hand.mjs";
 
 export const FRAMES = 8;
 export const CLIPS = { idle: { from: 0, to: 1, fps: 3, loop: true }, walk: { from: 2, to: 7, fps: 12, loop: true } };
@@ -78,17 +79,7 @@ const P = (id, b, draw) => ({ id, w: 32, h: 32, frames: FRAMES, bank: b, bankNam
 const { nova_lancer: NL, bulwark_vex: BV, zephyr_sparks: ZS, gravis_kuro: GK, mira_halo: MH } = BANKS;
 
 export const PILOTS = [
-  P("nova", NL, (c, f) => {
-    const bob = pose(f).bob;
-    box(c, 5, 15 + bob, 5, 8, NL.grey, { round: 2, bias: -0.1 });                                       // jet pack
-    dot(c, 7, 23 + bob, NL.flame[0]); dot(c, 6 + (f % 2), 24 + bob, NL.flame[0]);
-    const h = body(c, f, { suit: NL.blue, trim: NL.grey, buckle: NL.red[2] });
-    helmet(c, h, NL.grey, NL.teal);
-    eyes(c, h, NL.grey[3]);
-    capsule(c, 11, 15.5 + h.bob, 20, 15.5 + h.bob, 1.3, NL.red);                                          // scarf
-    capsule(c, 10, 16 + h.bob, 6, 18 + h.bob + (f % 2), 1.2, NL.red, { bias: -0.1 });                     // its end flutters behind
-    outline(c, NL);
-  }),
+  P("nova", NL, (c, f) => drawNova(c, f, NL)), // drawn by hand (hand.mjs)
   P("lancer", NL, (c, f) => {
     const h = body(c, f, { suit: NL.grey, trim: NL.blue, buckle: NL.red[2] });
     const sw = f % 2;
