@@ -2,6 +2,11 @@
 
 Open items, newest thinking first. Cross things out (or delete them) when they are done and checked on the device.
 
+Consoles were renamed on 2026-10-23: Dot is **Glow43** (4:3, G43 for short) and Dash is **Glow169** (16:9, G169). Games that still say
+`console = "dot"` or `"dash"` keep working (engine, studio, push and MCP map the old ids); older notes below still use the old names.
+The logos are GBA-era chrome (`scripts/make-console-logos.mjs`). On Knulli the new id means a new system folder (`/userdata/roms/glow43`):
+the old `dot` system and its folder stay until removed by hand.
+
 ## Lua engine and studio (design in `docs/lua-engine-design.md`)
 
 Housekeeping

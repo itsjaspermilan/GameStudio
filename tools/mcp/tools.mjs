@@ -46,10 +46,11 @@ function filesOf(dir) {
   return out.sort();
 }
 function consoleOf(dir) {
-  let id = "dot";
-  try { id = consoleIdOf(readJson(join(dir, "meta/info.json"))); } catch { /* Dot */ }
+  let id = "glow43";
+  try { id = consoleIdOf(readJson(join(dir, "meta/info.json"))); } catch { /* Glow43 */ }
+  id = { dot: "glow43", dash: "glow169" }[id] || id; // their names before Glow43 and Glow169
   for (const p of [join(ROOT, "engine/consoles", `${id}.json`), join(dir, "consoles", `${id}.json`)]) if (existsSync(p)) return readJson(p);
-  return readJson(join(ROOT, "engine/consoles/dot.json"));
+  return readJson(join(ROOT, "engine/consoles/glow43.json"));
 }
 const palOf = (con) => (con.palette && con.palette.colors) || [];
 // A game with colour banks (a console with palette.mode "banks" and a palette.json): its banks, else null (the classic palette is used).

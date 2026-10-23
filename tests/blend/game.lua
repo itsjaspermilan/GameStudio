@@ -2,4 +2,4 @@
 -- see-through, over a grey background. With
 -- GS_BLEND_PLAIN=1 the colours they should make are drawn as plain rectangles instead; run.sh
 -- compares the two frames.
-return gs.game{ title = "Blend", console = "dot", start = "scenes.main" }
+return gs.game{ title = "Blend", console = "glow43", start = "scenes.main" }

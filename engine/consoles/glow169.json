@@ -1,11 +1,11 @@
 {
-  "id": "dot",
-  "name": "Dot",
-  "description": "4:3 handheld, 320x240. Scrolling rooms with up to four tile layers, in the spirit of a GBA-style console.",
+  "id": "glow169",
+  "name": "Glow169",
+  "description": "16:9 handheld, 320x180 (G169 for short). The same features as Glow43 on a widescreen display.",
   "based_on": null,
   "screen": {
     "width": 320,
-    "height": 240,
+    "height": 180,
     "scale": "integer"
   },
   "room_speed": 60,

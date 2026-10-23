@@ -4,6 +4,6 @@
 -- not entities: hundreds of cells a board would cost far more as entities).
 return gs.game{
   title = "Panel Pop",
-  console = "dot",
+  console = "glow43",
   start = "scenes.title",
 }

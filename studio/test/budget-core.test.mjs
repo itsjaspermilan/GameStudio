@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { budgetRows, parseStatsLine, consoleSummary } from "../src/budget-core.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const dot = JSON.parse(readFileSync(resolve(root, "engine/consoles/dot.json"), "utf8"));
+const dot = JSON.parse(readFileSync(resolve(root, "engine/consoles/glow43.json"), "utf8"));
 const find = (rows, label) => rows.find((r) => r.label === label);
 
 test("a small game is all green", () => {
@@ -67,5 +67,5 @@ test("the stats line and the console summary", () => {
   assert.equal(parseStatsLine("hello"), null);
   assert.equal(parseStatsLine("@@gs not json"), null);
   assert.equal(parseStatsLine('@@gs {"x":1}'), null);
-  assert.deepEqual(consoleSummary(dot), ["Dot 320×240", "colour banks: 16 sprite, 16 tile", "8 music tracks", "4 sound effect channels"]);
+  assert.deepEqual(consoleSummary(dot), ["Glow43 320×240", "colour banks: 16 sprite, 16 tile", "8 music tracks", "4 sound effect channels"]);
 });

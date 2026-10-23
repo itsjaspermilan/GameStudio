@@ -278,7 +278,7 @@ async function refreshFiles() {
   if (tilesetEditor) tilesetEditor.refreshPalette();
   const carried = consoleFileOf(consoleIdOf(state.info));
   if (carried && state.files.includes(carried)) {
-    try { state.carriedConsole = await invoke("read_file", { cart: state.cart, rel: carried }); } catch { /* the console falls back to Dot */ }
+    try { state.carriedConsole = await invoke("read_file", { cart: state.cart, rel: carried }); } catch { /* the console falls back to Glow43 */ }
   }
   refreshSize();
   await refreshLuaIndex();
@@ -1261,7 +1261,7 @@ $("wav-input").onchange = (e) => {
     const max = conInfo().audio.sample_max_seconds;
     if (max && wav.seconds > max) throw new Error(`That sound is ${wav.seconds.toFixed(1)} s long; this console allows samples up to ${max} s. Trim it first, or make a sound effect in the SFX editor instead.`);
     const name = sampleName(file.name, state.scan.groups.sounds);
-    // the console's sample rate (Dot: 32 kHz, like a GBA game's best samples), in mono: smaller files, and the sound the handheld plays
+    // the console's sample rate (Glow43: 32 kHz, like a GBA game's best samples), in mono: smaller files, and the sound the handheld plays
     const fit = fitWav(bytes, conInfo().audio.sample_rate || 32000);
     await invoke("write_binary", { cart: state.cart, rel: `sounds/${name}.wav`, data: toBase64(fit.bytes) });
     await refreshFiles();
@@ -1589,8 +1589,8 @@ async function openExample(name) {
   if (!state.games.some((g) => g.name === name)) throw new Error(`There is no game called ${name} in this workspace.`);
   await openGame(name);
 }
-// "Make this game": a new game made of a tutorial's files, for the console picked beside the button (Dot unless you choose another).
-async function makeHelpGame(title, files, consoleId = "dot") {
+// "Make this game": a new game made of a tutorial's files, for the console picked beside the button (Glow43 unless you choose another).
+async function makeHelpGame(title, files, consoleId = "glow43") {
   const base = "tutorial-" + title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   let name = base, n = 2;
   while (state.games.some((g) => g.name === name)) name = `${base}-${n++}`;

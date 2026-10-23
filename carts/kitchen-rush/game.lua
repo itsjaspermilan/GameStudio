@@ -3,6 +3,6 @@
 -- screens are scenes drawn in code. Art and sound come from scripts/make-kitchen-rush.mjs.
 return gs.game{
   title = "Kitchen Rush",
-  console = "dot",
+  console = "glow43",
   start = "scenes.title",
 }

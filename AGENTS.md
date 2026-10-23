@@ -54,7 +54,7 @@ run without a build proves less than it looks: build first.
 - **Project files are the contract.** Everything a project holds is plain JSON; formats are described in `README.md` (sound) and in the
   header comments of `engine/gs/sound.lua` and `studio/src/audio-core.js`. Old formats must keep loading (the sound code converts three
   older generations). Don't break reading; add converters.
-- **A game names its console** in `game.lua` (`console = "dot"`); the spec comes from `engine/consoles/*.json` at build time.
+- **A game names its console** in `game.lua` (`console = "glow43"`); the spec comes from `engine/consoles/*.json` at build time.
 - **SoundFont licence.** `assets/soundfonts/TimGM6mb.sf2` is GPL-2.0 (documented in `README.md` → Licences). Keep that note when moving files.
 
 ## Conventions

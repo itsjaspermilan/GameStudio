@@ -24,7 +24,7 @@ export function gameFiles(page) {
   const files = {};
   for (const m of page.body.matchAll(/<pre class="lua" data-path="([^"]+)"><code>([\s\S]*?)<\/code><\/pre>/g)) files[m[1]] = decodeEntities(m[2]) + "\n";
   if (!Object.keys(files).length) return null;
-  if (!files["game.lua"]) files["game.lua"] = `return gs.game{ title = ${JSON.stringify(page.title)}, console = "dot", start = "scenes.main" }\n`;
+  if (!files["game.lua"]) files["game.lua"] = `return gs.game{ title = ${JSON.stringify(page.title)}, console = "glow43", start = "scenes.main" }\n`;
   return files;
 }
 

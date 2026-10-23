@@ -2,7 +2,7 @@
   "id": "tiny",
   "name": "Tiny",
   "description": "A test console: 240x160, a GBA screen.",
-  "based_on": "dot",
+  "based_on": "glow43",
   "screen": {
     "width": 240,
     "height": 160,

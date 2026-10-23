@@ -18,7 +18,7 @@ const opt = (name, fallback) => { const i = args.indexOf(name); return i >= 0 ? 
 if (!dir) { console.error("usage: node scripts/make-cart-art.mjs <project-dir> [--frames N]"); process.exit(2); }
 const info = JSON.parse(readFileSync(join(dir, "meta", "info.json"), "utf8"));
 const title = (info.title || "GAME").toUpperCase();
-const spec = join("engine", "consoles", `${info.console || "dot"}.json`);
+const spec = join("engine", "consoles", `${({ dot: "glow43", dash: "glow169" })[info.console] || info.console || "glow43"}.json`);
 const palette = ((existsSync(spec) && JSON.parse(readFileSync(spec, "utf8")).palette.colors) || ["#000000", "#3b3f55", "#8a90a2", "#ffffff"]);
 const rgb = (i) => { const h = palette[Math.min(i, palette.length - 1)]; return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; };
 mkdirSync(join(dir, "meta"), { recursive: true });

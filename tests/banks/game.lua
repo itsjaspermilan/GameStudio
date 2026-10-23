@@ -2,4 +2,4 @@
 -- palette swap), and "bank:place" colours in code.
 -- With GS_BANKS_PLAIN=1 the same picture is drawn with rectangles in the swapped colours; run.sh
 -- compares the two frames.
-return gs.game{ title = "Banks", console = "dot", start = "scenes.main" }
+return gs.game{ title = "Banks", console = "glow43", start = "scenes.main" }

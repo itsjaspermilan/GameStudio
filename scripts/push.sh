@@ -14,16 +14,17 @@ command -v node >/dev/null 2>&1 || { echo "Sending needs Node.js (the 'node' pro
 SRC="${1%/}"; NAME="$(basename "$SRC")"
 HOSTCART="build/$NAME.cart"
 
-# The cart's console (named in meta/info.json) as "id|Display name" ("dot|Dot", "dash|Dash", a custom one), or nothing for a plain Lua cart. Projects saved when
+# The cart's console (named in meta/info.json) as "id|Display name" ("glow43|Glow43", "glow169|Glow169", a custom one), or nothing for a plain Lua cart. Projects saved when
 console_info() {
   [ -f "$1/meta/info.json" ] || return 0
   node -e '
     const fs = require("fs"), path = require("path");
-    const raw = String(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).console || "");
+    let raw = String(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).console || "");
+    raw = { dot: "glow43", dash: "glow169" }[raw] || raw; // their names before Glow43 and Glow169
     const id = /^[a-z0-9_-]{1,40}$/.test(raw) ? raw : "";
     const clean = (s) => String(s || "").replace(/[^A-Za-z0-9 _.-]/g, "").trim();
     // a custom console is named by the copy the game carries (consoles/<id>.json)
-    let names = { dot: "Dot", dash: "Dash" };
+    let names = { glow43: "Glow43", glow169: "Glow169" };
     try { const c = JSON.parse(fs.readFileSync(path.join(path.dirname(process.argv[1]), "..", "consoles", id + ".json"), "utf8")); if (c.name) names[id] = c.name; } catch {}
     if (clean(id)) process.stdout.write(clean(id).toLowerCase().replace(/ +/g, "-") + "|" + clean(names[id] || id));
   ' "$1/meta/info.json"
@@ -86,7 +87,7 @@ FLOOR
   } > "build/$NAME.sh"
   INFO="$(console_info "$SRC")"
   if [ "$DEVICE_OS" = muos ]; then
-    # muOS: each console is a folder of launchers under ROMS named after it ("Dot"; carts with no console, like the button test, go in
+    # muOS: each console is a folder of launchers under ROMS named after it ("Glow43"; carts with no console, like the button test, go in
     # "Tools"), assigned to muOS's own External - Ports system (which
     # runs .sh files with its SDL set-up, as for PortMaster games). muOS picks a folder's system by its name, lower case without spaces,
     # in assign.json; adding ours there means nobody has to assign it by hand. The game's title replaces the file name in the list
@@ -97,7 +98,7 @@ FLOOR
     TITLE="$(node -e 'try { const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(d.title || "").replace(/[\r\n"\\]/g, " ").trim()); } catch {}' "$SRC/meta/info.json")"
     node -e 'try { const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(d.description || "")); } catch {}' "$SRC/meta/info.json" > "build/$NAME.txt"
     CAT="/mnt/mmc/MUOS/info/catalogue/External - Ports"
-    # ssh joins its arguments into one command for the remote shell, so each one is quoted ("GameStudio Dot", "Then & Now")
+    # ssh joins its arguments into one command for the remote shell, so each one is quoted ("GameStudio Glow43", "Then & Now")
     q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
     ssh $SSH_OPTS "$T" "sh -s -- $(q "$DEVICE_ROMS_DIR") $(q "$FOLDER") $(q "$NAME") $(q "${TITLE:-$NAME}") $(q "$CAT")" <<'REMOTE'
 roms="$1"; folder="$2"; cart="$3"; title="$4"; cat="$5"
@@ -112,6 +113,12 @@ names=/mnt/mmc/MUOS/info/name/global.json
 [ -f "$names" ] || echo '{}' > "$names"
 jq --arg k "$cart" --arg v "$title" '.[$k] = $v' "$names" > "$names.tmp" && mv "$names.tmp" "$names"
 REMOTE
+    # the console's logo is the folder's picture in the content list
+    CID="${INFO%%|*}"
+    if [ -n "$INFO" ] && [ -f "assets/console-logos/$CID.png" ]; then
+      ssh $SSH_OPTS "$T" "mkdir -p '/mnt/mmc/MUOS/info/catalogue/Folder/box'"
+      scp -q $SSH_OPTS "assets/console-logos/$CID.png" "$T:/mnt/mmc/MUOS/info/catalogue/Folder/box/$FOLDER.png"
+    fi
     for pic in box_art:box screenshot:preview; do
       f="${pic%%:*}"; d="${pic#*:}"
       if [ -f "$SRC/meta/$f.png" ]; then scp -q $SSH_OPTS "$SRC/meta/$f.png" "$T:$CAT/$d/$NAME.png"; else ssh $SSH_OPTS "$T" "rm -f '$CAT/$d/$NAME.png'"; fi
@@ -126,7 +133,7 @@ REMOTE
     exit 0
   fi
   if [ -n "$INFO" ] && [ -n "$DEVICE_ROMS_DIR" ]; then
-    # Each console is its own EmulationStation system (Dot, Dash, ...): a folder under the roms dir of launchers, and a system entry in
+    # Each console is its own EmulationStation system (Glow43, Glow169, ...): a folder under the roms dir of launchers, and a system entry in
     # es_systems_gamestudio.cfg that runs them with the same "sh" launcher the Ports system uses. EmulationStation reads that file at
     # start-up, so a new console shows up after the frontend restarts.
     CID="${INFO%%|*}"; CNAME="${INFO#*|}"
@@ -184,7 +191,7 @@ if ! grep -q "^$id.emulator=" "$conf" 2>/dev/null; then
   [ -f "$conf" ] && [ -n "$(tail -c1 "$conf")" ] && echo >> "$conf"
   printf '%s.emulator=sh\n%s.core=sh\n' "$id" "$id" >> "$conf"
 fi
-# Every console needs a theme name of its own: while Dot shared the Ports theme name, EmulationStation listed it as a system and
+# Every console needs a theme name of its own: while Dot (now Glow43) shared the Ports theme name, EmulationStation listed it as a system and
 # showed it in All Games, but left it off the home screen carousel.
 sed -i "/<name>$id<\\/name>/,/<\\/system>/ s|<theme>[^<]*</theme>|<theme>$id</theme>|" "$cfg"
 # an earlier version used a hardware type EmulationStation does not know (it needs one of its own: console, portable, computer, ...)

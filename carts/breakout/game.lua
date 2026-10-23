@@ -2,6 +2,6 @@
 -- and a little shared state.
 return gs.game{
   title = "Breakout",
-  console = "dot",            -- 320x240, the Dot handheld
+  console = "glow43",            -- 320x240, the Glow43 handheld
   start = "scenes.title",
 }

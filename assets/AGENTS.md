@@ -5,4 +5,4 @@
 `../README.md` ("Licences") accurate if the file is replaced; a different `.sf2` can be used by setting `GS_SOUNDFONT`. Binary file: never read it.
 
 `console-art/`: the carousel panel per console (see its README), made by `scripts/make-console-art.mjs`.
-`console-logos/`: one white SVG per console id (`dot.svg`, `dash.svg`), copied to the device for the EmulationStation theme by `scripts/push.sh` (see its README).
+`console-logos/`: one logo per console id (`glow43.svg` and `.png`, `glow169`), copied to the device for the EmulationStation theme and muOS by `scripts/push.sh` (see its README).

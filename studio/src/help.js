@@ -70,9 +70,9 @@ export function createHelp(dialog, hooks) {
       const b = document.createElement("button"); b.className = "primary"; b.textContent = "Make this game";
       b.title = "Creates a new game from the files on this page and opens it";
       const pick = document.createElement("select"); pick.className = "help-console";
-      pick.title = "The console the new game is made for. The tutorials are laid out for Dot (320×240); on a smaller screen some things may sit off the edge.";
+      pick.title = "The console the new game is made for. The tutorials are laid out for Glow43 (320×240); on a smaller screen some things may sit off the edge.";
       for (const c of hooks.getConsoles ? hooks.getConsoles() : []) pick.appendChild(new Option(`${c.name} ${c.screen.width}×${c.screen.height}`, c.id));
-      b.onclick = async () => { b.disabled = true; try { await hooks.makeGame(page.title, files, pick.value || "dot"); dialog.close(); } catch (e) { b.textContent = String(e).slice(0, 80); } };
+      b.onclick = async () => { b.disabled = true; try { await hooks.makeGame(page.title, files, pick.value || "glow43"); dialog.close(); } catch (e) { b.textContent = String(e).slice(0, 80); } };
       const t = document.createElement("span"); t.textContent = `${Object.keys(files).length} files, ready to run.`;
       foot.append(b, ...(pick.options.length > 1 ? [pick] : []), t); article.appendChild(foot);
     }

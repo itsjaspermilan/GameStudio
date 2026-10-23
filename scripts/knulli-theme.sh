@@ -1,6 +1,6 @@
 #!/bin/sh
 # Switches the Knulli theme (art-book-next) between its own logos and artwork and ours.
-#   scripts/knulli-theme.sh on     "Distribution" = Batocera/Knulli, "System logos" and "System view artwork" = Custom: Dot and Dash get assets/console-logos and assets/console-art
+#   scripts/knulli-theme.sh on     "Distribution" = Batocera/Knulli, "System logos" and "System view artwork" = Custom: Glow43 and Glow169 get assets/console-logos and assets/console-art
 #   scripts/knulli-theme.sh off    back to the theme's own (a console without a logo shows its name, one without a panel the generic one)
 # Other systems keep their usual logos and panels: the theme looks for a custom file named after the console and falls back to its own.
 # NOTE: in a test on the RG35XX Pro, EmulationStation did NOT pick these lines up at start-up (its menu kept saying Default); choosing Custom in the menu

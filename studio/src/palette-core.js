@@ -46,7 +46,7 @@ export function normalizePalette(raw) {
 
 export const paletteText = (pal) => JSON.stringify(normalizePalette(pal), null, 2) + "\n";
 
-// What the console allows: from its palette spec (Dot and Dash: 16 sprite banks, 16 tile banks, 15-bit colour).
+// What the console allows: from its palette spec (Glow43 and Glow169: 16 sprite banks, 16 tile banks, 15-bit colour).
 export function bankLimits(spec) {
   const p = (spec && spec.palette) || spec || {};
   return { sprites: p.sprite_banks || 16, tiles: p.tile_banks || 16, places: Math.min(PLACES, (p.bank_colors || 16) - 1), bits: p.color_bits || 15 };

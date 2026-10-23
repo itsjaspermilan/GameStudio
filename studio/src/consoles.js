@@ -1,10 +1,10 @@
 // Consoles: what a game made for a given "device" may use. Specs live in engine/consoles/*.json (see the README there).
 // A project stores a copy of its console in project.json, so editing a console later never breaks an existing game.
 // Projects made before consoles existed have none and are treated as the legacy 640x480 console.
-import dot from "../../engine/consoles/dot.json" with { type: "json" };
-import dash from "../../engine/consoles/dash.json" with { type: "json" };
+import glow43 from "../../engine/consoles/glow43.json" with { type: "json" };
+import glow169 from "../../engine/consoles/glow169.json" with { type: "json" };
 
-export const BUILTIN_CONSOLES = [dot, dash];
+export const BUILTIN_CONSOLES = [glow43, glow169];
 
 export const LEGACY_CONSOLE = {
   id: "legacy", name: "Legacy", description: "Projects made before consoles existed: no limits.", based_on: null,
@@ -32,9 +32,15 @@ export function normalizeConsole(c) {
   };
 }
 
-// Dot and Dash used to be called Pocket and Wide. A project keeps its own copy of its console, so older projects still say the old
-// id and name; show them under the new ones (the file is only rewritten if the console is changed).
-const RENAMED = { pocket: { id: "dot", name: "Dot", oldName: "Pocket" }, wide: { id: "dash", name: "Dash", oldName: "Wide" } };
+// Glow43 and Glow169 were called Dot and Dash, and before that Pocket and Wide. A game keeps the id it was made with in game.lua and
+// meta/info.json (and an old project its own copy of the console), so older ones still say an old id and name; show them under the
+// new ones (the files are only rewritten if the console is changed).
+const RENAMED = {
+  dot: { id: "glow43", name: "Glow43", oldName: "Dot" }, dash: { id: "glow169", name: "Glow169", oldName: "Dash" },
+  pocket: { id: "glow43", name: "Glow43", oldName: "Pocket" }, wide: { id: "glow169", name: "Glow169", oldName: "Wide" },
+};
+// the id a console is known by now ("dot" -> "glow43")
+export const currentId = (id) => (RENAMED[id] ? RENAMED[id].id : id);
 export function currentName(c) {
   const r = c && RENAMED[c.id];
   return r ? { ...c, id: r.id, name: c.name === r.oldName ? r.name : c.name } : c;
@@ -130,8 +136,8 @@ export function paletteOf(c) {
 }
 
 // ---- the list of consoles: built in plus custom ----
-// "pocket" and "wide" are the old names of Dot and Dash: kept reserved so a custom console can never take them.
-export const RESERVED_IDS = ["dot", "dash", "legacy", "pocket", "wide"];
+// "dot", "dash", "pocket" and "wide" are the old names of Glow43 and Glow169: kept reserved so a custom console can never take them.
+export const RESERVED_IDS = ["glow43", "glow169", "dot", "dash", "legacy", "pocket", "wide"];
 
 export function slugify(name) {
   return String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "");
@@ -168,11 +174,12 @@ export const allConsoles = (customs) => [...BUILTIN_CONSOLES, ...(customs || [])
 // ---- a game carries the custom console it uses ----
 // A game made for one of your own consoles keeps a copy of it as consoles/<id>.json, so it runs the same on another machine and on the device.
 // Built-in consoles need no copy (null).
-export const consoleFileOf = (id) => (BUILTIN_CONSOLES.some((c) => c.id === id) ? null : `consoles/${id}.json`);
+export const consoleFileOf = (id) => (BUILTIN_CONSOLES.some((c) => c.id === currentId(id)) ? null : `consoles/${id}.json`); // (an old built-in id is built in too)
 export const consoleFileText = (c) => JSON.stringify(c, null, 2) + "\n";
 
-// The console a game uses: a built-in one or one of yours by id, else the copy the game carries (`carriedText`), else Dot.
+// The console a game uses: a built-in one or one of yours by id, else the copy the game carries (`carriedText`), else Glow43.
 export function resolveConsole(id, customs, carriedText) {
+  id = currentId(id);
   const known = allConsoles(customs).find((c) => c.id === id);
   if (known) return known;
   if (carriedText) {

@@ -96,13 +96,13 @@ export function scanProject(files) {
   return { hasGame: files.includes("game.lua"), hasPalette: files.includes("palette.json"), groups, layouts: layouts.sort(), code: code.sort(), other };
 }
 
-// The console named in a game's meta/info.json (new games write it there; game.lua says the same in code). Defaults to Dot.
+// The console named in a game's meta/info.json (new games write it there; game.lua says the same in code). Defaults to Glow43.
 export function consoleIdOf(infoJson) {
   const id = infoJson && typeof infoJson === "object" ? infoJson.console : null;
-  return typeof id === "string" && /^[a-z0-9_-]{1,40}$/.test(id) ? id : "dot";
+  return typeof id === "string" && /^[a-z0-9_-]{1,40}$/.test(id) ? id : "glow43";
 }
 
-// Change the console in game.lua's `console = "dot"`. Returns the new text, or null when the file doesn't say it in the plain way (the user edits it).
+// Change the console in game.lua's `console = "glow43"`. Returns the new text, or null when the file doesn't say it in the plain way (the user edits it).
 export function setConsoleInGame(text, id) {
   const re = /(\bconsole\s*=\s*)(["'])[A-Za-z0-9_-]*\2/;
   return re.test(text) ? text.replace(re, `$1"${id}"`) : null;

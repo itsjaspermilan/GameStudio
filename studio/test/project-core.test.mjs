@@ -38,8 +38,8 @@ test("the tree is found by scanning the file list", () => {
 });
 
 test("console in game.lua and info.json", () => {
-  assert.equal(consoleIdOf({ console: "dash" }), "dash");
-  assert.equal(consoleIdOf({}), "dot"); assert.equal(consoleIdOf(null), "dot"); assert.equal(consoleIdOf({ console: "x y" }), "dot");
+  assert.equal(consoleIdOf({ console: "glow169" }), "glow169");
+  assert.equal(consoleIdOf({}), "glow43"); assert.equal(consoleIdOf(null), "glow43"); assert.equal(consoleIdOf({ console: "x y" }), "glow43");
   assert.equal(consoleIdOf({ console: "my_gba" }), "my_gba", "custom console ids may use _ like the console editor allows");
   assert.equal(setConsoleInGame('return gs.game{ title = "A", console = "dot", start = "s" }', "dash"), 'return gs.game{ title = "A", console = "dash", start = "s" }');
   assert.equal(setConsoleInGame("return gs.game{ console = my_console }", "dash"), null);

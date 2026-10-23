@@ -156,7 +156,7 @@ fn cart_dir(app: &AppHandle, cart: &str) -> Result<PathBuf, String> {
 // ---------- custom consoles ----------
 // Built-in consoles ship with the studio; custom ones are saved as <workspace>/consoles/<id>.json.
 
-const RESERVED_CONSOLES: [&str; 5] = ["dot", "dash", "legacy", "pocket", "wide"];
+const RESERVED_CONSOLES: [&str; 7] = ["glow43", "glow169", "dot", "dash", "legacy", "pocket", "wide"];
 
 fn valid_console_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 40 && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')

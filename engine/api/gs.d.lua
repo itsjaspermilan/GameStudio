@@ -151,7 +151,7 @@ Scene = {}
 -- ------------------------------------------------------------------ the game
 ---@class GameSpec
 ---@field title string
----@field console "dot"|"dash"|table The handheld this game is made for. It sets the screen, palette and limits.
+---@field console "glow43"|"glow169"|table The handheld this game is made for. It sets the screen, palette and limits.
 ---@field start string The first scene, e.g. "scenes.title".
 ---@field preload? boolean Load every sprite and tileset at start (default true).
 
@@ -223,7 +223,7 @@ function gs.in_radius(x, y, radius, tag, out) end
 ---@return Entity[]
 function gs.in_rect(x, y, w, h, tag, out) end
 ---A puff of particles: small squares (or a sprite's frames) that fly, fall, fade and vanish by themselves. They are not entities, never collide,
----and are capped by the console's particle limit (300 on Dot). Example: gs.burst(x, y, { count = 20, color = "#ffd08a", gravity = 200 }).
+---and are capped by the console's particle limit (300 on Glow43). Example: gs.burst(x, y, { count = 20, color = "#ffd08a", gravity = 200 }).
 ---@param x number
 ---@param y number
 ---@param opts? { count: integer, color: Color, size: number, speed: number|number[], life: number|number[], angle: number, spread: number, gravity: number, drag: number, fade: boolean, shrink: boolean, depth: number, sprite: string, blend: BlendMode } blend = "add" makes sparks glow where they overlap; speed and life take one number or { min, max }; angle and spread in degrees (0 right, 90 down; spread 360 = every way); gravity in pixels a second squared; depth like an entity's.

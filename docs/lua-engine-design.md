@@ -50,7 +50,7 @@ return Grub
 
 ```
 mygame/
-  game.lua            -- gs.game{ title, console = "dot", start = "scenes.title" }
+  game.lua            -- gs.game{ title, console = "glow43", start = "scenes.title" }
   entities/           -- one file per kind of thing
   scenes/             -- screens and level logic
   scenes/*.layout.lua -- what each scene places (edited visually); rooms/ is the older form

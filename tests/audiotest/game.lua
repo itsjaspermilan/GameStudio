@@ -1,1 +1,1 @@
-return gs.game{ title = "audiotest", console = "dot", start = "scenes.main" }
+return gs.game{ title = "audiotest", console = "glow43", start = "scenes.main" }

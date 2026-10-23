@@ -33,7 +33,7 @@ Every folder can have folders of its own, and the folder is part of the name: `s
 
 ```lua
 -- game.lua
-return gs.game{ title = "My Game", console = "dot", start = "scenes.main" }
+return gs.game{ title = "My Game", console = "glow43", start = "scenes.main" }
 
 -- entities/player.lua
 local Player = gs.entity{ tags = { "player" }, hitbox = { r = 6 }, speed = 90 }
@@ -77,7 +77,7 @@ through the server (`help`, and the prompts `draw-art`, `design-level`, `compose
 
 ## Console limits
 
-A console (`engine/consoles/dot.json`, `dash.json`) says what a game made for it may use: screen size, palette, sprite and tile sizes, room size, limits and budgets. Built in: **Dot** (4:3, 320x240) and **Dash** (16:9, 320x180).
+A console (`engine/consoles/glow43.json`, `glow169.json`) says what a game made for it may use: screen size, palette, sprite and tile sizes, room size, limits and budgets. Built in: **Glow43** (4:3, 320x240) and **Glow169** (16:9, 320x180).
 Both have GBA-style **colour banks**: a game's `palette.json` holds up to 16 sprite banks and 16 tile banks of 15 colours (place 0 is see-through), each from 15-bit colour, so up to 512 colours show at once.
 A sprite names its bank (`"bank": "hero"` in its JSON), a tileset the banks its tiles use (`"banks": ["forest", "water"]`, each tile keeps to one), an entity can draw its sprite with another bank (`bank = "red_soldier"`, a palette swap) and code can name a bank colour as `"sky:3"`. A game without `palette.json` keeps the console's 32 classic colours (`palette.colors`).
 A game names its console in `game.lua`; one of your own consoles (made in the studio) travels with the game as `consoles/<id>.json`. At most 512 entities are alive at once on both (more are ignored with one warning). The studio's **Handheld** tab shows size, art and sound against the console, and while the game runs how many
@@ -139,13 +139,13 @@ cp scripts/device.env.example scripts/device.env   # then edit host/user/dir
 
 On handhelds with no KMS/DRM (Knulli on the RG35XX Pro has only `/dev/fb0`) `gs` falls back to software rendering into the framebuffer. If a device's buttons come out wrong, run the `padsetup` cart once: it records raw button numbers in `padmap.txt` beside `gs`, and `gs.btn("a")` and friends follow it (`GS_DEBUG_INPUT=1` prints raw presses).
 
-**Knulli.** With `DEVICE_ROMS_DIR` set in `scripts/device.env`, `push.sh` makes each console (Dot, Dash, custom ones) its own EmulationStation system with its own launcher folder, and writes a `gamelist.xml` entry from the game's `meta/info.json` (title, description, developer, genre, players, box art). The studio's "Send to device" runs the same script. EmulationStation reads new systems at start-up, so restart it after the first push of a console. Confirmed by testing on one RG35XX Pro: framebuffer drawing, the d-pad and shoulder buttons, Breakout running from the Dot system. Not yet confirmed there: box art and descriptions in the list, and Dash.
+**Knulli.** With `DEVICE_ROMS_DIR` set in `scripts/device.env`, `push.sh` makes each console (Glow43, Glow169, custom ones) its own EmulationStation system with its own launcher folder, and writes a `gamelist.xml` entry from the game's `meta/info.json` (title, description, developer, genre, players, box art). The studio's "Send to device" runs the same script. EmulationStation reads new systems at start-up, so restart it after the first push of a console. Confirmed by testing on one RG35XX Pro: framebuffer drawing, the d-pad and shoulder buttons, Breakout running from the Glow43 system. Not yet confirmed there: box art and descriptions in the list, and Glow169.
 
 ## Sound (GBA style)
 
 Sound is built like a small band, and like the GBA it mixes a handful of voices in software:
 
-- **Channels.** A song has eight tracks (each can sound up to four notes at once; Dot and Dash play all eight) and a sound effect has two lanes; sound effects have their own channels (default 4).
+- **Channels.** A song has eight tracks (each can sound up to four notes at once; Glow43 and Glow169 play all eight) and a sound effect has two lanes; sound effects have their own channels (default 4).
   They are separate pools, so a sound effect never cuts into the music. That is about 12 voices at once: a few
   multiplications per voice per sample, a tiny cost next to drawing, and in the same range as what GBA games mixed in software
   (the hardware itself has 4 tone channels plus 2 sample channels; most games mixed 8 to 12 sampled voices themselves).
@@ -153,7 +153,7 @@ Sound is built like a small band, and like the GBA it mixes a handful of voices 
   `reverb_type` `"room"` (short, warm; the default and what older songs get), `"hall"` (long, bright) or `"cave"` (very long, dark), and
   how much of the music goes into it (`reverb`, 0 to 100). Sound effects are dry unless they set their own `reverb` amount: they then
   ring in the space of the song that is playing (a room when none is).
-- **Samples.** Imported WAV files are made mono at the console's `sample_rate` (32 kHz on Dot and Dash, the rate of a GBA game's best
+- **Samples.** Imported WAV files are made mono at the console's `sample_rate` (32 kHz on Glow43 and Glow169, the rate of a GBA game's best
   samples) and may be up to `sample_max_seconds` long (8).
 - **One instrument per channel.** Every track of a song, and every channel of a sound effect, plays one instrument. In the studio
   you drag an instrument from the palette onto the channel. Change the instrument and every note on it changes.

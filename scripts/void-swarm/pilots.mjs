@@ -1,4 +1,4 @@
-// The ten pilots: 24x24 (a hero is about a tenth of the Dot's screen height), drawn at that size pixel for pixel. Eight frames each: 0-1 idle (breathing),
+// The ten pilots: 24x24 (a hero is about a tenth of Glow43's screen height), drawn at that size pixel for pixel. Eight frames each: 0-1 idle (breathing),
 // 2-7 a walk cycle. They stand three-quarters turned to the right (the game mirrors them when they walk left): a shared little spacesuit body
 // whose legs stride, arms swing against the legs and body bobs, with a different helmet and extras per pilot.
 import { R, K, W } from "../lib/canvas.mjs";

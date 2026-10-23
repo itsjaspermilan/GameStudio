@@ -12,7 +12,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 export function readFont(gs = join(root, "build/gs")) {
   const dir = mkdtempSync(join(tmpdir(), "gs-font8-"));
   mkdirSync(join(dir, "scenes"));
-  writeFileSync(join(dir, "game.lua"), 'return gs.game{ title = "font", console = "dot", start = "scenes.all" }\n');
+  writeFileSync(join(dir, "game.lua"), 'return gs.game{ title = "font", console = "glow43", start = "scenes.all" }\n');
   writeFileSync(join(dir, "scenes/all.lua"), `local All = gs.scene{}
 function All:draw_ui()
   for c = 32, 126 do local i = c - 32; gs.raw.print(string.char(c), (i % 16) * 8, (i // 16) * 8, 255, 255, 255, 255, 1) end

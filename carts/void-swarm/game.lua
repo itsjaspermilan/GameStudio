@@ -6,6 +6,6 @@
 --   lib/            data (pilots, weapons, sectors), the state of a run, saving, weapons, audio and drawing helpers, a test bot
 return gs.game{
   title = "Void Swarm",
-  console = "dot",
+  console = "glow43",
   start = "scenes.title",
 }

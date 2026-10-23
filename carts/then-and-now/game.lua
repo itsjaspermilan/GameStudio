@@ -3,6 +3,6 @@
 -- person: keep them, or let them go. Design: docs/then-and-now-design.md.
 return gs.game{
   title = "Then & Now",
-  console = "dot",            -- 320x240, the Dot handheld: the taller screen suits shafts
+  console = "glow43",            -- 320x240, the Glow43 handheld: the taller screen suits shafts
   start = "scenes.title",
 }

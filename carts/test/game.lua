@@ -1,6 +1,6 @@
 -- Test
 return gs.game{
   title = "Test",
-  console = "dot",
+  console = "glow43",
   start = "scenes.main",
 }

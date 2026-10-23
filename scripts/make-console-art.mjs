@@ -1,6 +1,6 @@
 // Writes assets/console-art/<id>.png: the picture the Knulli theme (art-book-next) shows for a console on the home carousel, a 454 x 1080 slanted panel
-// drawn in 6-pixel blocks from the console's own palette. Dot is a field of dots with a big white one, Dash a field of dashes.
-//   node scripts/make-console-art.mjs [dot|dash ...]      (default: both)
+// drawn in 6-pixel blocks from the console's own palette. Glow43 is a field of dots with a big white one, Glow169 a field of dashes.
+//   node scripts/make-console-art.mjs [glow43|glow169 ...]      (default: both)
 // The slant is the stock panel's: its left edge runs from x = 112 at the top to x = 0 at the bottom, and it is 342 pixels wide.
 import { readFileSync, writeFileSync } from "node:fs";
 import { png } from "./png.mjs";
@@ -16,7 +16,7 @@ function draw(id) {
   const base = pal[1]; // the console's dark blue-grey
   for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) cells[y][x] = ((x + y) & 1) && ((x >> 2) + (y >> 2)) % 5 === 0 ? pal[2] : base; // a faint texture
   const ramp = [6, 10, 14, 18, 22, 26, 30].map((i) => pal[i]), light = [7, 11, 15, 19, 23, 27, 31].map((i) => pal[i]);
-  if (id === "dot") {
+  if (id === "glow43") {
     for (let r = 0, cy = 7; cy < ROWS; r++, cy += 10) for (let cx = r % 2 ? 6 : 1; cx < COLS + 4; cx += 12) {
       const k = (r + (cx >> 2)) % ramp.length;
       for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (dx * dx + dy * dy <= 10) put(cx + dx, cy + dy, dx + dy < -2 ? light[k] : ramp[k]);
@@ -50,7 +50,7 @@ function draw(id) {
   return data;
 }
 
-for (const id of process.argv.slice(2).length ? process.argv.slice(2) : ["dot", "dash"]) {
+for (const id of process.argv.slice(2).length ? process.argv.slice(2) : ["glow43", "glow169"]) {
   writeFileSync(`assets/console-art/${id}.png`, png(W, H, draw(id)));
   console.log(`wrote assets/console-art/${id}.png`);
 }

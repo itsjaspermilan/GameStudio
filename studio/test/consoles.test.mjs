@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as K from "../src/consoles.js";
 
 test("the built-in consoles are valid and have the documented screens", () => {
-  assert.deepEqual(K.BUILTIN_CONSOLES.map((c) => c.id), ["dot", "dash"]);
+  assert.deepEqual(K.BUILTIN_CONSOLES.map((c) => c.id), ["glow43", "glow169"]);
   for (const c of K.BUILTIN_CONSOLES) assert.deepEqual(K.validateConsole(c), [], c.id);
   const [dot, dash] = K.BUILTIN_CONSOLES;
   assert.equal(K.screenText(dot), "320×240");
@@ -61,7 +61,7 @@ test("clampRoomSize respects the console and the 16 px floor", () => {
 
 test("duplicateConsole makes an independent copy for a custom console", () => {
   const src = K.BUILTIN_CONSOLES[0], copy = K.duplicateConsole(src, "tiny", "Tiny");
-  assert.equal(copy.based_on, "dot");
+  assert.equal(copy.based_on, "glow43");
   copy.screen.width = 240; copy.screen.height = 160;
   assert.equal(src.screen.width, 320); // the original is untouched
   assert.deepEqual(K.validateConsole(copy), []);
@@ -105,16 +105,21 @@ test("parseCustomConsoles keeps good consoles and reports the rest", () => {
   const r = K.parseCustomConsoles([good, "not json", bad, dupe, good]);
   assert.deepEqual(r.consoles.map((c) => c.id), ["tiny"]);
   assert.equal(r.problems.length, 4); // bad json, invalid, reserved id, repeated id
-  assert.deepEqual(K.allConsoles(r.consoles).map((c) => c.id), ["dot", "dash", "tiny"]);
+  assert.deepEqual(K.allConsoles(r.consoles).map((c) => c.id), ["glow43", "glow169", "tiny"]);
   assert.equal(K.allConsoles().length, 2);
 });
 
-test("projects made when Dot and Dash were called Pocket and Wide still load, shown under the new names", () => {
+test("games made when Glow43 and Glow169 were called Dot and Dash (or Pocket and Wide) still load, shown under the new names", () => {
   const old = K.consoleFor({ console: { id: "pocket", name: "Pocket", screen: { width: 320, height: 240 } } });
-  assert.equal(old.id, "dot");
-  assert.equal(old.name, "Dot");
+  assert.equal(old.id, "glow43");
+  assert.equal(old.name, "Glow43");
   assert.equal(old.screen.width, 320);
-  assert.equal(K.consoleFor({ console: { id: "wide", name: "Wide" } }).id, "dash");
+  assert.equal(K.consoleFor({ console: { id: "wide", name: "Wide" } }).id, "glow169");
+  assert.equal(K.consoleFor({ console: { id: "dot", name: "Dot" } }).name, "Glow43");
+  assert.equal(K.resolveConsole("dot", []).id, "glow43");
+  assert.equal(K.resolveConsole("dash", []).id, "glow169");
+  assert.equal(K.consoleFileOf("dot"), null, "an old built-in id is still built in: no copy in the game");
+  assert.ok(K.RESERVED_IDS.includes("dot") && K.RESERVED_IDS.includes("dash"));
   assert.equal(K.consoleFor({ console: { id: "wide", name: "My own name" } }).name, "My own name"); // a name the user chose stays
   assert.ok(K.RESERVED_IDS.includes("pocket") && K.RESERVED_IDS.includes("wide")); // no custom console may take the old ids
 });
@@ -142,6 +147,6 @@ test("a game carries the custom console it uses", () => {
   assert.equal(K.consoleFileOf("tiny_gba"), "consoles/tiny_gba.json");
   assert.equal(K.resolveConsole("tiny_gba", [tiny], null).id, "tiny_gba", "one of yours by id");
   assert.equal(K.resolveConsole("tiny_gba", [], K.consoleFileText(tiny)).screen.width, 240, "the copy in the game when it is not one of yours");
-  assert.equal(K.resolveConsole("other", [], K.consoleFileText(tiny)).id, "dot", "a copy with another id does not count");
-  assert.equal(K.resolveConsole("tiny_gba", [], "not json").id, "dot");
+  assert.equal(K.resolveConsole("other", [], K.consoleFileText(tiny)).id, "glow43", "a copy with another id does not count");
+  assert.equal(K.resolveConsole("tiny_gba", [], "not json").id, "glow43");
 });

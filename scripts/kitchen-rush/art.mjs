@@ -1,4 +1,4 @@
-// The art of Kitchen Rush, drawn in code on Dot's palette (see scripts/lib/canvas.mjs). Every sprite is { w, h, frames, draw(c, f) }.
+// The art of Kitchen Rush, drawn in code on Glow43's palette (see scripts/lib/canvas.mjs). Every sprite is { w, h, frames, draw(c, f) }.
 // Food is 16x16 and lit from the top left; each food is one colour family with its darkest shade as the outline, so it reads on
 // the light tickets and on the dark grill alike.
 import { Canvas, R } from "../lib/canvas.mjs";

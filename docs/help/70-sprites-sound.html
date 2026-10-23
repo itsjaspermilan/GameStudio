@@ -12,7 +12,7 @@ Nothing has to be listed or registered anywhere.</p>
 <ol>
 <li>In the list on the left, press <strong>+</strong> next to <em>Sprites</em> and type a name such as <code>hero</code>. The pixel editor opens with a blank 32x32 picture.
 (Not sure about the size? See <a href="help:sizes">Sprite and tile sizes</a>.)</li>
-<li>Draw. Pick the sprite's <strong>colour bank</strong> at the top left; its 15 colours and see-through are below it (Dot works like a GBA:
+<li>Draw. Pick the sprite's <strong>colour bank</strong> at the top left; its 15 colours and see-through are below it (Glow43 works like a GBA:
 each sprite uses one bank of the game's colours, see <a href="help:art">Drawing pixel art</a>). Choosing another bank moves every pixel to the same place in the new one.
 Pixels outside the bank are flagged, and <em>Snap to bank</em> fixes them. A tileset ticks the tile banks it uses instead, and each tile keeps to one of them.</li>
 <li>Add frames with <em>+ New</em> or <em>Copy</em> (copying the last frame and changing a little is the quick way to animate). The preview plays them at the speed you set.</li>
@@ -48,7 +48,7 @@ Other things every entity has for its looks: <code>alpha</code> (0 invisible to 
 <code>self:set_sprite("hero_hurt")</code> switches to another picture. In code that is not an entity, <code>gs.draw.sprite("star", x, y, { frame = 1, scale = 2 })</code> draws one.</p>
 
 <h2>Tilesets</h2>
-<p>A tileset is a sheet of small square pictures. In the tileset editor you set the tile size (8 or 16 on Dot), then draw tiles on the sheet. The tiles are numbered left to right, top to bottom.
+<p>A tileset is a sheet of small square pictures. In the tileset editor you set the tile size (8 or 16 on Glow43), then draw tiles on the sheet. The tiles are numbered left to right, top to bottom.
 They are drawn into a map with a <em>tile layer</em>: see <a href="help:rooms">Big levels</a>.</p>
 
 <h2>Sound effects</h2>
@@ -59,7 +59,7 @@ gs.sfx("jump", 0.5)     -- at half volume
 gs.sfx_stop()           -- stop all sound effects</code></pre>
 
 <h2>Music</h2>
-<p>A song has eight tracks, each with an instrument (Dot and Dash play all eight, like a GBA game's music). <em>Reverb</em> at the top makes it
+<p>A song has eight tracks, each with an instrument (Glow43 and Glow169 play all eight, like a GBA game's music). <em>Reverb</em> at the top makes it
 sound as if played in a space: <strong>Room</strong> (short and warm), <strong>Hall</strong> (long and bright) or <strong>Cave</strong> (very long and dark),
 and the slider says how much. A little goes a long way: most GBA music had some. Sound effects are dry; give one a <em>Reverb</em> amount
 (a spell, a bell, a door in a hall) and it rings in the song's space. Songs are patterns of notes in a grid; the music editor can also suggest a melody, a drum beat or a chord to start from.</p>
@@ -69,6 +69,6 @@ gs.music_stop(1.5)              -- fade out over one and a half seconds</code></
 
 <h2>Instruments and samples</h2>
 <p>Instruments are the sounds that songs and effects are played with. A set of ready-made ones (pulse waves, noise drums, a General MIDI piano and more) is always available. To change one, copy it into <em>Instruments</em> and edit the copy.
-You can also import a short <code>.wav</code> recording as a sample (up to 8 seconds on Dot; it is made mono at 32 kHz, the best a GBA game used) and use it as an instrument.</p>
+You can also import a short <code>.wav</code> recording as a sample (up to 8 seconds on Glow43; it is made mono at 32 kHz, the best a GBA game used) and use it as an instrument.</p>
 <div class="note"><strong>Missing sounds are errors on purpose.</strong> <code>gs.sfx("jmup")</code> stops with "unknown sound effect 'jmup'" instead of staying silent, and the editor underlines it before you even run. Typos should not hide.</div>
 <p>Next: <a href="help:limits">Working inside the handheld's limits</a>.</p>

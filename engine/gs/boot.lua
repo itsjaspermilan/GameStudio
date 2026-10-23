@@ -80,15 +80,18 @@ local SPECS = require("gs.console_specs")
 local console = {}
 -- A console is built in (dot, dash) or carried by the game as consoles/<id>.json (the studio writes that copy when a game uses one of
 -- your own consoles), so a game runs the same on any machine.
+-- Glow43 and Glow169 were called Dot and Dash: games made then still say so in game.lua
+local RENAMED = { dot = "glow43", dash = "glow169" }
 local function load_console(c)
   if type(c) == "string" then
+    c = RENAMED[c] or c
     local text = SPECS[c] or raw.load("consoles/" .. c .. ".json")
-    if not text then error("game.lua: console = '" .. c .. "' is not a console (built in: dot, dash; your own needs consoles/" .. c .. ".json in the game)", 0) end
+    if not text then error("game.lua: console = '" .. c .. "' is not a console (built in: glow43, glow169; your own needs consoles/" .. c .. ".json in the game)", 0) end
     local ok, spec = pcall(json.decode, text)
     if not ok or type(spec) ~= "table" then error("consoles/" .. c .. ".json is not a console spec: " .. tostring(spec), 0) end
     return spec
   end
-  return c or json.decode(SPECS.dot)
+  return c or json.decode(SPECS.glow43)
 end
 
 local function fail_message(text) return tostring(text) end
