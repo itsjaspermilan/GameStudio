@@ -8,8 +8,8 @@ local art = require "lib.art"
 local DIFFS, OPPONENTS, STAGE_DEF = data.DIFFS, data.OPPONENTS, data.STAGE_DEF
 local min = math.min
 
-local TITLES = { endless = "ENDLESS", time = "TIME ATTACK", vs = "VS CPU", stage = "STAGE CLEAR" }
-local FADE = { fade = 0.2 }
+local TITLES = { endless = "Endless", time = "Time Attack", vs = "Vs CPU", stage = "Stage Clear" }
+local FADE = { fade = 0.2, look = "mosaic" }
 local SKIES = { endless = 1, time = 4, vs = 5, stage = 2 }
 
 local function numbers(a, b) local t = {}; for i = a, b do t[#t + 1] = tostring(i) end; return t end
@@ -23,10 +23,10 @@ function Setup:enter(kind)
   ui.sky(SKIES[kind])
   ui.music("msc_menu")
   local second
-  if kind == "endless" or kind == "time" then second = { name = "START LEVEL", labels = numbers(1, 10), i = 4 }
-  elseif kind == "vs" then second = { name = "RIVAL", labels = {}, i = 1 }
-  else second = { name = "STAGE", labels = {}, i = save.data.stage } end
-  self.rows = { { name = "DIFFICULTY", labels = diff_names(), i = 2 }, second }
+  if kind == "endless" or kind == "time" then second = { name = "Start level", labels = numbers(1, 10), i = 4 }
+  elseif kind == "vs" then second = { name = "Rival", labels = {}, i = 1 }
+  else second = { name = "Stage", labels = {}, i = save.data.stage } end
+  self.rows = { { name = "Difficulty", labels = diff_names(), i = 2 }, second }
   self:refresh()
 end
 
@@ -54,19 +54,19 @@ function Setup:show()
     self["row" .. i .. "_left"].visible, self["row" .. i .. "_right"].visible = on, on
   end
   self.start.tile = self.cur == 3 and ui.UI.selected or ui.UI.go
-  self.start_text.font = self.cur == 3 and ui.INK or ui.WHITE
+  ui.ink(self.start_text, self.cur == 3 and ui.INK or ui.WHITE)
   local diff = DIFFS[self.rows[1].i]
   local lines
   self.rival.visible = kind == "vs"
   if kind == "vs" then
     local o = OPPONENTS[self.rows[2].i]
     self.rival.sprite = art.CHAR_SPRITES[o.char]
-    lines = { "RIVAL " .. self.rows[2].i .. " OF " .. #OPPONENTS, o.name, '"' .. o.hi .. '"', "" }
+    lines = { "Rival " .. self.rows[2].i .. " of " .. #OPPONENTS, o.name, '"' .. o.hi .. '"', "" }
   elseif kind == "stage" then
     local def = STAGE_DEF(self.rows[2].i)
-    lines = { "BREAK EVERY", #def.rows .. "+ ROWS OF GARBAGE", def.rain > 0 and "MORE KEEPS FALLING" or "", "" }
+    lines = { "Break every block:", #def.rows .. "+ rows of garbage", def.rain > 0 and "and more keeps falling" or "", "" }
   else
-    lines = { diff.colors .. " KINDS OF PANEL", "BEST " .. ui.commas(save.get(kind, self.rows[1].i)), kind == "time" and "TWO MINUTES" or "AS LONG AS YOU CAN", "" }
+    lines = { diff.colors .. " kinds of panel", "Best " .. ui.commas(save.get(kind, self.rows[1].i)), kind == "time" and "Two minutes" or "As long as you can", "" }
   end
   local cx = kind == "vs" and 192 or 160
   for i = 1, 4 do self["info" .. i].text, self["info" .. i].x = lines[i], cx end

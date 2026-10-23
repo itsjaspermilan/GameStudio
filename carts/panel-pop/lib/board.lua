@@ -40,8 +40,8 @@ local function fx_draw(b, ox, oy)
     if f.kind == "spark" then
       frame("spr_spark", 3 - min(3, f.life // 6), ox + f.x - 4, oy + f.y - 4)
     elseif f.life > 12 or f.life % 4 < 2 then
-      local w = #f.s * 8
-      text(f.s, max(ox, min(ox + 96 - w, ox + f.x - w / 2)), oy + f.y, f.font)
+      local w = gs.draw.text_width(f.s, 1, "bold_small")
+      text(f.s, max(ox, min(ox + 96 - w, ox + f.x - w // 2)), oy + f.y, f.font, nil, nil, "bold_small")
     end
   end
 end
@@ -125,13 +125,13 @@ function M.draw(b, x, y, o)
   -- garbage on its way, shown on the top plate as little blocks
   local px = x
   for i, d in ipairs(b.pending) do
-    if i > 5 then text("+", px, y - 17, ui.WHITE); break end
+    if i > 5 then text("+", px, y - 16, ui.WHITE, nil, nil, "bold_small"); break end
     local cw = max(d.w * 2, 10)
     rect(px, y - 18, cw, 11, d.metal and 1 or 28)
     rect(px + 1, y - 17, cw - 2, 9, d.metal and 27 or 30)
-    text(tostring(d.h > 1 and d.h or d.w), px + cw / 2 - 4, y - 17, ui.INK)
+    text(tostring(d.h > 1 and d.h or d.w), px + cw // 2, y - 16, ui.INK, "center", nil, "bold_small")
     px = px + cw + 3
   end
-  if b.danger and not b.lost and (tick // 10) % 2 == 0 then text("!", x + 88, y - 17, ui.GOLD) end
+  if b.danger and not b.lost and (tick // 10) % 2 == 0 then text("!", x + 88, y - 16, ui.GOLD, nil, nil, "bold_small") end
 end
 return M

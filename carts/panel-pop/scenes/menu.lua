@@ -4,7 +4,7 @@ local ui = require "lib.ui"
 local floor = math.floor
 local frame = ui.frame
 
-local FADE = { fade = 0.2 }
+local FADE = { fade = 0.2, look = "mosaic" }
 local ITEMS = {
   { go = "endless", desc = "Keep the stack down as long as you can. It keeps speeding up." },
   { go = "time", desc = "Two minutes on the clock. Score as much as you can." },
@@ -27,7 +27,7 @@ end
 function Menu:show()
   for i = 1, #ITEMS do ui.mark(self["row" .. i], i == cur) end
   self.arrow.y = self["row" .. cur].y + 11
-  ui.lines(self, "desc", ui.wrap(ITEMS[cur].desc:upper(), 13))
+  ui.lines(self, "desc", gs.draw.wrap(ITEMS[cur].desc, 106, 1, "round_tall"))
 end
 
 function Menu:update(dt)
@@ -60,7 +60,7 @@ function Menu:draw()
     if go == "time" then ui.text(ui.fmt_time(120 - (t // 60) % 120), 247, 108, ui.CORAL, "center") end
   elseif go == "vs" then
     ui.spr("spr_char_pip", (t // 40) % 2 == 0 and 0 or 2, 216, 78)
-    ui.text("VS", 247, 72, ui.CORAL, "center")
+    ui.text("VS", 247, 70, ui.CORAL, "center", 1, "bold_tall")
     ui.spr("spr_char_kit", (t // 40) % 2, 278, 78)
   elseif go == "stage" then
     for c = 0, 4 do frame("spr_garbage", 9 + (c == 0 and 0 or c == 4 and 2 or 1), 207 + c * 16, 56) end
@@ -73,7 +73,7 @@ function Menu:draw()
     frame("spr_ico_star", (t // 20) % 2, 280, 50)
   elseif go == "howto" then
     ui.spr("spr_char_pip", 0, 230, 80, 2)
-    ui.text("?", 280, 54 + floor(math.sin(t / 10) * 2), ui.CORAL, "left", 2)
+    ui.text("?", 280, 50 + floor(math.sin(t / 10) * 2), ui.CORAL, "left", 2, "bold_tall")
   else
     ui.spr("spr_char_pip", 2, 247, 84, 2)
     for i = 0, 2 do frame("spr_ico_star", (t // 20 + i) % 2, 214 + i * 30, 44) end

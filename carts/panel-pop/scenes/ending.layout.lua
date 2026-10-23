@@ -15,9 +15,9 @@ return {
     { 28, 18, 264, 48, tileset = "ts_ui", tile = 0, name = "card" },
   },
   texts = {
-    { "CONGRATULATIONS!", 160, 26, name = "title", size = 2, align = "center", font = "spr_font_r" },
-    { "YOU BEAT ALL EIGHT RIVALS", 160, 50, name = "subtitle", align = "center", font = "spr_font" },
-    { "PRESS A", 160, 214, name = "prompt", align = "center", font = "spr_font_w" },
+    { "Congratulations!", 160, 24, name = "title", color = "#ea5a4b", size = 2, align = "center", font = "bold_tall", shadow = "#ffd6cc" },
+    { "You beat all eight rivals!", 160, 49, name = "subtitle", color = "#14234f", align = "center", font = "round_tall", shadow = "#a8d4ff" },
+    { "Press A", 160, 213, name = "prompt", color = "#ffffff", align = "center", font = "round_tall", shadow = "#14234f" },
   },
   pictures = {
     { "spr_char_pip", 160, 112, name = "pip", scale = 2 },

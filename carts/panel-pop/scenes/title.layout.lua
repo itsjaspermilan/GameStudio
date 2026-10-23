@@ -15,8 +15,8 @@ return {
     { 92, 198, 136, 22, tileset = "ts_ui", tile = 6, name = "prompt_bar" },
   },
   texts = {
-    { "PRESS START", 160, 205, name = "prompt", align = "center", font = "spr_font_w" },
-    { "SWAP . MATCH . POP", 160, 228, name = "tagline", align = "center", font = "spr_font" },
+    { "Press Start", 160, 204, name = "prompt", color = "#ffffff", align = "center", font = "round_tall", shadow = "#14234f" },
+    { "Swap, match and pop!", 160, 227, name = "tagline", color = "#14234f", align = "center", font = "round_tall", shadow = "#a8d4ff" },
   },
   pictures = {
     { "spr_logo", 92, 50, name = "l1", frame = 0 },

@@ -6,7 +6,7 @@ local ui = require "lib.ui"
 local save = require "lib.save"
 local floor, sin = math.floor, math.sin
 
-local FADE = { fade = 0.2 }
+local FADE = { fade = 0.2, look = "mosaic" }
 
 local Title = gs.scene{}
 
@@ -39,7 +39,7 @@ function Title:place()
     p.x = (i * 41 + floor(sin(t / 60 + i) * 10)) % 340 - 10
     p.y = 260 - (t * (0.3 + (i % 3) * 0.1) + i * 37) % 290
   end
-  self.prompt.font = (t // 30) % 2 == 0 and ui.WHITE or ui.GOLD
+  ui.ink(self.prompt, (t // 30) % 2 == 0 and ui.WHITE or ui.GOLD)
   ui.drift(t)
 end
 

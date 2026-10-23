@@ -7,7 +7,7 @@ local PUZZLES = require "lib.puzzles"
 local BOARD = require "lib.board"
 local max = math.max
 
-local FADE = { fade = 0.2 }
+local FADE = { fade = 0.2, look = "mosaic" }
 
 local Puzzles = gs.scene{}
 local cur = 1 -- kept between visits
@@ -15,7 +15,7 @@ local cur = 1 -- kept between visits
 function Puzzles:enter()
   self.tick = 0
   self.done = save.solved()
-  self.solved.text = save.solved_count() .. "/" .. #PUZZLES .. " SOLVED"
+  self.solved.text = save.solved_count() .. "/" .. #PUZZLES .. " solved"
   ui.music("msc_menu")
   self:show()
 end
@@ -35,7 +35,7 @@ function Puzzles:show()
     ui.mark(cell, i == cur, self.done[i] and ui.UI.mint or ui.UI.window)
   end
   local P = PUZZLES[cur]
-  self.swaps.text = P.moves .. " SWAP" .. (P.moves > 1 and "S" or "")
+  self.swaps.text = P.moves .. " swap" .. (P.moves > 1 and "s" or "")
 end
 
 function Puzzles:update(dt)

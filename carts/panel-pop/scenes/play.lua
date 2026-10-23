@@ -16,8 +16,8 @@ local commas, fmt_time = ui.commas, ui.fmt_time
 local BOT = os.getenv("GS_BOT") ~= nil
 local FF = tonumber(os.getenv("GS_FF") or "1") or 1
 local STATS = os.getenv("GS_STATS") ~= nil
-local FADE = { fade = 0.2 }
-local NAMES = { endless = "ENDLESS", time = "TIME ATTACK", stage = "STAGE CLEAR", puzzle = "PUZZLE" }
+local FADE = { fade = 0.2, look = "mosaic" }
+local NAMES = { endless = "Endless", time = "Time Attack", stage = "Stage Clear", puzzle = "Puzzle" }
 
 local Play = gs.scene{}
 
@@ -50,24 +50,24 @@ function Play:show()
       self[p .. "_score"].text = commas(ps.b.score)
       self[p .. "_shout"].text = ps.shout_t > 0 and ps.shout or ""
     end
-    self.level.text = "SPEED " .. G.ps[1].b.speed
+    self.level.text = "Speed " .. G.ps[1].b.speed
   else
     local ps = G.ps[1]
     local b, m, o = ps.b, G.mode, G.o
     local rows
-    if m == "endless" then rows = { "SCORE", commas(b.score), "LEVEL", b.speed, "TIME", fmt_time(G.secs / 60), "BEST", commas(save.get("endless", o.diff or 2)) }
-    elseif m == "time" then rows = { "TIME LEFT", fmt_time(max(0, (G.limit - G.secs) / 60)), "SCORE", commas(b.score), "LEVEL", b.speed, "BEST", commas(save.get("time", o.diff or 2)) }
-    elseif m == "stage" then rows = { "STAGE", o.stage .. "/" .. STAGE_COUNT, "BLOCKS", #b.garbs + #b.pending, "SCORE", commas(b.score), "TIME", fmt_time(G.secs / 60) }
-    else rows = { "PUZZLE", o.puzzle, "SWAPS LEFT", max(0, G.puz.moves - b.moves), "TIME", fmt_time(G.secs / 60), "", "" } end
+    if m == "endless" then rows = { "Score", commas(b.score), "Level", b.speed, "Time", fmt_time(G.secs / 60), "Best", commas(save.get("endless", o.diff or 2)) }
+    elseif m == "time" then rows = { "Time left", fmt_time(max(0, (G.limit - G.secs) / 60)), "Score", commas(b.score), "Level", b.speed, "Best", commas(save.get("time", o.diff or 2)) }
+    elseif m == "stage" then rows = { "Stage", o.stage .. "/" .. STAGE_COUNT, "Blocks", #b.garbs + #b.pending, "Score", commas(b.score), "Time", fmt_time(G.secs / 60) }
+    else rows = { "Puzzle", o.puzzle, "Swaps left", max(0, G.puz.moves - b.moves), "Time", fmt_time(G.secs / 60), "", "" } end
     for i = 1, 4 do self["lab" .. i].text, self["val" .. i].text = rows[i * 2 - 1], tostring(rows[i * 2]) end
     self.face.frame = PG.face_frame(ps)
-    -- beside Pip: the last big thing ("CHAIN" over "x3"), else its name
-    local word, n = "PIP", ""
-    if ps.shout_t > 0 then word, n = ps.shout:match("^(%S+) (.*)$") elseif G.speed_t and G.speed_t > 0 then word, n = "SPEED", "UP!" end
+    -- beside Pip: the last big thing ("Chain" over "x3"), else its name
+    local word, n = "Pip", ""
+    if ps.shout_t > 0 then word, n = ps.shout:match("^(%S+) (.*)$") elseif G.speed_t and G.speed_t > 0 then word, n = "Speed", "up!" end
     self.shout.text, self.shout_n.text = word, n
     local next_up = PG.next_speedup()
-    rows = { "CHAIN", b.best_chain > 1 and "X" .. b.best_chain or "-", "COMBO", b.best_combo >= 4 and b.best_combo or "-", "POPPED", b.cleared,
-      next_up and "FASTER" or "", next_up and fmt_time(next_up) or "" }
+    rows = { "Chain", b.best_chain > 1 and "x" .. b.best_chain or "-", "Combo", b.best_combo >= 4 and b.best_combo or "-", "Popped", b.cleared,
+      next_up and "Faster" or "", next_up and fmt_time(next_up) or "" }
     for i = 1, 4 do self["best" .. i].text, self["best" .. i .. "_v"].text = rows[i * 2 - 1], tostring(rows[i * 2]) end
     self.danger.visible = b.danger and (G.tick // 10) % 2 == 0
   end

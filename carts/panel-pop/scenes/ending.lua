@@ -2,7 +2,7 @@
 local ui = require "lib.ui"
 local floor, sin = math.floor, math.sin
 
-local FADE = { fade = 0.3 }
+local FADE = { fade = 0.3, look = "mosaic" }
 
 local Ending = gs.scene{}
 

@@ -7,9 +7,13 @@ local ART, UI = art.ART, art.UI
 local floor = math.floor
 
 local M = { SW = 320, SH = 240, UI = UI }
--- the fonts (sprites, a frame a letter): dark and coral on the white windows, white and gold on
--- colour and on the dark board wells
-M.INK, M.CORAL, M.WHITE, M.GOLD = "spr_font", "spr_font_r", "spr_font_w", "spr_font_y"
+-- the inks, in the built-in letters with a drop shadow: dark and coral on the white windows, white
+-- and gold on colour and on the dark board wells. A layout text takes one with ui.ink(text, ink).
+M.INK = { color = "#14234f", shadow = "#a8d4ff" }
+M.CORAL = { color = "#ea5a4b", shadow = "#ffd6cc" }
+M.WHITE = { color = "#ffffff", shadow = "#14234f" }
+M.GOLD = { color = "#f5d94a", shadow = "#14234f" }
+function M.ink(text, ink) text.color, text.shadow = ink.color, ink.shadow end
 
 -- ---------------------------------------------------------------- drawing
 local imgs = {}
@@ -26,12 +30,13 @@ function M.spr(name, f, x, y, sc, flip, alpha)
   local a = ART[name]
   M.frame(name, f, x - a.w * 0.5 * (sc or 1), y - a.h * 0.5 * (sc or 1), sc, flip, alpha)
 end
--- text in one of the fonts; align is "left" (default), "center" or "right"
-function M.text(s, x, y, font, align, sc)
-  s = tostring(s)
-  local w = #s * 8 * (sc or 1)
-  if align == "center" then x = x - w / 2 elseif align == "right" then x = x - w end
-  gs.draw.font_text(font or M.INK, s, floor(x), floor(y), sc)
+-- text in an ink; align is "left" (default), "center" or "right"; font a built-in one (round_tall
+-- when left out: bold_small for the numbers on the board)
+function M.text(s, x, y, ink, align, sc, font)
+  s, ink, font = tostring(s), ink or M.INK, font or "round_tall"
+  local w = gs.draw.text_width(s, sc, font)
+  if align == "center" then x = x - w // 2 elseif align == "right" then x = x - w end
+  gs.draw.text(s, floor(x), floor(y), ink.color, sc, { font = font, shadow = ink.shadow })
 end
 
 -- ---------------------------------------------------------------- the sky: every layout has a

@@ -63,7 +63,7 @@ function PG.start(mode, o)
   G.speedup = SPEEDUP[mode] and SPEEDUP[mode] * 60
   if mode == "endless" or mode == "time" then
     local b = PL.new({ colors = diff.colors, speed = o.speed or diff.speed })
-    G.ps[1] = new_player({ b = b, human = true, x = 112, y = 24, char = 1, name = "PIP" })
+    G.ps[1] = new_player({ b = b, human = true, x = 112, y = 24, char = 1, name = "Pip" })
     G.limit = mode == "time" and 120 * 60 or nil
     G.base_music = mode == "time" and "msc_time" or "msc_endless"
   elseif mode == "vs" then
@@ -74,7 +74,7 @@ function PG.start(mode, o)
     local b2 = PL.new({ colors = diff.colors, speed = sp })
     local scale = 1 - diff.cpu * 0.6
     local ai = PLAI.new({ gap = max(2, floor(opp.gap * scale)), cool = max(2, floor(opp.cool * scale)), think = max(6, floor(opp.think * scale)), err = max(0.01, opp.err * scale), chains = opp.chains, raise = opp.raise })
-    G.ps[1] = new_player({ b = b1, human = true, x = 16, y = 24, char = 1, name = "PIP", other = 2 })
+    G.ps[1] = new_player({ b = b1, human = true, x = 16, y = 24, char = 1, name = "Pip", other = 2 })
     G.ps[2] = new_player({ b = b2, ai = ai, x = 208, y = 24, char = opp.char, name = opp.name, other = 1 })
     G.sky = opp.sky
     G.base_music = "msc_vs"
@@ -84,14 +84,14 @@ function PG.start(mode, o)
     local sp = max(1, def.speed + diff.cpu * 4)
     local b = PL.new({ colors = def.colors, speed = floor(sp), height = 3 })
     place_stage(b, def)
-    G.ps[1] = new_player({ b = b, human = true, x = 112, y = 24, char = 1, name = "PIP" })
+    G.ps[1] = new_player({ b = b, human = true, x = 112, y = 24, char = 1, name = "Pip" })
     G.sky = def.sky
     G.rain_t = 0
     G.base_music = "msc_stage"
   elseif mode == "puzzle" then
     local P = PUZZLES[o.puzzle]
     G.puz = P
-    G.ps[1] = new_player({ b = PL.new({ puzzle = P.rows, colors = 6 }), human = true, x = 112, y = 24, char = 1, name = "PIP" })
+    G.ps[1] = new_player({ b = PL.new({ puzzle = P.rows, colors = 6 }), human = true, x = 112, y = 24, char = 1, name = "Pip" })
     ui.music("msc_puzzle")
   end
   if G.base_music then ui.music(G.base_music) end
@@ -142,8 +142,8 @@ local function events(ps)
         if e.chain >= 2 then sfx("chain" .. min(e.chain, 5), 1) elseif e.n >= 4 then sfx("combo", 1) else sfx("clear", 1) end
       end
       local cx, cy = (e.c - 1) * 16 + 8, (e.r - TOP) * 16 - sy
-      if e.chain >= 2 then BOARD.fx_text(b, cx, cy - 6, "CHAIN X" .. e.chain, ui.GOLD, 70); shout(ps, "CHAIN X" .. e.chain); face(ps, "happy", 80) end
-      if e.n >= 4 then BOARD.fx_text(b, cx, cy + 6, "COMBO " .. e.n, ui.GOLD, 70); shout(ps, "COMBO " .. e.n); face(ps, "happy", 80) end
+      if e.chain >= 2 then BOARD.fx_text(b, cx, cy - 6, "Chain x" .. e.chain, ui.GOLD, 70); shout(ps, "Chain x" .. e.chain); face(ps, "happy", 80) end
+      if e.n >= 4 then BOARD.fx_text(b, cx, cy + 6, "Combo " .. e.n, ui.GOLD, 70); shout(ps, "Combo " .. e.n); face(ps, "happy", 80) end
       BOARD.fx_text(b, cx, cy - 16, "+" .. e.gain, ui.WHITE, 40)
       if other and e.n >= 4 then for _, w in ipairs(PL.combo_blocks(e.n)) do send_garbage(ps, other, w, 1, false) end end
     elseif t == "chain_end" then
@@ -238,7 +238,7 @@ local function run()
   end
 end
 
-PG.PAUSE_ITEMS = { "RESUME", "RESTART", "QUIT" }
+PG.PAUSE_ITEMS = { "Resume", "Restart", "Quit" }
 function PG.step()
   if not G then return nil end
   G.tick = G.tick + 1
@@ -308,18 +308,18 @@ end
 -- the big 3, 2, 1, GO! (nil once the game runs)
 function PG.countdown()
   if G.phase ~= "countdown" then return nil end
-  if G.t <= 10 then return "GO!" end
+  if G.t <= 10 then return "Go!" end
   return G.t > 60 and tostring(G.t // 60) or "1"
 end
 
 -- the words shown when it ends: the banner and the font it is written in
 function PG.banner()
   local r, m = G.result, G.mode
-  if m == "time" then return "TIME UP!", ui.GOLD end
-  if m == "vs" then return r.win and "YOU WIN!" or "YOU LOSE", r.win and ui.GOLD or ui.WHITE end
-  if m == "stage" then return r.win and "STAGE CLEAR!" or "GAME OVER", r.win and ui.GOLD or ui.WHITE end
-  if m == "puzzle" then return r.win and "SOLVED!" or "OUT OF SWAPS", r.win and ui.GOLD or ui.WHITE end
-  return "GAME OVER", ui.WHITE
+  if m == "time" then return "Time up!", ui.GOLD end
+  if m == "vs" then return r.win and "You win!" or "You lose", r.win and ui.GOLD or ui.WHITE end
+  if m == "stage" then return r.win and "Stage clear!" or "Game over", r.win and ui.GOLD or ui.WHITE end
+  if m == "puzzle" then return r.win and "Solved!" or "Out of swaps", r.win and ui.GOLD or ui.WHITE end
+  return "Game over", ui.WHITE
 end
 
 -- used by the play scene, the tests and screenshots
