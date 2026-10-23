@@ -1,5 +1,6 @@
--- A door hatch in a room's left or right wall (x, y: the bottom-left of its opening). It slides open as Wren comes near. Walking out
--- through it takes Wren to the room and door it names (scenes/room.lua watches the room's edges).
+-- A door hatch in a room's left or right wall (x, y: the bottom-left of its opening). It slides
+-- open as Wren comes near. Walking out through it takes Wren to the room and door it names
+-- (scenes/room.lua watches the room's edges).
 local Door = gs.entity{
   sprite = "spr_door",
   depth = 50,

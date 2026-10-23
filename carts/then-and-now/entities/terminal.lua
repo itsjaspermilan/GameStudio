@@ -1,4 +1,5 @@
--- A terminal: stand at it and press Up to save. Saving heals, refills missiles and lets Static settle.
+-- A terminal: stand at it and press Up to save. Saving heals, refills missiles and lets Static
+-- settle.
 local state = require "lib.state"
 local lens = require "lib.lens"
 

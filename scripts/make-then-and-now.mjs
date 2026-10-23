@@ -14,6 +14,7 @@ import { tileset, TILE } from "./then-and-now/tiles.mjs";
 import { buildRoom, layoutLua, worldLua } from "./then-and-now/rooms.mjs";
 import { ROOMS as HANGAR } from "./then-and-now/hangar.mjs";
 import { SFX, allMusic } from "./then-and-now/audio.mjs";
+import { tidyLua } from "../studio/src/search-core.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = join(root, "carts", "then-and-now");
@@ -21,6 +22,9 @@ for (const d of ["sprites", "tilesets", "sfx", "music", "scenes/rooms", "lib"]) 
 for (const sub of ["sprites", "tilesets", "sfx", "music", "scenes/rooms"]) for (const f of readdirSync(join(dir, sub))) rmSync(join(dir, sub, f));
 
 const json = (path, v) => writeFileSync(join(dir, path), JSON.stringify(v, null, 1) + "\n");
+// The Lua it writes goes through the studio's Tidy, so the files are already formatted (a test checks every cart is) and
+// opening one in the studio and pressing Tidy changes nothing.
+const lua = (path, text) => writeFileSync(join(dir, path), tidyLua(text));
 let sprites = 0;
 function sprite(name, def, origin) {
   const fr = [];
@@ -75,10 +79,10 @@ for (const def of rooms) {
     const back = other.doors?.[d.at];
     if (!back || back[0] !== def.id || back[1] !== id) throw new Error(`${def.id}.${id} -> ${d.to}.${d.at} does not lead back`);
   }
-  writeFileSync(join(dir, "scenes", "rooms", `${def.id}.layout.lua`), layoutLua(def, built));
+  lua(`scenes/rooms/${def.id}.layout.lua`, layoutLua(def, built));
   world.push(worldLua(def, built));
 }
-writeFileSync(join(dir, "lib", "world.lua"), [
+lua("lib/world.lua", [
   "-- Written by scripts/make-then-and-now.mjs: every room (its map place in screens, doors, seals, music) and the biomes.",
   "local M = {}",
   "M.rooms = {",
@@ -91,7 +95,7 @@ writeFileSync(join(dir, "lib", "world.lua"), [
   "",
 ].join("\n"));
 
-writeFileSync(join(dir, "lib", "art.lua"), [
+lua("lib/art.lua", [
   "-- Written by scripts/make-then-and-now.mjs: Wren's frames in spr_hero (with each frame's body bob) and tile numbers.",
   "local M = {}",
   "M.HERO_DY = { " + A.HERO_DY.join(", ") + " }   -- how far each frame's body sits lower than standing (index frame + 1)",

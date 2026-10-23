@@ -1,4 +1,5 @@
--- Everything the player has found and decided, shared by every room and saved at terminals as one table (gs.save key "game").
+-- Everything the player has found and decided, shared by every room and saved at terminals as one
+-- table (gs.save key "game").
 --   has:      abilities (lens, dash, wall, charge, missile, slip, drift)
 --   traits:   a kept crew member's passive (ossie = afterburner, ...)
 --   crew:     each crew member's fate: nil (not met), "kept" or "released"
@@ -6,7 +7,8 @@
 --   items:    pickups taken, by id, so they never come back
 --   seen:     rooms visited, for the map
 --   notes:    Wren notes found, by number
--- `room` and `door` say where to start: the room of the last terminal, or a door when walking between rooms.
+-- `room` and `door` say where to start: the room of the last terminal, or a door when walking
+-- between rooms.
 local M = {}
 
 local function fresh()
@@ -39,7 +41,8 @@ function M.save(room)
   gs.save.set("game", copy(d))
 end
 
--- Load the last save (on Continue, or after dying). Fields added to the game later get their fresh values.
+-- Load the last save (on Continue, or after dying). Fields added to the game later get their fresh
+-- values.
 function M.load()
   local saved = gs.save.get("game")
   M.data = fresh()

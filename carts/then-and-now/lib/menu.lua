@@ -1,4 +1,5 @@
--- The pause menu (Start): four pages, Left and Right (or L and R) to change page, Start or B to carry on.
+-- The pause menu (Start): four pages, Left and Right (or L and R) to change page, Start or B to
+-- carry on.
 --   MAP    the rooms seen so far       NOTES  the earlier Wrens' notes (Up and Down to choose)
 --   CREW   who Wren has met and what became of them       HELP   the buttons
 local state = require "lib.state"

@@ -1,5 +1,7 @@
--- The story of the Hangar Ring: what happens when Wren enters a room, uses something, or beats the boss.
--- Every conversation runs in talk.run (a script that can wait); flags in state.data.flags remember what has happened.
+-- The story of the Hangar Ring: what happens when Wren enters a room, uses something, or beats the
+-- boss.
+-- Every conversation runs in talk.run (a script that can wait); flags in state.data.flags remember
+-- what has happened.
 -- Lines are short: the box holds four lines of about thirty letters.
 local state = require "lib.state"
 local talk = require "lib.talk"

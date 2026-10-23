@@ -1,4 +1,5 @@
--- The title: THEN & NOW flickering between the two looks, the station drifting behind, Continue (with a save) and New game.
+-- The title: THEN & NOW flickering between the two looks, the station drifting behind, Continue
+-- (with a save) and New game.
 local state = require "lib.state"
 local debug = require "lib.debug"
 

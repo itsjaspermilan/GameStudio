@@ -1,5 +1,5 @@
--- A Hollow (Then): the shape of a Wren who did not make it. Only comes when Static is high, drifts through walls toward Wren,
--- and fades away again when Static falls.
+-- A Hollow (Then): the shape of a Wren who did not make it. Only comes when Static is high, drifts
+-- through walls toward Wren, and fades away again when Static falls.
 local Enemy = require "entities.enemy"
 local lens = require "lib.lens"
 

@@ -1,4 +1,5 @@
--- A loader drone (Now): rolls back and forth on its floor, turning at walls and ledges, and charges when it sees Wren on its level.
+-- A loader drone (Now): rolls back and forth on its floor, turning at walls and ledges, and charges
+-- when it sees Wren on its level.
 local Enemy = require "entities.enemy"
 local tiles = require "lib.tiles"
 

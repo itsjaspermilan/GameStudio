@@ -1,5 +1,6 @@
--- Conversations with portraits. The engine's gs.say / gs.ask type the words, page them and pick answers; this gives them a look:
--- a box along the bottom and a 48x48 portrait in a frame to its left. Use inside gs.go (scripts that can wait):
+-- Conversations with portraits. The engine's gs.say / gs.ask type the words, page them and pick
+-- answers; this gives them a look: a box along the bottom and a 48x48 portrait in a frame to its
+-- left. Use inside gs.go (scripts that can wait):
 --   talk.say("ossie", "Tower, this is Okafor.", 1)      -- who, words, the portrait's frame (expression)
 --   local pick = talk.ask("wren", "What now?", { "KEEP HIM", "LET HIM GO" })
 -- Portrait sprites are spr_por_<who>; a speaker with none (a sign, Wren's thoughts) shows no frame.
@@ -16,7 +17,8 @@ M.who = WHO
 
 local current = { who = nil, frame = 0 }
 
--- The look, as the four named things gs.say reads from the scene (see engine/gs/talk.lua). Called by each room scene's enter.
+-- The look, as the four named things gs.say reads from the scene (see engine/gs/talk.lua). Called
+-- by each room scene's enter.
 function M.style(scene)
   scene.dialogue_box = {
     x = 58, y = 162, w = 258, h = 74,

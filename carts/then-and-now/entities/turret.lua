@@ -1,4 +1,5 @@
--- A rivet turret (Now): hangs from the ceiling and fires a spread of three bolts at Wren when Wren is below and near.
+-- A rivet turret (Now): hangs from the ceiling and fires a spread of three bolts at Wren when Wren
+-- is below and near.
 local Enemy = require "entities.enemy"
 
 local Turret = gs.entity(Enemy, {

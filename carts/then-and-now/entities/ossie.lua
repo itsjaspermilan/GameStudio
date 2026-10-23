@@ -1,4 +1,5 @@
--- Ossie Okafor's echo. In the tower he only shows in Then; once released he waits in the Docking Bay, there in both eras.
+-- Ossie Okafor's echo. In the tower he only shows in Then; once released he waits in the Docking
+-- Bay, there in both eras.
 local Usable = require "entities.usable"
 local state = require "lib.state"
 
@@ -8,7 +9,8 @@ local Ossie = gs.entity(Usable, { sprite = "spr_ossie", what = "ossie", era = "t
 function Ossie:create()
   local d = state.data
   local fate = d.crew.ossie
-  -- the tower echo leaves once the launch has been cleared; the bay version only exists after he is let go
+  -- the tower echo leaves once the launch has been cleared; the bay version only exists after he is
+  -- let go
   if self.place == "scene" then return end -- placed by a cutscene, which looks after him
   if self.place == "dock" then
     if fate ~= "released" then self:destroy() return end

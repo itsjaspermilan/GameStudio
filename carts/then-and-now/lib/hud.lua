@@ -1,5 +1,6 @@
--- The HUD: hearts, the Static bar, which era the Lens shows, the boss's health, a message line, and what high Static does to the
--- screen (Then's scan lines, noise, whispers, hearts that lie). Also the map, used by the quick map (Select) and the pause menu.
+-- The HUD: hearts, the Static bar, which era the Lens shows, the boss's health, a message line, and
+-- what high Static does to the screen (Then's scan lines, noise, whispers, hearts that lie). Also
+-- the map, used by the quick map (Select) and the pause menu.
 local state = require "lib.state"
 local lens = require "lib.lens"
 local world = require "lib.world"
@@ -82,7 +83,8 @@ function M.draw(scene)
   end
 end
 
--- The map of the biome: every room seen as a box (8x6 pixels a screen), the current one blinking, terminals marked.
+-- The map of the biome: every room seen as a box (8x6 pixels a screen), the current one blinking,
+-- terminals marked.
 function M.map(x0, y0, here, t, cell_w, cell_h)
   cell_w, cell_h = cell_w or 8, cell_h or 6
   local d = state.data

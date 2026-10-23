@@ -1,8 +1,11 @@
--- A room's solid tile layers as walls, thin floors and hazards. Every room has two: "now" (the station as it is) and "then" (as it was,
--- seen through the Lens). Things that must never sink into a wall (the hero, walkers, shots) ask here instead of using hitboxes against
--- block entities: a room is thousands of tiles, far too many entities, and a tile lookup is one table read.
--- Tile numbers are the same in every biome's tilesets: 0-15 walls, 16 a thin floor (solid only from above), 17 a hazard (hurts, not solid),
--- 24 and on background. Functions take an optional era ("now" or "then"); without one they use the era the Lens shows.
+-- A room's solid tile layers as walls, thin floors and hazards. Every room has two: "now" (the
+-- station as it is) and "then" (as it was, seen through the Lens). Things that must never sink into
+-- a wall (the hero, walkers, shots) ask here instead of using hitboxes against block entities: a
+-- room is thousands of tiles, far too many entities, and a tile lookup is one table read.
+-- Tile numbers are the same in every biome's tilesets: 0-15 walls, 16 a thin floor (solid only from
+-- above), 17 a hazard (hurts, not solid),
+-- 24 and on background. Functions take an optional era ("now" or "then"); without one they use the
+-- era the Lens shows.
 local M = { era = "now" }
 local floor = math.floor
 local T = 16
@@ -22,7 +25,8 @@ M.wall, M.thin = wall, thin
 function M.tile(cx, cy, era) local row = grid(era)[cy + 1]; return row and row[cx + 1] end
 function M.wall_at(x, y, era) return wall(M.tile(floor(x / T), floor(y / T), era)) end
 
--- Is any wall inside this box? Right and bottom are just outside it, so a box standing on a floor does not touch it.
+-- Is any wall inside this box? Right and bottom are just outside it, so a box standing on a floor
+-- does not touch it.
 function M.box_wall(l, t, r, b, era)
   local g = grid(era)
   for cy = floor(t / T), floor((b - EPS) / T) do
@@ -53,7 +57,8 @@ function M.thin_row(l, r, cy, era)
   return false
 end
 
--- A thing with a box w wide and h tall standing at (x, y) (x the middle, y the feet) moves by dx: returns the new x and whether it hit a wall.
+-- A thing with a box w wide and h tall standing at (x, y) (x the middle, y the feet) moves by dx:
+-- returns the new x and whether it hit a wall.
 function M.move_x(x, y, w, h, dx, era)
   local hw = w / 2
   x = x + dx
@@ -62,7 +67,8 @@ function M.move_x(x, y, w, h, dx, era)
   return (floor((x - hw) / T) + 1) * T + hw, true
 end
 
--- The same going up or down. Falling lands on thin floors too, unless through is true (dropping down).
+-- The same going up or down. Falling lands on thin floors too, unless through is true (dropping
+-- down).
 -- Returns the new y and "floor", "ceiling" or nil.
 function M.move_y(x, y, w, h, dy, through, era)
   local hw = w / 2

@@ -1,4 +1,5 @@
--- An enemy's shot: belongs to an era like everything else, stops at that era's walls. gravity > 0 makes it fall (burning debris).
+-- An enemy's shot: belongs to an era like everything else, stops at that era's walls. gravity > 0
+-- makes it fall (burning debris).
 local tiles = require "lib.tiles"
 local lens = require "lib.lens"
 

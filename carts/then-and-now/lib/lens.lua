@@ -1,6 +1,9 @@
--- The Lens: Wren's goggles flip the room between Now (the wreck) and Then (the station as it was, full of echoes).
--- Each room has a tile layer per era (now, then, back_now, back_then); flipping shows one pair and makes tiles.lua read its walls.
--- Time spent in Then builds Static (lib/state static, up to static_max); at the top it overloads and throws Wren back to Now.
+-- The Lens: Wren's goggles flip the room between Now (the wreck) and Then (the station as it was,
+-- full of echoes).
+-- Each room has a tile layer per era (now, then, back_now, back_then); flipping shows one pair and
+-- makes tiles.lua read its walls.
+-- Time spent in Then builds Static (lib/state static, up to static_max); at the top it overloads
+-- and throws Wren back to Now.
 -- Flipping just before a hit lands is a phase dodge (the hero asks dodging()).
 local tiles = require "lib.tiles"
 local state = require "lib.state"
@@ -63,7 +66,8 @@ function M.flip(hero)
   return true
 end
 
--- A flip forced by an Overload (no wall check: Now is where Wren really is, so a Then-only floor gives way).
+-- A flip forced by an Overload (no wall check: Now is where Wren really is, so a Then-only floor
+-- gives way).
 function M.overload()
   M.show("now")
   M.since, M.flash, M.overload_t = 0, 1, 1.2
@@ -96,7 +100,8 @@ function M.unease()
   return math.max(0, (d.static / d.static_max - 0.5) * 2)
 end
 
--- The other era's walls, faint, so the player can see what a flip would bring (and why one is refused).
+-- The other era's walls, faint, so the player can see what a flip would bring (and why one is
+-- refused).
 function M.draw_ghost()
   local l = M.era == "now" and layers["then"] or layers.now
   if not l then return end

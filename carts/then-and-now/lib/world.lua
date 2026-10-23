@@ -1,4 +1,5 @@
--- Written by scripts/make-then-and-now.mjs: every room (its map place in screens, doors, seals, music) and the biomes.
+-- Written by scripts/make-then-and-now.mjs: every room (its map place in screens, doors, seals,
+-- music) and the biomes.
 local M = {}
 M.rooms = {
   dock = { name = "DOCKING BAY", biome = "hangar", music = "msc_dock", mx = 0, my = 1, w = 2, h = 1, lens_lock = true, hub = true,

@@ -1,4 +1,5 @@
--- A pickup: "hull" (one more heart) or "battery" (the Lens takes more Static). Taken once: its id goes into state.items.
+-- A pickup: "hull" (one more heart) or "battery" (the Lens takes more Static). Taken once: its id
+-- goes into state.items.
 local state = require "lib.state"
 
 local NAMES = { hull = "HULL PLATE: ONE MORE HEART", battery = "LENS BATTERY: MORE STATIC BEFORE OVERLOAD" }

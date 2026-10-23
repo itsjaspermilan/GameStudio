@@ -1,5 +1,6 @@
--- What every enemy shares: an era (now, then or both: it only meets Wren and Wren's shots in that era, and looks faint in the other),
--- health, a white flicker when hit, contact damage, and a puff when destroyed. Kinds build on it: gs.entity(Enemy, { ... }).
+-- What every enemy shares: an era (now, then or both: it only meets Wren and Wren's shots in that
+-- era, and looks faint in the other), health, a white flicker when hit, contact damage, and a puff
+-- when destroyed. Kinds build on it: gs.entity(Enemy, { ... }).
 local lens = require "lib.lens"
 
 local Enemy = gs.entity{

@@ -1,4 +1,5 @@
--- A pilot echo (Then): a crew member re-living the day of the launch. It paces its floor and runs at Wren when Wren comes near in Then.
+-- A pilot echo (Then): a crew member re-living the day of the launch. It paces its floor and runs
+-- at Wren when Wren comes near in Then.
 local Enemy = require "entities.enemy"
 local tiles = require "lib.tiles"
 

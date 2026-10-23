@@ -1,5 +1,7 @@
--- CARGO HALL. Written by scripts/make-then-and-now.mjs from scripts/then-and-now/hangar.mjs; edit the drawing there.
--- Layers: now / then (solid, one shown at a time by the Lens) and their backgrounds. The code for every room is scenes/room.lua.
+-- CARGO HALL. Written by scripts/make-then-and-now.mjs from scripts/then-and-now/hangar.mjs; edit
+-- the drawing there.
+-- Layers: now / then (solid, one shown at a time by the Lens) and their backgrounds. The code for
+-- every room is scenes/room.lua.
 return {
   code = "room",
   width = 640, height = 480, background = "#000000",

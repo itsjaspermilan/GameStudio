@@ -1,4 +1,5 @@
--- The end of the Hangar Ring: what Wren did, and a promise of the rest. A, B or Start goes back to the title.
+-- The end of the Hangar Ring: what Wren did, and a promise of the rest. A, B or Start goes back to
+-- the title.
 local state = require "lib.state"
 
 local End = gs.scene{}

@@ -1,5 +1,6 @@
--- Something Wren can use with Up (or R): a console, a person, a note, the lift. The story (lib/story.lua) decides what happens:
--- use() calls story.use(self.what, self). `era` limits it to Now or Then; the "UP" prompt shows when Wren stands at it.
+-- Something Wren can use with Up (or R): a console, a person, a note, the lift. The story
+-- (lib/story.lua) decides what happens: use() calls story.use(self.what, self). `era` limits it to
+-- Now or Then; the "UP" prompt shows when Wren stands at it.
 local lens = require "lib.lens"
 
 local Usable = gs.entity{

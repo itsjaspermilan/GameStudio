@@ -1,6 +1,8 @@
--- The boss of the Hangar Ring: Ossie's last launch. It exists in both eras at once. In Then it is the shuttle trying to launch, its
--- engine lit, and only there can Wren's shots hurt it; in Now it is the burning wreck, which only rains debris. So Wren has to stay in
--- Then to fight it, while Static climbs, and flip back to Now to let Static settle, dodging what falls.
+-- The boss of the Hangar Ring: Ossie's last launch. It exists in both eras at once. In Then it is
+-- the shuttle trying to launch, its engine lit, and only there can Wren's shots hurt it; in Now it
+-- is the burning wreck, which only rains debris. So Wren has to stay in
+-- Then to fight it, while Static climbs, and flip back to Now to let Static settle, dodging what
+-- falls.
 --   phase 1: drifts across the top; Then fires a fan of the memory's flame, Now drops debris
 --   phase 2 (under 2/3 health): faster, more of both
 --   phase 3 (under 1/3): also dives across the bay (it hurts in both eras), flashing first

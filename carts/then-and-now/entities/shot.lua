@@ -1,5 +1,6 @@
--- A shot from Wren: "bolt" (the blaster), "charged" (a held Y with Charge Shot) or "missile". It flies straight in one of four
--- directions, stops at walls and hurts enemies. A shot belongs to the era it was fired in: it only meets that era's walls and enemies.
+-- A shot from Wren: "bolt" (the blaster), "charged" (a held Y with Charge Shot) or "missile". It
+-- flies straight in one of four directions, stops at walls and hurts enemies. A shot belongs to the
+-- era it was fired in: it only meets that era's walls and enemies.
 local tiles = require "lib.tiles"
 
 local KINDS = {

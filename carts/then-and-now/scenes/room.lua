@@ -1,5 +1,6 @@
--- The code of every room (each scenes/rooms/<id>.layout.lua says code = "room"). It places Wren at the door they came through (or a
--- terminal, or the start), runs the Lens and Static, walks Wren out through doors at the room's edges, handles dying, and draws the HUD.
+-- The code of every room (each scenes/rooms/<id>.layout.lua says code = "room"). It places Wren at
+-- the door they came through (or a terminal, or the start), runs the Lens and Static, walks Wren
+-- out through doors at the room's edges, handles dying, and draws the HUD.
 -- Start opens the pause menu (lib/menu.lua), Select the quick map.
 local state = require "lib.state"
 local lens = require "lib.lens"
@@ -139,7 +140,8 @@ function Room:update(dt)
   end
 end
 
--- High Static brings Hollows in Then (dark shapes of earlier Wrens). The other effects are drawn by the HUD.
+-- High Static brings Hollows in Then (dark shapes of earlier Wrens). The other effects are drawn by
+-- the HUD.
 function Room:hallucinate(dt)
   local u = lens.unease()
   if u < 0.35 or lens.era ~= "then" or not self.hero then return end

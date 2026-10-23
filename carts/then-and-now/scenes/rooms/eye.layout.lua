@@ -1,5 +1,7 @@
--- TENDER'S EYE. Written by scripts/make-then-and-now.mjs from scripts/then-and-now/hangar.mjs; edit the drawing there.
--- Layers: now / then (solid, one shown at a time by the Lens) and their backgrounds. The code for every room is scenes/room.lua.
+-- TENDER'S EYE. Written by scripts/make-then-and-now.mjs from scripts/then-and-now/hangar.mjs; edit
+-- the drawing there.
+-- Layers: now / then (solid, one shown at a time by the Lens) and their backgrounds. The code for
+-- every room is scenes/room.lua.
 return {
   code = "room",
   width = 320, height = 240, background = "#000000",
