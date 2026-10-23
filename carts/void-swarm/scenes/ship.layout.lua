@@ -47,7 +47,7 @@ return {
     { 0, 226, 320, 14, tileset = "ts_panel", tile = 12, name = "footer" },
   },
   texts = {
-    { "SHIP UPGRADES", 8, 7, name = "heading", color = 14, size = 1 },
-    { "YOU HAVE:", 12, 184, name = "you_have", color = 1, size = 1 },
+    { "Ship Upgrades", 8, 6, name = "heading", color = 14, size = 1, font = "bold_tall", shadow = true },
+    { "You have:", 12, 184, name = "you_have", color = 1, size = 1, shadow = true },
   },
 }

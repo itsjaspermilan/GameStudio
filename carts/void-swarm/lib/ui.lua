@@ -23,20 +23,28 @@ local function tint(ci, a)
   return c
 end
 
-function M.txt(s, x, y, ci, scale, limit)
-  scale = scale or 1
+-- Text in the built-in letters with a drop shadow (GBA style): round_small unless `font` names another
+-- (round_tall for menus and names, bold_small for big numbers and headings).
+local text_opts = {}
+function M.txt(s, x, y, ci, scale, limit, font)
+  scale, font = scale or 1, font or "round_small"
   limit = limit or SW
   local width = gs.draw.text_width
-  if x + width(s, scale) > limit then
+  if x + width(s, scale, font) > limit then
     if M.audit then M.audit(s, x, limit) end
     local n = #s
-    while n > 0 and x + width(s:sub(1, n), scale) > limit do n = n - 1 end
+    while n > 0 and x + width(s:sub(1, n), scale, font) > limit do n = n - 1 end
     s = s:sub(1, n)
   end
-  gs.draw.text(s, floor(x), floor(y), ci or 3, scale)
+  text_opts.font, text_opts.shadow = font, true
+  gs.draw.text(s, floor(x), floor(y), ci or 3, scale, text_opts)
 end
-function M.txtc(s, y, ci, scale, limit) M.txt(s, floor((SW - gs.draw.text_width(s, scale)) * 0.5), y, ci, scale, limit) end
-function M.txtr(s, x, y, ci, scale) M.txt(s, max(0, x - gs.draw.text_width(s, scale)), y, ci, scale) end
+-- centred on x (txtc centres on the screen), and ending at x
+function M.txtm(s, x, y, ci, scale, limit, font) M.txt(s, floor(x - gs.draw.text_width(s, scale, font or "round_small") / 2), y, ci, scale, limit, font) end
+function M.txtc(s, y, ci, scale, limit, font) M.txtm(s, SW / 2, y, ci, scale, limit, font) end
+function M.txtr(s, x, y, ci, scale, font) M.txt(s, max(0, x - gs.draw.text_width(s, scale, font or "round_small")), y, ci, scale, nil, font) end
+-- lines of at most `width` pixels
+function M.wrap_px(s, width, font) return gs.draw.wrap(s, width, 1, font or "round_small") end
 
 function M.box(x, y, w, h, fill, edge, alpha)
   gs.draw.rect(x, y, w, h, tint(fill or 0, alpha))
@@ -58,6 +66,34 @@ function M.item(x, y, w, h, on, alpha, accent)
   gs.draw.rect(x + 1, y + h - 1, w - 2, 1, tint(bottom, 255))
   gs.draw.rect(x, y + 1, on and 2 or 1, h - 2, on and (accent or 22) or tint(1, a))
 end
+
+-- A GBA window drawn in code (the same look as the layouts' ts_panel tiles): rounded corners, a
+-- bevelled border lit on the top and left, a black line inside it and a see-through deep blue body
+-- with a sheen along the top. edge: "teal" (the default), "gold" or "red"; alpha: the body's, 0-255.
+local EDGES = { teal = { { 122, 238, 222 }, { 43, 143, 148 } }, gold = { { 255, 226, 122 }, { 184, 134, 44 } }, red = { { 240, 112, 106 }, { 134, 32, 46 } } }
+local BODY, SHEEN, BLACK = { 10, 16, 36 }, { 24, 35, 74 }, { 0, 0, 0, 255 }
+local function rgba(c, a) return { c[1], c[2], c[3], a } end
+local win_cache = {}
+local function win_colors(edge, a)
+  local key = edge .. a
+  local c = win_cache[key]
+  if not c then
+    local e = EDGES[edge] or EDGES.teal
+    c = { lt = rgba(e[1], 255), dk = rgba(e[2], 255), body = rgba(BODY, a), sheen = rgba(SHEEN, a) }
+    win_cache[key] = c
+  end
+  return c
+end
+function M.window(x, y, w, h, edge, alpha)
+  local c, r = win_colors(edge or "teal", alpha or 215), gs.draw.rect
+  r(x + 2, y + 2, w - 4, h - 4, c.body); r(x + 2, y + 2, w - 4, min(3, h - 4), c.sheen)
+  r(x + 1, y + 1, w - 2, 1, BLACK); r(x + 1, y + h - 2, w - 2, 1, BLACK); r(x + 1, y + 1, 1, h - 2, BLACK); r(x + w - 2, y + 1, 1, h - 2, BLACK)
+  r(x + 2, y, w - 4, 1, c.lt); r(x, y + 2, 1, h - 4, c.lt); r(x + 1, y + 1, 1, 1, c.lt)
+  r(x + 2, y + h - 1, w - 4, 1, c.dk); r(x + w - 1, y + 2, 1, h - 4, c.dk); r(x + w - 2, y + h - 2, 1, 1, c.dk)
+  r(x + w - 2, y + 1, 1, 1, c.lt); r(x + 1, y + h - 2, 1, 1, c.dk)
+end
+-- a small plate under a piece of the heads-up display: the same window, more see-through
+function M.plate(x, y, w, h, edge) M.window(x, y, w, h, edge, 170) end
 
 function M.bar(x, y, w, h, v, vmax, fg, bg, edge)
   M.box(x, y, w, h, bg or 1, edge)

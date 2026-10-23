@@ -58,9 +58,9 @@ function M.run_started(scene)
   if BOT then R.t = number("GS_T0", "0") end
   local shot = os.getenv("GS_SCREEN")
   if shot == "levelup" then
-    R.choices = { { kind = "wnew", new = true, id = "missiles", title = "HOMING MISSILES", text = data.WEAPONS.missiles.blurb, icon = "w_missiles" },
-      { kind = "wup", id = "scatter", title = "SCATTER CANNON LV8", text = "+2 shots", icon = "w_scatter" },
-      { kind = "pnew", new = true, id = "magnet", title = "TRACTOR", text = "+25% pickup range", icon = "p_magnet" } }
+    R.choices = { { kind = "wnew", new = true, id = "missiles", title = "Homing Missiles", text = data.WEAPONS.missiles.blurb, icon = "w_missiles" },
+      { kind = "wup", id = "scatter", title = "Scatter Cannon LV8", text = "+2 shots", icon = "w_scatter" },
+      { kind = "pnew", new = true, id = "magnet", title = "Tractor", text = "+25% pickup range", icon = "p_magnet" } }
     scene.mode, scene.cur = "levelup", 1
     gs.pause(true)
   elseif shot == "pause" then

@@ -18,7 +18,7 @@ function Results:enter()
   self.tick = 0
   local R = run.R
   self.panel.tile = R.win and GOLD or RED
-  self.headline.text = R.win and "SECTOR CLEARED!" or (R.abandoned and "RUN ENDED" or "SHIP DESTROYED")
+  self.headline.text = R.win and "Sector Cleared!" or (R.abandoned and "Run ended" or "Ship destroyed")
   self.headline.color = R.win and 14 or 6
   self.sector.text = R.sdef.name
   self.pilot.sprite = "spr_pilot_" .. R.pilot.id
@@ -36,7 +36,7 @@ function Results:update(dt)
   self:place()
   if gs.input.pressed("a") or gs.input.pressed("start") then
     audio.sfx("sfx_ok", 1)
-    gs.goto_scene("scenes.hub", { fade = 0.25 }, 1)
+    gs.goto_scene("scenes.hub", { fade = 0.25, look = "mosaic" }, 1)
   end
 end
 
@@ -49,7 +49,7 @@ function Results:draw_ui()
   local values = { ui.fmt_time(R.t), tostring(P.lvl), tostring(R.kills), tostring(R.coin_count) }
   for i, v in ipairs(values) do txtr(v, 250, 120 + (i - 1) * 11, 3) end
   txtr("+" .. R.credits, 250, 176, 14)
-  if R.newstage then txtc("NEW SECTOR: " .. data.STAGES[R.newstage].name, 192, 18, 1) end
+  if R.newstage then txtc("New sector: " .. data.STAGES[R.newstage].name, 192, 18, 1) end
 end
 
 return Results

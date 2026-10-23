@@ -23,8 +23,8 @@ function Stages:update(dt)
   if gs.input.pressed("a") then
     if self.cur <= save.data.cleared + 1 then
       audio.sfx("sfx_ok", 1)
-      gs.goto_scene("scenes.play", { fade = 0.3 }, save.data.sel, self.cur)
-    else audio.sfx("sfx_error", 1); menu.say(self, "LOCKED") end
+      gs.goto_scene("scenes.play", { fade = 0.35, look = "mosaic" }, save.data.sel, self.cur)
+    else audio.sfx("sfx_error", 1); menu.say(self, "Locked") end
   end
 end
 
@@ -46,15 +46,15 @@ function Stages:draw_ui()
     txt(st.name, x + 28, y + 5, open and 3 or 1, 1, x + 140)
     if not open then spr("spr_ico_lock", 0, x + 142, y + 17, 0.6)
     elseif s.cleared >= i then spr("spr_ico_star", 0, x + 142, y + 17, 0.6); txt(ui.fmt_time(s.best[i]), x + 28, y + 15, 22)
-    else txt("NEW", x + 28, y + 15, 18) end
+    else txt("New", x + 28, y + 15, 18) end
   end
   local open = self.cur <= s.cleared + 1
   txt(sd.name, 12, 177, 14, 1, 262)
   txt(sd.blurb, 12, 188, 2, 1, 262)
-  txt("BOSS: " .. gs.defaults("bosses." .. sd.boss).name, 12, 199, 6, 1, 262)
-  txt("BOSS AT " .. ui.fmt_time(sd.time) .. "  PILOT " .. data.PILOTS[s.sel].name, 12, 210, 18, 1, 262)
+  txt("Boss: " .. gs.defaults("bosses." .. sd.boss).name, 12, 199, 6, 1, 262)
+  txt("Boss at " .. ui.fmt_time(sd.time) .. "  Pilot " .. data.PILOTS[s.sel].name, 12, 210, 18, 1, 262)
   spr("spr_b_" .. sd.boss, 0, 288, 198, 0.75)
-  menu.footer(self, open and "A: LAUNCH   B: BACK" or "CLEAR THE SECTOR BEFORE FIRST")
+  menu.footer(self, open and "A: Launch   B: Back" or "Clear the Sector Before First")
 end
 
 return Stages

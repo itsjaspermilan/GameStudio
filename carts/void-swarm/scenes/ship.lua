@@ -25,11 +25,11 @@ function Ship:update(dt)
   if gs.input.pressed("a") then
     local path, s = data.SHIP_PATHS[self.cur], save.data
     local rank = s.ship[self.cur]
-    if rank >= 5 then audio.sfx("sfx_error", 1); menu.say(self, "ALREADY MAXED")
+    if rank >= 5 then audio.sfx("sfx_error", 1); menu.say(self, "Already maxed")
     else
       local c = cost(path, rank)
       if s.credits >= c then s.credits = s.credits - c; s.ship[self.cur] = rank + 1; audio.sfx("sfx_buy", 1); save.write()
-      else audio.sfx("sfx_error", 1); menu.say(self, "NOT ENOUGH CREDITS") end
+      else audio.sfx("sfx_error", 1); menu.say(self, "Not enough credits") end
     end
   end
 end
@@ -50,14 +50,14 @@ function Ship:draw_ui()
       txt(r[2], 106, y + 16, 2, 1, 310)
       local c = cost(path, rank)
       txtr(tostring(c), 308, y + 5, s.credits >= c and 14 or 5)
-    else txt("MAXED OUT", 106, y + 11, 22) end
+    else txt("Maxed out", 106, y + 11, 22) end
   end
   local path = data.SHIP_PATHS[self.cur]
   local owned = {}
   for r = 1, s.ship[self.cur] do owned[#owned + 1] = path.ranks[r][1] end
-  local line = #owned > 0 and table.concat(owned, ", ") or "NOTHING YET"
-  for k, l in ipairs(ui.wrap(line, 36)) do if k <= 3 then txt(l, 12, 194 + (k - 1) * 9, 18, 1, 310) end end
-  menu.footer(self, "A: BUY NEXT RANK   B: BACK")
+  local line = #owned > 0 and table.concat(owned, ", ") or "Nothing yet"
+  for k, l in ipairs(ui.wrap_px(line, 296)) do if k <= 3 then txt(l, 12, 194 + (k - 1) * 9, 18, 1, 310) end end
+  menu.footer(self, "A: Buy next rank   B: Back")
 end
 
 return Ship

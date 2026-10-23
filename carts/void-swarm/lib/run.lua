@@ -214,8 +214,8 @@ function M.make_choices()
     picks[#picks + 1] = table.remove(pool, idx)
   end
   if #picks == 0 then
-    picks[1] = { kind = "heal", title = "REPAIR", text = "Heal 40% health", icon = "p_repair" }
-    picks[2] = { kind = "gold", title = "SALVAGE", text = "+30 credits", icon = "s_salvage" }
+    picks[1] = { kind = "heal", title = "Repair", text = "Heal 40% health", icon = "p_repair" }
+    picks[2] = { kind = "gold", title = "Salvage", text = "+30 credits", icon = "s_salvage" }
   end
   return picks
 end

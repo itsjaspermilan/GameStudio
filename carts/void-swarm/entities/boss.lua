@@ -15,7 +15,7 @@ local Boss = gs.entity(Enemy, {
   depth = 49,
   strays = false,
   turns = false,
-  name = "BOSS",
+  name = "Boss",
   gap = 2.2,                          -- seconds between attacks
   atk = {},
 })
@@ -27,7 +27,7 @@ function Boss:create()
   local hp = self.hp * 1.6 * (1 + (R.t / 150) ^ 1.4)
   self.hp, self.maxhp = hp, hp
   self.t, self.dir, self.face = 0, 1, 1
-  self.kx, self.ky, self.flash, self.bhit, self.st, self.cx, self.cy = 0, 0, 0, 0, 0, 0, 0
+  self.kx, self.ky, self.hit_t, self.bhit, self.st, self.cx, self.cy = 0, 0, 0, 0, 0, 0, 0
   self.atk_i, self.atk_t, self.phase, self.spiral, self.charge, self.pulltime = 1, 2, 1, 0, 0, 0
   R.boss = self
   R.boss_alert = 3

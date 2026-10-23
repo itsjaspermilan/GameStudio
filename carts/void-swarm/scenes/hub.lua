@@ -11,7 +11,7 @@ local spr, txt, box, item = ui.spr, ui.txt, ui.box, ui.item
 
 local Hub = gs.scene{}
 
-local ITEMS = { "LAUNCH", "PILOTS", "SHIP UPGRADES", "WEAPON UPGRADES" }
+local ITEMS = { "Launch", "Pilots", "Ship Upgrades", "Weapon Upgrades" }
 
 function Hub:enter(cur)
   self.cur, self.tick, self.drift = cur or 1, 0, 0.3
@@ -36,21 +36,21 @@ function Hub:draw_ui()
   menu.credits(self)
   local p = data.PILOTS[save.data.sel]
   spr("spr_pilot_" .. p.id, 2 + floor(self.tick / 5) % 6, 244, 76, 2)
-  txt(p.name, 176 + (136 - #p.name * 16) / 2, 114, 14, 2, 310)
+  ui.txtm(p.name, 244, 110, 14, 2, 310, "bold_small")
   spr("spr_ico_" .. data.WEAPONS[p.weapon].icon, 0, 190, 146)
   local wy = 134
-  for _, l in ipairs(ui.wrap(data.WEAPONS[p.weapon].name, 13)) do txt(l, 205, wy, 3, 1, 310); wy = wy + 9 end
-  for _, l in ipairs(ui.wrap(p.blurb, 13)) do txt(l, 205, wy + 2, 2, 1, 310); wy = wy + 9 end
+  for _, l in ipairs(ui.wrap_px(data.WEAPONS[p.weapon].name, 104)) do txt(l, 205, wy, 3, 1, 310); wy = wy + 10 end
+  for _, l in ipairs(ui.wrap_px(p.blurb, 104)) do txt(l, 205, wy + 2, 2, 1, 310); wy = wy + 10 end
   for i, name in ipairs(ITEMS) do
     local y = 42 + (i - 1) * 30
     local on = (i == self.cur)
     item(10, y, 156, 24, on, 220)
-    txt(name, 20, y + 8, on and 3 or 2)
+    txt(name, 22, y + 6, on and 3 or 2, 1, nil, "round_tall")
     if on then spr("spr_ico_cursor", self.tick / 8, 12, y + 12) end
   end
-  txt("SECTORS CLEARED " .. save.data.cleared .. "/" .. #data.STAGES, 10, 170, 22)
-  txt("RUNS " .. save.data.runs .. "   KO " .. save.data.kills, 10, 182, 2)
-  menu.footer(self, "A: SELECT")
+  txt("Sectors cleared " .. save.data.cleared .. "/" .. #data.STAGES, 10, 170, 22)
+  txt("Runs " .. save.data.runs .. "   KO " .. save.data.kills, 10, 182, 2)
+  menu.footer(self, "A: Select")
 end
 
 return Hub

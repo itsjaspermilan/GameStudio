@@ -9,6 +9,6 @@ return {
     { 0, 226, 320, 14, tileset = "ts_panel", tile = 12, name = "footer", screen = true },
   },
   texts = {
-    { "CHOOSE A SECTOR", 8, 7, name = "heading", color = 14, size = 1, screen = true },
+    { "Choose a Sector", 8, 6, name = "heading", color = 14, size = 1, font = "bold_tall", shadow = true, screen = true },
   },
 }

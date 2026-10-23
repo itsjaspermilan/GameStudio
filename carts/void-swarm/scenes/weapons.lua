@@ -29,11 +29,11 @@ function Weapons:update(dt)
     local s = save.data
     local t = (self.sub == 1) and s.wa or s.wb
     local rank = t[self.cur]
-    if rank >= 5 then audio.sfx("sfx_error", 1); menu.say(self, "ALREADY MAXED")
+    if rank >= 5 then audio.sfx("sfx_error", 1); menu.say(self, "Already maxed")
     else
       local c = cost(self.sub, rank)
       if s.credits >= c then s.credits = s.credits - c; t[self.cur] = rank + 1; audio.sfx("sfx_buy", 1); save.write()
-      else audio.sfx("sfx_error", 1); menu.say(self, "NOT ENOUGH CREDITS") end
+      else audio.sfx("sfx_error", 1); menu.say(self, "Not enough credits") end
     end
   end
 end
@@ -52,8 +52,8 @@ function Weapons:draw_ui()
   local def = data.WEAPONS[id]
   spr("spr_ico_" .. def.icon, 0, 68, 46, 1.33)
   txt(def.name, 90, 34, 14, 1, 312)
-  for i, l in ipairs(ui.wrap(def.blurb, 27)) do txt(l, 90, 46 + (i - 1) * 9, 2, 1, 312) end
-  txt("DMG " .. def.dmg .. "  SHOTS " .. def.count .. "  EVERY " .. def.cd .. "S", 56, 74, 1, 1, 312)
+  for i, l in ipairs(ui.wrap_px(def.blurb, 220)) do if i <= 2 then txt(l, 90, 46 + (i - 1) * 10, 2, 1, 312) end end
+  txt("Dmg " .. def.dmg .. "  Shots " .. def.count .. "  Every " .. def.cd .. "S", 56, 74, 1, 1, 312)
   local rows = {
     { name = data.WEAPON_PATH_A.name, rank = s.wa[self.cur], ci = 6, desc = function() return "+10% damage" end },
     { name = def.pathBname, rank = s.wb[self.cur], ci = 22, desc = function(r) local u = def.pathB[r]; return run.describe(u[1], u[2]) end },
@@ -62,15 +62,15 @@ function Weapons:draw_ui()
     local y = 92 + (k - 1) * 58
     local on = (self.sub == k)
     item(54, y, 256, 52, on, 215)
-    txt("PATH " .. (k == 1 and "A" or "B") .. ": " .. row.name, 62, y + 6, on and 14 or 3, 1, 268)
+    txt("Path " .. (k == 1 and "A" or "B") .. ": " .. row.name, 62, y + 6, on and 14 or 3, 1, 268)
     menu.pips(62, y + 20, row.rank, 5, row.ci)
     if row.rank < 5 then
-      txt("NEXT: " .. row.desc(row.rank + 1), 62, y + 33, 3, 1, 306)
+      txt("Next: " .. row.desc(row.rank + 1), 62, y + 33, 3, 1, 306)
       local c = cost(k, row.rank)
       txtr(tostring(c), 304, y + 6, s.credits >= c and 14 or 5)
-    else txt("MAXED OUT", 62, y + 33, 22) end
+    else txt("Maxed out", 62, y + 33, 22) end
   end
-  menu.footer(self, "UP/DOWN WEAPON  L/R PATH  A: BUY")
+  menu.footer(self, "Up/Down: Weapon   L/R: Path   A: Buy")
 end
 
 return Weapons

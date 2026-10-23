@@ -29,7 +29,7 @@ function Enemy:create()
   self.t = random() * 2
   self.dir = random() < 0.5 and -1 or 1
   self.kx, self.ky = 0, 0             -- knockback, fading away
-  self.flash, self.bhit, self.st = 0, 0, 0
+  self.hit_t, self.bhit, self.st = 0, 0, 0
   self.face = 1
   self.cx, self.cy = 0, 0
   self:setup()
@@ -53,7 +53,7 @@ function Enemy:update(dt)
   local vx, vy = self:think(dt, dx, dy, d, nx, ny)
   if self._dead then return end
   self.bhit = self.bhit - dt
-  if self.flash > 0 then self.flash = self.flash - dt end
+  if self.hit_t > 0 then self.hit_t = self.hit_t - dt end
   self.kx, self.ky = self.kx * 0.88, self.ky * 0.88
   self.vx, self.vy = vx + self.kx, vy + self.ky       -- the engine moves it
   if self.strays and d > 380 then self.x, self.y = run.ring_pos(210) end
@@ -63,7 +63,8 @@ function Enemy:hurt(amount, kx, ky)
   if self._dead or self.ghosted then return end
   amount = max(amount * 0.25, amount - self.armor)
   self.hp = self.hp - amount
-  self.flash = 0.07
+  self.hit_t = 0.07
+  self:flash(0.07) -- drawn white for a moment, as GBA games show a hit
   if not self.boss then self.kx, self.ky = self.kx + (kx or 0), self.ky + (ky or 0) end
   if self.hp <= 0 then self:kill() else audio.sfx("sfx_hit", 3) end
 end
@@ -111,7 +112,6 @@ function Enemy:draw()
   local sx, sy = self.x - cam.x, self.y - cam.y
   if sx < -40 or sx > 360 or sy < -40 or sy > 280 then return end      -- off the screen: nothing to draw
   self:draw_sprite()
-  if self.flash > 0 then gs.draw.sprite("spr_fx_spark", self.x, self.y, { scale = self:width() / 12, blend = "add" }) end
   self:draw_extras()
 end
 

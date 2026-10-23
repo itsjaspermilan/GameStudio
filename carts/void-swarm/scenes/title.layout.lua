@@ -42,12 +42,12 @@ return {
   entities = {
   },
   texts = {
-    { "VOID", 166, 30, name = "void_shadow", color = 28, size = 6, align = "center" },
-    { "VOID", 160, 24, name = "void", color = 23, size = 6, align = "center" },
-    { "SWARM", 166, 78, name = "swarm_shadow", color = 28, size = 6, align = "center" },
-    { "SWARM", 160, 72, name = "swarm", color = 14, size = 6, align = "center" },
-    { "PRESS A", 160, 206, name = "prompt", color = 3, size = 2, align = "center" },
-    { "SURVIVE THE SWARM", 160, 228, name = "tagline", color = 1, size = 1, align = "center" },
+    { "VOID", 166, 30, name = "void_shadow", color = 28, size = 6, align = "center", font = "bold_small" },
+    { "VOID", 160, 24, name = "void", color = 23, size = 6, align = "center", font = "bold_small" },
+    { "SWARM", 166, 78, name = "swarm_shadow", color = 28, size = 6, align = "center", font = "bold_small" },
+    { "SWARM", 160, 72, name = "swarm", color = 14, size = 6, align = "center", font = "bold_small" },
+    { "Press A", 160, 204, name = "prompt", color = 3, size = 1, align = "center", font = "bold_tall", shadow = true },
+    { "Survive the swarm", 160, 226, name = "tagline", color = 2, size = 1, align = "center", shadow = true },
   },
   pictures = {
     { "spr_planet_a", 252, 168, name = "planet_a", scale = 1.47 },

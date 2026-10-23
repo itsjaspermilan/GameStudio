@@ -47,6 +47,6 @@ return {
     { 0, 226, 320, 14, tileset = "ts_panel", tile = 12, name = "footer" },
   },
   texts = {
-    { "PILOTS", 8, 7, name = "heading", color = 14, size = 1 },
+    { "Pilots", 8, 6, name = "heading", color = 14, size = 1, font = "bold_tall", shadow = true },
   },
 }

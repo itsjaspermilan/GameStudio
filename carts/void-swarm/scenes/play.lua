@@ -13,7 +13,7 @@ local controls = require "lib.controls"
 local floor, sin, cos, sqrt, abs, max, min, random, atan = math.floor, math.sin, math.cos, math.sqrt, math.abs, math.max, math.min, math.random, math.atan
 local TAU = math.pi * 2
 local SW, SH = ui.SW, ui.SH
-local spr, txt, txtc, txtr, box = ui.spr, ui.txt, ui.txtc, ui.txtr, ui.box
+local spr, txt, txtc, txtm, txtr, box = ui.spr, ui.txt, ui.txtc, ui.txtm, ui.txtr, ui.box
 
 local Play = gs.scene{}
 
@@ -57,6 +57,7 @@ function Play:open_levelup()
   run.R.choices = run.make_choices()
   self.mode, self.cur = "levelup", 1
   gs.pause(true)
+  gs.flash("#ffffffa0", 0.35)
 end
 
 -- ---------------------------------------------------------------- the director: who arrives, and
@@ -145,6 +146,8 @@ local function boss_down(R)
   for _ = 1, 8 do gs.spawn("pickup", b.x + random(-30, 30), b.y + random(-30, 30), { kind = "coin", v = 1 }) end
   R.magnet_all = 4
   R.over, R.win, R.end_t, R.finish_pending = true, true, 0, true
+  gs.flash("#ffffff", 0.6) -- the boss goes down in a burst of white
+  gs.camera:shake(6, 0.5)
   audio.stop_music()
   gs.pause(true)
 end
@@ -153,7 +156,7 @@ function Play:finish_to_results()
   require("lib.debug").run_ended()
   gs.pause(false)
   audio.music(run.R.win and "msc_victory" or "msc_gameover")
-  gs.goto_scene("scenes.results")
+  gs.goto_scene("scenes.results", { fade = 0.4, look = run.R.win and "white" or "mosaic" })
 end
 
 -- ---------------------------------------------------------------- one step
@@ -261,50 +264,60 @@ function Play:draw_hud()
   local R, P = run.R, run.P
   local frame = gs.world.step_id
   local need = run.xp_need(P.lvl)
-  box(0, 0, SW, 5, 0, nil, 180)
-  box(0, 0, floor(SW * min(1, P.xp / need)), 4, 22)
-  box(0, 4, SW, 1, 21)
-  txt("LV" .. P.lvl, 3, 7, 3)
-  -- health
-  box(2, 228, 82, 10, 0, 3, 200)
-  spr("spr_pk_heart", 0, 8, 233)
-  box(14, 230, 68, 6, 4)
-  box(14, 230, floor(68 * max(0, P.hp / P.maxhp)), 6, 6)
-  box(14, 230, floor(68 * max(0, P.hp / P.maxhp)), 2, 7)
-  txtc(ui.fmt_time(R.t), 7, 3)
-  txtr(R.kills .. " KO", SW - 4, 7, 2)
-  spr("spr_pk_coin", frame / 8, SW - 8, 22)
-  txtr(tostring(R.coin_count), SW - 14, 18, 14)
-  -- weapons and passives
+  -- top left: the level and the bar to the next one
+  ui.plate(3, 3, 92, 17)
+  txt("Lv" .. P.lvl, 8, 6, 14, 1, nil, "bold_small")
+  box(36, 9, 54, 5, 0, 1, 230)
+  box(37, 10, floor(52 * min(1, P.xp / need)), 3, 22)
+  box(37, 10, floor(52 * min(1, P.xp / need)), 1, 23)
+  -- top middle: the clock
+  ui.plate(SW / 2 - 24, 3, 48, 17)
+  txtm(ui.fmt_time(R.t), SW / 2, 6, 3, 1, nil, "bold_small")
+  -- top right: knock-outs and coins
+  ui.plate(SW - 99, 3, 96, 17)
+  txt(R.kills .. " KO", SW - 94, 6, 2)
+  spr("spr_pk_coin", frame / 8, SW - 36, 11)
+  txt(tostring(R.coin_count), SW - 26, 6, 14, 1, SW - 5, "bold_small")
+  -- bottom left: health
+  ui.plate(2, 223, 84, 15)
+  spr("spr_pk_heart", 0, 10, 230)
+  box(17, 227, 64, 7, 4)
+  box(17, 227, floor(64 * max(0, P.hp / P.maxhp)), 7, 6)
+  box(17, 227, floor(64 * max(0, P.hp / P.maxhp)), 2, 7)
+  -- weapons and passives, each with its level
   local x = 90
-  for _, w in ipairs(R.weapons) do
-    spr("spr_ico_" .. data.WEAPONS[w.id].icon, 0, x + 8, 228, 0.5)
-    txt(tostring(w.lv), x + 11, 230, 14)
-    x = x + 14
-  end
+  local slots = #R.weapons
+  for _ in pairs(R.passives) do slots = slots + 1 end
+  if slots > 0 then ui.plate(x, 223, slots * 15 + 8, 15) end
   x = x + 4
+  for _, w in ipairs(R.weapons) do
+    spr("spr_ico_" .. data.WEAPONS[w.id].icon, 0, x + 6, 230, 0.5)
+    txt(tostring(w.lv), x + 10, 229, 14)
+    x = x + 15
+  end
   for _, id in ipairs(data.PASSIVE_ORDER) do
     local lv = R.passives[id]
-    if lv then spr("spr_ico_" .. data.PASSIVES[id].icon, 0, x + 8, 228, 0.5); txt(tostring(lv), x + 11, 230, 11); x = x + 14 end
+    if lv then spr("spr_ico_" .. data.PASSIVES[id].icon, 0, x + 6, 230, 0.5); txt(tostring(lv), x + 10, 229, 11); x = x + 15 end
   end
-  -- dash ready
-  local dw = 22
-  box(SW - dw - 3, 228, dw, 8, 0, 3, 200)
-  box(SW - dw - 2, 229, floor((dw - 2) * (1 - P.dash_cd / max(0.1, 1.8 * (1 + P.mods.dashcd)))), 6, P.dash_cd <= 0 and 22 or 1)
-  -- boss bar
+  -- dash ready: a bar under the radar
+  local dw = 52
+  box(SW - dw - 4, 230, dw, 6, 0, 1, 200)
+  box(SW - dw - 3, 231, floor((dw - 2) * (1 - P.dash_cd / max(0.1, 1.8 * (1 + P.mods.dashcd)))), 4, P.dash_cd <= 0 and 22 or 1)
+  -- the boss: its name and health on a plate of its own under the clock
   local b = R.boss
   if b then
-    txtc(b.name, 12, 6)
-    box(60, 22, 200, 7, 0, 3)
-    box(61, 23, floor(198 * max(0, b.hp / b.maxhp)), 5, 5)
-    box(61, 23, floor(198 * max(0, b.hp / b.maxhp)), 2, 6)
+    ui.plate(56, 22, 208, 25, "red")
+    txtm(b.name, SW / 2, 24, 6, 1, nil, "round_small")
+    box(62, 35, 196, 7, 0, 1)
+    box(63, 36, floor(194 * max(0, b.hp / b.maxhp)), 5, 5)
+    box(63, 36, floor(194 * max(0, b.hp / b.maxhp)), 2, 6)
   end
   -- the radar: where the gems, coins and boss are, near and far (the little rectangle is what the
   -- screen shows)
   do
-    local rx, ry, rr, range = SW - 30, SH - 54, 26, 320
+    local rx, ry, rr, range = SW - 30, SH - 40, 26, 320
     local k = rr / range
-    box(rx - rr, ry - rr, rr * 2, rr * 2, 0, 1, 175)
+    ui.plate(rx - rr - 2, ry - rr - 2, rr * 2 + 4, rr * 2 + 4)
     ui.dot(rx - 160 * k, ry - 120 * k, 1, 1, 2, 150); ui.dot(rx + 160 * k - 1, ry - 120 * k, 1, 1, 2, 150)
     ui.dot(rx - 160 * k, ry + 120 * k - 1, 1, 1, 2, 150); ui.dot(rx + 160 * k - 1, ry + 120 * k - 1, 1, 1, 2, 150)
     local pickups = gs.all("pickup")
@@ -339,7 +352,7 @@ function Play:draw_hud()
       spr("spr_ico_arrow", frame / 8, SW / 2 + dx * k, SH / 2 + 4 + dy * k, 2, false, math.deg(atan(dy, dx)))
     end
   end
-  if R.boss_alert > 0 and floor(R.boss_alert * 6) % 2 == 0 then txtc("! WARNING !", 100, 6, 3); txtc("A SECTOR BOSS APPROACHES", 128, 3, 1) end
+  if R.boss_alert > 0 and floor(R.boss_alert * 6) % 2 == 0 then txtc("Warning!", 96, 6, 2, nil, "bold_tall"); txtc("A sector boss approaches", 128, 3, 1, nil, "round_tall") end
   if R.flash and R.flash > 0 then box(0, 0, SW, SH, 3, nil, floor(160 * R.flash / 0.3)) end
   if P.flash > 0 then box(0, 0, SW, SH, 5, nil, floor(90 * P.flash / 0.25)) end
 end
@@ -347,38 +360,46 @@ end
 function Play:draw_levelup()
   local R = run.R
   box(0, 0, SW, SH, 0, nil, 170)
-  txtc("LEVEL UP!", 10, 14, 3)
-  txtc("PICK ONE", 38, 2, 1)
+  txtc("Level Up!", 6, 14, 2, nil, "bold_tall")
+  txtc("Pick one", 34, 2, 1, nil, "round_tall")
   local n = #R.choices
-  local cw = 100
-  local x0 = (SW - n * (cw + 4) + 4) / 2
+  local cw, gap = 98, 5
+  local x0 = (SW - n * (cw + gap) + gap) // 2
   for i, c in ipairs(R.choices) do
-    local x, y = x0 + (i - 1) * (cw + 4), 52
+    local x, y = x0 + (i - 1) * (cw + gap), 52
     local on = (i == self.cur)
-    ui.item(x, y, cw, 142, on, 240, 14)
-    spr("spr_ico_" .. c.icon, 0, x + cw / 2, y + 24, 1.6)
-    if c.new then txt("NEW!", x + cw / 2 - 16, y + 46, 6) end
-    local ty = y + 58
-    for _, l in ipairs(ui.wrap(c.title, 11)) do txt(l, x + (cw - gs.draw.text_width(l)) // 2, ty, on and 14 or 3, 1, x + cw - 2); ty = ty + 9 end
-    ty = ty + 5
-    for _, l in ipairs(ui.wrap(c.text, 11)) do if ty < y + 134 then txt(l, x + (cw - gs.draw.text_width(l)) // 2, ty, on and 3 or 2, 1, x + cw - 2) end; ty = ty + 9 end
+    -- the chosen card stands up a little and gets a gold edge
+    if on then y = y - 2 + floor(math.sin((self.tick or 0) / 8)) end
+    ui.window(x, y, cw, 140, on and "gold" or "teal", on and 240 or 215)
+    spr("spr_ico_" .. c.icon, 0, x + cw / 2, y + 22, 1.6)
+    if c.new then txtm("New!", x + cw / 2, y + 44, 6, 1, nil, "bold_small") end
+    local ty = y + 57
+    for _, l in ipairs(ui.wrap_px(c.title, cw - 10, "round_tall")) do txtm(l, x + cw / 2, ty, on and 14 or 3, 1, x + cw - 3, "round_tall"); ty = ty + 13 end
+    ty = ty + 4
+    for _, l in ipairs(ui.wrap_px(c.text, cw - 10)) do if ty < y + 130 then txtm(l, x + cw / 2, ty, on and 3 or 2, 1, x + cw - 3) end; ty = ty + 10 end
   end
-  txtc("A: PICK" .. (R.rerolls > 0 and ("   Y: REROLL (" .. R.rerolls .. ")") or ""), 202, 3)
-  local wl = ""
-  for _, w in ipairs(R.weapons) do wl = wl .. data.WEAPONS[w.id].name:sub(1, 5) .. w.lv .. " " end
-  txtc(wl, 220, 1)
+  txtc("A: Pick" .. (R.rerolls > 0 and ("     Y: Reroll (" .. R.rerolls .. ")") or ""), 200, 3)
+  -- what you carry now, as the HUD shows it
+  local slots = #R.weapons
+  local x = (SW - slots * 15) // 2
+  for _, w in ipairs(R.weapons) do
+    spr("spr_ico_" .. data.WEAPONS[w.id].icon, 0, x + 6, 222, 0.5)
+    txt(tostring(w.lv), x + 10, 221, 14)
+    x = x + 15
+  end
 end
 
 function Play:draw_pause()
   box(0, 0, SW, SH, 0, nil, 150)
-  box(100, 70, 120, 90, 0, 22, 240)
-  txtc("PAUSED", 80, 14, 2)
-  txtc("RESUME", 108, self.cur == 1 and 3 or 2); txtc("GIVE UP", 128, self.cur == 2 and 3 or 2)
-  spr("spr_ico_cursor", self.tick / 8, 112, self.cur == 1 and 112 or 132)
+  ui.window(100, 72, 120, 84)
+  txtc("Paused", 80, 14, 1, nil, "bold_tall")
+  txtc("Resume", 104, self.cur == 1 and 3 or 2, 1, nil, "round_tall"); txtc("Give up", 124, self.cur == 2 and 3 or 2, 1, nil, "round_tall")
+  spr("spr_ico_cursor", (self.tick or 0) / 8, 124, self.cur == 1 and 110 or 130)
 end
 
 function Play:draw_ui()
-  self:draw_hud()
+  -- the level-up screen covers the whole field, so the HUD steps aside for it
+  if self.mode ~= "levelup" then self:draw_hud() end
   if self.mode == "levelup" then self:draw_levelup() elseif self.mode == "pause" then self:draw_pause() end
 end
 
