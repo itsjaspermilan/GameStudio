@@ -64,7 +64,11 @@ function Enemy:hurt(amount, kx, ky)
   amount = max(amount * 0.25, amount - self.armor)
   self.hp = self.hp - amount
   self.hit_t = 0.07
-  self:flash(0.07) -- drawn white for a moment, as GBA games show a hit
+  -- lit up white for a moment, as GBA games show a hit: at most a blink every quarter second, so an
+  -- enemy under constant fire (orbit blades, an aura) blinks rather than staying white, and only
+  -- half strength among the crowd; bosses flash fully
+  local now = gs.world.time
+  if now >= (self.next_flash or 0) then self:flash(0.06, nil, self.boss and 1 or 0.55); self.next_flash = now + 0.25 end
   if not self.boss then self.kx, self.ky = self.kx + (kx or 0), self.ky + (ky or 0) end
   if self.hp <= 0 then self:kill() else audio.sfx("sfx_hit", 3) end
 end

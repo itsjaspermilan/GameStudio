@@ -43,8 +43,8 @@ return {
   },
   panels = {
     { 0, 0, 320, 23, tileset = "ts_panel", tile = 9, name = "header" },
-    { 48, 26, 268, 190, tileset = "ts_panel", tile = 3, name = "weapon_panel" },
-    { 0, 226, 320, 14, tileset = "ts_panel", tile = 12, name = "footer" },
+    { 52, 28, 260, 188, tileset = "ts_panel", tile = 3, name = "weapon_panel" },
+    { 0, 222, 320, 18, tileset = "ts_panel", tile = 12, name = "footer" },
   },
   texts = {
     { "Weapon Upgrades", 8, 6, name = "heading", color = 14, size = 1, font = "bold_tall", shadow = true },

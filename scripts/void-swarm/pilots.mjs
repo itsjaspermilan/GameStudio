@@ -24,18 +24,30 @@ const BANKS = {
 };
 export const PILOT_BANKS = BANKS;
 
-// Where the moving parts are in frame f. A walk frame's phase goes once round a circle over the six frames; the near leg leads at phase 0.
+// Where the moving parts are in frame f. The walk is keyed by hand the way GBA walks are, not swung on a sine: over six frames each foot
+// lands in front (contact), takes the weight as the body dips a pixel (down), pushes back, lifts with a bent knee and swings forward
+// under the body. The far leg is the same three frames later. Arms swing against the legs.
+const STEP = [[3.5, 0], [1.5, 0], [-1, 0], [-3.5, 0.6], [-1.2, 2.6], [2, 1.6]]; // the near foot: forward of the hip, how high
+const BOB = [0, 1, 0, 0, 1, 0];                                                   // the body dips when a foot takes the weight
 function pose(f) {
-  if (f < 2) return { bob: f, near: [0, 0], far: [0, 0], armNear: 0, armFar: 0 };
-  const p = ((f - 2) / 6) * Math.PI * 2;
-  const foot = (ph) => [Math.sin(ph) * 3.4, Math.max(0, Math.cos(ph) * 2.2)]; // a foot travelling forward (cos > 0) is in the air
-  return { bob: (f - 2) % 3 === 0 ? -1 : 0, near: foot(p), far: foot(p + Math.PI), armNear: -Math.sin(p) * 2.6, armFar: Math.sin(p) * 2.6 };
+  if (f < 2) return { bob: f, near: [0.5, 0], far: [-0.5, 0], armNear: 0, armFar: 0 };
+  const k = f - 2, near = STEP[k], far = STEP[(k + 3) % 6];
+  return { bob: BOB[k], near, far, armNear: -near[0] * 0.75, armFar: -far[0] * 0.75 };
 }
 
-function leg(c, hx, [dx, lift], suit, trim, far) {
-  const fy = 28.5 - lift, fx = hx + dx;
-  capsule(c, hx, 23, fx, fy - 1, 1.8, suit, { bias: far ? -0.18 : 0, edge: !far });
-  box(c, Math.round(fx - 1.6), Math.round(fy - 0.8), 5, 3, trim, { round: 1, bias: far ? -0.18 : 0 }); // boot, toe forward
+// A leg is a thigh and a shin meeting at a knee that bends forward, thick like a GBA hero's (not a stick), with a boot whose toe points
+// ahead. The knee is found from the hip and the foot: two bones of the same length.
+const BONE = 3.4;
+function leg(c, hx, [dx, lift], suit, trim, far, hipY = 22.5) {
+  const fy = 28.2 - lift, fx = hx + dx, d = Math.min(Math.hypot(fx - hx, fy - hipY), BONE * 2 - 0.01);
+  const mx = (hx + fx) / 2, my = (hipY + fy) / 2, h = Math.sqrt(Math.max(0, BONE * BONE - (d / 2) ** 2));
+  const ux = (fx - hx) / (d || 1), uy = (fy - hipY) / (d || 1);
+  const kx = mx + uy * h, ky = my - ux * h; // the side of the hip-foot line that points forward
+  // the far leg is a clear step darker and the near one outlined, so the two never read as one shape
+  const bias = far ? -0.45 : 0;
+  capsule(c, hx, hipY, kx, ky, 2.1, suit, { bias, edge: true });   // thigh
+  capsule(c, kx, ky, fx, fy - 1, 1.9, suit, { bias, edge: true });  // shin
+  box(c, Math.round(fx - 2), Math.round(fy - 1), 6, 3, trim, { round: 1, bias: far ? -0.4 : 0 }); // boot
 }
 function arm(c, sx, sy, dx, suit, trim, far) {
   capsule(c, sx, sy, sx + dx, sy + 5.5, 1.7, suit, { bias: far ? -0.2 : 0, edge: !far });
@@ -45,13 +57,13 @@ function arm(c, sx, sy, dx, suit, trim, far) {
 // The shared body. Returns the helmet's centre for this frame: { x, y, bob }.
 function body(c, f, { suit, trim, buckle, wide = 0 }) {
   const { bob, near, far, armNear, armFar } = pose(f), top = 15 + bob;
-  leg(c, 13.5, far, suit, trim, true);
+  leg(c, 13, far, suit, trim, true);
   arm(c, 10.5 - wide, top + 1.5, armFar, suit, trim, true);
   box(c, 11 - wide, top, 10 + wide * 2, 9 - bob, suit, { round: 3 });          // torso
   box(c, 11 - wide, 23, 10 + wide * 2, 2, trim, { round: 1, slope: 0 });        // belt
   dot(c, 16, 23, buckle); dot(c, 16, 24, buckle);
   box(c, 14, top + 2, 4, 3, trim, { round: 1 });                                // chest panel
-  leg(c, 17.5, near, suit, trim, false);
+  leg(c, 18, near, suit, trim, false);
   arm(c, 21 + wide, top + 1.5, armNear, suit, trim, false);
   return { x: 16, y: 8.5 + bob, bob };
 }

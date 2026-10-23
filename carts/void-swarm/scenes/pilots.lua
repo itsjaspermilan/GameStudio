@@ -56,11 +56,11 @@ function Pilots:draw_ui()
   for i, p in ipairs(data.PILOTS) do
     local y = 28 + (i - 1) * 19
     local on, owned = (i == self.cur), s.unl[i] == 1
-    item(6, y, 150, 17, on, 215)
-    spr("spr_pilot_" .. p.id, 0, 20, y + 9, 0.5, false, 0, owned and 255 or 90)
-    txt(p.name, 34, y + 3, owned and 3 or 1, 1, 100, "round_tall")
-    if s.sel == i then txtr("Active", 152, y + 5, 22)
-    elseif not owned then txtr(tostring(p.cost), 152, y + 5, s.credits >= p.cost and 14 or 5) end
+    item(8, y, 148, 17, on, 215)
+    spr("spr_pilot_" .. p.id, 0, 21, y + 9, 0.5, false, 0, owned and 255 or 90)
+    txt(p.name, 35, y + 3, owned and 3 or 1, 1, 100, "round_tall")
+    if s.sel == i then txtr("Active", 151, y + 5, 22)
+    elseif not owned then txtr(tostring(p.cost), 151, y + 5, s.credits >= p.cost and 14 or 5) end
   end
   local p = data.PILOTS[self.cur]
   local owned = s.unl[self.cur] == 1

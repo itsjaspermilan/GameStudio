@@ -42,33 +42,33 @@ function Weapons:draw_ui()
   local s = save.data
   menu.credits(self)
   for i, id in ipairs(data.WEAPON_ORDER) do
-    local y = 26 + (i - 1) * 19
+    local y = 28 + (i - 1) * 19
     local on = (i == self.cur)
-    item(4, y, 40, 17, on, 215)
-    spr("spr_ico_" .. data.WEAPONS[id].icon, 0, 14, y + 9, 0.67)
-    txt(tostring(s.wa[i] + s.wb[i]), 26, y + 5, on and 14 or 2)
+    item(8, y, 38, 17, on, 215)
+    spr("spr_ico_" .. data.WEAPONS[id].icon, 0, 18, y + 9, 0.67)
+    txt(tostring(s.wa[i] + s.wb[i]), 30, y + 5, on and 14 or 2)
   end
   local id = data.WEAPON_ORDER[self.cur]
   local def = data.WEAPONS[id]
-  spr("spr_ico_" .. def.icon, 0, 68, 46, 1.33)
-  txt(def.name, 90, 34, 14, 1, 312)
-  for i, l in ipairs(ui.wrap_px(def.blurb, 220)) do if i <= 2 then txt(l, 90, 46 + (i - 1) * 10, 2, 1, 312) end end
-  txt("Dmg " .. def.dmg .. "  Shots " .. def.count .. "  Every " .. def.cd .. "S", 56, 74, 1, 1, 312)
+  spr("spr_ico_" .. def.icon, 0, 72, 50, 1.33)
+  txt(def.name, 94, 38, 14, 1, 304, "round_tall")
+  for i, l in ipairs(ui.wrap_px(def.blurb, 206)) do if i <= 2 then txt(l, 94, 52 + (i - 1) * 10, 2, 1, 304) end end
+  txt("Dmg " .. def.dmg .. "  Shots " .. def.count .. "  Every " .. def.cd .. "s", 62, 76, 1, 1, 304)
   local rows = {
     { name = data.WEAPON_PATH_A.name, rank = s.wa[self.cur], ci = 6, desc = function() return "+10% damage" end },
     { name = def.pathBname, rank = s.wb[self.cur], ci = 22, desc = function(r) local u = def.pathB[r]; return run.describe(u[1], u[2]) end },
   }
   for k, row in ipairs(rows) do
-    local y = 92 + (k - 1) * 58
+    local y = 92 + (k - 1) * 60
     local on = (self.sub == k)
-    item(54, y, 256, 52, on, 215)
-    txt("Path " .. (k == 1 and "A" or "B") .. ": " .. row.name, 62, y + 6, on and 14 or 3, 1, 268)
-    menu.pips(62, y + 20, row.rank, 5, row.ci)
+    item(58, y, 248, 52, on, 215)
+    txt("Path " .. (k == 1 and "A" or "B") .. ": " .. row.name, 66, y + 6, on and 14 or 3, 1, 268)
+    menu.pips(66, y + 20, row.rank, 5, row.ci)
     if row.rank < 5 then
-      txt("Next: " .. row.desc(row.rank + 1), 62, y + 33, 3, 1, 306)
+      txt("Next: " .. row.desc(row.rank + 1), 66, y + 34, 3, 1, 300)
       local c = cost(k, row.rank)
-      txtr(tostring(c), 304, y + 6, s.credits >= c and 14 or 5)
-    else txt("Maxed out", 62, y + 33, 22) end
+      txtr(tostring(c), 298, y + 6, s.credits >= c and 14 or 5)
+    else txt("Maxed out", 66, y + 34, 22) end
   end
   menu.footer(self, "Up/Down: Weapon   L/R: Path   A: Buy")
 end

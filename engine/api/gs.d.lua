@@ -118,7 +118,8 @@ function Entity:tween(props, seconds, easing, on_done) end
 ---Draw the sprite in one colour for a moment: the GBA's flash when something is hit. self:flash(0.08)
 ---@param seconds? number 0.08 when left out
 ---@param color? string white when left out ("#rrggbb")
-function Entity:flash(seconds, color) end
+---@param strength? number 1 (the default) draws the sprite all in the colour; below 1 lays the colour over the sprite (0.5 for crowds)
+function Entity:flash(seconds, color, strength) end
 ---Draw this entity. Define your own `draw` to draw something else; call this to also draw the sprite.
 function Entity:draw() end
 

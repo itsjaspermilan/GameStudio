@@ -265,44 +265,45 @@ function Play:draw_hud()
   local frame = gs.world.step_id
   local need = run.xp_need(P.lvl)
   -- top left: the level and the bar to the next one
-  ui.plate(3, 3, 92, 17)
-  txt("Lv" .. P.lvl, 8, 6, 14, 1, nil, "bold_small")
-  box(36, 9, 54, 5, 0, 1, 230)
-  box(37, 10, floor(52 * min(1, P.xp / need)), 3, 22)
-  box(37, 10, floor(52 * min(1, P.xp / need)), 1, 23)
+  ui.plate(4, 4, 92, 17)
+  txt("Lv" .. P.lvl, 9, 7, 14, 1, nil, "bold_small")
+  box(37, 10, 54, 5, 0, 1, 230)
+  box(38, 11, floor(52 * min(1, P.xp / need)), 3, 22)
+  box(38, 11, floor(52 * min(1, P.xp / need)), 1, 23)
   -- top middle: the clock
-  ui.plate(SW / 2 - 24, 3, 48, 17)
-  txtm(ui.fmt_time(R.t), SW / 2, 6, 3, 1, nil, "bold_small")
+  ui.plate(SW / 2 - 24, 4, 48, 17)
+  txtm(ui.fmt_time(R.t), SW / 2, 7, 3, 1, nil, "bold_small")
   -- top right: knock-outs and coins
-  ui.plate(SW - 99, 3, 96, 17)
-  txt(R.kills .. " KO", SW - 94, 6, 2)
-  spr("spr_pk_coin", frame / 8, SW - 36, 11)
-  txt(tostring(R.coin_count), SW - 26, 6, 14, 1, SW - 5, "bold_small")
+  ui.plate(SW - 100, 4, 96, 17)
+  txt(R.kills .. " KO", SW - 95, 7, 2)
+  spr("spr_pk_coin", frame / 8, SW - 37, 12)
+  txt(tostring(R.coin_count), SW - 27, 7, 14, 1, SW - 6, "bold_small")
   -- bottom left: health
-  ui.plate(2, 223, 84, 15)
-  spr("spr_pk_heart", 0, 10, 230)
-  box(17, 227, 64, 7, 4)
-  box(17, 227, floor(64 * max(0, P.hp / P.maxhp)), 7, 6)
-  box(17, 227, floor(64 * max(0, P.hp / P.maxhp)), 2, 7)
-  -- weapons and passives, each with its level
-  local x = 90
+  ui.plate(4, 219, 84, 17)
+  spr("spr_pk_heart", 0, 12, 227)
+  box(19, 224, 64, 7, 4)
+  box(19, 224, floor(64 * max(0, P.hp / P.maxhp)), 7, 6)
+  box(19, 224, floor(64 * max(0, P.hp / P.maxhp)), 2, 7)
+  -- weapons and passives, each with its level as a badge on the icon's corner (up to eight fit
+  -- beside the radar)
+  local x = 94
   local slots = #R.weapons
   for _ in pairs(R.passives) do slots = slots + 1 end
-  if slots > 0 then ui.plate(x, 223, slots * 15 + 8, 15) end
-  x = x + 4
+  if slots > 0 then ui.plate(x, 219, slots * 18 + 6, 17) end
+  x = x + 3
   for _, w in ipairs(R.weapons) do
-    spr("spr_ico_" .. data.WEAPONS[w.id].icon, 0, x + 6, 230, 0.5)
-    txt(tostring(w.lv), x + 10, 229, 14)
-    x = x + 15
+    spr("spr_ico_" .. data.WEAPONS[w.id].icon, 0, x + 7, 227, 0.5)
+    txt(tostring(w.lv), x + 12, 227, 14, 1, nil, "bold_small")
+    x = x + 18
   end
   for _, id in ipairs(data.PASSIVE_ORDER) do
     local lv = R.passives[id]
-    if lv then spr("spr_ico_" .. data.PASSIVES[id].icon, 0, x + 6, 230, 0.5); txt(tostring(lv), x + 10, 229, 11); x = x + 15 end
+    if lv then spr("spr_ico_" .. data.PASSIVES[id].icon, 0, x + 7, 227, 0.5); txt(tostring(lv), x + 12, 227, 11, 1, nil, "bold_small"); x = x + 18 end
   end
   -- dash ready: a bar under the radar
   local dw = 52
-  box(SW - dw - 4, 230, dw, 6, 0, 1, 200)
-  box(SW - dw - 3, 231, floor((dw - 2) * (1 - P.dash_cd / max(0.1, 1.8 * (1 + P.mods.dashcd)))), 4, P.dash_cd <= 0 and 22 or 1)
+  box(SW - dw - 8, 229, dw, 6, 0, 1, 200)
+  box(SW - dw - 7, 230, floor((dw - 2) * (1 - P.dash_cd / max(0.1, 1.8 * (1 + P.mods.dashcd)))), 4, P.dash_cd <= 0 and 22 or 1)
   -- the boss: its name and health on a plate of its own under the clock
   local b = R.boss
   if b then
@@ -315,7 +316,7 @@ function Play:draw_hud()
   -- the radar: where the gems, coins and boss are, near and far (the little rectangle is what the
   -- screen shows)
   do
-    local rx, ry, rr, range = SW - 30, SH - 40, 26, 320
+    local rx, ry, rr, range = SW - 34, SH - 46, 26, 320
     local k = rr / range
     ui.plate(rx - rr - 2, ry - rr - 2, rr * 2 + 4, rr * 2 + 4)
     ui.dot(rx - 160 * k, ry - 120 * k, 1, 1, 2, 150); ui.dot(rx + 160 * k - 1, ry - 120 * k, 1, 1, 2, 150)
@@ -381,11 +382,11 @@ function Play:draw_levelup()
   txtc("A: Pick" .. (R.rerolls > 0 and ("     Y: Reroll (" .. R.rerolls .. ")") or ""), 200, 3)
   -- what you carry now, as the HUD shows it
   local slots = #R.weapons
-  local x = (SW - slots * 15) // 2
+  local x = (SW - slots * 18) // 2
   for _, w in ipairs(R.weapons) do
-    spr("spr_ico_" .. data.WEAPONS[w.id].icon, 0, x + 6, 222, 0.5)
-    txt(tostring(w.lv), x + 10, 221, 14)
-    x = x + 15
+    spr("spr_ico_" .. data.WEAPONS[w.id].icon, 0, x + 7, 222, 0.5)
+    txt(tostring(w.lv), x + 12, 222, 14, 1, nil, "bold_small")
+    x = x + 18
   end
 end
 

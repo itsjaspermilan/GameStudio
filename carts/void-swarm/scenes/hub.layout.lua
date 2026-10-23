@@ -44,7 +44,7 @@ return {
   panels = {
     { 0, 0, 320, 23, tileset = "ts_panel", tile = 9, name = "header" },
     { 176, 36, 136, 152, tileset = "ts_panel", tile = 0, name = "pilot_panel" },
-    { 0, 226, 320, 14, tileset = "ts_panel", tile = 12, name = "footer" },
+    { 0, 222, 320, 18, tileset = "ts_panel", tile = 12, name = "footer" },
   },
   texts = {
     { "Hangar", 8, 6, name = "heading", color = 14, size = 1, font = "bold_tall", shadow = true },

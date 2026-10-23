@@ -27,13 +27,14 @@ end
 -- the credits, in the header bar
 function M.credits(scene)
   local credits = save.data.credits
-  ui.spr("spr_pk_coin", scene.tick / 8, ui.SW - 10 - #tostring(credits) * 8 - 4, 11)
-  ui.txtr(tostring(credits), ui.SW - 6, 7, 14)
+  local w = gs.draw.text_width(tostring(credits), 1, "bold_small")
+  ui.spr("spr_pk_coin", scene.tick / 8, ui.SW - 8 - w - 10, 11)
+  ui.txtr(tostring(credits), ui.SW - 8, 7, 14, 1, "bold_small")
 end
 
 -- the hint in the footer bar, or a short message while there is one
 function M.footer(scene, text)
-  if scene.note_t and scene.note_t > 0 then ui.txt(scene.note, 6, 230, 6, 1, 314) else ui.txt(text, 6, 230, 2, 1, 314) end
+  if scene.note_t and scene.note_t > 0 then ui.txt(scene.note, 8, 227, 6, 1, 312) else ui.txt(text, 8, 227, 2, 1, 312) end
 end
 
 -- the pips that show a rank out of `of`

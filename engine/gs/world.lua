@@ -183,8 +183,9 @@ end
 function Entity.after(self, seconds, fn) return timers.after(self, seconds, fn) end
 function Entity.every(self, seconds, fn) return timers.every(self, seconds, fn) end
 function Entity.go(self, fn) return timers.go(self, fn) end
--- Drawn in one colour (white unless given) for a moment: the GBA's flash when something is hit. self:flash(0.08)
-function Entity.flash(self, seconds, color) self._flash = { W.time + (seconds or 0.08), color or "#ffffff" } end
+-- Drawn in one colour (white unless given) for a moment: the GBA's flash when something is hit. self:flash(0.08). strength below 1
+-- lays the colour over the sprite instead (0.5: lit up, still itself), for crowds where a solid white shape would be too much.
+function Entity.flash(self, seconds, color, strength) self._flash = { W.time + (seconds or 0.08), color or "#ffffff", strength or 1 } end
 function Entity.tween(self, props, seconds, easing, on_done) return timers.tween(self, self, props, seconds, easing, on_done) end
 
 -- the default drawing: the sprite at the entity's position
@@ -194,7 +195,15 @@ function Entity.draw(self)
     local s = sprite_of(name)
     if self.bank then s = assets.swapped(s, self.bank, 2) end -- a palette swap: self.bank = "red_soldier"
     local fl = self._flash
-    if fl and W.time < fl[1] then s = assets.silhouette(s, fl[2], 2) end
+    if fl and W.time < fl[1] then
+      local white = assets.silhouette(s, fl[2], 2)
+      if fl[3] >= 1 then s = white
+      else -- a softer flash: the sprite, lit up by its silhouette laid over it
+        assets.draw(s, self.frame, self.x, self.y, self.angle, self.sx, self.sy, self.alpha, self.flip)
+        s = white
+        return assets.draw(s, self.frame, self.x, self.y, self.angle, self.sx, self.sy, self.alpha * fl[3], self.flip)
+      end
+    end
     assets.draw(s, self.frame, self.x, self.y, self.angle, self.sx, self.sy, self.alpha, self.flip)
   end
 end

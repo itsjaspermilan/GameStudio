@@ -40,23 +40,23 @@ function Ship:draw_ui()
   for i, path in ipairs(data.SHIP_PATHS) do
     local y = 30 + (i - 1) * 36
     local rank, on = s.ship[i], (i == self.cur)
-    item(6, y, 308, 32, on, 215)
-    spr("spr_ico_" .. path.icon, 0, 24, y + 16, 1)
+    item(8, y, 304, 32, on, 215)
+    spr("spr_ico_" .. path.icon, 0, 26, y + 16, 1)
     txt(path.name, 44, y + 5, on and 14 or 3, 1, 102)
     menu.pips(44, y + 18, rank, 5, 22)
     if rank < 5 then
       local r = path.ranks[rank + 1]
       txt(r[1], 106, y + 5, 3, 1, 270)
-      txt(r[2], 106, y + 16, 2, 1, 310)
+      txt(r[2], 106, y + 16, 2, 1, 304)
       local c = cost(path, rank)
-      txtr(tostring(c), 308, y + 5, s.credits >= c and 14 or 5)
+      txtr(tostring(c), 304, y + 5, s.credits >= c and 14 or 5)
     else txt("Maxed out", 106, y + 11, 22) end
   end
   local path = data.SHIP_PATHS[self.cur]
   local owned = {}
   for r = 1, s.ship[self.cur] do owned[#owned + 1] = path.ranks[r][1] end
   local line = #owned > 0 and table.concat(owned, ", ") or "Nothing yet"
-  for k, l in ipairs(ui.wrap_px(line, 296)) do if k <= 3 then txt(l, 12, 194 + (k - 1) * 9, 18, 1, 310) end end
+  for k, l in ipairs(ui.wrap_px(line, 290)) do if k <= 2 then txt(l, 16, 196 + (k - 1) * 10, 18, 1, 306) end end
   menu.footer(self, "A: Buy next rank   B: Back")
 end
 

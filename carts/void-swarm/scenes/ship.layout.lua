@@ -43,11 +43,11 @@ return {
   },
   panels = {
     { 0, 0, 320, 23, tileset = "ts_panel", tile = 9, name = "header" },
-    { 6, 178, 308, 44, tileset = "ts_panel", tile = 3, name = "owned_panel" },
-    { 0, 226, 320, 14, tileset = "ts_panel", tile = 12, name = "footer" },
+    { 8, 178, 304, 38, tileset = "ts_panel", tile = 3, name = "owned_panel" },
+    { 0, 222, 320, 18, tileset = "ts_panel", tile = 12, name = "footer" },
   },
   texts = {
     { "Ship Upgrades", 8, 6, name = "heading", color = 14, size = 1, font = "bold_tall", shadow = true },
-    { "You have:", 12, 184, name = "you_have", color = 1, size = 1, shadow = true },
+    { "You have:", 16, 183, name = "you_have", color = 1, size = 1, shadow = true },
   },
 }
