@@ -12,8 +12,8 @@ export const CLIPS = { idle: { from: 0, to: 1, fps: 3, loop: true }, walk: { fro
 // n shades of a five-step ramp, spread from dark to light
 const shades = (hue, sat, n, opts) => { const r = ramp(hue, sat, opts); return n >= 5 ? r : Array.from({ length: n }, (_, i) => r[Math.round((i * 4) / (n - 1))]); };
 const BANKS = {
-  nova_lancer: bank({ out: ["#12101c"], blue: shades(220, 0.62, 4, { lo: 0.18, hi: 0.72 }), grey: shades(225, 0.14, 4, { lo: 0.2, hi: 0.88 }),
-    red: shades(355, 0.7, 3, { lo: 0.25, hi: 0.62 }), teal: shades(185, 0.6, 2, { lo: 0.3, hi: 0.8 }), flame: ["#f0902c"] }),
+  nova_lancer: bank({ out: ["#12101c"], blue: shades(220, 0.62, 4, { lo: 0.18, hi: 0.72 }), grey: shades(225, 0.14, 4, { lo: 0.3, hi: 0.95 }),
+    red: shades(355, 0.7, 3, { lo: 0.25, hi: 0.62 }), teal: shades(185, 0.6, 2, { lo: 0.3, hi: 0.68 }), flame: ["#f0902c"] }),
   bulwark_vex: bank({ out: ["#160e10"], grey: shades(220, 0.12, 4, { lo: 0.2, hi: 0.86 }), orange: shades(28, 0.75, 4, { lo: 0.22, hi: 0.78 }),
     red: shades(355, 0.75, 2, { lo: 0.35, hi: 0.65 }), teal: shades(180, 0.6, 2, { lo: 0.3, hi: 0.78 }), gold: shades(48, 0.85, 2, { lo: 0.5, hi: 0.85 }) }),
   zephyr_sparks: bank({ out: ["#10140e"], green: shades(115, 0.5, 4, { lo: 0.18, hi: 0.72 }), yellow: shades(48, 0.8, 4, { lo: 0.3, hi: 0.86 }),
