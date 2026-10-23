@@ -358,7 +358,8 @@ export function sprite_write({ game, name, w, h, frames, origin, fps, animations
   });
   if (tileset) {
     const cols = Math.max(1, Math.min(canvases.length, tileset.cols || 8)), rows = Math.ceil(canvases.length / cols);
-    if (cols * w > 256 || rows * h > 256) throw new Error(`a tileset sheet is at most 256x256 (this would be ${cols * w}x${rows * h})`);
+    const max = (consoleOf(dir).graphics || {}).tileset_max || { width: 256, height: 256 };
+    if (cols * w > max.width || rows * h > max.height) throw new Error(`a tileset sheet is at most ${max.width}x${max.height} on this console (this would be ${cols * w}x${rows * h})`);
     const sheet = new Canvas(cols * w, rows * h);
     let rgba;
     if (tsBanks) { // each tile in its own bank's colours

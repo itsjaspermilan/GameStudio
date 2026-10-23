@@ -61,7 +61,7 @@ export function createSpriteEditor(root, hooks = {}) {
       <h3>Preview</h3>
       <canvas class="se-preview"></canvas>
       <h3>On the screen</h3>
-      <canvas class="se-screen" title="The whole console screen, with your sprite at its real size next to squares of 16, 24, 32 and 48 pixels"></canvas>
+      <canvas class="se-screen" title="The whole console screen, with your sprite at its real size next to squares of 16, 32, 48 and 64 pixels"></canvas>
       <p class="se-hint se-screen-hint"></p>
       <label class="se-field">Speed (frames/sec) <input type="number" class="p-fps" min="0" max="60" step="1"></label>
       <h3>Animations</h3>
@@ -444,7 +444,7 @@ export function createSpriteEditor(root, hooks = {}) {
     if (one.width !== s.w || one.height !== s.h) { one.width = s.w; one.height = s.h; }
     one.getContext("2d").putImageData(new ImageData(s.frames[idx], s.w, s.h), 0, 0);
     scrCtx.drawImage(one, Math.max(x + 14, Math.floor((scr.width - s.w) / 2)), ground - s.h);
-    const hint = `${s.w}×${s.h}: ${Math.round((s.h / size.height) * 100)}% of the screen's height. The squares are 16, 24, 32 and 48.`;
+    const hint = `${s.w}×${s.h}: ${Math.round((s.h / size.height) * 100)}% of the screen's height. The squares are ${C.REFERENCE_SIZES.slice(0, -1).join(", ")} and ${C.REFERENCE_SIZES.at(-1)}.`;
     if (hint !== screenHint) { screenHint = hint; $(".se-screen-hint").textContent = hint; }
   }
   function previewLoop(now) {

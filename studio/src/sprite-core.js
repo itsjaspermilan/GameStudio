@@ -377,12 +377,13 @@ export function colorAllowed(s, rgba, limit) {
 // ---------- size guide (Help > Sprite and tile sizes; design section 10) ----------
 // What to draw at which size on a 320x240 screen: the new-sprite dialog offers these, and the editor shows the sprite beside squares of
 // the same sizes on a mock screen.
+// The sizes are GBA proportions on Dot's taller screen: a GBA hero of about 16x24 is 15% of its 160 lines, which is 32 to 40 on 240.
 export const SIZE_GUIDE = [
-  { id: "hero", label: "Hero or main character", w: 24, h: 24, note: "24×24 or 32×32: room for a face and a walk" },
-  { id: "enemy", label: "Common enemy", w: 16, h: 16, note: "16×16 to 24×24: readable in a crowd" },
-  { id: "big", label: "Big enemy", w: 32, h: 32, note: "32×32 to 48×48: clearly bigger than the crowd" },
-  { id: "boss", label: "Boss", w: 48, h: 48, note: "48×48 to 64×64 (64 is the limit)" },
+  { id: "hero", label: "Hero or main character", w: 32, h: 32, note: "32×32, up to 48×48: room for a face, shading and a walk" },
+  { id: "enemy", label: "Common enemy", w: 24, h: 24, note: "24×24 to 32×32: readable in a crowd" },
+  { id: "big", label: "Big enemy", w: 48, h: 48, note: "48×48 to 64×64: clearly bigger than the crowd" },
+  { id: "boss", label: "Boss", w: 96, h: 96, note: "64×64 to 128×128 (128 is the limit)" },
   { id: "small", label: "Bullet, pickup, particle", w: 8, h: 8, note: "8×8, up to 16×16" },
   { id: "icon", label: "Icon", w: 16, h: 16, note: "16×16" },
 ];
-export const REFERENCE_SIZES = [16, 24, 32, 48];
+export const REFERENCE_SIZES = [16, 32, 48, 64];

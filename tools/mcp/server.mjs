@@ -53,7 +53,7 @@ tool("sprite_write", "Draw a sprite", "Writes sprites/<name>.png and .json and r
   "['rect',x,y,w,h,c] ['frame',x,y,w,h,c] ['px',x,y,c] ['line',x0,y0,x1,y1,c] ['disc',cx,cy,r,c] ['ellipse',cx,cy,rx,ry,c] ['ring',cx,cy,r,thick,c] ['poly',[[x,y],...],c] " +
   "['sphere',cx,cy,r,[dark,mid,light,highlight]] ['dither',x,y,w,h,c] ['outline',c] ['mirror'] (copies the left half to the right) ['erase',x,y,w,h]. Colours are the console's palette places (numbers, or letters as sprite_view lists them). " +
   "In a game with colour banks (palette.json) a sprite draws with one sprite bank (bank, default the first) and colours are its places 1-15 (numbers or hex digits 1-f, 0 or '.' see-through); a tileset lists tile banks (banks) and each tile may name its own (frame.bank), like the GBA. " +
-  "Sizes for a 320x240 screen: hero 24-32, common enemy 16-24, boss 48-64, bullet/pickup 8-12, multiples of 8 up to 64. Origin defaults to the centre.",
+  "Sizes for a 320x240 screen: hero 32-48, common enemy 24-32, big enemy 48-64, boss 64-128, bullet/pickup 8-16, multiples of 8 up to the console's limit (128 on Dot and Dash); tiles 16 or 32. Origin defaults to the centre.",
   {
     game, name: z.string(), w: z.number().int(), h: z.number().int(),
     frames: z.array(z.object({ rows: z.array(z.string()).optional(), ops: z.array(z.array(z.any())).optional(), bank: z.string().optional().describe("A tileset with banks: this tile's bank (default the first of banks)") })),
@@ -62,7 +62,7 @@ tool("sprite_write", "Draw a sprite", "Writes sprites/<name>.png and .json and r
     origin: z.array(z.number()).length(2).optional(), fps: z.number().optional(),
     animations: z.record(z.string(), z.object({ from: z.number().int(), to: z.number().int(), fps: z.number(), loop: z.boolean() })).optional().describe("Named clips, frames counted from 0: { walk: { from: 2, to: 7, fps: 12, loop: true } }"),
     outline: z.union([z.number(), z.string()]).optional().describe("Outline every frame in this colour"),
-    tileset: z.object({ cols: z.number().int().min(1).max(32).optional() }).optional().describe("Write a tileset instead: each frame is one tile, laid out in rows of cols (tilesets/<name>.png, at most 256x256)"),
+    tileset: z.object({ cols: z.number().int().min(1).max(32).optional() }).optional().describe("Write a tileset instead: each frame is one tile, laid out in rows of cols (tilesets/<name>.png, at most the console's tileset size: 512x512 on Dot and Dash)"),
   }, T.sprite_write);
 tool("instruments", "List instruments", "The built-in instruments (chip wavetables, and the General MIDI SoundFont: pianos, guitars, strings, brass, pads, drum kit...), optionally filtered by a word.",
   { filter: z.string().default("") }, T.instruments);

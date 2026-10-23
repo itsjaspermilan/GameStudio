@@ -7,7 +7,7 @@ summary: Readable sprites and tiles for the handheld: colour banks and shading r
 <h1>Drawing pixel art</h1>
 <p>Your art ends up on a small screen, 320&times;240 pixels on Dot. Everything on this page serves one goal: <strong>the player understands
 the screen at a glance</strong>. How big to draw each thing is on its own page: <a href="help:sizes">Sprite and tile sizes</a>. In short: a hero of
-24&times;24 to 32&times;32, ordinary enemies 16&times;16 to 24&times;24, bosses 48&times;48 to 64&times;64, pickups 12&times;12, tiles 16&times;16.</p>
+32&times;32 to 48&times;48, ordinary enemies 24&times;24 to 32&times;32, bosses 64&times;64 to 128&times;128, pickups 12&times;12 to 16&times;16, tiles 16&times;16 or 32&times;32.</p>
 
 <h2>Colour banks</h2>
 <p>Colours work the way they do on a GBA. Your game has <strong>colour banks</strong> (<em>Colours</em> in the side bar, the file
@@ -62,7 +62,7 @@ reds and oranges; pickups bright and blinking (two frames); the background darke
 <ul>
 <li><strong>Platformer.</strong> Side view, 16&times;16 tiles. The ground needs a clear top edge (a lighter row) so the player sees where to land.
 Background tiles darker and bluer than the solid ones. Dangers (spikes, lava) in red and orange with sharp shapes.</li>
-<li><strong>Top-down adventure.</strong> Seen a little from the front as well as from above. Characters 16&times;24 or 24&times;24, drawn facing down,
+<li><strong>Top-down adventure.</strong> Seen a little from the front as well as from above. Characters 24&times;32 or 32&times;32, drawn facing down,
 up and right (left is mirrored), with 2 to 4 walking frames each. Floors quiet, walls taller with a dark line at the bottom.</li>
 <li><strong>Lots of enemies (survivors, shoot-'em-up).</strong> Each kind of enemy different in shape <em>and</em> colour. Enemy bullets bright red
 or pink with a light centre, so they are the first thing you see; your own shots blue or white and smaller. Effects short and see-through,

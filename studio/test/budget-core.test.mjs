@@ -21,11 +21,11 @@ test("a small game is all green", () => {
 });
 
 test("things over the console's limits are flagged", () => {
-  const rows = budgetRows(dot, { cartBytes: 20000 * 1024, sprites: { boss: { w: 96, h: 64, frames: 40, offPalette: 3 }, odd: { w: 12, h: 12, frames: 1 } }, tilesets: { t: { w: 512, h: 64, tile_w: 12, tile_h: 12 } }, songs: { big: { tracks: 6 } }, sfx: 0, lua: { files: 1, lines: 1 } }, null);
+  const rows = budgetRows(dot, { cartBytes: 20000 * 1024, sprites: { boss: { w: 160, h: 64, frames: 40, offPalette: 3 }, odd: { w: 12, h: 12, frames: 1 } }, tilesets: { t: { w: 1024, h: 64, tile_w: 12, tile_h: 12 } }, songs: { big: { tracks: 6 } }, sfx: 0, lua: { files: 1, lines: 1 } }, null);
   assert.equal(find(rows, "Game size").level, "over");
   assert.match(find(rows, "Game size").text, /over budget/);
   assert.equal(find(rows, "Biggest sprite").level, "over");
-  assert.match(find(rows, "Biggest sprite").text, /boss: 96×64/);
+  assert.match(find(rows, "Biggest sprite").text, /boss: 160×64/);
   assert.equal(find(rows, "Most frames in a sprite").level, "over");
   assert.equal(find(rows, "Biggest tileset").level, "over");
   assert.equal(find(rows, "Colours outside the palette").level, "over");

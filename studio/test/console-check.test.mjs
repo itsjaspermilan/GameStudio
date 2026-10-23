@@ -26,14 +26,14 @@ test("rooms, instances and layers over the limits are problems", () => {
 
 test("sprites and tilesets must fit the console's graphics rules", () => {
   const facts = {
-    sprites: { odd: { w: 30, h: 16, frames: 1 }, huge: { w: 128, h: 16, frames: 1 }, long: { w: 16, h: 16, frames: 40 } },
-    tilesets: { weird: { w: 100, h: 100, tile_w: 12, tile_h: 12 }, sheet: { w: 512, h: 64, tile_w: 16, tile_h: 16 }, rect: { w: 64, h: 64, tile_w: 16, tile_h: 8 } },
+    sprites: { odd: { w: 30, h: 16, frames: 1 }, huge: { w: 256, h: 16, frames: 1 }, long: { w: 16, h: 16, frames: 40 } },
+    tilesets: { weird: { w: 100, h: 100, tile_w: 12, tile_h: 12 }, sheet: { w: 1024, h: 64, tile_w: 16, tile_h: 16 }, rect: { w: 64, h: 64, tile_w: 16, tile_h: 8 } },
   };
   const r = checkProject(dot, dot, facts), t = texts(r);
   assert.ok(t.some((x) => x.startsWith("Sprite odd") && x.includes("multiples of 8")));
-  assert.ok(t.some((x) => x.startsWith("Sprite huge") && x.includes("64×64")));
-  assert.ok(t.some((x) => x.startsWith("Tileset weird") && x.includes("8×8 or 16×16")));
-  assert.ok(t.some((x) => x.startsWith("Tileset sheet") && x.includes("256×256")));
+  assert.ok(t.some((x) => x.startsWith("Sprite huge") && x.includes("128×128")));
+  assert.ok(t.some((x) => x.startsWith("Tileset weird") && x.includes("8×8 or 16×16 or 32×32")));
+  assert.ok(t.some((x) => x.startsWith("Tileset sheet") && x.includes("512×512")));
   assert.ok(t.some((x) => x.startsWith("Tileset rect"))); // non-square tiles aren't allowed when sizes are listed
   assert.equal(r.at(-1).level, "note"); // the frames budget is a note, listed after the problems
   assert.ok(r.at(-1).text.includes("40 frames"));

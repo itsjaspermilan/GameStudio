@@ -53,16 +53,17 @@
   "graphics": {
     "sprite_size": {
       "multiple_of": 8,
-      "max_width": 64,
-      "max_height": 64
+      "max_width": 128,
+      "max_height": 128
     },
     "tile_sizes": [
       8,
-      16
+      16,
+      32
     ],
     "tileset_max": {
-      "width": 256,
-      "height": 256
+      "width": 512,
+      "height": 512
     }
   },
   "rooms": {

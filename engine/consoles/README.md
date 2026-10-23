@@ -15,9 +15,9 @@ reads, so the game runs the same on another computer and on the device.
 | `screen` | Logical resolution. `scale: "integer"` shows it at the largest whole-number scale that fits the real display, with bars around it. |
 | `room_speed` | Game steps per second. |
 | `palette` | `mode: "banks"` (Dot, Dash): GBA-style colour banks. `sprite_banks` and `tile_banks` (16 each) are how many banks a game's `palette.json` may hold, `bank_colors` (16) the places in a bank (place 0 is see-through), `color_bits` (15) the colour depth every bank colour is rounded to; `colors` are the 32 classic colours that games without a `palette.json` keep, and that palette numbers in code (`gs.draw.rect(..., 5)`) mean. Other modes: `fixed` (only `colors` exist), `limited` (at most `size` colours of your choice) and `free`. |
-| `graphics.sprite_size` | Sprites are multiples of 8 pixels, up to 64x64. |
-| `graphics.tile_sizes` | Allowed tile sizes. |
-| `graphics.tileset_max` | Largest tileset sheet. |
+| `graphics.sprite_size` | Sprites are multiples of 8 pixels, up to 128x128 (raised from 64 on 2026-10-23: GBA proportions on the taller screen, see the Help page on sizes). |
+| `graphics.tile_sizes` | Allowed tile sizes (Dot and Dash: 8, 16 and 32). |
+| `graphics.tileset_max` | Largest tileset sheet (Dot and Dash: 512x512). |
 | `rooms.max_width/height` | Largest room in pixels. Rooms bigger than the screen scroll. |
 | `rooms.tile_layers` | Most tile layers in one room. |
 | `rooms.parallax` | Tile layers may scroll at their own speed. |

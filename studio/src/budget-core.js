@@ -49,7 +49,7 @@ export function budgetRows(c, facts, live) {
     const tooBig = ss.max_width && (b.w > ss.max_width || b.h > ss.max_height);
     const odd = ss.multiple_of > 1 && sprites.find(([, s]) => s.w % ss.multiple_of || s.h % ss.multiple_of);
     row("Art", "Biggest sprite", `${bn}: ${b.w}×${b.h}${ss.max_width ? ` (up to ${ss.max_width}×${ss.max_height})` : ""}${odd && !tooBig ? `  • ${odd[0]} is not a multiple of ${ss.multiple_of}` : ""}`,
-      tooBig ? "over" : odd ? "warn" : "ok", ss.max_width ? Math.max(b.w / ss.max_width, b.h / ss.max_height) : null, "Hero 24-32, common enemy 16-24, boss 48-64, bullets 8. See Help > Sprite sizes.");
+      tooBig ? "over" : odd ? "warn" : "ok", ss.max_width ? Math.max(b.w / ss.max_width, b.h / ss.max_height) : null, "Hero 32-48, common enemy 24-32, boss 64-128, bullets 8. See Help > Sprite sizes.");
     const frames = sprites.reduce((m, s) => (s[1].frames > m[1].frames ? s : m), sprites[0]);
     if (bud.frames_per_sprite) meter("Art", "Most frames in a sprite", frames[1].frames, bud.frames_per_sprite, num, `${frames[0]} has the most frames.`);
   } else row("Art", "Sprites", "none yet", "info", null);

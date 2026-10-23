@@ -253,6 +253,9 @@ test("animations: add, rename, clamp and play", () => {
 
 test("the size guide fits Dot's sprite rules", async () => {
   const { SIZE_GUIDE, REFERENCE_SIZES } = await import("../src/sprite-core.js");
-  for (const r of SIZE_GUIDE) assert.ok(r.w % 8 === 0 && r.h % 8 === 0 && r.w <= 64 && r.h <= 64, r.id);
-  assert.deepEqual(REFERENCE_SIZES, [16, 24, 32, 48]);
+  const { BUILTIN_CONSOLES } = await import("../src/consoles.js");
+  const ss = BUILTIN_CONSOLES[0].graphics.sprite_size;
+  for (const r of SIZE_GUIDE) assert.ok(r.w % ss.multiple_of === 0 && r.h % ss.multiple_of === 0 && r.w <= ss.max_width && r.h <= ss.max_height, r.id);
+  assert.deepEqual([SIZE_GUIDE[0].w, SIZE_GUIDE[0].h], [32, 32], "a hero starts at 32x32");
+  assert.deepEqual(REFERENCE_SIZES, [16, 32, 48, 64]);
 });
