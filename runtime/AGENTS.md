@@ -1,7 +1,7 @@
 # runtime/: the `gs` player (C, SDL2, Lua 5.4)
 
-`main.c` (~2100 lines) is the player and CLI, `synth.c`/`synth.h` (~650/100) is the sound engine, `fonts.h` the glyphs of `gs.print` (written by `scripts/make-fonts.mjs` from `engine/fonts/*.txt`; don't edit it). SDL2 (2.28.5,
-the version muOS ships: call nothing newer), Lua, stb_image and TinySoundFont are vendored in `../third_party` and built by `../CMakeLists.txt`. The
+`main.c` (~2200 lines) is the player and CLI, `libretro.c` + `ram.c` the libretro core built from it (see "The libretro core" below), `synth.c`/`synth.h` (~700/100) is the sound engine, `fonts.h` the glyphs of `gs.print` (written by `scripts/make-fonts.mjs` from `engine/fonts/*.txt`; don't edit it). SDL2 (2.28.5,
+the oldest a handheld ships: call nothing newer), Lua, stb_image, TinySoundFont, TLSF and libretro.h are vendored in `../third_party` and built by `../CMakeLists.txt`. The
 desktop build links SDL2 in; the handheld build (`GS_SYSTEM_SDL2`) uses the system's `libSDL2-2.0.so.0`, which has the device's GPU driver, reads
 the frontend's controller mapping as written, and is what muOS's overlays hook (see "Video output" below). After any change here: `./scripts/build.sh`, `./tests/run.sh`,
 `cd studio && npm test` (the synth tests render through the real binary), and `./scripts/build-aarch64.sh` before telling the user it works on the device.
@@ -57,10 +57,30 @@ prints them and every press. A `padmap.txt` from the Pad setup cart still wins o
 
 NextUI (the TrimUI Brick) hands games no mapping, and the Brick's SDL2 takes its pad for an Xbox 360 controller (buttons by position,
 so B came out as A). `scripts/push.sh` writes the Brick's mapping into the NextUI launcher (`SDL_GAMECONTROLLERCONFIG`, face buttons by
-label; `GS_DEBUG_INPUT` prints the mapping SDL uses and trigger/stick axes crossing half way). `GS_BUTTON_ALIAS="l3=select,r3=start"`
-makes one button stand in for another (the launcher sets that one for consoles without L3/R3); SDL's mapping cannot, since it reads only
-the first input bound to a button. NextUI's in-game menu belongs to its emulator (minarch), so MENU does nothing in our games except as
-the hotkey (MENU + Start quits).
+label; `GS_DEBUG_INPUT` prints the mapping SDL uses and trigger/stick axes crossing half way). That launcher is now only the fallback
+(`GS_NEXTUI_PROGRAM=1`): consoles run in minarch with the libretro core, which gets buttons by label. `GS_BUTTON_ALIAS="l3=select,r3=start"`
+makes one button stand in for another (both launchers set it for consoles without L3/R3); SDL's and minarch's mappings cannot, since they
+take one input per button.
+
+## The libretro core (gs_libretro.so)
+
+`libretro.c` includes `main.c` with `GS_LIBRETRO` (no `main()`) and builds `gs_libretro` (`.so`/`.dylib`): a cart is a "rom" for NextUI's
+minarch or RetroArch, which own the window, sound device, buttons (by label: `RETRO_DEVICE_ID_JOYPAD_A` is the button marked A) and their
+menu. The program and the core share `game_start` / `game_frame`. Drawing goes through SDL's software renderer into a 640x480 XRGB8888
+surface (the game's corner is handed over); `mix_cb` is called once a frame for 735 samples at 44.1 kHz. The emulator links SDL2 too (on
+the handheld the same library): the core never initialises or quits SDL's video/audio/controller parts and never opens a controller.
+Saves go to the emulator's save folder, one folder per cart; the SoundFont is looked for beside the core (`dladdr`).
+
+**Save states** (`ram.c`): Lua allocates from one 8 MB block (the console's RAM, TLSF inside it) mapped at a fixed address
+(`0x3000000000` on Linux, `0x10000000000` on macOS, which reserves everything below `0x7000000000`). A state is a fixed size (rewind
+needs that): header, the runtime's settings and sound voices, `synth_state_save` (live state and definitions), how every picture, sound and
+sample was made (`g_images[].recipe`: 'F' file, 'P' pixels, 'R' recolour, 'C' composed grid; sounds and samples by name), then the used part
+of the block. Loading in the same run copies the block back. A state from another run (Resume) remakes the assets in their slots (oldest
+recipe first), then moves Lua's pointers into the core by the change in load address: C functions (light ones, C closures, continuations,
+hooks, the allocator and panic function), empty tables' shared `dummynode`, and io's standard streams; tables keyed by a C function are
+rehashed. A state carries a hash of the core file and is refused by any other build (function offsets inside the core change). Anything
+new that stores a pointer into the core or outside the block inside a Lua object must be added to `shift_object`.
+`tests/retro-run.c` is a small frontend for tests (`RETRO_HOLD`, `RETRO_SAVE`, `RETRO_LOAD`, `RETRO_DUMP`; see its header).
 
 ## Video output
 

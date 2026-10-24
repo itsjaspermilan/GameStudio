@@ -143,6 +143,8 @@ cp scripts/device.env.example scripts/device.env   # then edit host/user/dir
 
 On handhelds with no KMS/DRM (Knulli on the RG35XX Pro has only `/dev/fb0`) `gs` falls back to software rendering into the framebuffer. If a device's buttons come out wrong, run the `padsetup` cart once: it records raw button numbers in `padmap.txt` beside `gs`, and `gs.btn("a")` and friends follow it (`GS_DEBUG_INPUT=1` prints raw presses).
 
+**NextUI (TrimUI Brick).** The target handheld. With `DEVICE_OS=nextui` in `scripts/device-<name>.env` (template `device-nextui.env.example`), `GS_DEVICE=<name> scripts/push.sh` makes each console a NextUI system run by NextUI's own emulator with gs built as a libretro core (`gs_libretro.so`): the console gets NextUI's in-game menu, button settings, sleep, save states, Resume and rewind. Save states are a copy of the console's 8 MB Lua RAM plus the sound chip's state; a state works only with the core that saved it, so pushing a new core makes old Resume points start fresh (the games' own saves are not affected). Confirmed on one Brick: Breakout from the Glow43 system, buttons, sound, MENU, sleep, save and load state, Resume.
+
 **Knulli.** With `DEVICE_ROMS_DIR` set in `scripts/device.env`, `push.sh` makes each console (Glow43, Glow169, custom ones) its own EmulationStation system with its own launcher folder, and writes a `gamelist.xml` entry from the game's `meta/info.json` (title, description, developer, genre, players, box art). The studio's "Send to device" runs the same script. EmulationStation reads new systems at start-up, so restart it after the first push of a console. Confirmed by testing on one RG35XX Pro: framebuffer drawing, the d-pad and shoulder buttons, Breakout running from the Glow43 system. Not yet confirmed there: box art and descriptions in the list, and Glow169.
 
 ## Sound (GBA style)
@@ -217,7 +219,7 @@ The grid lines show bars and beats. Pattern length is counted in bars.
 ## Tests
 
 ```sh
-./tests/run.sh          # the framework, audio and the example games (a bot plays Breakout), run headless
+./tests/run.sh          # the framework, audio, the example games (a bot plays Breakout) and the libretro core (save states, Resume), run headless
 cd studio && npm test   # the studio's logic, every Help tutorial game played by a bot, and the synth rendered through the real runtime
 ```
 
@@ -228,7 +230,7 @@ top of `render_audio` in `runtime/main.c`; samples resolve relative to the curre
 ## Licences
 
 - The runtime, studio and framework are this project's own code.
-- Lua is MIT, SDL2 is zlib, the built-in fonts (`engine/fonts/`, drawn for GameStudio) are the project's own, and TinySoundFont (`third_party/tsf/tsf.h`) is MIT. The studio's optional Lua language server (LuaLS, downloaded by `scripts/fetch-luals.sh`, never part of a game) is MIT.
+- Lua is MIT, SDL2 is zlib, TLSF (`third_party/tlsf`, Matthew Conte) is BSD-3-Clause, `third_party/libretro/libretro.h` is MIT, the built-in fonts (`engine/fonts/`, drawn for GameStudio) are the project's own, and TinySoundFont (`third_party/tsf/tsf.h`) is MIT. The studio's optional Lua language server (LuaLS, downloaded by `scripts/fetch-luals.sh`, never part of a game) is MIT.
 - **`assets/soundfonts/TimGM6mb.sf2` is licensed GPL-2.0** (Tim Brechbill and David Bolton, as shipped with MuseScore and packaged by
   Debian as `timgm6mb-soundfont`). It is a separate data file that is distributed beside the runtime, not linked into it. If you
   distribute the SoundFont (for example inside a release), the GPL-2 applies to that file: keep its licence with it, and note that

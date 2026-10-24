@@ -15,5 +15,6 @@ Each folder is a tiny cart run by the real runtime with dummy video/audio, drive
 | `song-bad`, `band-bad` | An unknown instrument name stops loading with a readable message |
 | `keys-bot.lua` | A `GS_BOT_LUA` script that presses keys on a schedule (for driving menus in a cart) |
 | `random-bot.lua` | A `GS_BOT_LUA` script that plays any game at random (`GS_SEED`); the studio's Help tests use it on every tutorial |
+| `retro-run.c` | A tiny libretro frontend (built as `build/retro-run`): loads `build/gs_libretro` as minarch would, runs a cart, holds buttons (`RETRO_HOLD`), saves and loads states (`RETRO_SAVE`, `RETRO_LOAD`), saves frames (`RETRO_DUMP`). `run.sh` checks that the core draws what the program draws, its sound timing, quit and saves, and that a game loaded from a state or resumed in a new run replays to the same frame |
 
 `run.sh` also runs the example `carts/breakout` (the fixture for the inspector, layer-picture, sound-queue and stats checks, and a bot playthrough) and the button test / pad setup carts (no error or warning), checks that a plain `main.lua` game is refused with a clear message, drives the inspector (`GS_INSPECT`: pause, report, watch) on Breakout, the stats line (`GS_STATS=1`), the CPU-floor selftest, the `meta/` packing rule, layer-picture equality on Breakout, and the sound-queue check.

@@ -16,9 +16,13 @@ Consoles were renamed on 2026-10-23: Dot is **Glow43** (G43) and Dash is **Glow1
 Setting up
 - [x] SSH (Native SSH from the Pak Store, after updating TrimUI's firmware to 1.1.1; the update made the NextUI card lose its `trimui/`
   folder, put back from the release) and the NextUI mode in `push.sh` (`scripts/device-brick.env`). Breakout pushed and runs.
-- [ ] Buttons on the Brick: the launcher's mapping (A/B, X/Y by label) and L3/R4 as Select/Start, pushed 2026-10-24; check in a game,
-  then push Breakout again without `GS_DEBUG` (the debug run quits after 60 s).
-- [ ] NextUI's MENU overlay is its emulator's and never shows over our games: decide whether games get a menu of their own on MENU.
+- [x] Glow consoles run in NextUI's own emulator (minarch) with gs as a libretro core: NextUI's menu, buttons by label, L3/R3 as
+  Select/Start, sleep, save and load state, Resume. Checked on the Brick 2026-10-24 with Breakout.
+- [ ] Rewind (NextUI option, off by default) and a state of a bigger game: states are 13.9 MB (8 MB of RAM, the rest headroom); time
+  saving one on the Brick, and the rewind with its compression.
+- [ ] Drawing in the core is on the CPU (minarch gives cores no GPU). Measure a heavy screen (big glowing layers, many rotated sprites)
+  against a GPU context of the core's own with a read back of the 256x192 frame, and pick; or add GPU support to minarch upstream.
+- [ ] Glow43's RAM is fixed at 8 MB in `runtime/ram.c`; make it a console spec field once games show what they need.
 - [ ] The second Brick: its own `scripts/device-<name>.env` and a fixed IP.
 
 Seeing and playing
@@ -27,7 +31,7 @@ Seeing and playing
 - [ ] Play from the NextUI menu (not over SSH): every button, a way back to the menu (the Brick's MENU button: does SDL see it as our
   HOTKEY? HOTKEY + Start, Start + Select held 3 s), volume and brightness keys while a game runs, the power button (sleep and wake, or at
   least not a broken game), and what happens to saves when the battery runs out.
-- [ ] Mosaic transitions (`look = "mosaic"`) stay on the GPU now; check they look right on the PowerVR driver.
+- [ ] Mosaic transitions (`look = "mosaic"`): in the core they are drawn on the CPU like everything else; check they look right.
 - [ ] Covers and previews: `make-cart-art.mjs` makes 240x300 covers (sized for muOS) and 640x480 previews; see how NextUI lays box art out
   at 1024x768 and resize if needed.
 - [ ] A game on a custom console: it should become its own system in the NextUI menu; check one.
