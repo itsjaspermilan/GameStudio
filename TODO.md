@@ -44,7 +44,8 @@ Measuring (`GS_PERF=1`)
   Faster everywhere and no readback on PowerVR.
 - [ ] Try in the real app (only the browser mock was clicked through): Open folder…, New game asking where, Examples opening a copy of
   Breakout, Make this game asking where, the recent list (× forgets one), Show folder, reopening a game coming back to its tabs, the Play
-  panel, and switching a scene between its Layout and Code.
+  panel, switching a scene between its Layout and Code, Game info's button icon picker (writes `buttons = ...` into game.lua), the
+  pictures in Help, and a `.gamestudio/.gitignore` appearing in a game kept in git.
 - [ ] Try PNG import in the Game info dialog on a real PNG (the file picker could not be driven in testing).
 - [ ] Help pages can show pictures now (`docs/help/img/`, two in "Make a game, step by step"); add more where a beginner would look for one
   (the sprite editor with colour banks, the Play panel, Send to device).
