@@ -1,6 +1,11 @@
 local Main = gs.scene{}
 local STARS = tonumber(os.getenv("GS_HEAVY_STARS") or "200")
+local THINGS = tonumber(os.getenv("GS_HEAVY_THINGS") or "0") -- moving, colliding entities: the Lua side of a frame
 local t = 0
+
+function Main:enter()
+  for i = 1, THINGS do gs.spawn("mover", (i * 53) % 256, (i * 31) % 192) end
+end
 
 function Main:update(dt) t = t + dt end
 
@@ -16,6 +21,6 @@ function Main:draw_ui()
     draw.sprite("star", 128 + math.cos(a) * r * 1.3, 96 + math.sin(a) * r, { angle = (t * 90 + i * 13) % 360, scale = 0.75 + (i % 5) * 0.25, alpha = 0.9 })
   end
   for i = 1, 4 do draw.rect(0, 0, 256, 192, "#10204020") end
-  draw.text("HEAVY " .. STARS, 4, 4, "#ffffff")
+  draw.text("HEAVY " .. STARS .. (THINGS > 0 and " / " .. THINGS or ""), 4, 4, "#ffffff")
 end
 return Main

@@ -6,6 +6,9 @@
  * A cartridge is a game built on the embedded framework (engine/gs/): it has a game.lua, which names its console (screen size, palette,
  * limits). The framework defines the init(), update(dt), draw() this file calls every frame.
  */
+#if defined(__linux__) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE /* dladdr, for the console's RAM (runtime/ram.c) */
+#endif
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
 #include <stdbool.h>
@@ -399,6 +402,14 @@ static void count_px(float x, float y, float w, float h) {
     g_calls_frame++;
 }
 static int l_stats(lua_State *L) { lua_pushnumber(L, g_px_last); lua_pushinteger(L, g_calls_last); lua_pushinteger(L, (lua_Integer)g_screen_w * g_screen_h); return 3; }
+/* The console's RAM (runtime/ram.c), when Lua's memory comes from it: the libretro core, and the program with GS_RAM=1 (the studio's Play
+ * panel runs it so, so a game runs out of memory where it would on the handheld). Bytes in use now and at most, block overhead included.
+ * gs.ram() gives them and the RAM's size, or nothing when Lua has the computer's memory. */
+static size_t g_ram_used, g_ram_peak, g_ram_size;
+static int l_ram(lua_State *L) {
+    if (!g_ram_size) return 0;
+    lua_pushinteger(L, (lua_Integer)g_ram_used); lua_pushinteger(L, (lua_Integer)g_ram_peak); lua_pushinteger(L, (lua_Integer)g_ram_size); return 3;
+}
 static bool g_perf_on; static void perf_log(const char *fmt, ...); /* both defined further down */
 static double g_fb_copy_last; /* ms the copy to the framebuffer took in the last frame (0 without it); the CPU floor controller reads it */
 static int l_mark(lua_State *L) { const char *s = luaL_checkstring(L, 1); if (g_perf_on) perf_log("mark: %s\n", s); return 0; } /* gs.mark(text): a line in the GS_PERF log; nothing otherwise */
@@ -1310,7 +1321,7 @@ static const luaL_Reg gs_lib[] = {
     {"synth_config", l_synth_config}, {"soundfont_load", l_soundfont_load}, {"sample_load", l_sample_load}, {"inst_load", l_inst_load}, {"song_load", l_song_load}, {"song_play", l_song_play},
     {"save", l_save}, {"loadsave", l_loadsave}, {"sound", l_sound}, {"play", l_play}, {"stop", l_stop},
     {"clear", l_clear}, {"rect", l_rect}, {"line", l_line}, {"print", l_print}, {"text_width", l_text_width}, {"font", l_font},
-    {"camera", l_camera}, {"compose", l_compose}, {"recolor", l_recolor}, {"pixels", l_pixels}, {"mosaic", l_mosaic}, {"blend", l_blend}, {"stats", l_stats}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
+    {"camera", l_camera}, {"compose", l_compose}, {"recolor", l_recolor}, {"pixels", l_pixels}, {"mosaic", l_mosaic}, {"blend", l_blend}, {"stats", l_stats}, {"ram", l_ram}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
     {"btn", l_btn}, {"btnp", l_btnp}, {"time", l_time}, {"clock", l_clock}, {"quit", l_quit}, {"zoom", l_zoom}, {"load", l_load}, {"list", l_list}, {"mtime", l_mtime},
     {"pad_last", l_pad_last}, {"pad_set", l_pad_set}, {"pad_reset", l_pad_reset}, {NULL, NULL}};
 
@@ -1749,13 +1760,15 @@ static long read_sysfs_long(const char *path) {
  * GS_EMBED=<port> (and GS_EMBED_SIZE=<w>x<h>, the console's screen): no window. The game is drawn by the software renderer, the same one the handheld
  * uses, into a surface at the console's size, and every frame that changed is sent to the studio on 127.0.0.1:<port>. Sound plays from here as usual.
  *   to the studio:   'F' u16 width, u16 height, u32 length, then the pixels (RGBA bytes) as runs: u8 count-1, 4 bytes of colour
- *   from the studio: 'B' u16 the buttons held (bit i = btn_names[i]), 'Q' leave
+ *   from the studio: 'B' u16 the buttons held (bit i = btn_names[i]), 'Q' leave, 'S' save a state, 'L' load it (one state a run, kept in memory;
+ *                    "state saved" / "state loaded" on stdout, what went wrong on stderr)
  * All numbers are little-endian. When the studio goes away the game ends. */
 static embed_sock g_embed = EMBED_NONE;
 static SDL_Surface *g_embed_surf;
 static Uint32 *g_embed_prev; static size_t g_embed_prev_len; static int g_embed_prev_w, g_embed_prev_h;
 static unsigned char *g_embed_out; static size_t g_embed_out_cap;
 static unsigned char g_embed_in[64]; static int g_embed_in_len;
+static char g_embed_state; /* 'S' or 'L' asked for by the studio, carried out before the next frame */
 
 static void embed_close(void) {
     if (g_embed == EMBED_NONE) return;
@@ -1819,6 +1832,7 @@ static void embed_poll(void) {
         while (i < g_embed_in_len) {
             if (g_embed_in[i] == 'B') { if (g_embed_in_len - i < 3) break; g_embed_buttons = (Uint16)(g_embed_in[i + 1] | g_embed_in[i + 2] << 8); g_embed_tapped |= g_embed_buttons; i += 3; }
             else if (g_embed_in[i] == 'Q') { g_quit = true; i++; }
+            else if (g_embed_in[i] == 'S' || g_embed_in[i] == 'L') g_embed_state = (char)g_embed_in[i++];
             else i++; /* not ours: skip it */
         }
         memmove(g_embed_in, g_embed_in + i, (size_t)(g_embed_in_len - i)); g_embed_in_len -= i;
@@ -2095,6 +2109,25 @@ static void game_frame(lua_State *L, double dt) {
     if (g_mosaic > 1) apply_mosaic();
 }
 
+#if !defined(GS_LIBRETRO) && !defined(_WIN32)
+#include <dlfcn.h>
+#include "ram.c" /* the console's RAM and save states, as in the libretro core */
+
+/* The studio's Save state / Load state: one state, kept in memory for this run (loading copies the RAM back, see runtime/ram.c). */
+static unsigned char *g_state_buf; static size_t g_state_len;
+static void embed_state(char what) {
+    if (!g_ram) { fprintf(stderr, "save states need the console's RAM (GS_RAM=1)\n"); return; }
+    if (what == 'S') {
+        const size_t n = state_size();
+        if (!g_state_buf || g_state_len != n) { free(g_state_buf); g_state_buf = malloc(n); g_state_len = g_state_buf ? n : 0; }
+        if (g_state_buf && state_save(g_state_buf, g_state_len)) { printf("state saved\n"); fflush(stdout); }
+        else { free(g_state_buf); g_state_buf = NULL; g_state_len = 0; fprintf(stderr, "the state could not be saved\n"); }
+    } else if (!g_state_buf) fprintf(stderr, "no state saved yet: press Save state first\n");
+    else if (state_load(g_state_buf, g_state_len)) { printf("state loaded\n"); fflush(stdout); }
+    else fprintf(stderr, "the state could not be loaded\n");
+}
+#endif
+
 #ifndef GS_LIBRETRO
 int main(int argc, char **argv) {
     if (argc == 3 && !strcmp(argv[1], "boost-selftest")) return boost_selftest(argv[2]);
@@ -2165,8 +2198,18 @@ int main(int argc, char **argv) {
     /* gs.rect / gs.line / gs.print take an alpha: without this the renderer ignores it and every translucent rectangle comes out solid */
     if (g_ren) SDL_SetRenderDrawBlendMode(g_ren, SDL_BLENDMODE_BLEND);
 
+#ifndef _WIN32
+    /* GS_RAM=1: Lua gets the console's RAM, a fixed block, instead of the computer's memory (runtime/ram.c) */
+    if (getenv("GS_RAM")) {
+        if (!ram_open()) { fprintf(stderr, "gs: no memory for the console's RAM\n"); return 1; }
+        g_lua_alloc = ram_alloc; g_lua_panic = ram_panic;
+    }
+#endif
     lua_State *L = game_start();
     if (!L) return 1;
+#ifndef _WIN32
+    g_core_L = L;
+#endif
 
     Uint64 last = ticks_ns();
     /* GS_MAX_FRAMES=N exits after N frames: for automated tests */
@@ -2215,6 +2258,9 @@ int main(int argc, char **argv) {
             if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) g_quit = true;
         }
         embed_poll();
+#ifndef _WIN32
+        if (g_embed_state) { embed_state(g_embed_state); g_embed_state = 0; L = g_core_L; }
+#endif
         const Uint64 t_events = ticks_ns();
         poll_buttons();
         const Uint64 t_buttons = ticks_ns();

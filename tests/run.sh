@@ -92,6 +92,13 @@ if [ -x build/retro-run ] && [ -n "$core" ]; then
   out="$(RETRO_SAVE_DIR="$tmp/saves" RETRO_HOLD="$hold" RETRO_LOAD=0:"$tmp/s200" RETRO_DUMP=400:"$tmp/resumed.bmp" ./build/retro-run "$core" carts/breakout 200 2>&1)"
   echo "$out" | grep -q 'RETRO load ok' || { echo "$out"; echo "FAIL: a new run could not resume from a save state"; status=1; }
   node tests/same-frames.mjs "$tmp/f.bmp" "$tmp/resumed.bmp" || { echo "FAIL: a game resumed in a new run played differently"; status=1; }
+  # The console's RAM: the program with GS_RAM=1 (the studio's Play panel) runs out of memory at the very step the core does, near 8 MB.
+  core_last="$(./build/retro-run "$core" tests/ramhog 300 2>&1 | grep '^ramhog' | tail -1)"
+  prog_out="$(GS_RAM=1 FRAMES=300 run ./build/gs tests/ramhog)"
+  prog_last="$(echo "$prog_out" | grep '^ramhog' | tail -1)"
+  echo "$prog_out" | grep -q 'not enough memory' || { echo "FAIL: the program with GS_RAM=1 did not run out of memory"; status=1; }
+  [ -n "$core_last" ] && [ "${core_last%%/*}" = "${prog_last%%/*}" ] || { echo "core: $core_last"; echo "program: $prog_last"; echo "FAIL: the program and the core run out of memory at different points"; status=1; }
+  case "$prog_last" in *"/8192 KB"*) ;; *) echo "$prog_last"; echo "FAIL: gs.raw.ram() does not report the 8 MB RAM"; status=1 ;; esac
   rm -rf "$tmp"
 else
   echo "SKIP: libretro core (build/gs_libretro or build/retro-run missing)"
@@ -132,9 +139,13 @@ rm -rf "$tmp"
 out="$(GS_PERF=1 run ./build/gs carts/breakout)"
 echo "$out" | grep -qE 'sound commands carried out: [1-9]' || { echo "FAIL: starting music did not reach the audio thread"; status=1; }
 
-# The studio's Handheld panel reads a line of numbers a second from the running game (GS_STATS=1): entities, time per step and frame, fps, memory.
+# The studio's Handheld panel reads a line of numbers a second from the running game (GS_STATS=1): entities, time per step and frame, fps, memory,
+# collision checks, screens and calls drawn.
 out="$(GS_STATS=1 FRAMES=150 run ./build/gs carts/breakout)"
-echo "$out" | grep -qE '^@@gs \{"entities":[0-9]+,"peak":[0-9]+,"limit":[0-9]+,"update_ms":[0-9.]+,"draw_ms":[0-9.]+,"fps":[0-9]+,"mem_kb":[0-9]+,"checks":[0-9]+,"screens":[0-9.]+\}$' || { echo "FAIL: no stats line from GS_STATS=1"; status=1; }
+echo "$out" | grep -qE '^@@gs \{"entities":[0-9]+,"peak":[0-9]+,"limit":[0-9]+,"update_ms":[0-9.]+,"draw_ms":[0-9.]+,"fps":[0-9]+,"mem_kb":[0-9]+,"checks":[0-9]+,"screens":[0-9.]+,"calls":[0-9]+\}$' || { echo "FAIL: no stats line from GS_STATS=1"; status=1; }
+# ... and, with the console's RAM (GS_RAM=1, as the studio runs games), how much of it is in use
+out="$(GS_RAM=1 GS_STATS=1 FRAMES=150 run ./build/gs carts/breakout)"
+echo "$out" | grep -qE '^@@gs \{.*,"calls":[0-9]+,"ram_kb":[0-9]+,"ram_peak_kb":[0-9]+,"ram_size_kb":8192\}$' || { echo "FAIL: no RAM in the stats line with GS_RAM=1"; status=1; }
 
 [ $status -eq 0 ] && echo "ALL TESTS PASS"
 exit $status

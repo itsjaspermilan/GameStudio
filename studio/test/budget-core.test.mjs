@@ -48,18 +48,30 @@ test("a sprite that is not a multiple of 8 is a warning, not an error", () => {
   assert.match(find(rows, "Biggest sprite").text, /not a multiple of 8/);
 });
 
-test("live numbers: entities against the limit, time against the guide", () => {
-  const calm = budgetRows(dot, { lua: { files: 0, lines: 0 } }, { entities: 40, peak: 60, limit: 512, update_ms: 0.2, draw_ms: 0.3, fps: 60, mem_kb: 800 });
+test("live numbers: entities against the limit, time against the Brick's frame", () => {
+  const calm = budgetRows(dot, { lua: { files: 0, lines: 0 } }, { entities: 40, peak: 60, limit: 512, update_ms: 0.2, draw_ms: 0.3, fps: 60, mem_kb: 800, screens: 1.5 });
   assert.equal(find(calm, "Things alive at once").level, "ok");
-  assert.equal(find(calm, "Time per frame (this computer)").level, "ok");
-  const busy = budgetRows(dot, { lua: { files: 0, lines: 0 } }, { entities: 500, peak: 512, limit: 512, update_ms: 2.5, draw_ms: 1.5, fps: 44, mem_kb: 2000 });
+  assert.equal(find(calm, "Frame time on the Brick").level, "ok");
+  assert.match(find(calm, "Frame time on the Brick").tip, /0\.20 ms update/);
+  const busy = budgetRows(dot, { lua: { files: 0, lines: 0 } }, { entities: 500, peak: 512, limit: 512, update_ms: 2.5, draw_ms: 1.5, fps: 44, mem_kb: 2000, screens: 2 });
   assert.equal(find(busy, "Things alive at once").level, "warn");
-  assert.equal(find(busy, "Time per frame (this computer)").level, "over");
+  assert.equal(find(busy, "Frame time on the Brick").level, "over");
+  const old = budgetRows(dot, { lua: { files: 0, lines: 0 } }, { entities: 4, peak: 4, limit: 512, update_ms: 0.2, draw_ms: 0.3, fps: 60, mem_kb: 800 });
+  assert.equal(find(old, "Time per frame (this computer)").level, "info", "an older runtime sends no screens: no estimate");
+  assert.equal(find(old, "Lua memory").text, "800 KB", "and no RAM: Lua's own count");
   assert.equal(find(busy, "Frames a second").level, "warn");
   assert.equal(find(busy, "Collision checks (busiest step)"), undefined, "older runtimes send no checks: no row");
   const heavy = budgetRows(dot, { lua: { files: 0, lines: 0 } }, { entities: 40, peak: 60, limit: 512, update_ms: 0.2, draw_ms: 0.3, fps: 60, mem_kb: 800, checks: 1400, screens: 2.5 });
   assert.equal(find(heavy, "Collision checks (busiest step)").level, "over");
   assert.match(find(heavy, "Drawing (busiest frame)").text, /2\.5 screens of 6\.0 screens/);
+});
+
+test("RAM: the Brick's block, now and at most", () => {
+  const live = { entities: 4, peak: 4, limit: 512, update_ms: 0.1, draw_ms: 0.1, fps: 60, mem_kb: 700, screens: 1, ram_kb: 800, ram_peak_kb: 7000, ram_size_kb: 8192 };
+  const r = find(budgetRows(dot, { lua: { files: 0, lines: 0 } }, live), "RAM");
+  assert.equal(r.text, "800 KB now, 6.8 MB at most, of 8.0 MB");
+  assert.equal(r.level, "warn");
+  assert.equal(find(budgetRows(dot, { lua: { files: 0, lines: 0 } }, live), "Lua memory"), undefined);
 });
 
 test("the stats line and the console summary", () => {

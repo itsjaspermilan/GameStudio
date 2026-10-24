@@ -157,18 +157,22 @@ gs.time_scale = 1
 -- studio shows them as a guide and treats the entity count (exact on both) as the number to watch.
 local clock = os.clock
 local wall = raw.time -- seconds, real time: frames a second must be measured with it, not with CPU time
-local stat = { update = 0, draw = 0, steps = 0, frames = 0, peak = 0, since = wall(), checks = 0, screens = 0 }
+local stat = { update = 0, draw = 0, steps = 0, frames = 0, peak = 0, since = wall(), checks = 0, screens = 0, calls = 0 }
 local function stats_tick()
   local now = wall()
   if now - stat.since < 1 then return end
   local alive = world.alive
   local limit = world.limits.entities
-  -- checks and screens: the busiest step and frame of this second (collision checks; pixels drawn, in screens, overlaps counted)
-  io.stderr:write(string.format('@@gs {"entities":%d,"peak":%d,"limit":%s,"update_ms":%.3f,"draw_ms":%.3f,"fps":%d,"mem_kb":%d,"checks":%d,"screens":%.2f}\n',
+  -- checks, screens and calls: the busiest step and frame of this second (collision checks; pixels drawn, in screens, overlaps counted;
+  -- drawing calls). ram: the console's RAM in use now and at most, and its size, when Lua's memory is that fixed block (the handheld's
+  -- libretro core, and the studio's Play panel); without it the game has the computer's memory and only mem_kb is known.
+  local used, most, size = raw.ram()
+  local ram = used and string.format(',"ram_kb":%d,"ram_peak_kb":%d,"ram_size_kb":%d', used // 1024, most // 1024, size // 1024) or ""
+  io.stderr:write(string.format('@@gs {"entities":%d,"peak":%d,"limit":%s,"update_ms":%.3f,"draw_ms":%.3f,"fps":%d,"mem_kb":%d,"checks":%d,"screens":%.2f,"calls":%d%s}\n',
     alive, stat.peak, limit and tostring(limit) or "null", stat.steps > 0 and stat.update / stat.steps * 1000 or 0,
     stat.frames > 0 and stat.draw / stat.frames * 1000 or 0, math.floor(stat.frames / (now - stat.since) + 0.5), math.floor(collectgarbage("count")),
-    stat.checks, stat.screens))
-  stat.update, stat.draw, stat.steps, stat.frames, stat.since, stat.checks, stat.screens = 0, 0, 0, 0, now, 0, 0
+    stat.checks, stat.screens, stat.calls, ram))
+  stat.update, stat.draw, stat.steps, stat.frames, stat.since, stat.checks, stat.screens, stat.calls = 0, 0, 0, 0, now, 0, 0, 0
 end
 
 function update(dt)
@@ -246,8 +250,9 @@ function draw()
   guard(world.draw)
   if STATS then
     stat.draw = stat.draw + (clock() - t0); stat.frames = stat.frames + 1
-    local px, _, screen = raw.stats() -- the frame before this one: the runtime counts pixels as they are drawn
+    local px, calls, screen = raw.stats() -- the frame before this one: the runtime counts pixels as they are drawn
     if px / screen > stat.screens then stat.screens = px / screen end
+    if calls > stat.calls then stat.calls = calls end
     stats_tick()
   end
   if fatal then error_overlay() return end

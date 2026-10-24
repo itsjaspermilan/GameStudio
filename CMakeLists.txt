@@ -67,15 +67,16 @@ string(APPEND GS_BUNDLE "package.preload[\"gs.console_specs\"] = function() retu
 file(WRITE "${CMAKE_BINARY_DIR}/gs_framework.lua" "${GS_BUNDLE}")
 embed_file("${CMAKE_BINARY_DIR}/gs_framework.lua" gs_framework_lua EMBED_FRAMEWORK)
 
-add_executable(gs runtime/main.c runtime/synth.c ${EMBED_FRAMEWORK})
-target_include_directories(gs PRIVATE third_party/tsf)
+add_executable(gs runtime/main.c runtime/synth.c third_party/tlsf/tlsf.c ${EMBED_FRAMEWORK})
+# tlsf and Lua's own headers: the console's RAM (runtime/ram.c, GS_RAM=1) is built into the program too
+target_include_directories(gs PRIVATE third_party/tsf third_party/tlsf third_party/lua/src runtime)
 if(GS_SYSTEM_SDL2)
   target_link_libraries(gs PRIVATE lua SDL2::SDL2)
 else()
   target_link_libraries(gs PRIVATE lua SDL2::SDL2-static)
 endif()
 if(NOT WIN32)
-  target_link_libraries(gs PRIVATE m)
+  target_link_libraries(gs PRIVATE m ${CMAKE_DL_LIBS})
 endif()
 
 # gs as a libretro core (gs_libretro.so / .dylib): the same runtime without its main(), for NextUI's minarch and RetroArch. On the handheld

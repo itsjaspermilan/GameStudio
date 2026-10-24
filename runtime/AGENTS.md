@@ -88,7 +88,7 @@ recipe first), then moves Lua's pointers into the core by the change in load add
 hooks, the allocator and panic function), empty tables' shared `dummynode`, and io's standard streams; tables keyed by a C function are
 rehashed. A state carries a hash of the core file and is refused by any other build (function offsets inside the core change). Anything
 new that stores a pointer into the core or outside the block inside a Lua object must be added to `shift_object`.
-`tests/retro-run.c` is a small frontend for tests (`RETRO_HOLD`, `RETRO_SAVE`, `RETRO_LOAD`, `RETRO_DUMP`; see its header).
+The allocator counts the bytes in use (`g_ram_used`, `gs.raw.ram()`). The program includes `ram.c` too (not on Windows): with `GS_RAM=1` its Lua uses the same block, and the studio's Save state / Load state use `state_save` / `state_load` within the run. `tests/retro-run.c` is a small frontend for tests (`RETRO_HOLD`, `RETRO_SAVE`, `RETRO_LOAD`, `RETRO_DUMP`; see its header).
 
 ## Video output
 
@@ -121,7 +121,8 @@ skips the extra wait after the flip). Opaque composed pictures are copied withou
 | `GS_MAX_SECONDS=N`, `GS_MAX_FRAMES=N` | Leave after N seconds / frames |
 | `GS_DUMP_FRAME=file.bmp` | Saves the last frame (tests compare drawing paths with it) |
 | `GS_READBACK=1` | Copies every finished frame from the GPU into memory (what a libretro core drawing on a GPU of its own would pay); shows in `GS_PERF`'s drawing time |
-| `GS_EMBED=port`, `GS_EMBED_SIZE=WxH` | No window: draw with the software renderer at the console's size and send changed frames to the studio's Play panel on 127.0.0.1:port; take its buttons back (protocol in the "embedded preview" comment in `main.c`; `studio/src/play-core.js` reads it) |
+| `GS_EMBED=port`, `GS_EMBED_SIZE=WxH` | No window: draw with the software renderer at the console's size and send changed frames to the studio's Play panel on 127.0.0.1:port; take its buttons back, and its Save state / Load state (protocol in the "embedded preview" comment in `main.c`; `studio/src/play-core.js` reads it) |
+| `GS_RAM=1` | Lua gets the console's RAM, the libretro core's fixed 8 MB block (`ram.c` is built into the program too), so the game runs out of memory where it does on the Brick and can save states; `gs.raw.ram()` gives the bytes in use, the most so far and the size. The studio sets it for every run |
 | `GS_FBDEV=path`, `GS_AUDIO_FRAMES=N` | Another framebuffer device; a device audio buffer of N frames (default: SDL's) |
 
 Frame times within 3 ms of 1/60 s are taken as exactly 1/60 so the engine's fixed steps do not alternate between zero and two a frame. `scripts/push.sh` can generate test launchers: `GS_PERF=1`, `GS_DEBUG=1`, `GS_GOVERNOR=performance` (see its header comments).

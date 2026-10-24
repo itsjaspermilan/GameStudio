@@ -51,7 +51,13 @@ Measuring (`GS_PERF=1`)
   re-tune them on the Brick (`engine/consoles/README.md`).
 - [ ] The adaptive CPU floor (`runtime/AGENTS.md`) was built for the RG35XX's cpufreq and only runs on the framebuffer path; check what the
   Brick's clock does under load and whether it needs the same help.
-- [ ] Calibrate the studio Handheld tab's 3 ms-per-frame guide (computer time) against the Brick's numbers.
+- [x] The studio's frame guide calibrated against the Brick (2026-10-24, GPU core, `retro-run` on the device): Breakout 2.1 ms; heavy
+  screen 3.1 (no stars) / 4.2 / 4.9 / 6.9 (100 / 200 / 400 stars); 100 / 200 / 300 moving, colliding things (`GS_HEAVY_THINGS`) 6.6 /
+  13.1 / 20.3. All eight fit, within about 0.3 ms, 0.34 ms per screen drawn + 10.6 x the update time on an M4
+  (`studio/src/brick-core.js`): the Handheld tab and the Play panel show "Time per frame on the Brick" instead of the 3 ms guide.
+- [ ] The Brick estimate's Lua ratio (10.6) is for the M4 the studio runs on; on another computer it is off by that computer's speed. If
+  the studio goes to other machines, time a fixed Lua loop at start-up and scale by it. Worst frames: heavy Lua runs on the Brick had
+  single frames of 106-124 ms (garbage collection?); see whether a game hits them and whether a generational GC helps.
 
 ## Studio and engine (no device needed)
 
@@ -63,8 +69,10 @@ Measuring (`GS_PERF=1`)
 - [ ] Help pages can show pictures now (`docs/help/img/`, two in "Make a game, step by step"); add more where a beginner would look for one
   (the sprite editor with colour banks, the Play panel, Send to device).
 - [ ] Layouts, next step: offer to turn a room into a scene's layout.
-- [ ] Later, once the Brick is measured: simulate the console in the Play panel (slow the game by the measured device/desktop ratio; Lua
-  memory against what the console has).
+- [x] The Play panel plays like the Brick (2026-10-24): Lua in the core's fixed 8 MB RAM (`GS_RAM=1`, runs out at the same step:
+  `tests/ramhog`), RAM in use and the estimated Brick frame under the screen and in the Handheld tab, Save state / Load state. It still
+  runs the program, not the core: sound, live reload and the Inspector stay as they are, and the core's frames match the program's.
+- [ ] Maybe: slow the Play panel down to the Brick's speed (hold each frame to the estimate) so a too-slow game also *feels* too slow.
 - [ ] (paused) Signing and notarizing the app (and the bundled `lua-language-server` inside it) for other Macs; only needed to hand the
   studio to someone else. When picked up: create a Developer ID Application certificate (Xcode > Settings > Accounts > Manage
   Certificates) and an App Store Connect API key (.p8, kept private); the build reads `APPLE_SIGNING_IDENTITY`, `APPLE_API_ISSUER`,

@@ -136,7 +136,7 @@ const handlers = {
     fake = setInterval(() => {
       const cmd = (() => { try { return JSON.parse(inspectText || "{}"); } catch { return {}; } })();
       paused = !!cmd.paused; if (!paused) step += 60 * (cmd.speed || 1);
-      emit("log", { stream: "stderr", line: `@@gs {"entities":14,"peak":20,"limit":512,"update_ms":0.2,"draw_ms":0.3,"fps":60,"mem_kb":700,"checks":40,"screens":1.3}` });
+      emit("log", { stream: "stderr", line: `@@gs {"entities":14,"peak":20,"limit":512,"update_ms":0.2,"draw_ms":0.3,"fps":60,"mem_kb":700,"checks":40,"screens":1.3,"calls":20,"ram_kb":${760 + (step / 60) % 90},"ram_peak_kb":1150,"ram_size_kb":8192}` });
       if (cmd.open) {
         const list = cmd.class ? Array.from({ length: 5 }, (_, i) => ({ id: 10 + i, x: 40 * i, y: 100 })) : [];
         const entity = cmd.entity ? { hp: String(3 + (step % 3)), x: "40.00", y: "100.00", sprite: '"spr_demo"' } : undefined;
@@ -149,6 +149,7 @@ const handlers = {
   },
   stop_preview: () => { stopFake(); emit("preview-state", false); return null; },
   preview_buttons: ({ mask }) => { fakeButtons = mask; fakeTapped |= mask; return null; },
+  preview_state: ({ save }) => { emit("log", { stream: "stdout", line: save ? "state saved" : "state loaded" }); return null; },
   cancel_push: () => false,
   lsp_start: () => { throw 'mock: no language server in the browser'; },
   lsp_stop: () => null,

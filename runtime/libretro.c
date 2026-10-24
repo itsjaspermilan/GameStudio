@@ -26,7 +26,6 @@ static retro_input_poll_t input_poll_cb;
 static retro_input_state_t input_state_cb;
 static retro_log_printf_t log_cb;
 
-static lua_State *g_core_L;
 static int g_core_w, g_core_h; /* the size last told to the emulator */
 static double g_audio_due;      /* samples owed to the emulator, with the fraction of a sample a frame leaves over */
 static float g_mix[2 * 2048];

@@ -1978,6 +1978,8 @@ $("settings").addEventListener("close", async () => {
   setupWindowChrome($("toolbar"), { native });
   play = createPlayPanel($("play"), {
     sendButtons: (mask) => { invoke("preview_buttons", { mask }).catch(() => { /* the game has just ended */ }); },
+    saveState: () => { invoke("preview_state", { save: true }).catch(fail); },
+    loadState: () => { invoke("preview_state", { save: false }).catch(fail); },
     popOut: () => { try { localStorage.setItem("gs.runIn", "window"); } catch { /* not remembered */ } showPlay(false); if (state.running) $("btn-run").click(); },
     close: () => { showPlay(false); if (state.running) invoke("stop_preview").catch(fail); },
   });
@@ -1993,7 +1995,7 @@ $("settings").addEventListener("close", async () => {
     // the panel is rebuilt with each answer, except while a field or menu in it is in use
     if (look) { insp.report = look; if (state.logTab === "insp" && !$("inspector").contains(document.activeElement)) renderInspector(); return; }
     const stats = parseStatsLine(line); // numbers for the Handheld panel, not for the Output
-    if (stats) { state.live = stats; if (state.logTab === "hh") renderHandheld(); return; } // the engine's and runtime's budget warnings start with "warning:" and show in amber, not as errors
+    if (stats) { state.live = stats; play.stats(stats); if (state.logTab === "hh") renderHandheld(); return; } // the engine's and runtime's budget warnings start with "warning:" and show in amber, not as errors
     log(line, /^warning:/.test(line) ? "warn" : e.payload.stream === "stderr" ? "err" : "");
   });
   listen("preview-state", (e) => {

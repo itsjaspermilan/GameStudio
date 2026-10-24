@@ -68,3 +68,36 @@ test("the runtime sends its frames to the studio and takes buttons back", { skip
   assert.ok(frames.every((f) => f && f.width === 256 && f.height === 192), "every message is a whole frame at the console's size");
   assert.ok(frames.some((f) => f.pixels.some((v, i) => i % 4 !== 3 && v > 0)), "something is drawn");
 });
+
+test("as the Play panel runs it, the game has the Brick's RAM and saves and loads states", { skip: !existsSync(gs) && "build/gs is missing: run scripts/build.sh" }, async () => {
+  let out = "", err = "";
+  await new Promise((done, failed) => {
+    const srv = net.createServer((sock) => {
+      sock.on("data", () => {}); // the frames
+      sock.on("error", () => {});
+      // asked in turn as the earlier answer arrives: a load before any save is refused politely
+      const steps = [["L", /no state saved yet/], ["S", /state saved/], ["L", /state loaded/]];
+      const next = () => {
+        if (!steps.length) return sock.write("Q");
+        const [cmd, want] = steps[0];
+        sock.write(cmd);
+        const wait = setInterval(() => { if (want.test(out + err)) { clearInterval(wait); steps.shift(); next(); } }, 50);
+      };
+      const ready = setInterval(() => { if (/"ram_size_kb":8192/.test(err)) { clearInterval(ready); next(); } }, 50);
+    });
+    srv.listen(0, "127.0.0.1", () => {
+      const p = spawn(gs, [join(root, "carts/breakout")], {
+        env: { ...process.env, GS_EMBED: String(srv.address().port), GS_EMBED_SIZE: "256x192", GS_RAM: "1", GS_STATS: "1", GS_SAVE_DIR: mkdtempSync(join(tmpdir(), "gs-play-")), SDL_AUDIODRIVER: "dummy" },
+      });
+      p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));
+      const timer = setTimeout(() => { p.kill(); failed(new Error("timed out\n" + out + err)); }, 20000);
+      p.on("exit", (code) => { clearTimeout(timer); srv.close(); code === 0 ? done() : failed(new Error("exit " + code + "\n" + err)); });
+    });
+  });
+  const stats = err.split("\n").filter((l) => l.startsWith("@@gs ")).map((l) => JSON.parse(l.slice(5)));
+  const last = stats.at(-1);
+  assert.ok(last.ram_kb > 100 && last.ram_kb < 8192 && last.ram_peak_kb >= last.ram_kb, JSON.stringify(last));
+  assert.ok(Number.isFinite(last.screens) && Number.isFinite(last.calls), "what the Brick estimate needs");
+  assert.match(out, /state saved\nstate loaded/);
+  assert.doesNotMatch(err, /lua error|could not/);
+});

@@ -1,4 +1,5 @@
-/* The console's RAM and save states, for the libretro core (included by runtime/libretro.c after main.c).
+/* The console's RAM and save states, for the libretro core (included by runtime/libretro.c after main.c) and for the program with GS_RAM=1
+ * (included at the end of main.c: the studio's Play panel, which also saves and loads states within a run).
  *
  * Lua's memory comes from one fixed block, as a console's RAM does: TLSF (third_party/tlsf) manages it and keeps its own bookkeeping
  * inside it, so a copy of the block is a copy of every table, closure and coroutine of the game, allocator included. A save state is that
@@ -11,6 +12,7 @@
  * (Lua holds pointers to its C functions) and the C library's standard streams (io.stderr). The block is placed at the same address in
  * every run so that every other pointer inside it stays right; when that address is taken, states still work within a run. */
 #include <sys/mman.h>
+#include <dlfcn.h>
 #include "tlsf.h"
 #include "lstate.h"
 #include "ltable.h"
@@ -35,16 +37,25 @@
 #define STATE_VERSION 1
 #define STATE_HEADROOM ((size_t)4 << 20)           /* room for pictures and songs the game makes after the emulator first asks the size */
 
+static lua_State *g_core_L;    /* the game's Lua state, whose memory is the block */
 static unsigned char *g_ram; static tlsf_t g_tlsf; static bool g_ram_fixed;
 static uint64_t g_session;      /* this run; a state from another run needs its assets made again */
 static uintptr_t g_code_base; static size_t g_code_size;
 static uint64_t g_build;        /* this exact core: a state holds pointers into its code, so another build of it cannot use the state */
 static size_t g_state_bytes;    /* fixed once asked: the emulator's rewind compares states of one size */
 
+/* Lua's allocator. It also keeps g_ram_used (main.c, gs.ram): the blocks' sizes plus TLSF's few bytes each, so the figure reaches the RAM's
+ * size when the RAM is full. */
 static void *ram_alloc(void *ud, void *ptr, size_t osize, size_t nsize) {
     (void)ud; (void)osize;
-    if (nsize == 0) { if (ptr) tlsf_free(g_tlsf, ptr); return NULL; }
-    return tlsf_realloc(g_tlsf, ptr, nsize);
+    const size_t before = ptr ? tlsf_block_size(ptr) + tlsf_alloc_overhead() : 0;
+    if (nsize == 0) { if (ptr) { tlsf_free(g_tlsf, ptr); g_ram_used -= before; } return NULL; }
+    void *p = tlsf_realloc(g_tlsf, ptr, nsize);
+    if (p) {
+        g_ram_used += tlsf_block_size(p) + tlsf_alloc_overhead() - before;
+        if (g_ram_used > g_ram_peak) g_ram_peak = g_ram_used;
+    }
+    return p;
 }
 static int ram_panic(lua_State *L) {
     fprintf(stderr, "Lua: %s\n", lua_tostring(L, -1) ? lua_tostring(L, -1) : "unprotected error");
@@ -118,11 +129,12 @@ static bool ram_open(void) {
     g_ram = p;
     g_tlsf = tlsf_create_with_pool(g_ram, RAM_BYTES);
     if (!g_tlsf) return false;
+    g_ram_size = RAM_BYTES; g_ram_used = g_ram_peak = 0;
     g_session = ((uint64_t)SDL_GetPerformanceCounter() << 16) ^ (uint64_t)getpid() ^ ((uint64_t)time(NULL) << 32);
     code_span();
     return true;
 }
-static void ram_close(void) { if (g_ram) munmap(g_ram, RAM_BYTES); g_ram = NULL; g_tlsf = NULL; }
+static void ram_close(void) { if (g_ram) munmap(g_ram, RAM_BYTES); g_ram = NULL; g_tlsf = NULL; g_ram_size = 0; }
 
 /* The end of the last block in use: everything past it (and before the sentinel at the very end) is free space, not worth saving. */
 static void used_walker(void *ptr, size_t size, int used, void *user) {
@@ -134,6 +146,13 @@ static size_t ram_used_end(void) {
     tlsf_walk_pool(tlsf_get_pool(g_tlsf), used_walker, &end);
     end += RAM_EDGE;
     return end < RAM_BYTES - RAM_EDGE ? end : RAM_BYTES - RAM_EDGE;
+}
+/* g_ram_used counted again from the blocks, after a state put back another RAM */
+static void count_walker(void *ptr, size_t size, int used, void *user) { (void)ptr; if (used) *(size_t *)user += size + tlsf_alloc_overhead(); }
+static void ram_recount(void) {
+    size_t n = 0;
+    tlsf_walk_pool(tlsf_get_pool(g_tlsf), count_walker, &n);
+    g_ram_used = n; if (n > g_ram_peak) g_ram_peak = n;
 }
 
 /* ---------- moving pointers into the core when it was loaded elsewhere: its C functions, and Lua's constant empty hash part ---------- */
@@ -361,6 +380,7 @@ static bool state_load(const unsigned char *in, size_t size) {
 
     memcpy(g_ram, p, h.used_end); p += h.used_end;
     memcpy(g_ram + RAM_BYTES - RAM_EDGE, p, RAM_EDGE);
+    ram_recount();
     g_core_L = (lua_State *)(uintptr_t)h.main_L;
     if (!same_run) {
         g_old_base = (uintptr_t)h.code_base; g_shift = (intptr_t)(g_code_base - g_old_base);
@@ -370,10 +390,12 @@ static bool state_load(const unsigned char *in, size_t size) {
     if (rs.screen_w != g_screen_w || rs.screen_h != g_screen_h) { g_screen_w = rs.screen_w; g_screen_h = rs.screen_h; screen_logical(g_screen_w, g_screen_h); }
     g_mosaic = rs.mosaic;
     memcpy(btn_now, rs.now, sizeof rs.now); memcpy(btn_prev, rs.prev, sizeof rs.prev);
+    synth_lock(); /* the program's audio thread plays these voices (the core has no such thread, and no lock) */
     for (int i = 0; i < MAX_VOICES; i++) {
         const bool ok = rs.voices[i].snd >= 0 && rs.voices[i].snd < g_nsounds;
         g_voices[i].active = rs.voices[i].active && ok; g_voices[i].loop = rs.voices[i].loop; g_voices[i].snd = ok ? rs.voices[i].snd : 0;
         g_voices[i].pos = rs.voices[i].pos; g_voices[i].gain = rs.voices[i].gain;
     }
+    synth_unlock();
     return true;
 }

@@ -24,6 +24,10 @@ npx vite build                # quick syntax/bundle check of the front end
 - **Colours come from the theme.** CSS uses the variables at the top of `style.css` (`--bg`, `--panel`, `--text`, `--muted`, `--accent`, `--surface`, `--ink`, ...), never a fixed colour for interface parts; canvas code uses `theme.js`. Fixed colours are only for content (the game's palette, a room's background, instrument lane colours, the mock game screen). Check new UI in both modes (the browser pane can emulate light and dark).
 - **Run** starts the game with `GS_DEV=1`: saving a Lua file or an asset updates the running game (live reload, see `../engine/AGENTS.md`). By default the game shows in the Play panel beside the code
   (`play-panel.js`: the runtime sends frames over a local socket, `run_preview` relays them through a Tauri `Channel`); Settings can keep it in a window of its own.
+  **The studio plays like the Brick:** `run_preview` sets `GS_RAM=1`, so Lua gets the libretro core's fixed 8 MB block (`runtime/ram.c`) and runs out of memory where the Brick does;
+  the Play panel's Save state / Load state send `S` / `L` on the same socket (`preview_state`; one state a run, kept by the runtime). `brick-core.js` turns the `@@gs` numbers into
+  the RAM in use and an estimated Brick frame (0.34 ms per screen drawn + 10.6 x this computer's update time, fitted 2026-10-24 to 8 Brick runs of `tests/heavy` and Breakout against
+  an M4; `test/brick-core.test.mjs` keeps the fit); the Play panel shows it under the screen, the Handheld tab as rows. Refit `BRICK` when the core's drawing or the engine changes a lot.
 
 ## Checklists
 
@@ -48,7 +52,8 @@ the framework's functions and Entity methods are all there) and then completes, 
 **`test/help.test.mjs` writes each tutorial's files to a temp folder and plays it with `tests/random-bot.lua` through `build/gs`, and runs the editor's own lint over it**, so a tutorial with a mistake fails the tests.
 Links between pages are `href="help:<slug>"`. The API page is generated; document new `gs.*` functions in `engine/api/gs.d.lua`, not in a page.
 The Handheld tab gets its live numbers from the game's stderr (`@@gs {json}` once a second, only when `GS_STATS` is set, which `run_preview` does); `engine/gs/boot.lua` writes it. Times are CPU time on the computer, so the panel
-only uses them as a guide and treats the entity count as the exact number. The `@@gs` line also carries `checks` (collision checks in the busiest step) and `screens` (pixels drawn in the busiest frame, in screens); the panel shows them against the console's `collision_tests` and `draw_screens` budgets.
+only uses them as a guide and treats the entity count as the exact number. The `@@gs` line also carries `checks` (collision checks in the busiest step), `screens` (pixels drawn in the busiest frame, in screens) and `calls` (drawing calls in it); the panel shows the first two against the console's `collision_tests` and `draw_screens` budgets.
+With the console's RAM (`GS_RAM`, or the core) it adds `ram_kb`, `ram_peak_kb` and `ram_size_kb` (from `gs.raw.ram()`: TLSF blocks in use, overhead included).
 
 ## Sound editors (the most active area)
 
