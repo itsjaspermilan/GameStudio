@@ -328,6 +328,11 @@ fn write_project_state(app: AppHandle, cart: String, content: String) -> Result<
     if !readme.exists() {
         let _ = fs::write(&readme, "GameStudio keeps its notes about this game here (open tabs, where you were).\nIt is not part of the game and is never packed; it is safe to delete.\n");
     }
+    // the folder leaves itself out of git, so a game kept in a repository never commits it, without touching the game's own .gitignore
+    let ignore = dir.join(".gitignore");
+    if !ignore.exists() {
+        let _ = fs::write(&ignore, "# GameStudio's notes about this game, not part of it\n*\n");
+    }
     fs::write(dir.join("state.json"), content).map_err(|e| e.to_string())
 }
 
