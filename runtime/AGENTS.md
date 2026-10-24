@@ -55,6 +55,13 @@ Knulli and muOS hand games a mapping in `SDL_GAMECONTROLLERCONFIG`, written for 
 as it is (muOS picks it from the player's "modern" or "retro" layout). `open_controllers` opens every controller and joystick; `GS_DEBUG_INPUT=1`
 prints them and every press. A `padmap.txt` from the Pad setup cart still wins over the mapping.
 
+NextUI (the TrimUI Brick) hands games no mapping, and the Brick's SDL2 takes its pad for an Xbox 360 controller (buttons by position,
+so B came out as A). `scripts/push.sh` writes the Brick's mapping into the NextUI launcher (`SDL_GAMECONTROLLERCONFIG`, face buttons by
+label; `GS_DEBUG_INPUT` prints the mapping SDL uses and trigger/stick axes crossing half way). `GS_BUTTON_ALIAS="l3=select,r3=start"`
+makes one button stand in for another (the launcher sets that one for consoles without L3/R3); SDL's mapping cannot, since it reads only
+the first input bound to a button. NextUI's in-game menu belongs to its emulator (minarch), so MENU does nothing in our games except as
+the hotkey (MENU + Start quits).
+
 ## Video output
 
 Three ways a frame reaches the screen, chosen in `main`:

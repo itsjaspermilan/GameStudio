@@ -16,6 +16,9 @@ Consoles were renamed on 2026-10-23: Dot is **Glow43** (G43) and Dash is **Glow1
 Setting up
 - [x] SSH (Native SSH from the Pak Store, after updating TrimUI's firmware to 1.1.1; the update made the NextUI card lose its `trimui/`
   folder, put back from the release) and the NextUI mode in `push.sh` (`scripts/device-brick.env`). Breakout pushed and runs.
+- [ ] Buttons on the Brick: the launcher's mapping (A/B, X/Y by label) and L3/R4 as Select/Start, pushed 2026-10-24; check in a game,
+  then push Breakout again without `GS_DEBUG` (the debug run quits after 60 s).
+- [ ] NextUI's MENU overlay is its emulator's and never shows over our games: decide whether games get a menu of their own on MENU.
 - [ ] The second Brick: its own `scripts/device-<name>.env` and a fixed IP.
 
 Seeing and playing

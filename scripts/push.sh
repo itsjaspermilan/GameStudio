@@ -31,6 +31,17 @@ console_info() {
   ' "$1/meta/info.json"
 }
 
+# console_has <cart-dir> <console id> <button>: prints "yes" when the console's spec lists the button among its inputs (the game's own copy
+# in consoles/<id>.json first, then the built-in one)
+console_has() {
+  node -e '
+    const fs = require("fs"), path = require("path");
+    for (const f of [path.join(process.argv[1], "consoles", process.argv[2] + ".json"), path.join("engine/consoles", process.argv[2] + ".json")]) {
+      try { const c = JSON.parse(fs.readFileSync(f, "utf8")); if ((c.input || []).includes(process.argv[3])) process.stdout.write("yes"); break; } catch {}
+    }
+  ' "$1" "$2" "$3"
+}
+
 [ -x build/gs ] || ./scripts/build.sh
 [ -x build-aarch64/gs ] || ./scripts/build-aarch64.sh
 ./build/gs pack "$SRC" "$HOSTCART"
@@ -95,6 +106,14 @@ FLOOR
       echo "trap restore_floor EXIT INT TERM"
     fi
     CART="\"carts/$NAME.cart\""
+    if [ "$DEVICE_OS" = nextui ]; then
+      # NextUI hands games no controller mapping, and the Brick's SDL2 takes its pad for an Xbox 360 controller, naming the buttons by
+      # position: the bottom one (B on the Brick) came out as A. This is SDL's own mapping for it (GS_DEBUG_INPUT prints it) with the face
+      # buttons following their labels, as Knulli's and muOS's mappings do.
+      echo 'export SDL_GAMECONTROLLERCONFIG="0300a3845e0400008e02000014010000,TRIMUI Brick,a:b1,b:b0,x:b3,y:b2,back:b6,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,dpup:h0.1,guide:b8,leftshoulder:b4,leftstick:b9,lefttrigger:a2,leftx:a0,lefty:a1,rightshoulder:b5,rightstick:b10,righttrigger:a5,rightx:a3,righty:a4,start:b7,platform:Linux,"'
+      # A console without L3 and R3 (Glow43, Glow169) gets the Brick's L3 and R4 as a second Select and Start.
+      [ -n "$INFO" ] && [ -z "$(console_has "$SRC" "${INFO%%|*}" l3)" ] && echo 'export GS_BUTTON_ALIAS="l3=select,r3=start"'
+    fi
     if [ -n "$NEXTUI_ROM" ]; then
       # saves go where NextUI keeps every system's: Saves/<console tag>/<game>
       CART='"$1"'

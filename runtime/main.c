@@ -209,6 +209,23 @@ static int g_raw_last = -1;         /* last raw joystick button pressed, for the
  * Knulli. The pad setup cart can record it as "hotkey" in padmap.txt; without an entry it is the gamepad's guide button. */
 static int g_raw_hotkey = -1;
 static SDL_Joystick *g_joys[8]; static int g_njoys;
+/* GS_BUTTON_ALIAS="l3=select,r3=start": a button the game's console does not have stands in for one it does, set by a device's launcher
+ * (the TrimUI Brick's L3 and R4 sit where Select and Start are easier to reach). The first button is then never seen by the game. */
+static int g_alias_from[B_COUNT], g_alias_to[B_COUNT], g_nalias;
+static int alias_button(const char *name, size_t len) {
+    for (int i = 0; i < B_COUNT; i++) if (strlen(btn_names[i]) == len && !strncmp(name, btn_names[i], len)) return i;
+    return -1;
+}
+static void alias_load(void) {
+    const char *p = getenv("GS_BUTTON_ALIAS");
+    while (p && *p && g_nalias < B_COUNT) {
+        const char *eq = strchr(p, '='); if (!eq) break;
+        const char *end = strchr(eq, ','); if (!end) end = eq + strlen(eq);
+        const int from = alias_button(p, (size_t)(eq - p)), to = alias_button(eq + 1, (size_t)(end - eq - 1));
+        if (from >= 0 && to >= 0 && from != to) { g_alias_from[g_nalias] = from; g_alias_to[g_nalias++] = to; }
+        p = *end ? end + 1 : end;
+    }
+}
 static SDL_GameController *g_pads[8]; static int g_npads;
 
 static bool padmap_path(char *out, size_t cap) {
@@ -273,6 +290,9 @@ static void open_controller(int index) {
     if (g_debug_input) {
         char guid[64]; SDL_JoystickGetGUIDString(SDL_JoystickGetDeviceGUID(index), guid, sizeof guid);
         fprintf(stderr, "joystick %d: %s guid=%s gamepad=%d\n", index, SDL_JoystickNameForIndex(index), guid, (int)SDL_IsGameController(index));
+        /* the mapping SDL uses, as a starting point for a device whose frontend hands games none */
+        char *m = SDL_GameControllerMappingForDeviceIndex(index);
+        if (m) { fprintf(stderr, "mapping %s\n", m); SDL_free(m); }
     }
 }
 static void open_controllers(void) {
@@ -301,6 +321,7 @@ static void poll_buttons(void) {
         }
         btn_now[i] = down;
     }
+    for (int k = 0; k < g_nalias; k++) { if (btn_now[g_alias_from[k]]) btn_now[g_alias_to[k]] = true; btn_now[g_alias_from[k]] = false; }
     g_hotkey = false;
     if (g_raw_hotkey >= 0) for (int j = 0; j < g_njoys && !g_hotkey; j++) g_hotkey = SDL_JoystickGetButton(g_joys[j], g_raw_hotkey);
     else for (int g = 0; g < g_npads && !g_hotkey; g++) g_hotkey = SDL_GameControllerGetButton(g_pads[g], SDL_CONTROLLER_BUTTON_GUIDE);
@@ -1996,6 +2017,7 @@ int main(int argc, char **argv) {
     g_debug_input = getenv("GS_DEBUG_INPUT") != NULL;
     g_perf_on = getenv("GS_PERF") != NULL;
     padmap_load();
+    alias_load();
     open_controllers();
 #ifdef __linux__
     if (g_debug_input) evdev_debug_open();
@@ -2091,6 +2113,12 @@ int main(int argc, char **argv) {
                 if (e.type == SDL_JOYBUTTONDOWN) fprintf(stderr, "joystick button %d down\n", e.jbutton.button);
                 if (e.type == SDL_CONTROLLERBUTTONDOWN) fprintf(stderr, "gamepad button %s down\n", SDL_GameControllerGetStringForButton((SDL_GameControllerButton)e.cbutton.button));
                 if (e.type == SDL_JOYHATMOTION) fprintf(stderr, "joystick hat %d value %d\n", e.jhat.hat, e.jhat.value);
+                /* analog triggers and sticks: only when one crosses half way, so a resting stick does not fill the log */
+                if (e.type == SDL_JOYAXISMOTION && e.jaxis.axis < 16) {
+                    static signed char side[16];
+                    const signed char now = e.jaxis.value > 16000 ? 1 : e.jaxis.value < -16000 ? -1 : 0;
+                    if (now != side[e.jaxis.axis]) { side[e.jaxis.axis] = now; fprintf(stderr, "joystick axis %d value %d\n", e.jaxis.axis, e.jaxis.value); }
+                }
                 if (e.type == SDL_JOYBUTTONUP) fprintf(stderr, "joystick button %d up\n", e.jbutton.button);
 #ifdef __linux__
                 fsync(2); /* a hard reset must not lose the last presses: they are what we read afterwards */
