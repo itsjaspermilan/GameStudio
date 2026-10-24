@@ -30,7 +30,7 @@ import { budgetRows, consoleSummary, parseStatsLine } from "./budget-core.js";
 import { GENRES, BOX_ART_PATH, normalizeInfo, defaultTitle, charsLeft, isPng, pngSize, boxArtScale, PICTURES, decodeBmp } from "./info-core.js";
 import { createSprite, createTileset, normalizeAnimations, toJSON, tilesetToJSON, offPaletteCount, usedColors, SIZE_GUIDE } from "./sprite-core.js";
 import { FIRST_STEPS, parseSteps, stringifySteps, showSteps } from "./steps-core.js";
-import { parseRoom, serializeRoom } from "./room-core.js";
+import { parseRoom, serializeRoom, lookDefaults } from "./room-core.js";
 import { findInFiles, replaceInText, outline, tidyLua, applyEdits } from "./search-core.js";
 import { SPEEDS, parseInspectLine, commandText, classRows, fmtMs } from "./inspector-core.js";
 import { createRoomEditor, PLACE } from "./room-editor.js";
@@ -851,8 +851,8 @@ async function loadRoomTileset(name) {
 // What an entity looks like in the room: the first frame of the sprite its file names (sprite = "..."), or nothing.
 async function entityLook(name) {
   const text = await invoke("read_file", { cart: state.cart, rel: `entities/${name.replace(/\./g, "/")}.lua` });
-  const m = text.match(/\bsprite\s*=\s*["']([\w\/-]+)["']/);
-  return m ? spriteLook(m[1]) : null;
+  const m = text.match(/\bsprite\s*=\s*["']([\w\/-]+)["']/), look = m ? await spriteLook(m[1]) : null;
+  return look && { ...look, defaults: lookDefaults(text) };
 }
 // A sprite's frames as the layout editor draws them (a picture in a layout, or what an entity looks like).
 async function spriteLook(name) {

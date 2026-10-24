@@ -328,10 +328,16 @@ export function createRoomEditor(root, hooks = {}) {
     });
     // entities
     ctx.font = "11px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-    room.entities.forEach(([n, x, y, , nm], i) => {
+    room.entities.forEach(([n, x, y, props, nm], i) => {
       const look = looks[n], px = x * zoom, py = y * zoom;
       ctx.globalAlpha = dim("entities", 0.6);
-      if (look) ctx.drawImage(look.img, 0, 0, look.fw, look.fh, px - look.ox * zoom, py - look.oy * zoom, look.fw * zoom, look.fh * zoom);
+      if (look) {
+        // as the game draws it: its frame, scaled (and mirrored) around the sprite's origin
+        const p = R.entityPose(look, props);
+        ctx.save(); ctx.globalAlpha *= p.alpha; ctx.translate(px, py); ctx.scale(p.sx * (p.flip ? -1 : 1), p.sy);
+        ctx.drawImage(look.img, p.frame * look.fw, 0, look.fw, look.fh, -look.ox * zoom, -look.oy * zoom, look.fw * zoom, look.fh * zoom);
+        ctx.restore();
+      }
       else { ctx.fillStyle = "#ffa38c"; ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.fill(); }
       ctx.globalAlpha = 1;
       if (isSel("entities", i)) { ctx.strokeStyle = themeColor("accent"); ctx.lineWidth = 2; ctx.strokeRect(px - 9, py - 9, 18, 18); }

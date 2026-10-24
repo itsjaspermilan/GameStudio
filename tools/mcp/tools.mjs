@@ -12,7 +12,7 @@ import { scanProject, consoleIdOf, LAYOUT_COMMENT } from "../../studio/src/proje
 import { normalizePalette } from "../../studio/src/palette-core.js";
 import { parseSong, serializeSong, normalizeSfx, renderSongDesc, renderSfxWith, setBuiltinInstruments, builtinInstruments, songSeconds } from "../../studio/src/audio-core.js";
 import { analyzeSong, describeAnalysis } from "../../studio/src/music-core.js";
-import { parseRoom, normalizeRoom, serializeRoom, fitLayer, glyphOf, builtinWidth, isBuiltinFont, shadowOf } from "../../studio/src/room-core.js";
+import { parseRoom, normalizeRoom, serializeRoom, fitLayer, glyphOf, builtinWidth, isBuiltinFont, shadowOf, lookDefaults, entityPose } from "../../studio/src/room-core.js";
 import { FONTS } from "../../studio/src/fonts.js";
 import { parsePage } from "../../studio/src/help-core.js";
 import { reindent } from "../../studio/src/search-core.js";
@@ -474,8 +474,8 @@ function spriteOf(dir, name) {
 // what an entity looks like: the sprite its file names, or null
 function lookOf(dir, name) {
   try {
-    const m = read(join(dir, `entities/${name}.lua`)).match(/\bsprite\s*=\s*["']([\w/-]+)["']/);
-    return m ? spriteOf(dir, m[1]) : null;
+    const src = read(join(dir, `entities/${name}.lua`)), m = src.match(/\bsprite\s*=\s*["']([\w/-]+)["']/), look = m ? spriteOf(dir, m[1]) : null;
+    return look && { ...look, defaults: lookDefaults(src) };
   } catch { return null; }
 }
 // A level is a room (rooms/<name>.lua) or a scene's layout: "scenes/title" is scenes/title.layout.lua.
@@ -555,9 +555,21 @@ function drawRoom(dir, room, con) {
     if (sp) scaled(sp, Number(p.frame) || 0, p.x - sp.ox * k, p.y - sp.oy * k, k);
   }
   const looks = {};
-  for (const [n, x, y] of room.entities) {
+  for (const [n, x, y, props] of room.entities) {
     const lk = n in looks ? looks[n] : (looks[n] = lookOf(dir, n));
-    if (lk) blit(lk.img, 0, 0, lk.fw, lk.fh, x - lk.ox, y - lk.oy);
+    if (lk) {
+      // its frame, scaled and mirrored around the sprite's origin, as the game draws it: each pixel of the box looks back into the frame
+      const p = entityPose(lk, props), kx = p.sx * (p.flip ? -1 : 1), ky = p.sy;
+      if (kx && ky) {
+        const xs = [x - lk.ox * kx, x + (lk.fw - lk.ox) * kx], ys = [y - lk.oy * ky, y + (lk.fh - lk.oy) * ky];
+        for (let dy = Math.floor(Math.min(...ys)); dy < Math.max(...ys); dy++) for (let dx = Math.floor(Math.min(...xs)); dx < Math.max(...xs); dx++) {
+          const sx = Math.floor((dx + 0.5 - x) / kx + lk.ox), sy = Math.floor((dy + 0.5 - y) / ky + lk.oy);
+          if (sx < 0 || sy < 0 || sx >= lk.fw || sy >= lk.fh) continue;
+          const s = (sy * lk.img.width + p.frame * lk.fw + sx) * 4;
+          blend(dx, dy, lk.img.data[s], lk.img.data[s + 1], lk.img.data[s + 2], lk.img.data[s + 3] * p.alpha);
+        }
+      }
+    }
     else { for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (dx * dx + dy * dy <= 5) blend(x + dx, y + dy, 255, 120, 200, 255); }
   }
   // texts in the game's own letters: a built-in font (shadow first, one pixel down and right) or a sprite font, a frame a letter from " "

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseRoom, normalizeRoom, serializeRoom, fitLayer, fillLayer, entityAt, snap, freshName, luaInline, layoutNames, nameProblem, textBox } from "../src/room-core.js";
+import { parseRoom, normalizeRoom, serializeRoom, fitLayer, fillLayer, entityAt, snap, freshName, luaInline, layoutNames, nameProblem, textBox, lookDefaults, entityPose } from "../src/room-core.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -137,4 +137,13 @@ test("a look (blend and alpha) on layers, pictures, texts and panels is written 
   assert.match(text, /name = "shafts", tileset = "ts", depth = 20, blend = "add", alpha = 0\.5, data/);
   assert.match(text, /\{ "spr_sun", 50, 50, blend = "add", alpha = 0\.75 \}/);
   assert.deepEqual([again.layers[0].blend, again.layers[0].alpha, again.panels[0].blend, again.texts[0].alpha, again.pictures[0].blend], ["add", 0.5, "darken", 0.25, "add"]);
+});
+
+test("an entity is drawn in its class's frame and scale, and the layout's values win", () => {
+  const src = `local Brick = gs.entity{\n  sprite = "spr_brick",\n  frame = 2,\n  sx = 2, -- doubled\n  flip = true,\n  speed = 40,\n}\nfunction Brick:create() self.frame = 9 end\nreturn Brick\n`;
+  assert.deepEqual(lookDefaults(src), { frame: 2, sx: 2, flip: true }, "only the drawing fields, only from the table");
+  const look = { img: { width: 96 }, fw: 32, defaults: lookDefaults(src) };
+  assert.deepEqual(entityPose(look, undefined), { frame: 2, sx: 2, sy: 1, flip: true, alpha: 1 });
+  assert.deepEqual(entityPose(look, { frame: 4, flip: false, alpha: 3 }), { frame: 1, sx: 2, sy: 1, flip: false, alpha: 1 }, "frames wrap, alpha stays 0 to 1");
+  assert.deepEqual(entityPose(null, { frame: "x" }), { frame: 0, sx: 1, sy: 1, flip: false, alpha: 1 });
 });

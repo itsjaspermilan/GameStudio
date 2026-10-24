@@ -282,6 +282,24 @@ export function nameProblem(name, room, own) {
   return null;
 }
 
+// How an entity is drawn in a layout: its class's own frame, scale (sx, sy), flip and alpha, read from the top of its gs.entity{ ... } table
+// (plain numbers and true/false only; code that sets them later is not run), then what the layout gives that one thing.
+const POSE_KEYS = ["frame", "sx", "sy", "flip", "alpha"];
+export function lookDefaults(src) {
+  const out = {}, body = /gs\.entity\s*\{([\s\S]*?)\n\}/.exec(String(src || ""));
+  for (const line of (body ? body[1] : "").split("\n")) {
+    const m = /^\s{2}(\w+)\s*=\s*(-?\d+(?:\.\d+)?|true|false)\s*,/.exec(line);
+    if (m && POSE_KEYS.includes(m[1])) out[m[1]] = m[2] === "true" ? true : m[2] === "false" ? false : Number(m[2]);
+  }
+  return out;
+}
+export function entityPose(look, props) {
+  const d = { ...(look && look.defaults), ...(props || {}) };
+  const frames = look ? Math.max(1, Math.round(look.img.width / look.fw)) : 1;
+  const num = (v, def) => (typeof v === "number" && Number.isFinite(v) ? v : def);
+  return { frame: ((Math.floor(num(d.frame, 0)) % frames) + frames) % frames, sx: num(d.sx, 1), sy: num(d.sy, 1), flip: d.flip === true, alpha: Math.max(0, Math.min(1, num(d.alpha, 1))) };
+}
+
 // The built-in fonts (the runtime's, see fonts.js): their names, a letter's glyph ([width, row, ...]) and how wide text is at size 1.
 export const BUILTIN_FONTS = Object.keys(FONTS);
 export const isBuiltinFont = (name) => !name || name in FONTS;
