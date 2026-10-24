@@ -2,30 +2,37 @@
 
 Open items, grouped by where they can be done. Cross things out (or delete them) when they are done and checked on the device.
 
-The target handheld is the **TrimUI Brick** on muOS (1024x768, aarch64, PowerVR GPU), two of them. Glow43 became **256x192** on
-2026-10-23 (was 320x240) so it fills the Brick at exactly 4x; Glow169 (320x180) shows with bars above and below. The Anbernic RG35XX Pro,
-Knulli, and the removed games (Void Swarm, Panel Pop, Then & Now, Kitchen Rush) are no longer worked on: their notes, the RG35XX Pro
-performance measurements and everything finished before this list was regrouped are in git history (`git log -- TODO.md`).
+The target handheld is the **TrimUI Brick** on **NextUI** (1024x768, aarch64, PowerVR GPU; NextUI's platform name for it is `tg5040`), two of
+them. NextUI replaced muOS on 2026-10-24: `push.sh` still has its Knulli and muOS modes, but they are no longer worked on. Glow43 became
+**256x192** on 2026-10-23 (was 320x240) so it fills the Brick at exactly 4x; Glow169 (320x180) shows with bars above and below. The Anbernic
+RG35XX Pro, Knulli, and the removed games (Void Swarm, Panel Pop, Then & Now, Kitchen Rush) are no longer worked on: their notes, the RG35XX
+Pro performance measurements and everything finished before this list was regrouped are in git history (`git log -- TODO.md`).
 
 Consoles were renamed on 2026-10-23: Dot is **Glow43** (G43) and Dash is **Glow169** (G169). Games that still say `console = "dot"` or
 `"dash"` keep working (engine, studio, push and MCP map the old ids).
 
-## On the Brick, when it arrives
+## On the Brick (NextUI)
 
 Setting up
-- [ ] One device file per Brick (`scripts/device-<name>.env` from `device-muos.env.example`, a fixed IP in the router each), then
-  `GS_DEVICE=<name> scripts/push.sh carts/breakout`. Check muOS's paths on the Brick match the example (`/mnt/mmc/gs`, `/mnt/mmc/ROMS`).
+- [ ] SSH: NextUI has none built in. Install an SSH server pak from NextUI's Pak Store (Tools), start it, note the Brick's IP (fixed in the
+  router, one per Brick).
+- [ ] Look at the card over SSH before writing anything: where `/mnt/SDCARD` keeps `Roms/`, `Emus/tg5040/`, `Tools/tg5040/`, `.media`
+  folders and saves, which `libSDL2-2.0.so.0` a pak gets (the system's, or one NextUI ships) and its video driver, and what a pak's
+  `launch.sh` is given (environment, `SDL_GAMECONTROLLERCONFIG`, the CPU governor).
+- [ ] A NextUI mode in `push.sh` (`DEVICE_OS=nextui`, `scripts/device-<name>.env` per Brick), written from what the card shows. The likely
+  shape, to confirm: each console a system of its own, `Roms/Glow43 (G43)/<cart>` launched by `Emus/tg5040/G43.pak/launch.sh`; carts with
+  no console as `Tools/tg5040/<Cart>.pak`; covers in `Roms/<system>/.media/`.
 
 Seeing and playing
-- [ ] Breakout and the tutorials fill the screen with no border; the built-in fonts (round, square, bold; small and tall) and their
-  shadows read well at 4x.
-- [ ] Play from the muOS menu (not over SSH): buttons in both the "modern" and "retro" layouts, HOTKEY + Start, Start + Select held 3 s,
-  and muOS's volume, brightness and battery overlays.
-- [ ] Mosaic transitions (`look = "mosaic"`) read the frame back from the GPU (`SDL_RenderReadPixels`); see whether they stutter on the
-  PowerVR driver (only the few frames of a transition do it). The GPU-only mosaic below would remove the question.
-- [ ] Covers and previews: `make-box-art.mjs` makes 240x300 covers and 640x480 previews for the RG35XX's 640x480 list; see how muOS lays
-  them out at 1024x768 and resize if needed.
-- [ ] A game on a custom console: `push.sh` names the muOS system after it; check one there.
+- [ ] Breakout and the tutorials fill the screen with no border; the built-in fonts (round, square, bold; small and tall), the
+  hand-drawn square letters, their shadows and the button icons ({a} in texts, each style) read well at 4x.
+- [ ] Play from the NextUI menu (not over SSH): every button, a way back to the menu (the Brick's MENU button: does SDL see it as our
+  HOTKEY? HOTKEY + Start, Start + Select held 3 s), volume and brightness keys while a game runs, the power button (sleep and wake, or at
+  least not a broken game), and what happens to saves when the battery runs out.
+- [ ] Mosaic transitions (`look = "mosaic"`) stay on the GPU now; check they look right on the PowerVR driver.
+- [ ] Covers and previews: `make-cart-art.mjs` makes 240x300 covers (sized for muOS) and 640x480 previews; see how NextUI lays box art out
+  at 1024x768 and resize if needed.
+- [ ] A game on a custom console: it should become its own system in the NextUI menu; check one.
 
 Measuring (`GS_PERF=1`)
 - [ ] Frame pacing on the GPU path: the RG35XX Pro showed a few more single late frames there than on the framebuffer path (the wait for
@@ -40,8 +47,6 @@ Measuring (`GS_PERF=1`)
 
 ## Studio and engine (no device needed)
 
-- [ ] GPU-only mosaic: draw the frame into a small texture and scale it back up with nearest-neighbour, instead of reading pixels back.
-  Faster everywhere and no readback on PowerVR.
 - [ ] Try in the real app (only the browser mock was clicked through): Open folder…, New game asking where, Examples opening a copy of
   Breakout, Make this game asking where, the recent list (× forgets one), Show folder, reopening a game coming back to its tabs, the Play
   panel, switching a scene between its Layout and Code, Game info's button icon picker (writes `buttons = ...` into game.lua), the
@@ -52,8 +57,6 @@ Measuring (`GS_PERF=1`)
 - [ ] Layouts, next step: offer to turn a room into a scene's layout.
 - [ ] Later, once the Brick is measured: simulate the console in the Play panel (slow the game by the measured device/desktop ratio; Lua
   memory against what the console has).
-- [ ] On the Brick: the hand-drawn square letters (square_small, square_tall) beside round and bold.
-- [ ] On the Brick: button icons ({a} in texts) in each style, small and tall, beside the real fonts.
 - [ ] (paused) Signing and notarizing the app (and the bundled `lua-language-server` inside it) for other Macs; only needed to hand the
   studio to someone else. When picked up: create a Developer ID Application certificate (Xcode > Settings > Accounts > Manage
   Certificates) and an App Store Connect API key (.p8, kept private); the build reads `APPLE_SIGNING_IDENTITY`, `APPLE_API_ISSUER`,
