@@ -1,8 +1,10 @@
 // The Play panel: the running game inside the studio, on a screen the console's size enlarged by whole numbers. The game itself runs in the
 // runtime as usual (sound, live reload, the Handheld and Inspector tabs); this shows its frames and sends it the keys held while it has focus.
+// Under the screen: the game's RAM and what a frame would cost on the Brick (brick-core.js), and its save state buttons.
 import { decodeFrame, fitScale, keyBit } from "./play-core.js";
+import { playStatus } from "./brick-core.js";
 
-// hooks: { sendButtons(mask), popOut(), close() }
+// hooks: { sendButtons(mask), saveState(), loadState(), popOut(), close() }
 export function createPlayPanel(root, hooks) {
   root.innerHTML = `
     <div class="pp-head">
@@ -15,6 +17,12 @@ export function createPlayPanel(root, hooks) {
       <button class="small pp-close" title="Stop the game and hide this panel">×</button>
     </div>
     <div class="pp-stage"><div class="pp-screen"><canvas tabindex="0"></canvas><div class="pp-cover"></div></div></div>
+    <div class="pp-brick">
+      <span class="pp-status" title="The game's RAM (the Brick has 8 MB for its code and the studio gives the game the same, so it runs out of memory where the Brick would) and an estimate of one frame on the Brick, which has 16.7 ms for each. The Handheld tab has the details."></span>
+      <span class="spacer"></span>
+      <button class="small pp-save" title="Remember the game exactly as it is now, as the Brick's Save state does (one state, until the game stops)">Save state</button>
+      <button class="small pp-load" title="Go back to the state saved last">Load state</button>
+    </div>
     <div class="pp-keys"></div>`;
   const q = (s) => root.querySelector(s);
   const canvas = q("canvas"), ctx = canvas.getContext("2d"), stage = q(".pp-stage"), cover = q(".pp-cover"), scaleSel = q(".pp-scale");
@@ -46,6 +54,11 @@ export function createPlayPanel(root, hooks) {
   canvas.addEventListener("blur", () => { send(0); showCover(); });
   canvas.addEventListener("focus", showCover);
   cover.addEventListener("mousedown", (e) => { e.preventDefault(); canvas.focus(); });
+  // the buttons give the game back the keys: Save state then playing on must not need another click
+  q(".pp-save").onclick = () => { hooks.saveState(); canvas.focus(); };
+  q(".pp-load").onclick = () => { hooks.loadState(); canvas.focus(); };
+  const status = q(".pp-status");
+  const setStatus = (live) => { const st = playStatus(live); status.textContent = st.text; status.dataset.level = st.text ? st.level : ""; };
   q(".pp-out").onclick = () => hooks.popOut();
   q(".pp-close").onclick = () => hooks.close();
 
@@ -57,6 +70,7 @@ export function createPlayPanel(root, hooks) {
       ctx.fillStyle = "#000"; ctx.fillRect(0, 0, canvas.width, canvas.height); // the screen of a console that is starting
       image = ctx.createImageData(screen.width, screen.height);
       q(".pp-info").textContent = `${name} · ${screen.width}×${screen.height}`;
+      setStatus(null);
       layout(); canvas.focus(); showCover();
     },
     frame(buffer) {
@@ -68,6 +82,8 @@ export function createPlayPanel(root, hooks) {
       if (f.pixels !== image.data) image.data.set(f.pixels);
       ctx.putImageData(image, 0, 0);
     },
+    // the numbers the game sends once a second (budget-core.js parseStatsLine)
+    stats(live) { setStatus(live); },
     stopped() { running = false; mask = 0; showCover(); },
     focus() { canvas.focus(); },
   };

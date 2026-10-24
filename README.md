@@ -102,6 +102,7 @@ The framework is built on these calls. A game with `game.lua` normally uses the 
 | `gs.clock()` | seconds since start with nanosecond steps (`gs.time()` has millisecond steps): for timing |
 | `gs.mark(text)` | writes a line into the `GS_PERF=1` log, in order with its per-second lines (a scripted run says which scenario each line belongs to); does nothing otherwise |
 | `gs.stats()` | `pixels, draw_calls, screen_pixels` of the last finished frame |
+| `gs.ram()` | `used, most, size` in bytes of the console's RAM (the libretro core's 8 MB block, or the program with `GS_RAM=1` as the studio runs it); nothing when Lua has the computer's memory |
 | `gs.blend(mode)` | how what is drawn next mixes in: `"normal"` (alpha), `"add"` (adds light) or `"darken"` (multiplies), like the GBA's blend register; returns the mode before. Every frame starts at `"normal"` |
 | `gs.recolor(img,from,to[,old])` | a copy of a picture with colour `from[i]` replaced by `to[i]` (lists of `0xRRGGBB`), for palette swaps; the framework uses it for an entity's `bank`. Pass the picture it returned as `old` to reuse its slot |
 | `gs.pixels(w,h,rgba)` | a picture made from `w*h*4` bytes of RGBA (the framework makes the button icons with it); it can be recoloured like a loaded one |

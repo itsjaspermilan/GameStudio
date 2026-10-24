@@ -35,10 +35,13 @@ Particles are entities too, so they count toward the 512: make them short-lived 
 <li><strong>Size</strong> of the game against the budget.</li>
 <li><strong>Art</strong>: your biggest sprite and tileset against what the console allows, frames per sprite, your colour banks against the console's 16 + 16, and any art outside its banks (or, in an older game, outside the classic palette).</li>
 <li><strong>Sound</strong>: how many songs and effects you have, and the most tracks any song uses.</li>
-<li><strong>While it runs</strong>: how many things are alive now and at most, how long a frame takes on <em>your computer</em>, the frame rate, and the memory the code uses.</li>
+<li><strong>While it runs</strong>: how many things are alive now and at most, about how long a frame would take <em>on the Brick</em>, the frame rate, and how much of the console's RAM the code uses.</li>
 </ul>
-<div class="note"><strong>Your computer is faster than the handheld.</strong> The time per frame is measured on your computer, which is several times faster than the device. Use it as a guide (aim for a few milliseconds at most) and trust the entity count, which is exactly the same everywhere.
+<p>The Play panel shows the last two under the game's screen all the time, for example <em>RAM 0.8 of 8 MB · Brick frame ≈ 2.1 ms (13%)</em>. Amber means close to the limit, red means over it.</p>
+<div class="note"><strong>The studio plays like the Brick.</strong> The game's code gets the same 8 MB of RAM as on the handheld (pictures and sounds do not count), so a game that runs out of memory stops with "not enough memory" here, at the same moment it would there.
+Your computer is many times faster than the handheld, so the time per frame is an <em>estimate</em>: how much the game draws plus how long its update takes here, scaled by measurements on real Bricks. The Brick has 16.7 ms for each frame; keep the estimate well under that (under 70% is comfortable), since a busy moment costs more than an average one.
 When a game on the device cannot keep up with 60 frames a second, the runtime says so once in its log, with where the time went.</div>
+<p><strong>Save state</strong> and <strong>Load state</strong> under the Play panel's screen work like the Brick's own: save just before a hard part, then load to try it again. There is one state, and it lasts until the game stops.</p>
 
 <h2>Keeping a game fast</h2>
 <ol>

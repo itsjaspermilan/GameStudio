@@ -16,6 +16,7 @@ import { parseRoom, normalizeRoom, serializeRoom, fitLayer, glyphOf, builtinWidt
 import { FONTS } from "../../studio/src/fonts.js";
 import { parsePage } from "../../studio/src/help-core.js";
 import { reindent } from "../../studio/src/search-core.js";
+import { brickSpeed, ramUse } from "../../studio/src/brick-core.js";
 import { Canvas, strip } from "../../scripts/lib/canvas.mjs";
 import { Song } from "../../scripts/lib/music.mjs";
 import { png, decodeBmp } from "../../scripts/png.mjs";
@@ -135,7 +136,7 @@ function runGame(dir, { seconds = 3, keys, bot = false, env = {} } = {}) {
   needRuntime();
   const work = mkdtempSync(join(tmpdir(), "gs-mcp-"));
   const bmp = join(work, "frame.bmp");
-  const e = { ...process.env, SDL_VIDEODRIVER: "dummy", SDL_AUDIODRIVER: "dummy", GS_SAVE_DIR: join(work, "saves"), GS_MAX_FRAMES: String(Math.round(Math.min(120, Math.max(0.1, seconds)) * 60)), GS_DUMP_FRAME: bmp, GS_STATS: "1", GS_DEV: "1", ...env };
+  const e = { ...process.env, SDL_VIDEODRIVER: "dummy", SDL_AUDIODRIVER: "dummy", GS_SAVE_DIR: join(work, "saves"), GS_MAX_FRAMES: String(Math.round(Math.min(120, Math.max(0.1, seconds)) * 60)), GS_DUMP_FRAME: bmp, GS_STATS: "1", GS_DEV: "1", GS_RAM: "1", ...env };
   if (keys) { e.GS_BOT_LUA = join(ROOT, "tests/keys-bot.lua"); e.GS_KEYS = keys; }
   else if (bot) e.GS_BOT_LUA = join(ROOT, "tests/random-bot.lua");
   const r = spawnSync(GS, [dir], { encoding: "utf8", env: e, timeout: 180000 });
@@ -272,7 +273,12 @@ export function check({ game, seconds = 4 }) {
   const L = [lint.length ? `editor warnings (${lint.length}):\n${lint.slice(0, 40).join("\n")}` : "editor warnings: none"];
   if (untidy.length) L.push(`indentation is off in: ${untidy.join(", ")} (the studio's Tidy would fix it)`);
   L.push(probs.length ? `running ${seconds} s printed:\n${probs.slice(0, 30).map((l) => "  " + l).join("\n")}` : `ran ${seconds} s with no errors or warnings`);
-  if (st) L.push(`at the end: ${st.entities} entities alive (peak ${st.peak}), ${st.checks ?? "?"} collision checks in the busiest step, ${st.screens ?? "?"} screens of drawing, ${st.update_ms.toFixed(2)} + ${st.draw_ms.toFixed(2)} ms a frame on this computer`);
+  if (st) {
+    const speed = brickSpeed(st), ram = ramUse(st);
+    L.push(`at the end: ${st.entities} entities alive (peak ${st.peak}), ${st.checks ?? "?"} collision checks in the busiest step, ${st.screens ?? "?"} screens of drawing, ${st.update_ms.toFixed(2)} + ${st.draw_ms.toFixed(2)} ms a frame on this computer`);
+    if (speed) L.push(`on the Brick a frame would take ${speed.text}: ${speed.words}`);
+    if (ram) L.push(`RAM (the Brick's, as on the device): ${ram.text}`);
+  }
   return { text: L.join("\n") };
 }
 

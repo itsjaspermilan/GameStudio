@@ -613,6 +613,8 @@ fn run_preview(app: AppHandle, state: State<'_, AppState>, cart: String, embed: 
     let mut cmd = Command::new(&bin);
     cmd.env("GS_DEV", "1");
     cmd.env("GS_STATS", "1"); // a line of numbers a second for the Handheld panel
+    // Lua gets the handheld's fixed RAM (runtime/ram.c), so a game runs out of memory here where it would there, and can save states
+    cmd.env("GS_RAM", "1");
     // The Inspector tab talks to the game through this file (engine/gs/inspect.lua reads it); it starts empty for every run.
     let insp = inspect_file();
     let _ = fs::write(&insp, "");
@@ -729,6 +731,15 @@ fn relay_frames(app: AppHandle, listener: TcpListener, ch: Channel, gen: u64) {
 fn preview_buttons(state: State<'_, AppState>, mask: u16) {
     if let Some(s) = state.embed.lock().unwrap().as_mut() {
         let _ = s.write_all(&[b'B', mask as u8, (mask >> 8) as u8]);
+    }
+}
+
+/// Save state (`save`) or load it again: one state a run, kept by the game itself (runtime/main.c, "embedded preview"); it says in the
+/// Output what happened.
+#[tauri::command]
+fn preview_state(state: State<'_, AppState>, save: bool) {
+    if let Some(s) = state.embed.lock().unwrap().as_mut() {
+        let _ = s.write_all(if save { b"S" } else { b"L" });
     }
 }
 
@@ -980,6 +991,7 @@ pub fn run() {
             get_settings,
             save_settings,
             preview_buttons,
+            preview_state,
             runtime_status,
             list_carts,
             list_games,

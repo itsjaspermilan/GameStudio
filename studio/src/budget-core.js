@@ -2,13 +2,11 @@
 //
 // facts: { cartBytes, sprites: {name: {w, h, frames, offPalette}}, tilesets: {name: {w, h, tile_w, tile_h, offPalette}},
 //          songs: {name: {tracks}}, sfx: n, samples: n, lua: {files, lines} }
-// live (while the game runs, from the "@@gs" line the framework prints): { entities, peak, limit, update_ms, draw_ms, fps, mem_kb } or null
+// live (while the game runs, from the "@@gs" line the framework prints): { entities, peak, limit, update_ms, draw_ms, fps, mem_kb, checks,
+//   screens, calls, ram_kb, ram_peak_kb, ram_size_kb } or null
 // Each row: { group, label, text, ratio (0..1+ or null), level: "ok" | "warn" | "over" | "info", tip }
 import { budgetStatus, formatKB, screenText, TYPICAL } from "./consoles.js";
-
-// The handheld is several times slower than a computer. One frame is 16.7 ms there, so a game that needs more than about this much
-// on a computer (update and drawing together) is likely to miss 60 frames a second on the device. A rough guide, not a measurement.
-export const COMPUTER_MS_GUIDE = 3;
+import { BRICK, brickSpeed, ramUse } from "./brick-core.js";
 
 export function parseStatsLine(line) {
   if (typeof line !== "string" || !line.startsWith("@@gs ")) return null;
@@ -84,15 +82,21 @@ export function budgetRows(c, facts, live) {
     const cap = live.limit || lim.instances_alive;
     row("While it runs", "Things alive at once", `${live.entities} now, ${live.peak} at most${cap ? ` (limit ${cap})` : ""}`, cap ? budgetStatus(live.peak, cap).level : "info", cap ? live.peak / cap : null,
       "Entities alive. Past the limit new ones are ignored. A GBA-style game usually has 20 to 100.");
-    const ms = live.update_ms + live.draw_ms;
-    row("While it runs", "Time per frame (this computer)", `${live.update_ms.toFixed(2)} ms update + ${live.draw_ms.toFixed(2)} ms drawing`, ms > COMPUTER_MS_GUIDE ? "over" : ms > COMPUTER_MS_GUIDE * 0.7 ? "warn" : "ok", ms / COMPUTER_MS_GUIDE,
-      `The handheld is several times slower than a computer and has 16.7 ms a frame, so aim for under about ${COMPUTER_MS_GUIDE} ms here.`);
+    const here = `On this computer: ${live.update_ms.toFixed(2)} ms update + ${live.draw_ms.toFixed(2)} ms drawing.`;
+    const speed = brickSpeed(live);
+    if (speed) row("While it runs", "Frame time on the Brick", `${speed.text}: ${speed.words}`, speed.level, speed.ratio,
+      `An estimate from what the game draws and how long its update takes here, measured against real Bricks. The Brick has ${BRICK.frame_ms.toFixed(1)} ms for each frame; past that it skips frames. ${here}`);
+    else row("While it runs", "Time per frame (this computer)", `${live.update_ms.toFixed(2)} ms update + ${live.draw_ms.toFixed(2)} ms drawing`, "info", null, "Rebuild the runtime to see the estimate for the Brick.");
     if (Number.isFinite(live.checks)) meter("While it runs", "Collision checks (busiest step)", live.checks, bud.collision_tests, num,
       "Hitbox comparisons in one step: every entity with an on_collide method against the entities near it with that tag, plus touching() calls. Exact on any computer. " + TYPICAL.collisions);
     if (Number.isFinite(live.screens)) meter("While it runs", "Drawing (busiest frame)", live.screens, bud.draw_screens, (v) => `${v.toFixed(1)} screens`,
       "Everything drawn in one frame, in full screens, overlaps counted: big pictures, fades and see-through layers on top of each other add up. Exact on any computer. " + TYPICAL.drawing);
     row("While it runs", "Frames a second", `${live.fps}`, live.fps >= 58 ? "ok" : "warn", null, "On this computer. The runtime also warns in the Output if the game slows down.");
-    row("While it runs", "Lua memory", formatKB(live.mem_kb * 1024), "info", null, "Memory the game's code is using. Steady is good; a number that keeps climbing means something is made every step and never let go.");
+    const ram = ramUse(live);
+    const leak = "Steady is good; a number that keeps climbing means something is made every step and never let go.";
+    if (ram) row("While it runs", "RAM", ram.text, ram.level, ram.ratio,
+      `The Brick gives a game's code ${Math.round(ram.size_kb / 1024)} MB, and so does the studio: when it is full the game stops with "not enough memory", here as there. Pictures and sounds do not count. ${leak}`);
+    else row("While it runs", "Lua memory", formatKB(live.mem_kb * 1024), "info", null, `Memory the game's code is using. ${leak}`);
   }
   return rows;
 }
