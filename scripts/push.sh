@@ -42,6 +42,18 @@ console_has() {
   ' "$1" "$2" "$3"
 }
 
+# console_ext <cart-dir> <console id>: the end of the console's game files (cart_extension in its spec: g43, g169), or "cart"
+console_ext() {
+  node -e '
+    const fs = require("fs"), path = require("path");
+    let ext = "cart";
+    for (const f of [path.join(process.argv[1], "consoles", process.argv[2] + ".json"), path.join("engine/consoles", process.argv[2] + ".json")]) {
+      try { const c = JSON.parse(fs.readFileSync(f, "utf8")); if (/^[a-z0-9]{1,8}$/.test(c.cart_extension || "")) ext = c.cart_extension; break; } catch {}
+    }
+    process.stdout.write(ext);
+  ' "$1" "$2"
+}
+
 [ -x build/gs ] || ./scripts/build.sh
 { [ -x build-aarch64/gs ] && [ -f build-aarch64/gs_libretro.so ]; } || ./scripts/build-aarch64.sh
 ./build/gs pack "$SRC" "$HOSTCART"
@@ -117,7 +129,7 @@ FLOOR
     if [ -n "$NEXTUI_ROM" ]; then
       # saves go where NextUI keeps every system's: Saves/<console tag>/<game>
       CART='"$1"'
-      echo 'GS_SAVE_DIR="${SAVES_PATH:-/mnt/SDCARD/Saves}/$(basename "$(dirname "$0")" .pak)/$(basename "$1" .cart)"'
+      echo 'GAME=$(basename "$1"); GS_SAVE_DIR="${SAVES_PATH:-/mnt/SDCARD/Saves}/$(basename "$(dirname "$0")" .pak)/${GAME%.*}"'
       echo 'mkdir -p "$GS_SAVE_DIR"; export GS_SAVE_DIR'
     fi
     # the shell stays alive (no exec) so that the trap can run when the game ends
@@ -140,8 +152,11 @@ FLOOR
       CID="${INFO%%|*}"; CNAME="${INFO#*|}"
       case "$CID" in glow43) TAG=G43 ;; glow169) TAG=G169 ;; *) TAG="$(printf '%s' "$CID" | tr 'a-z' 'A-Z' | tr -cd 'A-Z0-9')" ;; esac
       FOLDER="$SD/Roms/$CNAME ($TAG)"; PAK="$SD/Emus/$PLAT/$TAG.pak"
+      EXT="$(console_ext "$SRC" "$CID")"; ROM="$NAME.$EXT" # breakout.g43, as a GBA game is breakout.gba
       ssh $SSH_OPTS "$T" "mkdir -p $(q "$FOLDER/.media") $(q "$PAK")"
-      scp -q $SSH_OPTS "$HOSTCART" "$T:$FOLDER/$NAME.cart"
+      scp -q $SSH_OPTS "$HOSTCART" "$T:$FOLDER/$ROM"
+      # pushed before carts were named by console: the old breakout.cart goes, with its line in map.txt
+      [ "$EXT" != cart ] && ssh $SSH_OPTS "$T" "rm -f $(q "$FOLDER/$NAME.cart"); m=$(q "$FOLDER/map.txt"); [ -f \"\$m\" ] && { grep -v $(q "^$NAME.cart	") \"\$m\" > \"\$m.tmp\"; mv \"\$m.tmp\" \"\$m\"; }; true"
       if [ -z "$GS_NEXTUI_PROGRAM" ]; then
         # The console runs in NextUI's own emulator (minarch) with gs as its libretro core, like any other system: its menu on MENU,
         # its button settings, sleep, saves under Saves/<TAG>. The core sits beside the SoundFont, where it looks for it.
@@ -168,13 +183,13 @@ FLOOR
       # the console's logo as the folder's picture in the list of systems
       [ -f "assets/console-logos/$CID.png" ] && { ssh $SSH_OPTS "$T" "mkdir -p '$SD/Roms/.media'"; scp -q $SSH_OPTS "assets/console-logos/$CID.png" "$T:$SD/Roms/.media/$CNAME ($TAG).png"; }
       # map.txt: one "file<TAB>title" per line; this game's line is replaced (no python on the device, so grep does it)
-      ssh $SSH_OPTS "$T" "sh -s -- $(q "$FOLDER/map.txt") $(q "$NAME.cart") $(q "${TITLE:-$NAME}")" <<'REMOTE'
+      ssh $SSH_OPTS "$T" "sh -s -- $(q "$FOLDER/map.txt") $(q "$ROM") $(q "${TITLE:-$NAME}")" <<'REMOTE'
 map="$1"; file="$2"; title="$3"
 touch "$map"
 { grep -v "^$file	" "$map" || true; printf '%s\t%s\n' "$file" "$title"; } > "$map.tmp" && mv "$map.tmp" "$map"
 REMOTE
       echo "launcher: $PAK/launch.sh (one for every $CNAME game)"
-      echo "game: $FOLDER/$NAME.cart ($CNAME in the NextUI menu)"
+      echo "game: $FOLDER/$ROM ($CNAME in the NextUI menu)"
     else
       PAK="$SD/Tools/$PLAT/${TITLE:-$NAME}.pak"
       ssh $SSH_OPTS "$T" "mkdir -p $(q "$PAK")"

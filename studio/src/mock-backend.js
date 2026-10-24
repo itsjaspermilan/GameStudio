@@ -152,7 +152,7 @@ const handlers = {
   cancel_push: () => false,
   lsp_start: () => { throw 'mock: no language server in the browser'; },
   lsp_stop: () => null,
-  pack_cart: ({ cart }) => `/mock/build/${cart}.cart`,
+  pack_cart: ({ cart, ext }) => `/mock/${cart}.${ext || "cart"}`,
   inspect_send: ({ text }) => { inspectText = text; return null; },
   // a 64x48 BMP with a gradient, standing in for the game's frame
   take_screenshot: () => {

@@ -97,6 +97,13 @@ else
   echo "SKIP: libretro core (build/gs_libretro or build/retro-run missing)"
 fi
 
+# A packed game is named for its console (breakout.g43); the runtime reads it whatever its name, and keeps its saves under "breakout".
+tmp="$(mktemp -d)"
+./build/gs pack carts/breakout "$tmp/breakout.g43" >/dev/null
+out="$(FRAMES=60 run ./build/gs "$tmp/breakout.g43")"
+echo "$out" | grep -qiE 'error|not a valid' && { echo "$out"; echo "FAIL: a .g43 game file did not run"; status=1; }
+rm -rf "$tmp"
+
 # A plain main.lua game (the format before game.lua) is refused with a message that says what to do, not run or crashed.
 plain="$(mktemp -d)"; printf 'function draw() end\n' > "$plain/main.lua"
 out="$(run ./build/gs "$plain")"; rm -rf "$plain"

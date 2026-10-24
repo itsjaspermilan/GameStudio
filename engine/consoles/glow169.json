@@ -2,6 +2,7 @@
   "id": "glow169",
   "name": "Glow169",
   "description": "16:9 handheld, 320x180 (G169 for short). The same features as Glow43 on a widescreen display.",
+  "cart_extension": "g169",
   "based_on": null,
   "screen": {
     "width": 320,

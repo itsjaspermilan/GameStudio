@@ -778,16 +778,23 @@ async fn render_audio(app: AppHandle, desc: String, cart: Option<String>) -> Res
 }
 
 #[tauri::command]
-async fn pack_cart(app: AppHandle, cart: String) -> Result<String, String> {
-    let ws = workspace(&app);
-    let bin = desktop_bin(&ws);
+async fn pack_cart(app: AppHandle, cart: String, ext: Option<String>) -> Result<String, String> {
+    let dir = cart_dir(&app, &cart)?;
+    // Named for the console (breakout.g43, like breakout.gba) and put beside the game's folder, where its maker finds it; inside the folder
+    // it would be packed into the next game file too.
+    let ext = ext.filter(|e| !e.is_empty() && e.len() <= 8 && e.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())).unwrap_or_else(|| "cart".into());
+    let parent = dir.parent().ok_or("the game's folder has no folder around it")?.to_path_buf();
+    let out = parent.join(format!("{}.{}", cart_label(&cart), ext));
+    pack_into(&app, &dir, &out)
+}
+
+/// Packs a game's folder into one file with the runtime (`gs pack`).
+fn pack_into(app: &AppHandle, dir: &Path, out: &Path) -> Result<String, String> {
+    let bin = desktop_bin(&workspace(app));
     if !bin.is_file() {
         return Err(format!("runtime not found at {}. Run scripts/build.sh in the workspace.", bin.display()));
     }
-    let dir = cart_dir(&app, &cart)?;
-    let out = ws.join("build").join(format!("{}.cart", cart_label(&cart)));
-    fs::create_dir_all(ws.join("build")).map_err(|e| e.to_string())?;
-    let ok = run_logged(&app, Command::new(&bin).arg("pack").arg(&dir).arg(&out))?;
+    let ok = run_logged(app, Command::new(&bin).arg("pack").arg(dir).arg(out))?;
     if ok { Ok(out.to_string_lossy().into_owned()) } else { Err("packing failed".into()) }
 }
 
@@ -923,7 +930,9 @@ async fn push_cart(app: AppHandle, state: State<'_, AppState>, cart: String) -> 
         return Err(format!("device runtime not found at {}. Run scripts/build-aarch64.sh.", runtime.display()));
     }
 
-    let packed = PathBuf::from(pack_cart(app.clone(), cart.clone()).await?);
+    // packed into the studio's build folder, not beside the game: this copy only travels to the device
+    fs::create_dir_all(ws.join("build")).map_err(|e| e.to_string())?;
+    let packed = PathBuf::from(pack_into(&app, &cart_dir(&app, &cart)?, &ws.join("build").join(format!("{}.cart", cart_label(&cart))))?);
     let target = format!("{}@{}", s.device_user, s.device_host);
     let dir = s.device_dir.trim_end_matches('/').to_string();
     let step = |what: &str| emit_log(&app, "stdout", what.to_string());

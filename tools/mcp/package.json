@@ -1,6 +1,7 @@
 {
   "name": "gamestudio-mcp",
   "private": true,
+  "license": "Zlib",
   "type": "module",
   "description": "GameStudio for agents: an MCP server over the engine, the runtime and the studio's own logic",
   "scripts": { "start": "node server.mjs", "test": "node --test test/*.test.mjs" },

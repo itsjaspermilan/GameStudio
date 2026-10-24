@@ -8,14 +8,14 @@ A cheap Linux handheld (an Anbernic RG35XX Pro) becomes a small console for 2D g
 brew install cmake pkgconf     # once
 ./scripts/build.sh             # -> build/gs
 ./build/gs carts/breakout      # run a cartridge directory
-./build/gs pack carts/breakout build/breakout.cart && ./build/gs build/breakout.cart
+./build/gs pack carts/breakout build/breakout.g43 && ./build/gs build/breakout.g43
 ```
 
 Controls (keyboard): arrows, Z/X/A/S = A/B/X/Y, Q/W = L/R, Enter = Start, Right Shift = Select, E/R = L2/R2, D/F = L3/R3. Esc quits; on a handheld, HOTKEY + Start (the Menu / function button), or holding Start + Select for three seconds. While HOTKEY is held the game sees no buttons (HOTKEY combinations belong to the handheld). Gamepads map by physical position; the left stick acts as the d-pad.
 
 ## Games
 
-A game is a folder (or a packed `.cart`). The folder is the whole project: the studio shows exactly the files in it.
+A game is a folder, or one packed file named for its console: `breakout.g43` for Glow43, `.g169` for Glow169, `.cart` for a console of your own (one format whatever the name; the studio's **Pack** saves it next to the game's folder). The folder is the whole project: the studio shows exactly the files in it.
 
 ```
 my-game/
@@ -229,7 +229,11 @@ top of `render_audio` in `runtime/main.c`; samples resolve relative to the curre
 
 ## Licences
 
-- The runtime, studio and framework are this project's own code.
+- GameStudio's own code and art (the runtime, the libretro core, the framework, the studio, the tools, the built-in fonts, the console
+  logos and artwork) are under the **zlib licence** (`LICENSE`): use it for anything, commercial products included, change it and share
+  it; a game or player built with it does not have to mention it. Keep the notice in copies of the source.
+- **Your games are yours.** A cart (`.g43`, `.g169`, `.cart`) holds only the game's own files: its code, art, sound and data. The engine
+  lives in the runtime, not in the cart, so these licences put no conditions on the games you make; choose your own licence for them.
 - Lua is MIT, SDL2 is zlib, TLSF (`third_party/tlsf`, Matthew Conte) is BSD-3-Clause, `third_party/libretro/libretro.h` is MIT, the built-in fonts (`engine/fonts/`, drawn for GameStudio) are the project's own, and TinySoundFont (`third_party/tsf/tsf.h`) is MIT. The studio's optional Lua language server (LuaLS, downloaded by `scripts/fetch-luals.sh`, never part of a game) is MIT.
 - **`assets/soundfonts/TimGM6mb.sf2` is licensed GPL-2.0** (Tim Brechbill and David Bolton, as shipped with MuseScore and packaged by
   Debian as `timgm6mb-soundfont`). It is a separate data file that is distributed beside the runtime, not linked into it. If you

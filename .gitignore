@@ -15,3 +15,7 @@ node_modules/
 last-run-*.log
 .claude/settings.local.json
 third_party/luals/
+# games packed by the studio beside their folders (carts/breakout -> carts/breakout.g43)
+carts/*.g43
+carts/*.g169
+carts/*.cart

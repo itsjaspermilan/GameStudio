@@ -1,6 +1,7 @@
 {
   "name": "gamestudio-studio",
   "private": true,
+  "license": "Zlib",
   "version": "0.1.0",
   "type": "module",
   "scripts": {

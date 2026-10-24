@@ -12,6 +12,7 @@ reads, so the game runs the same on another computer and on the device.
 
 | Field | Meaning |
 | --- | --- |
+| `cart_extension` | What a packed game for this console is called: `g43` (Glow43) and `g169` (Glow169), like `.gba` for a GBA game. The file is the same cart format whatever its name; the runtime reads any of them. A custom console has none (a copy drops it), so its games are `.cart`. |
 | `screen` | Logical resolution. `scale: "integer"` shows it at the largest whole-number scale that fits the real display, with bars around it. |
 | `room_speed` | Game steps per second. |
 | `palette` | `mode: "banks"` (Glow43, Glow169): GBA-style colour banks. `sprite_banks` and `tile_banks` (16 each) are how many banks a game's `palette.json` may hold, `bank_colors` (16) the places in a bank (place 0 is see-through), `color_bits` (15) the colour depth every bank colour is rounded to; `colors` are the 32 classic colours that games without a `palette.json` keep, and that palette numbers in code (`gs.draw.rect(..., 5)`) mean. Other modes: `fixed` (only `colors` exist), `limited` (at most `size` colours of your choice) and `free`. |

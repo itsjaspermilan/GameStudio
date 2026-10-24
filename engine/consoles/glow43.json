@@ -2,6 +2,7 @@
   "id": "glow43",
   "name": "Glow43",
   "description": "4:3 handheld, 256x192 (G43 for short). Scrolling rooms with up to four tile layers, colour banks, glow and shadow, eight music tracks: a GBA-style console.",
+  "cart_extension": "g43",
   "based_on": null,
   "screen": {
     "width": 256,

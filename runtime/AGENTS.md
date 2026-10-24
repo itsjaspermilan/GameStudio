@@ -14,7 +14,7 @@ bindings (`static int l_*`, registered in the `gs_lib` table near line 620) → 
 detection: `game.lua` boots the embedded `gs` framework (`require('gs.boot')`); a cart without one is refused; frame loop).
 
 - **Add a Lua function:** write `l_name`, add `{"name", l_name}` to `gs_lib`, document it in the README table. Lua errors print once to stderr and the game keeps running.
-- **CLI:** `gs <cart|dir>`, `gs pack <dir> <out.cart>`, `gs render-audio <desc.txt> <out.wav>`. The render-audio description grammar is documented
+- **CLI:** `gs <cart|dir>`, `gs pack <dir> <out.g43>` (a cart's name says its console, `cart_extension` in the spec: `.g43`, `.g169`, `.cart` for custom consoles; the format is the same and nothing reads the name except to key the saves), `gs render-audio <desc.txt> <out.wav>`. The render-audio description grammar is documented
   in the comment above `safe_sound_path` / `render_audio`; the studio builds those descriptions in `studio/src/audio-core.js` (`AudioDesc`).
   If you change one side, change the other and the tests in `studio/test/synth*.test.mjs`, `audio-tracker.test.mjs`.
 - **Environment:** `GS_MAX_FRAMES=N` exits after N frames (tests), `GS_SAVE_DIR` moves per-game saves (ALWAYS set it in tests), `GS_SOUNDFONT`

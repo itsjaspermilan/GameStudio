@@ -121,7 +121,14 @@ export const instanceLimit = (c) => (c.limits && c.limits.instances_per_room) ||
 export function duplicateConsole(c, id, name) {
   const copy = JSON.parse(JSON.stringify(c));
   copy.id = id; copy.name = name; copy.based_on = c.id;
+  delete copy.cart_extension; // .g43 means Glow43: a console of your own makes plain .cart files
   return copy;
+}
+
+// The end of a packed game's file name: "g43" for Glow43 (breakout.g43), "cart" for a console without its own.
+export function cartExtension(c) {
+  const e = c && c.cart_extension;
+  return typeof e === "string" && /^[a-z0-9]{1,8}$/.test(e) ? e : "cart";
 }
 
 // What colours a console allows: {mode: "fixed", colors: ["#rrggbb", ...]}, {mode: "limited", size}, {mode: "free"}, or

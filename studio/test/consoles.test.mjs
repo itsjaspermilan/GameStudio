@@ -151,3 +151,14 @@ test("a game carries the custom console it uses", () => {
   assert.equal(K.resolveConsole("other", [], K.consoleFileText(tiny)).id, "glow43", "a copy with another id does not count");
   assert.equal(K.resolveConsole("tiny_gba", [], "not json").id, "glow43");
 });
+
+test("a packed game is named for its console: .g43, .g169, and .cart for a console of your own", () => {
+  const [g43, g169] = K.BUILTIN_CONSOLES;
+  assert.equal(K.cartExtension(g43), "g43");
+  assert.equal(K.cartExtension(g169), "g169");
+  const copy = K.duplicateConsole(g43, "tiny", "Tiny");
+  assert.equal(copy.cart_extension, undefined); // a copy of Glow43 is not Glow43
+  assert.equal(K.cartExtension(copy), "cart");
+  assert.equal(K.cartExtension({ cart_extension: "../x" }), "cart");
+  assert.equal(K.cartExtension(null), "cart");
+});

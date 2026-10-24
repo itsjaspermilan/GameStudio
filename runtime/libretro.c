@@ -53,7 +53,7 @@ void retro_get_system_info(struct retro_system_info *info) {
     memset(info, 0, sizeof *info);
     info->library_name = "GameStudio";
     info->library_version = "1";
-    info->valid_extensions = "cart";
+    info->valid_extensions = "g43|g169|cart"; /* one cart format; the name says the console (custom consoles: .cart) */
     info->need_fullpath = true; /* the cart is read from its file, and its name keys the saves */
     info->block_extract = true;
 }
@@ -117,7 +117,7 @@ bool retro_load_game(const struct retro_game_info *game) {
     const char *dir = NULL;
     if (!getenv("GS_SAVE_DIR") && env_cb(RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY, &dir) && dir && *dir) {
         char name[256]; const char *base = strrchr(game->path, '/'); snprintf(name, sizeof name, "%s", base ? base + 1 : game->path);
-        char *dot = strrchr(name, '.'); if (dot && !strcmp(dot, ".cart")) *dot = 0;
+        char *dot = strrchr(name, '.'); if (dot && dot != name) *dot = 0;
         mkdir(dir, 0755); /* init_savedir makes only the last folder */
         char path[1024]; snprintf(path, sizeof path, "%s/%s", dir, name);
         setenv("GS_SAVE_DIR", path, 1);

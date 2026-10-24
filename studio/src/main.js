@@ -21,7 +21,7 @@ import { newSfx, INSTRUMENT_PRESETS, newSong, serializeSong, renderSfxWith, rend
 import builtinInstrumentsDoc from "../../engine/instruments.json";
 setBuiltinInstruments(builtinInstrumentsDoc);
 import { encodeSpritePng, decodeSpritePng } from "./sprite-io.js";
-import { BUILTIN_CONSOLES, allConsoles, budgetStatus, formatKB, consoleFor, duplicateConsole, paletteOf, parseCustomConsoles, screenText, uniqueId, consoleFileOf, consoleFileText, resolveConsole } from "./consoles.js";
+import { BUILTIN_CONSOLES, allConsoles, budgetStatus, formatKB, consoleFor, duplicateConsole, paletteOf, parseCustomConsoles, screenText, uniqueId, consoleFileOf, consoleFileText, resolveConsole, cartExtension } from "./consoles.js";
 import { createConsoleEditor } from "./console-editor.js";
 import { parseWav, sampleName, fitWav } from "./wav.js";
 import { renameReferences, countCodeMentions, renameInCode, renameSceneFields } from "./rename-core.js";
@@ -1463,7 +1463,11 @@ $("btn-run").onclick = () => run("run", async () => {
   stepDone("run");
 });
 $("btn-stop").onclick = () => (state.pushing ? invoke("cancel_push") : invoke("stop_preview")).catch(fail);
-$("btn-pack").onclick = () => run("pack", async () => { await save(); await syncConsoleCopy(); const p = await invoke("pack_cart", { cart: state.cart }); info("Packed " + p); });
+$("btn-pack").onclick = () => run("pack", async () => {
+  await save(); await syncConsoleCopy();
+  const p = await invoke("pack_cart", { cart: state.cart, ext: cartExtension(activeConsole()) });
+  info("Game file made, next to the game's folder: " + p);
+});
 $("btn-push").onclick = () => run("push", async () => {
   await save();
   await syncConsoleCopy();

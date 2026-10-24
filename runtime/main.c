@@ -1,7 +1,7 @@
 /* gs: tiny SDL2 + Lua 2D game runtime.
  *
- *   gs <cart.cart | dir>      run a cartridge (or an unpacked directory)
- *   gs pack <dir> <out.cart>  pack a directory into a cartridge
+ *   gs <cart | dir>           run a cartridge (breakout.g43, .g169, .cart: one format, any name) or an unpacked directory
+ *   gs pack <dir> <out.g43>   pack a directory into a cartridge
  *
  * A cartridge is a game built on the embedded framework (engine/gs/): it has a game.lua, which names its console (screen size, palette,
  * limits). The framework defines the init(), update(dt), draw() this file calls every frame.
@@ -869,7 +869,7 @@ static void init_savedir(const char *cartpath) {
     else {
         char name[128]; const char *base = strrchr(cartpath, '/'); base = base ? base + 1 : cartpath;
         snprintf(name, sizeof name, "%s", base);
-        char *dot = strrchr(name, '.'); if (dot && !strcmp(dot, ".cart")) *dot = 0;
+        char *dot = strrchr(name, '.'); if (dot && dot != name) *dot = 0; /* breakout.g43, breakout.cart: the saves are breakout's */
         char *p = SDL_GetPrefPath("gs", name);
         if (p) { snprintf(g_savedir, sizeof g_savedir, "%s", p); SDL_free(p); }
     }
@@ -2100,7 +2100,7 @@ int main(int argc, char **argv) {
     if (argc == 3 && !strcmp(argv[1], "boost-selftest")) return boost_selftest(argv[2]);
     if (argc == 4 && !strcmp(argv[1], "render-audio")) return render_audio(argv[2], argv[3]);
     if (argc == 4 && !strcmp(argv[1], "pack")) return pack(argv[2], argv[3]);
-    if (argc != 2) { fprintf(stderr, "usage: gs <cart|dir>\n       gs pack <dir> <out.cart>\n"); return 2; }
+    if (argc != 2) { fprintf(stderr, "usage: gs <cart|dir>\n       gs pack <dir> <out.g43>\n"); return 2; }
 
     struct stat st;
     if (stat(argv[1], &st)) { perror(argv[1]); return 1; }
