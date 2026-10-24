@@ -740,6 +740,9 @@ input, textarea, select, [contenteditable="true"], .cm-editor, #output, .output,
 .help-article h1 { font-size: 24px; margin: 18px 0 8px; }
 .help-article h2 { font-size: 17px; margin: 26px 0 6px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
 .help-article p, .help-article li { max-width: 780px; }
+.help-article figure { margin: 10px 0 14px; max-width: 780px; }
+.help-article figure img { display: block; max-width: 100%; border: 1px solid var(--border); border-radius: 6px; }
+.help-article figcaption { font-size: 12px; color: var(--muted, #888); margin-top: 4px; }
 .help-article li { white-space: normal; overflow: visible; cursor: auto; padding: 2px 0; border-radius: 0; } /* the global li style is for the side lists */
 .help-article a { color: var(--link); }
 .help-article code, .help-article kbd { font-family: var(--mono); font-size: 12.5px; background: var(--panel-2); border-radius: 3px; padding: 0 4px; }

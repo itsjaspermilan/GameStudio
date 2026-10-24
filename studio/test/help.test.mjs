@@ -15,6 +15,15 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const dir = join(root, "docs/help");
 const pages = readdirSync(dir).filter((f) => f.endsWith(".html")).sort().map((f) => ({ file: f, ...parsePage(readFileSync(join(dir, f), "utf8"), f.replace(/^\d+-|\.html$/g, "")) }));
 
+test("every picture a page shows is in docs/help/img and says what it shows", () => {
+  for (const p of pages) for (const m of p.body.matchAll(/<img\b[^>]*>/g)) {
+    const src = (/src="([^"]+)"/.exec(m[0]) || [])[1], alt = (/alt="([^"]*)"/.exec(m[0]) || [])[1];
+    assert.match(src || "", /^img\/[\w-]+\.png$/, `${p.file}: pictures are PNGs in img/`);
+    assert.ok(existsSync(join(dir, src)), `${p.file}: ${src} is missing`);
+    assert.ok(alt && alt.length > 10, `${p.file}: ${src} needs an alt text`);
+  }
+});
+
 test("every page has a title, group, order and unique id", () => {
   const ids = new Set();
   for (const p of pages) {

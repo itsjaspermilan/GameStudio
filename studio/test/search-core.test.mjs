@@ -87,7 +87,7 @@ test("every Lua file in the repository and every tutorial is already formatted",
     const t = readFileSync(f, "utf8");
     assert.equal(f.includes("/carts/") ? tidyLua(t) : reindent(t), t, f);
   }
-  for (const f of readdirSync(join(root, "docs/help"))) {
+  for (const f of readdirSync(join(root, "docs/help")).filter((f) => f.endsWith(".html"))) {
     const g = gameFiles(parsePage(readFileSync(join(root, "docs/help", f), "utf8"), f));
     for (const [rel, text] of Object.entries(g || {})) assert.equal(tidyLua(text), text, `${f} ${rel}`);
   }

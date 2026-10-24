@@ -46,7 +46,8 @@ Measuring (`GS_PERF=1`)
   Breakout, Make this game asking where, the recent list (× forgets one), Show folder, reopening a game coming back to its tabs, the Play
   panel, and switching a scene between its Layout and Code.
 - [ ] Try PNG import in the Game info dialog on a real PNG (the file picker could not be driven in testing).
-- [ ] Help pages have no pictures yet; screenshots of the layout editor in "Make a game, step by step" would help beginners most.
+- [ ] Help pages can show pictures now (`docs/help/img/`, two in "Make a game, step by step"); add more where a beginner would look for one
+  (the sprite editor with colour banks, the Play panel, Send to device).
 - [ ] Layouts, next step: offer to turn a room into a scene's layout.
 - [ ] Later, once the Brick is measured: simulate the console in the Play panel (slow the game by the measured device/desktop ratio; Lua
   memory against what the console has).

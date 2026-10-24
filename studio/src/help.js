@@ -4,6 +4,8 @@
 import { parsePage, gameFiles, contents, search, apiPageHtml, highlightLua } from "./help-core.js";
 
 const raw = import.meta.glob("../../docs/help/*.html", { query: "?raw", import: "default", eager: true });
+// pictures a page shows with <img src="img/name.png">: bundled with the studio, so the window finds them offline
+const pictures = Object.fromEntries(Object.entries(import.meta.glob("../../docs/help/img/*.png", { query: "?url", import: "default", eager: true })).map(([path, url]) => ["img/" + path.split("/").pop(), url]));
 const filePages = Object.entries(raw).map(([path, text]) => parsePage(text, path.split("/").pop().replace(/^\d+-|\.html$/g, "")));
 
 export function createHelp(dialog, hooks) {
@@ -83,6 +85,7 @@ export function createHelp(dialog, hooks) {
     current = page.id;
     if (hooks.onPage) hooks.onPage(page.id);
     article.innerHTML = page.body;
+    for (const img of article.querySelectorAll("img[src^='img/']")) img.src = pictures[img.getAttribute("src")] || "";
     crumb.textContent = `${page.group}  ›  ${page.title}`;
     decorate(page);
     for (const a of article.querySelectorAll("a[href^='help:']")) a.onclick = (e) => { e.preventDefault(); show(a.getAttribute("href").slice(5)); };

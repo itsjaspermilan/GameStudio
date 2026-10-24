@@ -59,6 +59,8 @@ The new game made the player in code (<code>gs.spawn("player", 128, 96)</code> i
 <li>With the player selected, type <code>player</code> in its <strong>Name</strong> box on the right. It shows <code>self.player</code> above it: that is what the code calls it.</li>
 <li>Click <strong>Code</strong> and delete the <code>gs.spawn</code> line (and the now-empty <code>enter</code>). Save both halves.</li>
 </ol>
+<figure><img src="img/step-layout.png" alt="The layout editor: the main scene's tab with Layout and Code, the tools above the screen, the In this layout list, and the player selected with its name on the right" />
+<figcaption>The layout of <code>main</code> with the player and the coins placed. The player is selected: its name on the right is what the code calls it.</figcaption></figure>
 <p>The list on the left of the layout, <strong>In this layout</strong>, shows everything with a name as <code>self.something</code>. Typing <code>self.</code> in the code lists the same names,
 and a misspelt one gets a warning. That list is the map between the two halves: the layout says what exists, the names are how the code reaches it.</p>
 
@@ -104,6 +106,8 @@ return Player</code></pre>
 <h2>6. Words on the screen</h2>
 <p>In the Layout pick <strong>Text</strong> (X), click near the top left and type <code>COINS 0</code>. Name it <code>score</code>. On the right you can choose its font
 (round, square or bold; small or tall), colour and a shadow. Then the code changes its words as you play: the scene counts the coins when it starts, and says how many are gone.</p>
+<figure><img src="img/step-text.png" alt="The text COINS 0 selected in the layout, with its name, words, size, font, shadow and colour on the right" />
+<figcaption>The <code>score</code> text selected: its words, size, font, shadow and colour are on the right.</figcaption></figure>
 <pre class="lua" data-path="scenes/main.layout.lua"><code>-- The scene's layout, built when it starts. Named things are fields of its code: self.&lt;name&gt;.
 return {
   width = 256, height = 192, background = "#123b2a",
