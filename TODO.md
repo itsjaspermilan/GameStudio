@@ -21,8 +21,8 @@ Setting up
 - [ ] Rewind (NextUI option, off by default) and a state of a bigger game: states are 13.9 MB (8 MB of RAM, the rest headroom); time
   saving one on the Brick, and the rewind with its compression.
 - [x] The core draws on a GPU context of its own (runtime/gpu.c): heavy screen 3.9 / 4.9 / 6.8 ms for 100 / 200 / 400 stars, frames
-  matching the CPU's, save states and Resume unchanged. Checked outside minarch; check inside it (Heavy (bench) is on the Brick under
-  Glow43) and that NextUI's menu and sleep still work with two GPU contexts in one program.
+  matching the CPU's, save states and Resume unchanged. Checked inside NextUI on the Brick 2026-10-24: Heavy (bench) smooth, menu,
+  sleep, save/load state and Resume all work with minarch and the core sharing the GPU.
 - [ ] (measurements that decided it) Drawing in the core on the CPU. Measured 2026-10-24 on the Brick (`tests/heavy`: full-screen
   background, three full-screen glows, N big scaled and turning stars, four full-screen fades; CPU at full speed), ms per frame:
   CPU core 21.0 (100 stars), 34.1 (200), 60.4 (400); glows and fades alone 7.8; Breakout 5.1. The program on the GPU (mali), update +
