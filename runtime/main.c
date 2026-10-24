@@ -1787,10 +1787,30 @@ static void screen_logical(int w, int h) {
         SDL_RenderSetIntegerScale(g_ren, SDL_TRUE);
     }
 }
-/* The GBA's mosaic: after the frame is drawn, each block of n x n pixels takes the colour of its top-left pixel (gs.raw.mosaic(n), 1 is off).
- * Scene changes dissolve with it. It reads the frame back, which is slow on a GPU, but it only runs for the few frames of a transition. */
+/* The GBA's mosaic: after the frame is drawn, each block of n x n pixels takes one colour, the pixel at the block's middle (gs.raw.mosaic(n),
+ * 1 is off). Scene changes dissolve with it. With a render target (a GPU) the frame is shrunk into a small texture and enlarged back with
+ * nearest-neighbour scaling, so it never leaves the GPU: reading pixels back stalls a GPU, and badly on some handheld drivers. Without one (the
+ * framebuffer and embedded paths, which draw in memory anyway) the pixels are read and filled by hand, picking the same pixel per block. */
 static int g_mosaic = 1;
+static void apply_mosaic_gpu(void) {
+    static SDL_Texture *small; static int tw, th;
+    const int w = g_screen_w, h = g_screen_h, n = g_mosaic;
+    if (tw != w || th != h) {
+        if (small) SDL_DestroyTexture(small);
+        small = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_TARGET, w, h);
+        tw = w; th = h;
+        if (small) { SDL_SetTextureBlendMode(small, SDL_BLENDMODE_NONE); SDL_SetTextureScaleMode(small, SDL_ScaleModeNearest); }
+    }
+    if (!small) return;
+    /* a shrink by n samples each block at its middle ((i + 0.5) * n); only the corner of the small texture that the frame needs is used */
+    const int sw = (w + n - 1) / n, sh = (h + n - 1) / n;
+    SDL_SetRenderTarget(g_ren, small);
+    SDL_RenderCopyF(g_ren, g_target, NULL, &(SDL_FRect){ 0, 0, (float)w / n, (float)h / n });
+    SDL_SetRenderTarget(g_ren, g_target);
+    SDL_RenderCopy(g_ren, small, &(SDL_Rect){ 0, 0, sw, sh }, &(SDL_Rect){ 0, 0, sw * n, sh * n });
+}
 static void apply_mosaic(void) {
+    if (g_target && SDL_GetRenderTarget(g_ren) == g_target) { apply_mosaic_gpu(); return; }
     static SDL_Texture *tex; static int tw, th; static Uint32 *px;
     const int w = g_screen_w, h = g_screen_h, n = g_mosaic;
     if (tw != w || th != h) {
@@ -1804,7 +1824,7 @@ static void apply_mosaic(void) {
     const SDL_Rect r = { 0, 0, w, h };
     if (SDL_RenderReadPixels(g_ren, &r, SDL_PIXELFORMAT_ABGR8888, px, w * 4) != 0) return;
     for (int by = 0; by < h; by += n) for (int bx = 0; bx < w; bx += n) {
-        const Uint32 c = px[by * w + bx];
+        const Uint32 c = px[SDL_min(by + n / 2, h - 1) * w + SDL_min(bx + n / 2, w - 1)];
         for (int y = by; y < by + n && y < h; y++) for (int x = bx; x < bx + n && x < w; x++) px[y * w + x] = c;
     }
     SDL_UpdateTexture(tex, NULL, px, w * 4);

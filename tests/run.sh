@@ -62,6 +62,10 @@ tmp="$(mktemp -d)"
 GS_DUMP_FRAME="$tmp/blend.bmp" FRAMES=60 run ./build/gs tests/blend >/dev/null
 GS_BLEND_PLAIN=1 GS_DUMP_FRAME="$tmp/plain.bmp" FRAMES=60 run ./build/gs tests/blend >/dev/null
 node tests/same-frames.mjs "$tmp/blend.bmp" "$tmp/plain.bmp" 2 || { echo "FAIL: blending does not make the colours it should"; status=1; }
+# The mosaic: every block takes the colour of its middle pixel (on the GPU path, as on the handheld's GPU).
+GS_DUMP_FRAME="$tmp/mosaic.bmp" FRAMES=60 run ./build/gs tests/mosaic >/dev/null
+GS_MOSAIC_PLAIN=1 GS_DUMP_FRAME="$tmp/mosaic-plain.bmp" FRAMES=60 run ./build/gs tests/mosaic >/dev/null
+node tests/same-frames.mjs "$tmp/mosaic.bmp" "$tmp/mosaic-plain.bmp" || { echo "FAIL: the mosaic does not fill each block with its middle pixel"; status=1; }
 rm -rf "$tmp"
 
 # A plain main.lua game (the format before game.lua) is refused with a message that says what to do, not run or crashed.

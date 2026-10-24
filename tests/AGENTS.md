@@ -10,6 +10,7 @@ Each folder is a tiny cart run by the real runtime with dummy video/audio, drive
 | `bandtest` | Ready-made instruments, multi-track effects (and the older one-row form), songs with an instrument per track |
 | `customconsole` | A game carrying its own console (`consoles/tiny.json`, 240x160); prints `CUSTOM CONSOLE Tiny 240x160` |
 | `blend` | Blend modes on an entity, a tile layer and `gs.draw.sprite`, with alpha; prints `BLEND TEST PASS`, and with `GS_BLEND_PLAIN=1` draws the colours they should make as rectangles, for `run.sh` to compare with `tests/same-frames.mjs` |
+| `mosaic` | The mosaic (`gs.raw.mosaic`) on the GPU path: a dot of its own colour in the middle of every 4x4 block, and with `GS_MOSAIC_PLAIN=1` the whole blocks in those colours; `run.sh` compares the two frames |
 | `banks` | Colour banks (`palette.json`): bank lookups, `"bank:place"` colours, a palette swap; prints `BANKS TEST PASS`, and with `GS_BANKS_PLAIN=1` draws the same frame with rectangles for `run.sh` to compare |
 | `song-bad`, `band-bad` | An unknown instrument name stops loading with a readable message |
 | `keys-bot.lua` | A `GS_BOT_LUA` script that presses keys on a schedule (for driving menus in a cart) |
