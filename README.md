@@ -236,7 +236,8 @@ top of `render_audio` in `runtime/main.c`; samples resolve relative to the curre
   lives in the runtime, not in the cart, so these licences put no conditions on the games you make; choose your own licence for them.
 - Lua is MIT, SDL2 is zlib, TLSF (`third_party/tlsf`, Matthew Conte) is BSD-3-Clause, `third_party/libretro/libretro.h` is MIT, the built-in fonts (`engine/fonts/`, drawn for GameStudio) are the project's own, and TinySoundFont (`third_party/tsf/tsf.h`) is MIT. The studio's optional Lua language server (LuaLS, downloaded by `scripts/fetch-luals.sh`, never part of a game) is MIT.
 - **`assets/soundfonts/TimGM6mb.sf2` is licensed GPL-2.0** (Tim Brechbill and David Bolton, as shipped with MuseScore and packaged by
-  Debian as `timgm6mb-soundfont`). It is a separate data file that is distributed beside the runtime, not linked into it. If you
-  distribute the SoundFont (for example inside a release), the GPL-2 applies to that file: keep its licence with it, and note that
+  Debian as `timgm6mb-soundfont`; the licence text is `assets/soundfonts/TimGM6mb-LICENSE.txt`). It is a separate data file that is
+  distributed beside the runtime, not linked into it, so it puts no conditions on GameStudio's code or on games (commercial use is fine).
+  If you distribute the SoundFont (for example inside a release), the GPL-2 applies to that file: keep its licence with it, and note that
   games using only the chip instruments do not need it. To avoid GPL material entirely, point `GS_SOUNDFONT` at a SoundFont with a
   licence you prefer.

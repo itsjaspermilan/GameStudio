@@ -55,6 +55,14 @@ Measuring (`GS_PERF=1`)
 
 ## Studio and engine (no device needed)
 
+- [ ] A permissively licensed General MIDI SoundFont instead of TimGM6mb (GPL-2; its licence text is beside it). Tried 2026-10-24:
+  FluidR3 Mono GM (MIT, Frank Wen / Michael Cowgill; `share/sound/FluidR3Mono_GM.sf3` on MuseScore's 2.1 branch, 14.6 MB) decodes to a
+  119 MB SF2, 71 MB with samples above 30 kHz halved; on the Brick that loads in 1.8 s cold / 0.85 s warm (TimGM6mb: 0.25 / 0.11) and
+  TinySoundFont keeps about twice that in memory as floats. The way that worked: TinySoundFont reads SF3 with stb_vorbis compiled in, and
+  a small converter (stb_vorbis + RIFF rewrite, shdr offsets made absolute, 46 zero samples after each) turned it into SF2 at build
+  time. Kept TimGM6mb for now (size and start-up time). JNS-GM 2.0 (CC0, 33 MB) has unclear sample provenance; GeneralUser GS's licence
+  warns about it too.
+
 - [ ] Try in the real app (only the browser mock was clicked through): Open folder…, New game asking where, Examples opening a copy of
   Breakout, Make this game asking where, the recent list (× forgets one), Show folder, reopening a game coming back to its tabs, the Play
   panel, switching a scene between its Layout and Code, Game info's button icon picker (writes `buttons = ...` into game.lua), the
