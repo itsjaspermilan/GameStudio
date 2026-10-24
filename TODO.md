@@ -14,14 +14,9 @@ Consoles were renamed on 2026-10-23: Dot is **Glow43** (G43) and Dash is **Glow1
 ## On the Brick (NextUI)
 
 Setting up
-- [ ] SSH: NextUI has none built in. Install an SSH server pak from NextUI's Pak Store (Tools), start it, note the Brick's IP (fixed in the
-  router, one per Brick).
-- [ ] Look at the card over SSH before writing anything: where `/mnt/SDCARD` keeps `Roms/`, `Emus/tg5040/`, `Tools/tg5040/`, `.media`
-  folders and saves, which `libSDL2-2.0.so.0` a pak gets (the system's, or one NextUI ships) and its video driver, and what a pak's
-  `launch.sh` is given (environment, `SDL_GAMECONTROLLERCONFIG`, the CPU governor).
-- [ ] A NextUI mode in `push.sh` (`DEVICE_OS=nextui`, `scripts/device-<name>.env` per Brick), written from what the card shows. The likely
-  shape, to confirm: each console a system of its own, `Roms/Glow43 (G43)/<cart>` launched by `Emus/tg5040/G43.pak/launch.sh`; carts with
-  no console as `Tools/tg5040/<Cart>.pak`; covers in `Roms/<system>/.media/`.
+- [x] SSH (Native SSH from the Pak Store, after updating TrimUI's firmware to 1.1.1; the update made the NextUI card lose its `trimui/`
+  folder, put back from the release) and the NextUI mode in `push.sh` (`scripts/device-brick.env`). Breakout pushed and runs.
+- [ ] The second Brick: its own `scripts/device-<name>.env` and a fixed IP.
 
 Seeing and playing
 - [ ] Breakout and the tutorials fill the screen with no border; the built-in fonts (round, square, bold; small and tall), the

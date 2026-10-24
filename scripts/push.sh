@@ -2,7 +2,8 @@
 # Pack a cartridge directory and copy it (and the aarch64 runtime) to the device.
 #   scripts/push.sh carts/breakout                  the device in scripts/device.env
 #   GS_DEVICE=muos scripts/push.sh carts/breakout   another one, in scripts/device-muos.env (a second SD card, another handheld)
-# DEVICE_OS in the file says which system the card runs: knulli (the default; EmulationStation) or muos (MustardOS).
+# DEVICE_OS in the file says which system the card runs: knulli (the default; EmulationStation), muos (MustardOS) or nextui (the TrimUI
+# Brick's NextUI).
 set -e
 cd "$(dirname "$0")/.."
 [ -n "$1" ] || { echo "usage: $0 <cart-dir>" >&2; exit 2; }
@@ -42,12 +43,16 @@ if ! ssh $SSH_OPTS "$T" true 2>/dev/null; then
   echo "  ssh -fN -o ControlMaster=yes -o ControlPath=${CTL:-\$HOME/.ssh/knulli-ctl} -o ServerAliveInterval=15 $T" >&2
   exit 1
 fi
+INFO="$(console_info "$SRC")"
+# NextUI: a game with a console is a "rom" in that console's folder, run by one launcher for the whole console, as NextUI's emulators are.
+# Everything else is the runtime's: the cart's path is the launcher's argument, not fixed in it.
+NEXTUI_ROM=""; [ "$DEVICE_OS" = nextui ] && [ -n "$INFO" ] && NEXTUI_ROM=1
 ssh $SSH_OPTS "$T" "mkdir -p '$DEVICE_DIR/carts'"
 scp -q $SSH_OPTS build-aarch64/gs "$T:$DEVICE_DIR/gs"
 # the General MIDI SoundFont (about 6 MB) goes once, beside the runtime, not into every game
 ssh $SSH_OPTS "$T" "test -f '$DEVICE_DIR/TimGM6mb.sf2'" || scp -q $SSH_OPTS assets/soundfonts/TimGM6mb.sf2 "$T:$DEVICE_DIR/TimGM6mb.sf2"
-scp -q $SSH_OPTS "$HOSTCART" "$T:$DEVICE_DIR/carts/$NAME.cart"
-if [ -n "$DEVICE_PORTS_DIR" ] || [ "$DEVICE_OS" = muos ]; then
+[ -n "$NEXTUI_ROM" ] || scp -q $SSH_OPTS "$HOSTCART" "$T:$DEVICE_DIR/carts/$NAME.cart"
+if [ -n "$DEVICE_PORTS_DIR" ] || [ "$DEVICE_OS" = muos ] || [ "$DEVICE_OS" = nextui ]; then
   # GS_DEBUG=1 scripts/push.sh ...  logs controller presses to <DEVICE_DIR>/last-run.log and leaves after 60 seconds (GS_DEBUG_SECONDS=N),
   # so a test on a device whose buttons are not mapped yet can never trap you in the game.
   # GS_PERF=1 scripts/push.sh ...  prints a frame timing line a second to <DEVICE_DIR>/last-run-<cart>.log and leaves after GS_PERF_SECONDS (default 40).
@@ -89,15 +94,59 @@ FLOOR
     else
       echo "trap restore_floor EXIT INT TERM"
     fi
+    CART="\"carts/$NAME.cart\""
+    if [ -n "$NEXTUI_ROM" ]; then
+      # saves go where NextUI keeps every system's: Saves/<console tag>/<game>
+      CART='"$1"'
+      echo 'GS_SAVE_DIR="${SAVES_PATH:-/mnt/SDCARD/Saves}/$(basename "$(dirname "$0")" .pak)/$(basename "$1" .cart)"'
+      echo 'mkdir -p "$GS_SAVE_DIR"; export GS_SAVE_DIR'
+    fi
     # the shell stays alive (no exec) so that the trap can run when the game ends
-    RUN="./gs \"carts/$NAME.cart\""
+    RUN="./gs $CART"
     [ -n "$GS_ENV" ] && RUN="$GS_ENV $RUN"
     if [ -n "$GS_LOG" ]; then
       if [ -n "$GS_GOVERNOR" ]; then RUN="$RUN >> \"$GS_LOG\" 2>&1"; else RUN="$RUN > \"$GS_LOG\" 2>&1"; fi
     fi
     echo "$RUN"
   } > "build/$NAME.sh"
-  INFO="$(console_info "$SRC")"
+  # ssh joins its arguments into one command for the remote shell, so each one is quoted ("Glow43 (G43)", "Then & Now")
+  q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+  TITLE="$(node -e 'try { const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(d.title || "").replace(/[\r\n"\\\t]/g, " ").trim()); } catch {}' "$SRC/meta/info.json" 2>/dev/null)"
+  if [ "$DEVICE_OS" = nextui ]; then
+    # NextUI (a MinUI): a system is a folder Roms/<Name> (<TAG>) whose files are run by Emus/<platform>/<TAG>.pak/launch.sh with the file as
+    # its argument; the menu shows the name without the tag. The cart itself is the file, map.txt beside it gives it the game's title, and
+    # .media/<file name>.png is the box art beside the list. A cart with no console (the pad tools) is a pak of its own under Tools.
+    PLAT="${DEVICE_PLATFORM:-tg5040}"; SD="${DEVICE_SDCARD:-/mnt/SDCARD}"
+    if [ -n "$INFO" ]; then
+      CID="${INFO%%|*}"; CNAME="${INFO#*|}"
+      case "$CID" in glow43) TAG=G43 ;; glow169) TAG=G169 ;; *) TAG="$(printf '%s' "$CID" | tr 'a-z' 'A-Z' | tr -cd 'A-Z0-9')" ;; esac
+      FOLDER="$SD/Roms/$CNAME ($TAG)"; PAK="$SD/Emus/$PLAT/$TAG.pak"
+      ssh $SSH_OPTS "$T" "mkdir -p $(q "$FOLDER/.media") $(q "$PAK")"
+      scp -q $SSH_OPTS "$HOSTCART" "$T:$FOLDER/$NAME.cart"
+      scp -q $SSH_OPTS "build/$NAME.sh" "$T:$PAK/launch.sh"
+      ssh $SSH_OPTS "$T" "chmod +x $(q "$PAK/launch.sh") '$DEVICE_DIR/gs'"
+      if [ -f "$SRC/meta/box_art.png" ]; then scp -q $SSH_OPTS "$SRC/meta/box_art.png" "$T:$FOLDER/.media/$NAME.png"
+      else ssh $SSH_OPTS "$T" "rm -f $(q "$FOLDER/.media/$NAME.png")"; fi
+      # the console's logo as the folder's picture in the list of systems
+      [ -f "assets/console-logos/$CID.png" ] && { ssh $SSH_OPTS "$T" "mkdir -p '$SD/Roms/.media'"; scp -q $SSH_OPTS "assets/console-logos/$CID.png" "$T:$SD/Roms/.media/$CNAME ($TAG).png"; }
+      # map.txt: one "file<TAB>title" per line; this game's line is replaced (no python on the device, so grep does it)
+      ssh $SSH_OPTS "$T" "sh -s -- $(q "$FOLDER/map.txt") $(q "$NAME.cart") $(q "${TITLE:-$NAME}")" <<'REMOTE'
+map="$1"; file="$2"; title="$3"
+touch "$map"
+{ grep -v "^$file	" "$map" || true; printf '%s\t%s\n' "$file" "$title"; } > "$map.tmp" && mv "$map.tmp" "$map"
+REMOTE
+      echo "launcher: $PAK/launch.sh (one for every $CNAME game)"
+      echo "game: $FOLDER/$NAME.cart ($CNAME in the NextUI menu)"
+    else
+      PAK="$SD/Tools/$PLAT/${TITLE:-$NAME}.pak"
+      ssh $SSH_OPTS "$T" "mkdir -p $(q "$PAK")"
+      scp -q $SSH_OPTS "build/$NAME.sh" "$T:$PAK/launch.sh"
+      ssh $SSH_OPTS "$T" "chmod +x $(q "$PAK/launch.sh") '$DEVICE_DIR/gs'"
+      echo "launcher: $PAK (Tools in the NextUI menu)"
+    fi
+    echo "pushed $NAME to $T:$DEVICE_DIR"
+    exit 0
+  fi
   if [ "$DEVICE_OS" = muos ]; then
     # muOS: each console is a folder of launchers under ROMS named after it ("Glow43"; carts with no console, like the button test, go in
     # "Tools"), assigned to muOS's own External - Ports system (which
@@ -107,11 +156,8 @@ FLOOR
     CNAME="${INFO#*|}"; [ -n "$INFO" ] || CNAME="Tools"
     FOLDER="$CNAME"
     DEST="$DEVICE_ROMS_DIR/$FOLDER/$NAME.sh"
-    TITLE="$(node -e 'try { const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(d.title || "").replace(/[\r\n"\\]/g, " ").trim()); } catch {}' "$SRC/meta/info.json")"
     node -e 'try { const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(d.description || "")); } catch {}' "$SRC/meta/info.json" > "build/$NAME.txt"
     CAT="/mnt/mmc/MUOS/info/catalogue/External - Ports"
-    # ssh joins its arguments into one command for the remote shell, so each one is quoted ("GameStudio Glow43", "Then & Now")
-    q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
     ssh $SSH_OPTS "$T" "sh -s -- $(q "$DEVICE_ROMS_DIR") $(q "$FOLDER") $(q "$NAME") $(q "${TITLE:-$NAME}") $(q "$CAT")" <<'REMOTE'
 roms="$1"; folder="$2"; cart="$3"; title="$4"; cat="$5"
 mkdir -p "$roms/$folder" "$cat/box" "$cat/preview" "$cat/text"
