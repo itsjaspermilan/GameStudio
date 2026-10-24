@@ -675,3 +675,58 @@ void synth_mix(float *out, int frames) {
         }
     }
 }
+
+/* ---------------------------------------------------------------- save states (the libretro core) */
+
+/* Everything the synth holds is plain data in fixed arrays, so a state is those arrays written out: the live part (voices, the music and song
+ * players, the reverb's delay lines, the output stage) and, with defs, what the game loaded (instruments, effects, music, songs). Sample data
+ * is not written: the runtime loads the same files again by name. The SoundFont and each voice's copy of it belong to the running program and
+ * stay as they are; a General MIDI note that was sounding is cut, the next note on its track plays as usual. */
+static unsigned char *st_out; static const unsigned char *st_in; static size_t st_pos, st_len; static int st_bad;
+static void st_put(const void *p, size_t n) { if (st_out) memcpy(st_out + st_pos, p, n); st_pos += n; }
+static void st_get(void *p, size_t n) { if (st_pos + n > st_len) { st_bad = 1; return; } memcpy(p, st_in + st_pos, n); st_pos += n; }
+#define ST_ALL(X) X(g_mch) X(g_sch) X(g_lofi) X(g_age) X(g_music_gain) X(g_rev_kind) X(g_reverb_tail) X(g_group) X(g_m) X(g_s) \
+    X(rev_buf) X(ap_buf) X(rev_lp) X(rev_pos) X(rev_len) X(ap_pos) X(ap_len) X(lo_hold) X(lo_l) X(lo_r) X(lp_l) X(lp_r)
+static void st_write(int defs) {
+#define PUT(v) st_put(&(v), sizeof(v));
+    ST_ALL(PUT)
+#undef PUT
+    st_put(g_v, sizeof g_v);
+    st_put(&defs, sizeof defs);
+    if (!defs) return;
+    st_put(&g_ninst, sizeof g_ninst); st_put(g_inst, sizeof g_inst[0] * (size_t)g_ninst);
+    st_put(&g_nsfx, sizeof g_nsfx); st_put(g_sfx, sizeof g_sfx[0] * (size_t)g_nsfx);
+    st_put(&g_nmusic, sizeof g_nmusic); st_put(g_music, sizeof g_music[0] * (size_t)g_nmusic);
+    st_put(&g_nsongs, sizeof g_nsongs); st_put(g_songs, sizeof g_songs[0] * (size_t)g_nsongs);
+    st_put(&g_nsamples, sizeof g_nsamples);
+}
+size_t synth_state_size(int defs) { st_out = NULL; st_pos = 0; st_write(defs); return st_pos; }
+size_t synth_state_save(unsigned char *out, int defs) { st_out = out; st_pos = 0; st_write(defs); st_out = NULL; return st_pos; }
+int synth_state_load(const unsigned char *in, size_t len, int defs) {
+    st_in = in; st_len = len; st_pos = 0; st_bad = 0;
+    tsf *keep[NVOICES];
+    for (int c = 0; c < NVOICES; c++) keep[c] = g_v[c].sf;
+#define GET(v) st_get(&(v), sizeof(v));
+    ST_ALL(GET)
+#undef GET
+    st_get(g_v, sizeof g_v);
+    for (int c = 0; c < NVOICES; c++) {
+        g_v[c].sf = keep[c];
+        if (keep[c]) tsf_note_off_all(keep[c]);
+        if (g_v[c].active && g_v[c].inst >= 0 && g_v[c].inst < SYNTH_MAX_INSTRUMENTS && g_inst[g_v[c].inst].type == INST_GM) g_v[c].active = 0;
+    }
+    int had = 0; st_get(&had, sizeof had);
+    if (defs && had) {
+        int n = 0;
+        st_get(&n, sizeof n); if (n < 0 || n > SYNTH_MAX_INSTRUMENTS) return 0; g_ninst = n; st_get(g_inst, sizeof g_inst[0] * (size_t)n);
+        st_get(&n, sizeof n); if (n < 0 || n > MAX_SFX) return 0; g_nsfx = n; st_get(g_sfx, sizeof g_sfx[0] * (size_t)n);
+        st_get(&n, sizeof n); if (n < 0 || n > MAX_MUSIC) return 0; g_nmusic = n; st_get(g_music, sizeof g_music[0] * (size_t)n);
+        st_get(&n, sizeof n); if (n < 0 || n > MAX_SONGS) return 0; g_nsongs = n; st_get(g_songs, sizeof g_songs[0] * (size_t)n);
+        st_get(&n, sizeof n); if (n != g_nsamples) return 0; /* the runtime loaded the samples again first, in the same order */
+    }
+    return !st_bad;
+}
+void synth_drop_samples(void) {
+    for (int i = 0; i < g_nsamples; i++) { free(g_samples[i].data); g_samples[i].data = NULL; }
+    g_nsamples = 0; g_sample_bytes = 0;
+}

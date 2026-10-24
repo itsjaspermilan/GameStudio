@@ -83,6 +83,15 @@ if [ -x build/retro-run ] && [ -n "$core" ]; then
   echo "$out" | grep -q 'peak=0 ' && { echo "$out"; echo "FAIL: the core made no sound"; status=1; }
   echo "$out" | grep -qi 'error' && { echo "$out"; echo "FAIL: Breakout in the core printed an error"; status=1; }
   [ -n "$(ls "$tmp/saves/breakout" 2>/dev/null)" ] || { echo "FAIL: the core saved nothing in the emulator's save folder"; status=1; }
+  # Save states: a state saved at frame 200 and loaded later in the same run, and one loaded by a new run (NextUI's Resume: pictures, sounds
+  # and instruments made again, pointers into the core moved), both replay the same buttons to the very frame the first pass drew.
+  hold="start@30-34,a@60-62,left@70-200,right@260-330,a@340"
+  out="$(RETRO_SAVE_DIR="$tmp/saves" RETRO_HOLD="$hold" RETRO_SAVE=200:"$tmp/s200" RETRO_LOAD=401:"$tmp/s200" RETRO_DUMP=400:"$tmp/f.bmp" ./build/retro-run "$core" carts/breakout 600 2>&1)"
+  echo "$out" | grep -q 'RETRO load ok' || { echo "$out"; echo "FAIL: the core could not load its own save state"; status=1; }
+  node tests/same-frames.mjs "$tmp/f.bmp" "$tmp/f.bmp.again.bmp" || { echo "FAIL: a game loaded from a save state played differently"; status=1; }
+  out="$(RETRO_SAVE_DIR="$tmp/saves" RETRO_HOLD="$hold" RETRO_LOAD=0:"$tmp/s200" RETRO_DUMP=400:"$tmp/resumed.bmp" ./build/retro-run "$core" carts/breakout 200 2>&1)"
+  echo "$out" | grep -q 'RETRO load ok' || { echo "$out"; echo "FAIL: a new run could not resume from a save state"; status=1; }
+  node tests/same-frames.mjs "$tmp/f.bmp" "$tmp/resumed.bmp" || { echo "FAIL: a game resumed in a new run played differently"; status=1; }
   rm -rf "$tmp"
 else
   echo "SKIP: libretro core (build/gs_libretro or build/retro-run missing)"

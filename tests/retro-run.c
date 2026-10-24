@@ -1,7 +1,10 @@
 /* A tiny libretro frontend for tests: loads a core as NextUI's minarch and RetroArch do, runs a cart for some frames and reports what the
  * core handed over (picture size, samples, loudest sample). The last frame can be saved as a BMP for tests/same-frames.mjs.
  *   retro-run <core> <cart> <frames> [frame.bmp]
- * RETRO_HOLD=start@60-70,a@100 holds buttons by name on those frames (from-to, or one frame), as a player would press them. */
+ * RETRO_HOLD=start@60-70,a@100 holds buttons by name on those frames (from-to, or one frame), as a player would press them.
+ * Save states: RETRO_SAVE=N:file writes one after game frame N; RETRO_LOAD=C:file loads one before call C (0: right after loading the game,
+ * as NextUI's Resume does), and the game's frame count goes back to the state's, so held buttons replay; RETRO_DUMP=N:file.bmp saves the
+ * picture of game frame N (and of its replay, to <file>.again.bmp). A frame replayed after a load must come out the same as the first time. */
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -69,6 +72,7 @@ int main(int argc, char **argv) {
     SYM(retro_set_environment) SYM(retro_set_video_refresh) SYM(retro_set_audio_sample) SYM(retro_set_audio_sample_batch)
     SYM(retro_set_input_poll) SYM(retro_set_input_state) SYM(retro_init) SYM(retro_load_game) SYM(retro_run)
     SYM(retro_get_system_av_info) SYM(retro_unload_game) SYM(retro_deinit)
+    SYM(retro_serialize_size) SYM(retro_serialize) SYM(retro_unserialize)
     p_retro_set_environment(env); p_retro_set_video_refresh(video); p_retro_set_audio_sample(audio1); p_retro_set_audio_sample_batch(audio);
     p_retro_set_input_poll(poll); p_retro_set_input_state(input);
     p_retro_init();
@@ -76,7 +80,38 @@ int main(int argc, char **argv) {
     if (!p_retro_load_game(&gi)) { fprintf(stderr, "load failed\n"); return 1; }
     struct retro_system_av_info av; p_retro_get_system_av_info(&av);
     const long frames = atol(argv[3]);
-    for (frame_no = 1; frame_no <= frames && !shut_down; frame_no++) p_retro_run();
+    long save_at = 0, load_at = -1, dump_at = 0; char save_f[512] = "", load_f[512] = "", dump_f[512] = "";
+    if (getenv("RETRO_SAVE")) sscanf(getenv("RETRO_SAVE"), "%ld:%511s", &save_at, save_f);
+    if (getenv("RETRO_LOAD")) sscanf(getenv("RETRO_LOAD"), "%ld:%511s", &load_at, load_f);
+    if (getenv("RETRO_DUMP")) sscanf(getenv("RETRO_DUMP"), "%ld:%511s", &dump_at, dump_f);
+    const size_t ssize = p_retro_serialize_size();
+    printf("RETRO state size %zu\n", ssize);
+    frame_no = 0;
+    for (long call = 0; call <= frames && !shut_down; call++) {
+        if (call == load_at) {
+            FILE *f = fopen(load_f, "rb"); unsigned char *buf = malloc(ssize + 8); long t = 0;
+            const bool ok = f && fread(&t, sizeof t, 1, f) == 1 && fread(buf, 1, ssize, f) == ssize && p_retro_unserialize(buf, ssize);
+            if (f) fclose(f);
+            free(buf);
+            printf("RETRO load %s at call %ld (frame %ld)\n", ok ? "ok" : "FAILED", call, t);
+            if (!ok) return 1;
+            frame_no = t;
+        }
+        if (call == 0) continue;
+        frame_no++;
+        p_retro_run();
+        if (frame_no == dump_at && v_copy) { /* the first time to the file named, a replay after a load to <file>.again.bmp */
+            static int dumps; char path[600]; snprintf(path, sizeof path, dumps++ ? "%s.again.bmp" : "%s", dump_f); save_bmp(path);
+        }
+        if (frame_no == save_at && save_f[0]) {
+            unsigned char *buf = malloc(ssize); const bool ok = buf && p_retro_serialize(buf, ssize);
+            FILE *f = ok ? fopen(save_f, "wb") : NULL;
+            if (f) { fwrite(&frame_no, sizeof frame_no, 1, f); fwrite(buf, 1, ssize, f); fclose(f); }
+            free(buf);
+            printf("RETRO save %s at frame %ld\n", f ? "ok" : "FAILED", frame_no);
+            save_at = 0;
+        }
+    }
     if (argc > 4 && v_copy) save_bmp(argv[4]);
     printf("RETRO frames=%ld size=%ux%u base=%ux%u fps=%.0f rate=%.0f samples=%ld peak=%d xrgb=%u shutdown=%d\n", v_frames, v_w, v_h,
            av.geometry.base_width, av.geometry.base_height, av.timing.fps, av.timing.sample_rate, a_samples, a_peak, fmt_ok, shut_down);

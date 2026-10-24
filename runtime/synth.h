@@ -11,6 +11,7 @@
  * same scale starting at C1 (so step pitch p is note p + 12). */
 #ifndef SYNTH_H
 #define SYNTH_H
+#include <stddef.h>
 
 #define SYNTH_MAX_CHANNELS 32         /* music voices: SONG_TRACKS tracks of up to four voices each (a chord is more voices on the track's own instrument) */
 #define SONG_TRACKS 8                 /* a song's tracks: voice v belongs to track v % SONG_TRACKS (a typical GBA game mixed about 8 music voices) */
@@ -106,5 +107,10 @@ int synth_music_playing(void);
 void synth_mix(float *stereo, int frames);      /* adds `frames` interleaved stereo frames into the buffer */
 double synth_sfx_seconds(int handle);           /* length of one pass through the sound effect */
 double synth_song_seconds(int handle);          /* one pass through the whole order (ignoring the loop) */
+/* Save states (the libretro core): the live state, and with defs what the game loaded, except sample data (loaded again by name). */
+size_t synth_state_size(int defs);
+size_t synth_state_save(unsigned char *out, int defs);
+int synth_state_load(const unsigned char *in, size_t len, int defs); /* 1 on success */
+void synth_drop_samples(void);                  /* before loading the same samples again in order */
 
 #endif

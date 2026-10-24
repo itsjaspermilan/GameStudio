@@ -81,9 +81,9 @@ endif()
 # gs as a libretro core (gs_libretro.so / .dylib): the same runtime without its main(), for NextUI's minarch and RetroArch. On the handheld
 # it links the system's SDL2, which the emulator has loaded already.
 if(NOT WIN32)
-  add_library(gs_libretro SHARED runtime/libretro.c runtime/synth.c ${EMBED_FRAMEWORK})
+  add_library(gs_libretro SHARED runtime/libretro.c runtime/synth.c third_party/tlsf/tlsf.c ${EMBED_FRAMEWORK})
   set_target_properties(gs_libretro PROPERTIES PREFIX "" C_VISIBILITY_PRESET hidden)
-  target_include_directories(gs_libretro PRIVATE third_party/tsf third_party/libretro runtime)
+  target_include_directories(gs_libretro PRIVATE third_party/tsf third_party/libretro third_party/tlsf third_party/lua/src runtime)
   set_property(TARGET lua PROPERTY POSITION_INDEPENDENT_CODE ON)
   if(GS_SYSTEM_SDL2)
     target_link_libraries(gs_libretro PRIVATE lua SDL2::SDL2 m dl)

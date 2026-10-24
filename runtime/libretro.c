@@ -30,6 +30,8 @@ static double g_audio_due;      /* samples owed to the emulator, with the fracti
 static float g_mix[2 * 2048];
 static int16_t g_mix16[2 * 2048];
 
+#include "ram.c" /* the console's RAM and save states */
+
 void retro_set_environment(retro_environment_t cb) {
     env_cb = cb;
     bool no_game = false; cb(RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME, &no_game);
@@ -130,6 +132,8 @@ bool retro_load_game(const struct retro_game_info *game) {
     screen_logical(g_screen_w, g_screen_h);
     SDL_SetRenderDrawBlendMode(g_ren, SDL_BLENDMODE_BLEND);
 
+    if (!ram_open()) { fprintf(stderr, "gs: no memory for the console's RAM\n"); return false; }
+    g_lua_alloc = ram_alloc; g_lua_panic = ram_panic;
     g_core_L = game_start();
     if (!g_core_L) return false;
     g_core_w = g_screen_w; g_core_h = g_screen_h;
@@ -138,6 +142,7 @@ bool retro_load_game(const struct retro_game_info *game) {
 
 void retro_unload_game(void) {
     if (g_core_L) { lua_close(g_core_L); g_core_L = NULL; }
+    ram_close();
     if (g_ren) { SDL_DestroyRenderer(g_ren); g_ren = NULL; }
     if (g_embed_surf) { SDL_FreeSurface(g_embed_surf); g_embed_surf = NULL; }
 }
@@ -175,10 +180,10 @@ void retro_run(void) {
     }
 }
 
-/* Save states come with the fixed-size Lua memory (a later step); until then the emulator is told there are none. */
-size_t retro_serialize_size(void) { return 0; }
-bool retro_serialize(void *data, size_t size) { (void)data; (void)size; return false; }
-bool retro_unserialize(const void *data, size_t size) { (void)data; (void)size; return false; }
+/* Save states (and NextUI's Resume and rewind): the console's RAM and the runtime's state, see runtime/ram.c. One size for the whole run. */
+size_t retro_serialize_size(void) { return g_core_L ? state_size() : 0; }
+bool retro_serialize(void *data, size_t size) { return state_save(data, size); }
+bool retro_unserialize(const void *data, size_t size) { return state_load(data, size); }
 void retro_cheat_reset(void) {}
 void retro_cheat_set(unsigned index, bool enabled, const char *code) { (void)index; (void)enabled; (void)code; }
 unsigned retro_get_region(void) { return RETRO_REGION_NTSC; }

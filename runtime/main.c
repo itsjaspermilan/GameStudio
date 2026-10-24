@@ -522,7 +522,29 @@ static int l_circle(lua_State *L) { /* cx,cy,radius,r,g,b[,a] filled */
 
 /* images: gs.image("a.png") -> {id=, w=, h=}; textures are cached by name and live until exit */
 #define MAX_IMAGES 256
-static struct { char *name; SDL_Texture *tex; unsigned char *px; int w, h; } g_images[MAX_IMAGES]; static int g_nimages; /* px: the decoded RGBA pixels, kept for gs.compose (NULL for composed pictures) */
+static struct { char *name; SDL_Texture *tex; unsigned char *px; int w, h; unsigned seq; unsigned char *recipe; size_t recipe_len; } g_images[MAX_IMAGES]; static int g_nimages;
+/* How each picture was made, so a game resumed in a new run (a libretro save state, runtime/libretro.c) can make it again in the same slot:
+ * 'F' + file name, 'P' + w, h and the pixels, 'R' + a recolour (source slot and colours), 'C' + a composed tile grid (source slot, sizes, cells).
+ * seq orders them: a picture is always made after the pictures it is made from, even when it reuses an older slot. */
+static unsigned g_image_seq;
+static void image_recipe(int id, char kind, const void *a, size_t alen, const void *b, size_t blen) {
+    free(g_images[id].recipe);
+    g_images[id].recipe = malloc(1 + alen + blen); g_images[id].recipe_len = 0;
+    if (!g_images[id].recipe) return;
+    g_images[id].recipe[0] = (unsigned char)kind;
+    if (alen) memcpy(g_images[id].recipe + 1, a, alen);
+    if (blen) memcpy(g_images[id].recipe + 1 + alen, b, blen);
+    g_images[id].recipe_len = 1 + alen + blen; g_images[id].seq = ++g_image_seq;
+}
+/* A texture for pixels already made, as every picture is drawn: blended unless told it has no see-through pixel, crisp when scaled. */
+static SDL_Texture *image_texture(const unsigned char *px, int w, int h, bool opaque) {
+    SDL_Texture *t = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
+    if (!t) return NULL;
+    SDL_UpdateTexture(t, NULL, px, w * 4);
+    SDL_SetTextureBlendMode(t, opaque ? SDL_BLENDMODE_NONE : SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(t, SDL_ScaleModeNearest); /* crisp pixel art */
+    return t;
+} /* px: the decoded RGBA pixels, kept for gs.compose (NULL for composed pictures) */
 
 static void push_image(lua_State *L, int id) {
     int w, h; SDL_QueryTexture(g_images[id].tex, NULL, NULL, &w, &h);
@@ -530,6 +552,22 @@ static void push_image(lua_State *L, int id) {
     lua_pushinteger(L, id); lua_setfield(L, -2, "id");
     lua_pushinteger(L, (lua_Integer)w); lua_setfield(L, -2, "w");
     lua_pushinteger(L, (lua_Integer)h); lua_setfield(L, -2, "h");
+}
+/* Reads a picture file into slot id (a new slot, or a reload of the same one). NULL, or what went wrong. */
+static const char *image_load_file(int id, const char *name) {
+    static char err[300];
+    size_t n; unsigned char *buf = vfs_read(name, &n);
+    if (!buf) { snprintf(err, sizeof err, "image not found: %s", name); return err; }
+    int w, h, ch;
+    unsigned char *px = stbi_load_from_memory(buf, (int)n, &w, &h, &ch, 4); free(buf);
+    if (!px) { snprintf(err, sizeof err, "bad image %s: %s", name, stbi_failure_reason()); return err; }
+    SDL_Texture *t = image_texture(px, w, h, false);
+    if (!t) { stbi_image_free(px); snprintf(err, sizeof err, "texture: %s", SDL_GetError()); return err; }
+    if (id < g_nimages && g_images[id].tex) { SDL_DestroyTexture(g_images[id].tex); free(g_images[id].px); } /* a reload: swap the picture in the same slot */
+    if (!g_images[id].name || strcmp(g_images[id].name, name)) { free(g_images[id].name); g_images[id].name = strdup(name); }
+    g_images[id].tex = t; g_images[id].px = px; g_images[id].w = w; g_images[id].h = h;
+    image_recipe(id, 'F', name, strlen(name) + 1, NULL, 0);
+    return NULL;
 }
 static int l_image(lua_State *L) {
     const char *name = luaL_checkstring(L, 1);
@@ -539,23 +577,10 @@ static int l_image(lua_State *L) {
         if (!strcmp(g_images[i].name, name)) { slot = i; break; }
     if (slot >= 0 && !fresh) { push_image(L, slot); return 1; }
     if (slot < 0 && g_nimages >= MAX_IMAGES) return luaL_error(L, "too many images");
-    size_t n; unsigned char *buf = vfs_read(name, &n);
-    if (!buf) return luaL_error(L, "image not found: %s", name);
-    int w, h, ch;
-    unsigned char *px = stbi_load_from_memory(buf, (int)n, &w, &h, &ch, 4); free(buf);
-    if (!px) return luaL_error(L, "bad image %s: %s", name, stbi_failure_reason());
-    SDL_Texture *t = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
-    if (!t) { stbi_image_free(px); return luaL_error(L, "texture: %s", SDL_GetError()); }
-    SDL_UpdateTexture(t, NULL, px, w * 4);
-    SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
-    SDL_SetTextureScaleMode(t, SDL_ScaleModeNearest); /* crisp pixel art */
-    if (slot >= 0) { /* a reload: swap the picture in the same slot */
-        SDL_DestroyTexture(g_images[slot].tex); stbi_image_free(g_images[slot].px);
-        g_images[slot].tex = t; g_images[slot].px = px; g_images[slot].w = w; g_images[slot].h = h;
-        push_image(L, slot); return 1;
-    }
-    g_images[g_nimages].name = strdup(name); g_images[g_nimages].tex = t; g_images[g_nimages].px = px; g_images[g_nimages].w = w; g_images[g_nimages].h = h;
-    push_image(L, g_nimages++); return 1;
+    const char *err = image_load_file(slot >= 0 ? slot : g_nimages, name);
+    if (err) return luaL_error(L, "%s", err);
+    if (slot < 0) slot = g_nimages++;
+    push_image(L, slot); return 1;
 }
 
 /* gs.compose(sheet, tw, th, sheet_cols, count, cw, ch, grid_cols, grid_rows, rows[, old]) -> picture
@@ -563,56 +588,71 @@ static int l_image(lua_State *L) {
  * number rows[r][c] of the sheet (a tw x th piece, taken left to right, top to bottom, sheet_cols to a row; with count < 0 the number wraps around the
  * sheet_cols pieces of a single-row strip), or nothing when it is nil, negative or past `count`. Cells are cw x ch and the tile must be that size. `old`
  * is a picture this call made before: its slot is reused, so entering a room again does not use up image slots. */
+/* The composed picture's pixels (see gs.compose above): cells[r * gc + c] is the tile number of each cell, -1 for none. NULL when out of memory. */
+typedef struct { int sid, tw, th, sheet_cols, count, cw, ch, gc, gr; } ComposeArgs;
+static unsigned char *compose_px(const ComposeArgs *a, const int *cells, bool *opaque) {
+    const int W = a->gc * a->cw, H = a->gr * a->ch, sw = g_images[a->sid].w, sh = g_images[a->sid].h, tw = a->tw, th = a->th;
+    unsigned char *out = calloc((size_t)W * H, 4);
+    if (!out) return NULL;
+    for (int r = 0; r < a->gr; r++)
+        for (int c = 0; c < a->gc; c++) {
+            int f = cells[r * a->gc + c];
+            if (a->count < 0 && f >= 0) f %= a->sheet_cols;
+            if (f < 0 || (a->count >= 0 && f >= a->count)) continue;
+            const int sx = (f % a->sheet_cols) * tw, sy = (f / a->sheet_cols) * th;
+            if (sx + tw <= sw && sy + th <= sh)
+                for (int y = 0; y < th; y++)
+                    memcpy(out + ((size_t)(r * a->ch + y) * W + (size_t)c * a->cw) * 4, g_images[a->sid].px + ((size_t)(sy + y) * sw + sx) * 4, (size_t)tw * 4);
+        }
+    /* A picture with no see-through pixel at all (a background wall of panels) is copied instead of blended: the software renderer on the
+     * handhelds blends every pixel of a blended picture, which made a full-screen background cost several milliseconds a frame. */
+    *opaque = true;
+    for (size_t p = 3; p < (size_t)W * H * 4 && *opaque; p += 4) if (out[p] != 255) *opaque = false;
+    return out;
+}
+/* Makes (or remakes, in the same slot) a composed picture and records its recipe. NULL, or what went wrong. */
+static const char *compose_into(int id, const ComposeArgs *a, const int *cells) {
+    bool opaque; unsigned char *out = compose_px(a, cells, &opaque);
+    if (!out) return "compose: out of memory";
+    SDL_Texture *t = image_texture(out, a->gc * a->cw, a->gr * a->ch, opaque); free(out);
+    if (!t) return "compose: no texture";
+    if (id < g_nimages && g_images[id].tex) { SDL_DestroyTexture(g_images[id].tex); free(g_images[id].px); }
+    if (!g_images[id].name || strcmp(g_images[id].name, "(composed)")) { free(g_images[id].name); g_images[id].name = strdup("(composed)"); }
+    g_images[id].tex = t; g_images[id].px = NULL; g_images[id].w = a->gc * a->cw; g_images[id].h = a->gr * a->ch;
+    image_recipe(id, 'C', a, sizeof *a, cells, (size_t)a->gc * a->gr * sizeof(int));
+    return NULL;
+}
 static int l_compose(lua_State *L) {
     luaL_checktype(L, 1, LUA_TTABLE);
-    lua_getfield(L, 1, "id"); const int sid = (int)luaL_checkinteger(L, -1); lua_pop(L, 1);
-    if (sid < 0 || sid >= g_nimages || !g_images[sid].px) return luaL_error(L, "compose: that picture has no pixels to copy from");
-    const int tw = (int)luaL_checkinteger(L, 2), th = (int)luaL_checkinteger(L, 3), sheet_cols = (int)luaL_checkinteger(L, 4), count = (int)luaL_checkinteger(L, 5);
-    const int cw = (int)luaL_checkinteger(L, 6), ch = (int)luaL_checkinteger(L, 7), gc = (int)luaL_checkinteger(L, 8), gr = (int)luaL_checkinteger(L, 9);
+    ComposeArgs a;
+    lua_getfield(L, 1, "id"); a.sid = (int)luaL_checkinteger(L, -1); lua_pop(L, 1);
+    if (a.sid < 0 || a.sid >= g_nimages || !g_images[a.sid].px) return luaL_error(L, "compose: that picture has no pixels to copy from");
+    a.tw = (int)luaL_checkinteger(L, 2); a.th = (int)luaL_checkinteger(L, 3); a.sheet_cols = (int)luaL_checkinteger(L, 4); a.count = (int)luaL_checkinteger(L, 5);
+    a.cw = (int)luaL_checkinteger(L, 6); a.ch = (int)luaL_checkinteger(L, 7); a.gc = (int)luaL_checkinteger(L, 8); a.gr = (int)luaL_checkinteger(L, 9);
     luaL_checktype(L, 10, LUA_TTABLE);
-    if (tw != cw || th != ch || tw < 1 || th < 1 || sheet_cols < 1 || gc < 1 || gr < 1 || (long)gc * cw > 4096 || (long)gr * ch > 4096) return luaL_error(L, "compose: bad sizes");
-    const int W = gc * cw, H = gr * ch, sw = g_images[sid].w, sh = g_images[sid].h;
-    unsigned char *out = calloc((size_t)W * H, 4);
-    if (!out) return luaL_error(L, "compose: out of memory");
-    for (int r = 0; r < gr; r++) {
+    if (a.tw != a.cw || a.th != a.ch || a.tw < 1 || a.th < 1 || a.sheet_cols < 1 || a.gc < 1 || a.gr < 1 || (long)a.gc * a.cw > 4096 || (long)a.gr * a.ch > 4096) return luaL_error(L, "compose: bad sizes");
+    int *cells = malloc((size_t)a.gc * a.gr * sizeof(int));
+    if (!cells) return luaL_error(L, "compose: out of memory");
+    for (int r = 0; r < a.gr; r++) {
         lua_rawgeti(L, 10, r + 1);
-        if (lua_istable(L, -1)) {
-            for (int c = 0; c < gc; c++) {
-                lua_rawgeti(L, -1, c + 1);
-                if (lua_isnumber(L, -1)) {
-                    int f = (int)lua_tointeger(L, -1);
-                    if (count < 0 && f >= 0) f %= sheet_cols;
-                    if (f >= 0 && (count < 0 || f < count)) {
-                        const int sx = (f % sheet_cols) * tw, sy = (f / sheet_cols) * th;
-                        if (sx + tw <= sw && sy + th <= sh)
-                            for (int y = 0; y < th; y++)
-                                memcpy(out + ((size_t)(r * ch + y) * W + (size_t)c * cw) * 4, g_images[sid].px + ((size_t)(sy + y) * sw + sx) * 4, (size_t)tw * 4);
-                    }
-                }
-                lua_pop(L, 1);
-            }
+        const bool row = lua_istable(L, -1);
+        for (int c = 0; c < a.gc; c++) {
+            int f = -1;
+            if (row) { lua_rawgeti(L, -1, c + 1); if (lua_isnumber(L, -1)) f = (int)lua_tointeger(L, -1); lua_pop(L, 1); }
+            cells[r * a.gc + c] = f;
         }
         lua_pop(L, 1);
     }
-    /* A picture with no see-through pixel at all (a background wall of panels) is copied instead of blended: the software renderer on the
-     * handhelds blends every pixel of a blended picture, which made a full-screen background cost several milliseconds a frame. */
-    bool opaque = true;
-    for (size_t p = 3; p < (size_t)W * H * 4 && opaque; p += 4) if (out[p] != 255) opaque = false;
-    SDL_Texture *t = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, W, H);
-    if (!t) { free(out); return luaL_error(L, "compose: %s", SDL_GetError()); }
-    SDL_UpdateTexture(t, NULL, out, W * 4); free(out);
-    SDL_SetTextureBlendMode(t, opaque ? SDL_BLENDMODE_NONE : SDL_BLENDMODE_BLEND);
-    SDL_SetTextureScaleMode(t, SDL_ScaleModeNearest);
     int id = -1;
     if (lua_istable(L, 11)) { /* reuse the slot of an earlier picture from this function */
         lua_getfield(L, 11, "id"); const int oid = (int)luaL_optinteger(L, -1, -1); lua_pop(L, 1);
-        if (oid >= 0 && oid < g_nimages && !g_images[oid].px && g_images[oid].tex) { SDL_DestroyTexture(g_images[oid].tex); id = oid; }
+        if (oid >= 0 && oid < g_nimages && !g_images[oid].px && g_images[oid].tex) id = oid;
     }
-    if (id < 0) {
-        if (g_nimages >= MAX_IMAGES) { SDL_DestroyTexture(t); return luaL_error(L, "too many images"); }
-        id = g_nimages++; g_images[id].name = strdup("(composed)");
-    }
-    g_images[id].tex = t; g_images[id].px = NULL; g_images[id].w = W; g_images[id].h = H;
+    if (id < 0 && g_nimages >= MAX_IMAGES) { free(cells); return luaL_error(L, "too many images"); }
+    const char *err = compose_into(id >= 0 ? id : g_nimages, &a, cells);
+    free(cells);
+    if (err) return luaL_error(L, "%s", err);
+    if (id < 0) id = g_nimages++;
     push_image(L, id); return 1;
 }
 static int l_mosaic(lua_State *L); /* with the frame's end, below */
@@ -621,73 +661,81 @@ static int l_mosaic(lua_State *L); /* with the frame's end, below */
  * with another bank's colours, place for place. Transparency is kept; colours not in `from` stay as they are. `old` is a picture this call made
  * before, whose slot is reused (live reload, a bank edited). Done once per sprite and bank, so a plain search of at most 16 colours is fine.
  * With `from` false and `to` one number, every pixel that shows becomes that colour: the white silhouette a hit flashes with. */
-static int l_recolor(lua_State *L) {
-    luaL_checktype(L, 1, LUA_TTABLE);
-    lua_getfield(L, 1, "id"); const int sid = (int)luaL_checkinteger(L, -1); lua_pop(L, 1);
-    if (sid < 0 || sid >= g_nimages || !g_images[sid].px) return luaL_error(L, "recolor: that picture has no pixels to copy from");
-    const bool all = !lua_toboolean(L, 2);
-    unsigned from[64], to[64]; int n = 0;
-    if (all) to[0] = (unsigned)luaL_checkinteger(L, 3) & 0xffffff;
-    else {
-        luaL_checktype(L, 2, LUA_TTABLE); luaL_checktype(L, 3, LUA_TTABLE);
-        n = (int)lua_rawlen(L, 2);
-        if (n > 64) n = 64;
-        if ((int)lua_rawlen(L, 3) < n) n = (int)lua_rawlen(L, 3);
-    }
-    for (int i = 0; i < n; i++) {
-        lua_rawgeti(L, 2, i + 1); from[i] = (unsigned)luaL_checkinteger(L, -1) & 0xffffff; lua_pop(L, 1);
-        lua_rawgeti(L, 3, i + 1); to[i] = (unsigned)luaL_checkinteger(L, -1) & 0xffffff; lua_pop(L, 1);
-    }
-    const int w = g_images[sid].w, h = g_images[sid].h;
+typedef struct { int sid, all, n; unsigned from[64], to[64]; } RecolorArgs;
+static const char *recolor_into(int id, const RecolorArgs *a) {
+    const int w = g_images[a->sid].w, h = g_images[a->sid].h;
     const size_t bytes = (size_t)w * h * 4;
     unsigned char *out = malloc(bytes);
-    if (!out) return luaL_error(L, "recolor: out of memory");
-    memcpy(out, g_images[sid].px, bytes);
+    if (!out) return "recolor: out of memory";
+    memcpy(out, g_images[a->sid].px, bytes);
     for (size_t p = 0; p < bytes; p += 4) {
         if (!out[p + 3]) continue;
-        if (all) { out[p] = (unsigned char)(to[0] >> 16); out[p + 1] = (unsigned char)(to[0] >> 8); out[p + 2] = (unsigned char)to[0]; continue; }
+        if (a->all) { out[p] = (unsigned char)(a->to[0] >> 16); out[p + 1] = (unsigned char)(a->to[0] >> 8); out[p + 2] = (unsigned char)a->to[0]; continue; }
         const unsigned c = ((unsigned)out[p] << 16) | ((unsigned)out[p + 1] << 8) | out[p + 2];
-        for (int i = 0; i < n; i++)
-            if (from[i] == c) { out[p] = (unsigned char)(to[i] >> 16); out[p + 1] = (unsigned char)(to[i] >> 8); out[p + 2] = (unsigned char)to[i]; break; }
+        for (int i = 0; i < a->n; i++)
+            if (a->from[i] == c) { out[p] = (unsigned char)(a->to[i] >> 16); out[p + 1] = (unsigned char)(a->to[i] >> 8); out[p + 2] = (unsigned char)a->to[i]; break; }
     }
-    SDL_Texture *t = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
-    if (!t) { free(out); return luaL_error(L, "recolor: %s", SDL_GetError()); }
-    SDL_UpdateTexture(t, NULL, out, w * 4);
-    SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
-    SDL_SetTextureScaleMode(t, SDL_ScaleModeNearest);
+    SDL_Texture *t = image_texture(out, w, h, false);
+    if (!t) { free(out); return "recolor: no texture"; }
+    if (id < g_nimages && g_images[id].tex) { SDL_DestroyTexture(g_images[id].tex); free(g_images[id].px); }
+    if (!g_images[id].name || strcmp(g_images[id].name, "(recolored)")) { free(g_images[id].name); g_images[id].name = strdup("(recolored)"); }
+    /* the pixels are kept (like a loaded picture), so a recoloured sheet can itself be composed into a tile layer */
+    g_images[id].tex = t; g_images[id].px = out; g_images[id].w = w; g_images[id].h = h;
+    image_recipe(id, 'R', a, sizeof *a, NULL, 0);
+    return NULL;
+}
+static int l_recolor(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
+    RecolorArgs a; memset(&a, 0, sizeof a);
+    lua_getfield(L, 1, "id"); a.sid = (int)luaL_checkinteger(L, -1); lua_pop(L, 1);
+    if (a.sid < 0 || a.sid >= g_nimages || !g_images[a.sid].px) return luaL_error(L, "recolor: that picture has no pixels to copy from");
+    a.all = !lua_toboolean(L, 2);
+    if (a.all) a.to[0] = (unsigned)luaL_checkinteger(L, 3) & 0xffffff;
+    else {
+        luaL_checktype(L, 2, LUA_TTABLE); luaL_checktype(L, 3, LUA_TTABLE);
+        a.n = (int)lua_rawlen(L, 2);
+        if (a.n > 64) a.n = 64;
+        if ((int)lua_rawlen(L, 3) < a.n) a.n = (int)lua_rawlen(L, 3);
+    }
+    for (int i = 0; i < a.n; i++) {
+        lua_rawgeti(L, 2, i + 1); a.from[i] = (unsigned)luaL_checkinteger(L, -1) & 0xffffff; lua_pop(L, 1);
+        lua_rawgeti(L, 3, i + 1); a.to[i] = (unsigned)luaL_checkinteger(L, -1) & 0xffffff; lua_pop(L, 1);
+    }
     int id = -1;
     if (lua_istable(L, 4)) {
         lua_getfield(L, 4, "id"); const int oid = (int)luaL_optinteger(L, -1, -1); lua_pop(L, 1);
-        if (oid >= 0 && oid < g_nimages && g_images[oid].tex && !strcmp(g_images[oid].name, "(recolored)")) {
-            SDL_DestroyTexture(g_images[oid].tex); free(g_images[oid].px); id = oid;
-        }
+        if (oid >= 0 && oid < g_nimages && g_images[oid].tex && !strcmp(g_images[oid].name, "(recolored)")) id = oid;
     }
-    if (id < 0) {
-        if (g_nimages >= MAX_IMAGES) { SDL_DestroyTexture(t); free(out); return luaL_error(L, "too many images"); }
-        id = g_nimages++; g_images[id].name = strdup("(recolored)");
-    }
-    /* the pixels are kept (like a loaded picture), so a recoloured sheet can itself be composed into a tile layer */
-    g_images[id].tex = t; g_images[id].px = out; g_images[id].w = w; g_images[id].h = h;
+    if (id < 0 && g_nimages >= MAX_IMAGES) return luaL_error(L, "too many images");
+    const char *err = recolor_into(id >= 0 ? id : g_nimages, &a);
+    if (err) return luaL_error(L, "%s", err);
+    if (id < 0) id = g_nimages++;
     push_image(L, id); return 1;
 }
 /* gs.raw.pixels(w, h, rgba) -> picture: a picture made from w * h * 4 bytes of RGBA, for art the framework itself carries (the button
  * icons). The pixels are kept, so it can be recoloured like a loaded one. */
+static const char *pixels_into(int id, int w, int h, const unsigned char *src) {
+    const size_t n = (size_t)w * h * 4;
+    unsigned char *px = malloc(n);
+    if (!px) return "pixels: out of memory";
+    memcpy(px, src, n);
+    SDL_Texture *t = image_texture(px, w, h, false);
+    if (!t) { free(px); return "pixels: no texture"; }
+    if (id < g_nimages && g_images[id].tex) { SDL_DestroyTexture(g_images[id].tex); free(g_images[id].px); }
+    if (!g_images[id].name) g_images[id].name = strdup("(pixels)");
+    g_images[id].tex = t; g_images[id].px = px; g_images[id].w = w; g_images[id].h = h;
+    const int wh[2] = { w, h };
+    image_recipe(id, 'P', wh, sizeof wh, src, n);
+    return NULL;
+}
 static int l_pixels(lua_State *L) {
     const int w = (int)luaL_checkinteger(L, 1), h = (int)luaL_checkinteger(L, 2);
     size_t n; const char *src = luaL_checklstring(L, 3, &n);
     if (w < 1 || h < 1 || w > 4096 || h > 4096 || n != (size_t)w * h * 4) return luaL_error(L, "pixels: want %d x %d x 4 bytes", w, h);
     if (g_nimages >= MAX_IMAGES) return luaL_error(L, "too many images");
-    unsigned char *px = malloc(n);
-    if (!px) return luaL_error(L, "pixels: out of memory");
-    memcpy(px, src, n);
-    SDL_Texture *t = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
-    if (!t) { free(px); return luaL_error(L, "pixels: %s", SDL_GetError()); }
-    SDL_UpdateTexture(t, NULL, px, w * 4);
-    SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
-    SDL_SetTextureScaleMode(t, SDL_ScaleModeNearest);
-    const int id = g_nimages++;
-    g_images[id].name = strdup("(pixels)"); g_images[id].tex = t; g_images[id].px = px; g_images[id].w = w; g_images[id].h = h;
-    push_image(L, id); return 1;
+    const char *err = pixels_into(g_nimages, w, h, (const unsigned char *)src);
+    if (err) return luaL_error(L, "%s", err);
+    push_image(L, g_nimages++); return 1;
 }
 static SDL_Texture *check_image(lua_State *L, int i) {
     luaL_checktype(L, i, LUA_TTABLE);
@@ -935,25 +983,32 @@ static bool convert_audio(const SDL_AudioSpec *from, const Uint8 *data, int len,
     if (!ok) { SDL_free(*out); *out = NULL; *outlen = 0; }
     return ok;
 }
+/* Loads a WAV into the next sound slot. NULL, or what went wrong. */
+static const char *sound_load_file(const char *name) {
+    static char err[300];
+    if (g_nsounds >= MAX_SOUNDS) return "too many sounds";
+    size_t n; unsigned char *buf = vfs_read(name, &n);
+    if (!buf) { snprintf(err, sizeof err, "sound not found: %s", name); return err; }
+    SDL_AudioSpec spec; Uint8 *wav; Uint32 wavlen;
+    bool ok = SDL_LoadWAV_RW(SDL_RWFromConstMem(buf, (int)n), 1, &spec, &wav, &wavlen) != NULL;
+    free(buf);
+    if (!ok) { snprintf(err, sizeof err, "bad wav %s: %s", name, SDL_GetError()); return err; }
+    Uint8 *out; int outlen;
+    ok = convert_audio(&spec, wav, (int)wavlen, 2, MIX_FREQ, &out, &outlen);
+    SDL_FreeWAV(wav);
+    if (!ok) { snprintf(err, sizeof err, "convert %s: %s", name, SDL_GetError()); return err; }
+    int i = g_nsounds;
+    g_sounds[i].name = strdup(name); g_sounds[i].pcm = (float *)out; g_sounds[i].frames = outlen / (2 * sizeof(float));
+    g_nsounds++;
+    return NULL;
+}
 static int l_sound(lua_State *L) { /* gs.sound("hit.wav") -> handle (cached by name) */
     const char *name = luaL_checkstring(L, 1);
     for (int i = 0; i < g_nsounds; i++)
         if (!strcmp(g_sounds[i].name, name)) { lua_newtable(L); lua_pushinteger(L, i); lua_setfield(L, -2, "id"); return 1; }
-    if (g_nsounds >= MAX_SOUNDS) return luaL_error(L, "too many sounds");
-    size_t n; unsigned char *buf = vfs_read(name, &n);
-    if (!buf) return luaL_error(L, "sound not found: %s", name);
-    SDL_AudioSpec spec; Uint8 *wav; Uint32 wavlen;
-    bool ok = SDL_LoadWAV_RW(SDL_RWFromConstMem(buf, (int)n), 1, &spec, &wav, &wavlen) != NULL;
-    free(buf);
-    if (!ok) return luaL_error(L, "bad wav %s: %s", name, SDL_GetError());
-    Uint8 *out; int outlen;
-    ok = convert_audio(&spec, wav, (int)wavlen, 2, MIX_FREQ, &out, &outlen);
-    SDL_FreeWAV(wav);
-    if (!ok) return luaL_error(L, "convert %s: %s", name, SDL_GetError());
-    int i = g_nsounds;
-    g_sounds[i].name = strdup(name); g_sounds[i].pcm = (float *)out; g_sounds[i].frames = outlen / (2 * sizeof(float));
-    g_nsounds++;
-    lua_newtable(L); lua_pushinteger(L, i); lua_setfield(L, -2, "id"); return 1;
+    const char *err = sound_load_file(name);
+    if (err) return luaL_error(L, "%s", err);
+    lua_newtable(L); lua_pushinteger(L, g_nsounds - 1); lua_setfield(L, -2, "id"); return 1;
 }
 static int l_play(lua_State *L) { /* gs.play(snd[,volume 0..1][,loop]) -> voice id, or nil if unavailable/busy */
     luaL_checktype(L, 1, LUA_TTABLE);
@@ -1042,12 +1097,15 @@ static int l_soundfont_load(lua_State *L) { /* gs.soundfont_load(): make the Gen
 static int l_synth_config(lua_State *L) { /* gs.synth_config(music_tracks, sfx_channels, lofi) */
     synth_lock(); synth_config((int)luaL_checkinteger(L, 1), (int)luaL_checkinteger(L, 2), lua_toboolean(L, 3)); synth_unlock(); return 0;
 }
+/* the file each synth sample came from, by handle: a game resumed in a new run loads them again in the same order (runtime/libretro.c) */
+static char *g_sample_names[256]; static int g_nsample_names;
 static int l_sample_load(lua_State *L) { /* gs.sample_load("sounds/kick.wav") -> handle */
     const char *name = luaL_checkstring(L, 1);
     size_t n; unsigned char *buf = vfs_read(name, &n);
     if (!buf) return luaL_error(L, "sample not found: %s", name);
     synth_lock(); int h = sample_from_wav(buf, n); synth_unlock(); free(buf);
     if (h < 0) return luaL_error(L, "could not use %s as a sample (is it a WAV, and are there too many or too big?)", name);
+    if (h < 256) { free(g_sample_names[h]); g_sample_names[h] = strdup(name); if (h >= g_nsample_names) g_nsample_names = h + 1; }
     lua_pushinteger(L, h); return 1;
 }
 /* gs.inst_load{type=, duty=, wave=, noise_short=, sample=, root=, loop_start=, loop_end=, volume=, pan=, attack=, decay=,
@@ -1993,8 +2051,11 @@ static int boost_selftest(const char *dir) {
 
 /* The game's start, shared by the program and the libretro core: a Lua state with gs.*, the cart's module searcher and the framework,
  * game.lua loaded by gs.boot, and init() run. NULL (with the reason printed) when the cart cannot start. */
+static lua_Alloc g_lua_alloc; static lua_CFunction g_lua_panic; /* the libretro core's: Lua's memory in the console's RAM (runtime/ram.c) */
 static lua_State *game_start(void) {
-    lua_State *L = luaL_newstate();
+    lua_State *L = g_lua_alloc ? lua_newstate(g_lua_alloc, NULL) : luaL_newstate();
+    if (!L) { fprintf(stderr, "no memory for Lua\n"); return NULL; }
+    if (g_lua_alloc) lua_atpanic(L, g_lua_panic);
     luaL_openlibs(L);
     luaL_newlib(L, gs_lib); if (g_perf_on) time_gs_api(L); lua_setglobal(L, "gs");
     if (getenv("GS_PROF")) lua_sethook(L, prof_hook, LUA_MASKCOUNT, 1000);
