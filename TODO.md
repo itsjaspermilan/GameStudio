@@ -1,131 +1,62 @@
 # TODO
 
-Open items, newest thinking first. Cross things out (or delete them) when they are done and checked on the device.
+Open items, grouped by where they can be done. Cross things out (or delete them) when they are done and checked on the device.
 
-Consoles were renamed on 2026-10-23: Dot is **Glow43** (4:3, G43 for short) and Dash is **Glow169** (16:9, G169). Games that still say
-`console = "dot"` or `"dash"` keep working (engine, studio, push and MCP map the old ids); older notes below still use the old names.
-The logos are GBA-era chrome (`scripts/make-console-logos.mjs`). On Knulli the new id means a new system folder (`/userdata/roms/glow43`):
-the old `dot` system and its folder stay until removed by hand.
+The target handheld is the **TrimUI Brick** on muOS (1024x768, aarch64, PowerVR GPU), two of them. Glow43 became **256x192** on
+2026-10-23 (was 320x240) so it fills the Brick at exactly 4x; Glow169 (320x180) shows with bars above and below. The Anbernic RG35XX Pro,
+Knulli, and the removed games (Void Swarm, Panel Pop, Then & Now, Kitchen Rush) are no longer worked on: their notes, the RG35XX Pro
+performance measurements and everything finished before this list was regrouped are in git history (`git log -- TODO.md`).
 
-Glow43 became **256x192** on 2026-10-23 (was 320x240): the TrimUI Brick (1024x768, muOS) is now the target handheld, and 256x192 fills
-it at exactly 4x. Breakout, the device tools and the Help tutorials are laid out again; games made for the old size must be moved by hand.
-- [ ] On the Brick: Breakout and the tutorials fill the screen with no border; buttons, overlays and frame pacing (`GS_PERF=1`).
-- [ ] muOS covers and previews (`make-box-art.mjs`, 640x480 previews) were sized for the RG35XX's 640x480 list; check them on the Brick.
+Consoles were renamed on 2026-10-23: Dot is **Glow43** (G43) and Dash is **Glow169** (G169). Games that still say `console = "dot"` or
+`"dash"` keep working (engine, studio, push and MCP map the old ids).
 
-## Games as folders (2026-10-23)
+## On the Brick, when it arrives
 
-- [ ] Try it in the real app (only the browser mock was clicked through): Open folder…, New game asking where, Examples opening a copy of
-  Breakout, Make this game asking where, the recent list (× forgets one), Show folder, and reopening a game coming back to its tabs.
-- [ ] Maybe: a game's own studio settings in `.gamestudio/` (its device, run in a window or the panel), and a `.gitignore` line for it in new games.
-- [ ] The Help pages still show no pictures; screenshots of the layout editor in "Make a game, step by step" would help beginners most.
+Setting up
+- [ ] One device file per Brick (`scripts/device-<name>.env` from `device-muos.env.example`, a fixed IP in the router each), then
+  `GS_DEVICE=<name> scripts/push.sh carts/breakout`. Check muOS's paths on the Brick match the example (`/mnt/mmc/gs`, `/mnt/mmc/ROMS`).
 
-## GBA overhaul (2026-10-23, research in `docs/gba-style.md`)
+Seeing and playing
+- [ ] Breakout and the tutorials fill the screen with no border; the built-in fonts (round, square, bold; small and tall) and their
+  shadows read well at 4x.
+- [ ] Play from the muOS menu (not over SSH): buttons in both the "modern" and "retro" layouts, HOTKEY + Start, Start + Select held 3 s,
+  and muOS's volume, brightness and battery overlays.
+- [ ] Mosaic transitions (`look = "mosaic"`) read the frame back from the GPU (`SDL_RenderReadPixels`); see whether they stutter on the
+  PowerVR driver (only the few frames of a transition do it). The GPU-only mosaic below would remove the question.
+- [ ] Covers and previews: `make-box-art.mjs` makes 240x300 covers and 640x480 previews for the RG35XX's 640x480 list; see how muOS lays
+  them out at 1024x768 and resize if needed.
+- [ ] A game on a custom console: `push.sh` names the muOS system after it; check one there.
 
-Void Swarm and Panel Pop were removed on 2026-10-23 as well (in git history before that); Breakout, remade with layouts and colour banks,
-is the one example (`carts/breakout`). Items below about those two games are kept only as notes on the engine. Built, tested on the desktop, pushed to the muOS card; nothing below was seen by a person on the handheld yet.
-- [ ] On the handheld: the new built-in fonts (round, square, bold; small and tall) in both games, their sizes and shadows on the real screen.
-- [ ] On the handheld: mosaic transitions (`look = "mosaic"`) read the frame back from the GPU; check they stay smooth on muOS (only the
-  few frames of a transition do it).
-- [ ] On the handheld: the 240x300 covers sit beside the names in muOS's Glow43 list, and the 640x480 previews look right.
-- [ ] Void Swarm's level-up and pause screens, the HUD plates and the white hit flash during a real run.
-- [ ] Maybe next: hand-drawn square letters (they are made from the round ones and look close to them at the small size); window
-  open/close animations; GBA-style button icons in the hint rows instead of "A:" text.
+Measuring (`GS_PERF=1`)
+- [ ] Frame pacing on the GPU path: the RG35XX Pro showed a few more single late frames there than on the framebuffer path (the wait for
+  the screen ran to 22 ms). See whether the Brick does too, and whether it is the overlay library, the CPU clock or the driver.
+- [ ] A heavy screen: big glowing layers (blend "add" and "darken"), scaled and rotated sprites, many fades, and an 8-track General MIDI
+  song with reverb (the audio callback time). Then everything at once.
+- [ ] The console limits (`instances_alive` 512, `particles` 300, `collision_tests` 1000, `draw_screens` 6) were tuned on the RG35XX Pro;
+  re-tune them on the Brick (`engine/consoles/README.md`).
+- [ ] The adaptive CPU floor (`runtime/AGENTS.md`) was built for the RG35XX's cpufreq and only runs on the framebuffer path; check what the
+  Brick's clock does under load and whether it needs the same help.
+- [ ] Calibrate the studio Handheld tab's 3 ms-per-frame guide (computer time) against the Brick's numbers.
 
-## Lua engine and studio (design in `docs/lua-engine-design.md`)
+## Studio and engine (no device needed)
 
-Runtime on SDL2 (2026-10-23)
-- [x] The runtime moved from SDL3 to SDL2; on the handheld it uses the system's `libSDL2`. On muOS that means the GPU (`mali`, GLES2) and muOS's own volume / brightness / battery overlays (the launcher calls muOS's `SETUP_STAGE_OVERLAY`). Checked on the muOS card with Then & Now: 60 fps, the volume bar shows, the CPU idles at 480 MHz.
-- [ ] The GPU path has a few more single late frames than the framebuffer path (on Then & Now's title, 3 in 10 s against 1 in 9 s; the wait for the screen runs to 22 ms). Find out whether it is the overlay library, the CPU at 480 MHz (the CPU floor controller only runs on the framebuffer path), or the driver; play a busy room with `GS_PERF=1`.
-- [ ] Knulli: push a game to the Knulli card and see which output its SDL2 gives (`GS_PERF=1` prints `video: ...`). Without a GPU driver it uses the framebuffer path as before; check the buttons there (the SDL3 renumbering is gone).
-- [ ] Play a Glow43 game on muOS from the menu (not over SSH): buttons in both the "modern" and "retro" layouts, HOTKEY + Start, brightness and battery overlays.
-
-Housekeeping
-- [x] `main` (one fresh commit) is pushed to `git@github.com:itsjaspermilan/GameStudio.git`.
-- [x] Void Swarm, Breakout, Panel Pop, Button test and Pad setup were pushed again on 2026-10-22 (plain launchers, new runtime with HOTKEY + Start, `.keys` files beside each launcher). Void Swarm's new art and walk look good on the device; HOTKEY + Start works. The old `stress.cart` test is deleted from the console.
-- [ ] Void Swarm, from the first look on the device: the orbit blades have a 16x16 sprite of their own and the pickups are 12x12 (hit circles grown to match); the music uses General MIDI bands instead of chip leads (kalimba, vibraphone, sax over electric piano, steel drums, koto, French horn, rock guitar, ...), one octave lower, loudness evened out. Listen on the device, and check the audio thread there with `GS_PERF=1` (on this Mac a callback takes about 0.2 ms).
-- [ ] Void Swarm remade to the new standard (2026-10-23, not yet seen on the device): everything one size up and redrawn with lit shapes in 14 sprite banks (`scripts/lib/paint.mjs`; pilots 32, enemies 24/48, bosses 72, shots 12/24, blasts 48, pickups 18, icons 24, planets 96), hit circles x1.5 (the player's 7 to 10), shots, blasts, sparks and pops glow (blend "add"), painted skies per sector in their own tile banks with a middle layer for parallax (`scripts/void-swarm/skies.mjs`), bevelled GBA-style panels and buttons (`ui.item`), and 8-track songs (counter-melody, second harmony, hand percussion, an echo of the melody) in Room, Hall or Cave. Speeds and ranges were not scaled, so the screen is more crowded than before: play a few sectors and see whether it wants a little more room. Listen to the songs on the device.
-- [ ] Void Swarm was only measured on the device in short early sectors. Play a late sector (7+, past 5 minutes) with `GS_PERF=1` and read `last-run-void-swarm.log`.
-
-Games
-- [x] Panel Pop and Doc Capsule are modules (`lib/`) and scenes; the generators write `lib/art.lua`. Seeded bot games give the same results as before.
-- [x] Panel Pop on its own (Doc Capsule removed): a scene with a layout for every screen (`versus` runs `play`'s code), a light 16-bit look (pastel tile skies, window panels from a tileset, sprite fonts, outlines in each colour's own dark shade, a logo of letter panels) and General MIDI songs.
-- [ ] Panel Pop's new look and songs on the device: the fonts and the sky layer, the see-through board wells, and the General MIDI music while panels pop.
-- [x] `gs.legacy` and plain `main.lua` carts are removed (the button test, pad setup and the art tools' picture carts are framework carts now).
-
-Studio
-- [x] Room editor for `rooms/<name>.lua` (tile layers, entities, room size = camera bounds, paths; rooms with code open as text) and paths as plain data (`paths = { name = { {x, y}, ..., loop = true } }`, `Entity:follow_path`).
-- [x] The app bundle carries the Lua language server (Tauri resources; the build fetches it for the target processor, arm64 or x64).
-- [ ] (paused) Signing and notarizing the app (and the bundled `lua-language-server` inside it) for other Macs. When picked up: create a Developer ID Application certificate (Xcode > Settings > Accounts > Manage Certificates) and an App Store Connect API key (.p8, kept private); the build reads `APPLE_SIGNING_IDENTITY`, `APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_KEY_PATH` from your own shell, never from the repo. The bundled server binary must be signed too.
-- [x] Editor extras: Tidy (our own Lua re-indenter; every Lua file in the repo already passes it), Go to symbol, Find in game with replace, LuaLS rename (F2) and references (Shift+F12) with fallbacks, tabs of recent files, a light theme.
-- [x] Split view: a second Lua file beside the first (its own completion and save; the same file is never open on both sides).
-- [x] Inspector tab: pause / step / slow motion, every kind with its count and update/draw/collision time, a kind's entities and one entity's values, watch expressions (engine/gs/inspect.lua over GS_INSPECT). Per Lua function stays with `GS_PROF=1`.
-- [x] Sprite editor: a new sprite asks what it is (sizes from the guide), and "On the screen" shows it at real scale on the console's screen beside 16/24/32/48 squares.
-- [x] Custom consoles can be named from `game.lua`: the game carries the spec as `consoles/<id>.json` (the studio writes it; new game and Change console list your consoles). On the device, `push.sh` names the system after it; check one there.
-- [x] Help: `open:<game>` links ("Open Breakout" on the Welcome page), a First steps checklist on the welcome screen in place of the old tour, "More in Help" in the editor's hover tips.
-- [x] "Make this game" has a console picker (Dot by default; the tutorials are laid out for 320x240).
-- [ ] Studio's Handheld tab: the 3 ms-per-frame guide (computer time) is a guess; calibrate it against device measurements.
-- [x] Folders in the side tree (code groups): they fold, have their own + and "new folder", and files drag between them. They are real folders (decided 2026-10-22): a move is a rename, and the plain places code names the file (module strings, `gs.spawn`, `gs.goto_scene`, `gs.load_room`, room entity lists) are rewritten; other mentions are reported. An empty folder made in the tree lasts until the game closes.
-- [x] Panels resize: the side bar, the output and the split view (drag the line, double-click for the usual size, remembered). The editors' own side panels (sprite, room) are still fixed.
-- [x] Embedded live preview: Run shows the game in a Play panel beside the code (Settings > Run games can keep the old window). The runtime runs without a window (`GS_EMBED`), draws with the software renderer the handheld uses at the console's size, and sends changed frames as colour runs over a local socket; keys go back the same way, sound plays from the runtime. Check it in the real app (only the mock and the runtime's side were tested here).
-- [x] Scenes and rooms are one idea: a scene has a layout (`scenes/<name>.layout.lua`, the layout editor: tiles, entities, texts, pictures, paths) and code, switched in the editor bar. Named things are fields of the code (`self.logo`): completion, hover and typo warnings know them, and renaming one in the layout renames it in the code (and in other layouts that run the same code) on save. A layout can run another scene's code (`code = "level"`). New scenes get both halves. Help page "Layouts". Checked in the browser pane with the mock; try it in the app.
-- [x] Void Swarm's title screen is a layout (two drifting background layers, planets, texts; the code moves them and marches the pilots): its frames are pixel for pixel what they were. Layers got `x, y` to slide them.
-- [x] Void Swarm's other menus (hub, pilots, ship, weapons, sectors, results) have layouts for their fixed frame (background, bars, title, panels, labels); lists and numbers stay in code. All 24 test frames are pixel for pixel the same; the text audit still finds no overflow. Layouts gained tile panels (`panels = { { x, y, w, h, tileset, tile } }`, a 3x3 block of tiles stretched; the Panels tool) and sprite fonts for texts (`font = "spr_font"`, `gs.draw.font_text`); Void Swarm's panels are tiles now (`tilesets/ts_panel.png`), still pixel for pixel the same. Found in passing: Bulwark's three-line blurb runs into "STARTS WITH" on the pilots screen (kept as it was).
-- [x] Conversations: `gs.say(name, text)` and `gs.ask(question, answers)` in a gs.go script (the world stands still, words type out and wrap onto pages, answers with a cursor); the box's look is the layout's `dialogue_box` panel, `dialogue_text` / `dialogue_name` texts and `dialogue_cursor` picture, a plain box without them. `gs.ui.menu(items, { at = text, cursor = picture })` takes its look from a layout the same way. Help page "Talking". Not done: dialogue files with branches and flags, and an editor for them (only if games need more than gs.say / gs.ask).
-- [x] Folders in every group of the side tree (sprites, tilesets, sound effects, music, instruments, samples too): a folder is part of the name (`ui/logo`), the engine finds things in folders, and moving one rewrites what names it (code, layouts and rooms as data, sound files).
-- [ ] Layouts, next steps: the MCP server's `room_view` / `room_write` only know `rooms/` (teach them scene layouts); offer to turn a room into a scene's layout; the layout editor's entity look ignores frames and scale.
-- [ ] Simulating the console further in the Play panel: handheld speed (the computer is many times faster; slow the game by the measured device/desktop ratio, see the Handheld tab's 3 ms guess) and memory (Lua memory against what the console has). Not started.
-- [x] Long lines wrap in the code editor (both sides of a split); Tidy wraps whole-line comments at 100 characters (the sample games and tutorials pass it).
-- [x] On macOS the editor tabs have their close button on the left, shown on hover.
-
-Framework (`engine/gs/`)
-- [x] `collision_tests` and `draw_screens` are measured while a game runs (`GS_STATS`: busiest step and frame each second) and shown in the Handheld tab.
-- [x] Particles: `gs.burst` (a pool capped by the console's `particles` limit, not entities).
-- [x] `gs.camera.zoom` (the runtime's `gs.zoom` scales world drawing; UI stays 1x).
-- [x] Small API gaps found while porting Void Swarm: `gs.in_radius` / `gs.in_rect` refill an optional list, `Entity:hit_radius()` (Void Swarm's enemies no longer copy `r`), `"#rrggbbaa"` colors. Fixed in passing: Void Swarm's comet kept its direction in `sx`/`sy` (the scale), so it flew down-right, stretched; check a comet sector on the device.
-- [x] Live reload stays desktop-only (decided 2026-10-22).
-- [x] Collision broad phase stays in Lua (grid per tag, about 1.3x hand-tuned tables on a desktop); closed 2026-10-22, reopen if a game gets slow.
-- [ ] GBA-quality look and sound (decided 2026-10-23 after comparing Minish Cap and Sonic Advance screenshots from the device with our games; work in this order, each item checked on the device):
-  1. (built 2026-10-23, not yet seen on the device; the sample games still use the classic colours until step 5) Palette banks, GBA exact: the master set is any colour (15-bit, 32,768); 16 banks of 16 for tiles and 16 banks of 16 for sprites, up to 512 on screen; each sprite and tileset picks one bank. New games start with ready-made banks (skin, foliage, stone, metal, water, fire...), each a 5-6 step ramp with muted shades, editable. Needs the console spec field (`consoles/README.md` lists banks as "not yet specified"), the sprite editor's bank picker, the art tools' and MCP server's palette places, and the pixel-art guide (ramps, coloured outlines, textured tiles). Settles the off-palette hex colours code can draw (Then & Now's HUD and text box).
-  2. (built 2026-10-23) Bigger sprites, Dot stays 320x240: new sprites default to 32x32 (hero 32-48, common enemy 24-32, boss 64-128), the maximum is 128x128, tiles may be 8, 16 or 32, tileset sheets up to 512x512 (so 32x32 tiles still give 256 of them). The sizes guide, the "what is it" sizes and the MCP hints follow. Existing games keep their sizes until step 5.
-  3. (built 2026-10-23, not yet measured on the device) Blending, GBA style: `blend = "add"` (glow) or `"darken"` (multiply) with `alpha` as the strength, on entities, tile layers, layout pictures, texts and panels, `gs.draw.sprite`, `gs.burst`, and `gs.draw.blend` for code; the layout editor's Look row sets it and previews it. Measure a screen with big glowing layers on the handheld (software rendering: add and multiply may cost more than plain alpha).
-  4. (built 2026-10-23, not yet heard or measured on the device) Sound: songs have 8 tracks (Dot and Dash play all 8; songs saved with 4 keep their lanes and chords), samples are imported mono at 32 kHz and up to 8 s, and a new reverb (Freeverb style) with Room / Hall / Cave per song (`reverb_type`) and an amount; sound effects are dry unless they set `reverb`. Fixed on the way: a song's later chord voices were skipped when the console played fewer tracks than the song had. Measure an 8-track General MIDI song with reverb on the handheld (`GS_PERF=1`, the audio callback time); the song generator (`scripts/lib/music.mjs`, MCP `song_write`) still writes 4-track songs.
-  5. (started 2026-10-23: Then & Now's slice is done for the hangar's look: colour banks (`scripts/then-and-now/banks.mjs`, palette.json: 8 sprite banks from the classic colours softened, 4 tile banks), new hangar tiles (bevelled 32x32 panels, struts, round pipes, windows onto space, fan vents, screens, holes / hatches, rust and grime in Now), a light layer per era added with blend "add" (lamps with glow and beam, dead ones in Now, windows, screens), songs in halls and rooms. Sprites are now shaded from their shapes (`scripts/then-and-now/shade.mjs`: each drawn colour is a material with a slice of a ramp in its group's designed 15-colour bank, lit from the top left, coloured outlines). Still to do for the standard: hand-drawn detail where the shader cannot invent it (Wren's face, Ossie's portrait, more animation frames), 8-track songs (the generator in `scripts/lib/music.mjs` writes eight for a band of eight instruments, as Void Swarm's do), a far layer (stars behind windows that move), and seeing it all on the device.) Then & Now as the test scene, drawn to the Minish Cap standard; then redo every game one by one (Breakout, Void Swarm, Panel Pop, Kitchen Rush) to the new standard.
-
-## Performance (measured on the RG35XX Pro, Breakout, `GS_PERF=1 scripts/push.sh`)
-
-Done, in order of effect (frame times: 34 ms at the start, 16.9 ms now; slow frames in a 40 s run: 40 or more, now 5; 34 of 38 seconds with none):
-- Drawing at the console's own size and enlarging by a whole number while copying to `/dev/fb0` (render 19 ms -> 2.6 ms).
-- Frame times near 1/60 s snapped to exactly 1/60 (no alternating 0 and 2 engine steps per frame).
-- Tile layers drawn from one cached picture each (`gs.compose`): about 350 `gs.tile` calls a frame -> about 50.
-- Starting and stopping sounds goes through a queue the audio thread empties; `gs.sfx_play` used to wait for the mixer (3 to 10 ms a call).
-- The timing log itself had been slowing frames (writing to the SD card); it now stays in memory until the game ends.
-- Measured and not the cause: event polling, Lua garbage collection, the CPU governor as such (full speed hides the problem; making the game cheaper fixes it without the battery cost; `GS_GOVERNOR=performance` remains an opt-in test switch).
-
-Still open:
-- [ ] Measured on the device so far: Breakout, and Void Swarm in early sectors. Run a real Dash game, a late Void Swarm sector, and a game with many fades, big alpha sprites and General MIDI instruments: the software renderer costs by pixels drawn and the audio thread by voices.
-- [x] A copy thread for the 3.1 ms screen copy: won't do (it would add a frame of input delay).
-- [x] Collisions: the new framework uses a spatial grid per tag (see Lua engine and studio above for what is still open).
-- [x] Limits and budgets tuned on the console (see `engine/consoles/README.md`): `instances_alive` 512, `particles` 300, `collision_tests` 1000, `draw_screens` 6. Not measured yet: scaled and rotated sprites (the software renderer's slow path), General MIDI voices, and a game with all of it at once.
-- [x] **Clock lock-in at 30 fps** (a heavy scene made the CPU sit at about 790 MHz and the game at 30 fps, console cool): fixed by the adaptive CPU floor (`runtime/AGENTS.md`). On the console: 500 moving objects 29.6 -> 58.1 fps, 1,200 collision checks 34 -> 54 fps, light scenes stay at 480 to 640 MHz, floor restored to 480 MHz after the run. It takes about a second to notice lateness, so a heavy scene starts with a second at 30 fps. Possible later: a second step up to the maximum clock if frames are still late after a few seconds (2,400 checks stays at 28 fps at 1.2 to 1.3 GHz; it is over the 1,000-check budget anyway).
-- [x] The studio shows what a typical GBA-style game uses next to each limit (tooltips in the console editor, a note in a busy room's status line); table in `engine/consoles/README.md`.
-- [x] The `breakout-dash` speed-test cart is no longer on the console (only its old log in `/userdata/gs`).
-
-## Knulli
-
-- [ ] (paused) A Dash game end to end (e.g. Breakout on `console = "dash"`), seen on the console: Dash on the home screen, its list entry, playing it. The Dash system definition, logo and `knulli.conf` lines are on the console (an empty system stays hidden).
-- [x] Custom system logos and carousel art, checked on the console: `assets/console-logos/dot.svg` (plain white "DOT", the O a solid circle) and `assets/console-art/dot.png` (the dotted panel) are installed by `push.sh`; the theme's "System logos" and "System view artwork" are Custom and stayed Custom after a restart. **Set them in the menu (UI settings > theme configuration):** editing `themesettings/*.cfg` with `scripts/knulli-theme.sh on` did not make EmulationStation use them at start-up (the menu still said Default); choosing Custom in the menu did. The script is kept for `off` and for reference.
-- [ ] A steadier shared SSH connection. Key login cannot work on Knulli: root's home is `/userdata/system` on a FAT-style partition where every file is world-writable and cannot be chmod-ed, and dropbear refuses keys kept like that. Options: reopen the password connection from the Mac with the password in the Keychain (a script reading it needs your go-ahead), or set up the key on the console's own filesystem at boot (riskier).
-- [x] Debug launchers are off for Breakout, the button test and pad setup (checked on the console; `GS_DEBUG=1 scripts/push.sh` turns them on). The stress test's launcher has timing on until it has been run once; push it again without `GS_PERF` afterwards.
-
-## Game info and the studio
-
-- [x] Game info has Box art / Screenshot / Logo slots (sprite, PNG import, remove each), and "Take a screenshot" (runs the game headless for N seconds and keeps its frame).
-
+- [ ] GPU-only mosaic: draw the frame into a small texture and scale it back up with nearest-neighbour, instead of reading pixels back.
+  Faster everywhere and no readback on PowerVR.
+- [ ] Try in the real app (only the browser mock was clicked through): Open folder…, New game asking where, Examples opening a copy of
+  Breakout, Make this game asking where, the recent list (× forgets one), Show folder, reopening a game coming back to its tabs, the Play
+  panel, and switching a scene between its Layout and Code.
 - [ ] Try PNG import in the Game info dialog on a real PNG (the file picker could not be driven in testing).
-- [ ] Check what the Knulli list shows for box art vs thumbnail on other themes (`<image>` and `<thumbnail>` are both written).
-- [x] "Send to device" says plainly when `node` is missing and when the device connection was closed (studio and `push.sh`).
-
-## Decisions waiting on you
-
-- [x] Console specs list L2 and R2 as well (the RG35XX Pro has A B X Y, L1 L2 R1 R2; no sticks).
-- [x] HOTKEY + Start quits, checked on the device; game buttons are hidden while HOTKEY is held (runtime: padmap `hotkey=` or the gamepad's guide button; `push.sh` also writes a `<launcher>.keys` file for Knulli's evmapy). Start + Select now only quits when held 3 s. Check on the device: push a game, press HOTKEY + Start; if the runtime cannot see the hotkey, run Pad setup (it now asks for it).
+- [ ] Help pages have no pictures yet; screenshots of the layout editor in "Make a game, step by step" would help beginners most.
+- [ ] Layouts, next steps: the MCP server's `room_view` / `room_write` only know `rooms/` (teach them scene layouts); offer to turn a room
+  into a scene's layout; the layout editor's entity look ignores frames and scale.
+- [ ] The MCP server's `song_write` still writes 4-track songs; consoles play 8.
+- [ ] Maybe: a game's own studio settings in `.gamestudio/` (its device, run in a window or the panel), and a `.gitignore` line for it in
+  new games.
+- [ ] Later, once the Brick is measured: simulate the console in the Play panel (slow the game by the measured device/desktop ratio; Lua
+  memory against what the console has).
+- [ ] Polish when wanted: hand-drawn square letters (now made from the round ones); window open/close animations; GBA-style button icons
+  in hint rows instead of "A:" text.
+- [ ] (paused) Signing and notarizing the app (and the bundled `lua-language-server` inside it) for other Macs; only needed to hand the
+  studio to someone else. When picked up: create a Developer ID Application certificate (Xcode > Settings > Accounts > Manage
+  Certificates) and an App Store Connect API key (.p8, kept private); the build reads `APPLE_SIGNING_IDENTITY`, `APPLE_API_ISSUER`,
+  `APPLE_API_KEY`, `APPLE_API_KEY_PATH` from your own shell, never from the repo. The bundled server binary must be signed too.
