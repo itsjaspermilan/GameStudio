@@ -43,7 +43,7 @@ console_has() {
 }
 
 [ -x build/gs ] || ./scripts/build.sh
-[ -x build-aarch64/gs ] || ./scripts/build-aarch64.sh
+{ [ -x build-aarch64/gs ] && [ -f build-aarch64/gs_libretro.so ]; } || ./scripts/build-aarch64.sh
 ./build/gs pack "$SRC" "$HOSTCART"
 T="$DEVICE_USER@$DEVICE_HOST"
 # Never wait for a password (a studio window cannot answer one): without a working shared connection or key, stop at once and say how to fix it.
@@ -142,6 +142,25 @@ FLOOR
       FOLDER="$SD/Roms/$CNAME ($TAG)"; PAK="$SD/Emus/$PLAT/$TAG.pak"
       ssh $SSH_OPTS "$T" "mkdir -p $(q "$FOLDER/.media") $(q "$PAK")"
       scp -q $SSH_OPTS "$HOSTCART" "$T:$FOLDER/$NAME.cart"
+      if [ -z "$GS_NEXTUI_PROGRAM" ]; then
+        # The console runs in NextUI's own emulator (minarch) with gs as its libretro core, like any other system: its menu on MENU,
+        # its button settings, sleep, saves under Saves/<TAG>. The core sits beside the SoundFont, where it looks for it.
+        # GS_NEXTUI_PROGRAM=1 sends the plain program and its launcher instead (build/<cart>.sh, written above).
+        scp -q $SSH_OPTS build-aarch64/gs_libretro.so "$T:$DEVICE_DIR/gs_libretro.so"
+        {
+          echo '#!/bin/sh'
+          echo '# written by GameStudio (scripts/push.sh): a Glow console run by NextUI'"'"'s minarch with the gs core'
+          echo 'EMU_TAG=$(basename "$(dirname "$0")" .pak)'
+          echo 'mkdir -p "$SAVES_PATH/$EMU_TAG" "$BIOS_PATH/$EMU_TAG"'
+          echo 'HOME="$USERDATA_PATH"'
+          echo 'cd "$HOME"'
+          # A console without L3 and R3 (Glow43, Glow169) gets the Brick's L3 and R4 as a second Select and Start.
+          [ -z "$(console_has "$SRC" "$CID" l3)" ] && echo 'export GS_BUTTON_ALIAS="l3=select,r3=start"'
+          [ -n "$GS_DEBUG" ] && echo 'export GS_DEBUG_INPUT=1'
+          [ -n "$GS_PERF" ] && echo 'export GS_PERF=1'
+          echo "minarch.elf \"$DEVICE_DIR/gs_libretro.so\" \"\$1\" &> \"\$LOGS_PATH/\$EMU_TAG.txt\""
+        } > "build/$NAME.sh"
+      fi
       scp -q $SSH_OPTS "build/$NAME.sh" "$T:$PAK/launch.sh"
       ssh $SSH_OPTS "$T" "chmod +x $(q "$PAK/launch.sh") '$DEVICE_DIR/gs'"
       if [ -f "$SRC/meta/box_art.png" ]; then scp -q $SSH_OPTS "$SRC/meta/box_art.png" "$T:$FOLDER/.media/$NAME.png"

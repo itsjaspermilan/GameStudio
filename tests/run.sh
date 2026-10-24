@@ -68,6 +68,26 @@ GS_MOSAIC_PLAIN=1 GS_DUMP_FRAME="$tmp/mosaic-plain.bmp" FRAMES=60 run ./build/gs
 node tests/same-frames.mjs "$tmp/mosaic.bmp" "$tmp/mosaic-plain.bmp" || { echo "FAIL: the mosaic does not fill each block with its middle pixel"; status=1; }
 rm -rf "$tmp"
 
+# The libretro core (build/gs_libretro, what NextUI's minarch runs), loaded by tests/retro-run as an emulator would: it draws the same frame
+# as the program, hands over 735 samples a frame at 44.1 kHz, passes gs.quit() on, and plays Breakout with the emulator's buttons (Start,
+# then A to launch), with sound, saving the best score in the emulator's save folder.
+core="$(ls build/gs_libretro.so build/gs_libretro.dylib 2>/dev/null | head -1)"
+if [ -x build/retro-run ] && [ -n "$core" ]; then
+  tmp="$(mktemp -d)"
+  out="$(./build/retro-run "$core" tests/mosaic 60 "$tmp/core.bmp" 2>&1)"
+  GS_DUMP_FRAME="$tmp/gs.bmp" FRAMES=60 run ./build/gs tests/mosaic >/dev/null
+  echo "$out" | grep -q 'shutdown=1' || { echo "$out"; echo "FAIL: the core did not pass gs.quit() on"; status=1; }
+  node tests/same-frames.mjs "$tmp/core.bmp" "$tmp/gs.bmp" || { echo "FAIL: the core draws a different frame from the program"; status=1; }
+  out="$(RETRO_SAVE_DIR="$tmp/saves" RETRO_HOLD="start@60-64,a@120-124,left@130-400" GS_SOUNDFONT=assets/soundfonts/TimGM6mb.sf2 ./build/retro-run "$core" carts/breakout 900 2>&1)"
+  echo "$out" | grep -q 'RETRO frames=900 size=256x192 base=256x192 fps=60 rate=44100 samples=661500 ' || { echo "$out"; echo "FAIL: the core's picture or sound timing"; status=1; }
+  echo "$out" | grep -q 'peak=0 ' && { echo "$out"; echo "FAIL: the core made no sound"; status=1; }
+  echo "$out" | grep -qi 'error' && { echo "$out"; echo "FAIL: Breakout in the core printed an error"; status=1; }
+  [ -n "$(ls "$tmp/saves/breakout" 2>/dev/null)" ] || { echo "FAIL: the core saved nothing in the emulator's save folder"; status=1; }
+  rm -rf "$tmp"
+else
+  echo "SKIP: libretro core (build/gs_libretro or build/retro-run missing)"
+fi
+
 # A plain main.lua game (the format before game.lua) is refused with a message that says what to do, not run or crashed.
 plain="$(mktemp -d)"; printf 'function draw() end\n' > "$plain/main.lua"
 out="$(run ./build/gs "$plain")"; rm -rf "$plain"

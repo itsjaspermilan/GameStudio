@@ -84,8 +84,10 @@ static void delay_ns(Uint64 ns) {
     while (ticks_ns() < end) {}
 }
 /* The folder the program is in, with a trailing slash (SDL2 hands out a fresh copy each call, so it is asked once). */
+static char *g_base_override; /* the libretro core's own folder: SDL's base path is the folder of the emulator that loaded it */
 static const char *base_path(void) {
     static char *p; static bool asked;
+    if (g_base_override) return g_base_override;
     if (!asked) { p = SDL_GetBasePath(); asked = true; }
     return p;
 }
@@ -1989,6 +1991,47 @@ static int boost_selftest(const char *dir) {
     return bad ? 1 : 0;
 }
 
+/* The game's start, shared by the program and the libretro core: a Lua state with gs.*, the cart's module searcher and the framework,
+ * game.lua loaded by gs.boot, and init() run. NULL (with the reason printed) when the cart cannot start. */
+static lua_State *game_start(void) {
+    lua_State *L = luaL_newstate();
+    luaL_openlibs(L);
+    luaL_newlib(L, gs_lib); if (g_perf_on) time_gs_api(L); lua_setglobal(L, "gs");
+    if (getenv("GS_PROF")) lua_sethook(L, prof_hook, LUA_MASKCOUNT, 1000);
+    lua_getglobal(L, "package"); lua_getfield(L, -1, "searchers");
+    lua_pushcfunction(L, cart_searcher); lua_rawseti(L, -2, (lua_Integer)lua_rawlen(L, -2) + 1);
+    lua_pop(L, 2);
+
+    size_t n; unsigned char *src = vfs_read("game.lua", &n);
+    if (!src) {
+        unsigned char *raw = vfs_read("main.lua", &n);
+        fprintf(stderr, raw ? "this game is a plain main.lua, which is no longer supported: it needs a game.lua (see README.md)\n" : "cartridge has no game.lua\n");
+        free(raw);
+        lua_close(L); return NULL;
+    }
+    free(src);
+    /* register the framework's modules, then let gs.boot load game.lua and define init / update / draw */
+    if (luaL_loadbuffer(L, (const char *)gs_framework_lua, gs_framework_lua_len, "=framework") || lua_pcall(L, 0, 0, 0)) {
+        fprintf(stderr, "framework: %s\n", lua_tostring(L, -1)); lua_close(L); return NULL;
+    }
+    if (luaL_dostring(L, "require('gs.boot')")) { fprintf(stderr, "boot: %s\n", lua_tostring(L, -1)); lua_close(L); return NULL; }
+    call_global(L, "init", 0, 0);
+    return L;
+}
+/* One frame of the game, shared by the program and the libretro core: a step of dt seconds, then the frame drawn from a clean slate. */
+static Uint64 g_t_updated; /* when the last frame's update ended, for GS_PERF's split of update and drawing */
+static void game_frame(lua_State *L, double dt) {
+    call_global(L, "update", 1, dt);
+    g_t_updated = ticks_ns();
+    SDL_SetRenderDrawColor(g_ren, 0, 0, 0, 255); SDL_RenderClear(g_ren);
+    g_cam_x = g_cam_y = 0; g_zoom = 1; /* every frame starts with no scroll and no zoom */
+    g_blend = SDL_BLENDMODE_BLEND; SDL_SetRenderDrawBlendMode(g_ren, g_blend); /* ... and normal blending */
+    call_global(L, "draw", 0, 0);
+    if (g_blend != SDL_BLENDMODE_BLEND) { g_blend = SDL_BLENDMODE_BLEND; SDL_SetRenderDrawBlendMode(g_ren, g_blend); } /* a draw left it set */
+    if (g_mosaic > 1) apply_mosaic();
+}
+
+#ifndef GS_LIBRETRO
 int main(int argc, char **argv) {
     if (argc == 3 && !strcmp(argv[1], "boost-selftest")) return boost_selftest(argv[2]);
     if (argc == 4 && !strcmp(argv[1], "render-audio")) return render_audio(argv[2], argv[3]);
@@ -2058,28 +2101,8 @@ int main(int argc, char **argv) {
     /* gs.rect / gs.line / gs.print take an alpha: without this the renderer ignores it and every translucent rectangle comes out solid */
     if (g_ren) SDL_SetRenderDrawBlendMode(g_ren, SDL_BLENDMODE_BLEND);
 
-    lua_State *L = luaL_newstate();
-    luaL_openlibs(L);
-    luaL_newlib(L, gs_lib); if (g_perf_on) time_gs_api(L); lua_setglobal(L, "gs");
-    if (getenv("GS_PROF")) lua_sethook(L, prof_hook, LUA_MASKCOUNT, 1000);
-    lua_getglobal(L, "package"); lua_getfield(L, -1, "searchers");
-    lua_pushcfunction(L, cart_searcher); lua_rawseti(L, -2, (lua_Integer)lua_rawlen(L, -2) + 1);
-    lua_pop(L, 2);
-
-    size_t n; unsigned char *src = vfs_read("game.lua", &n);
-    if (!src) {
-        unsigned char *raw = vfs_read("main.lua", &n);
-        fprintf(stderr, raw ? "this game is a plain main.lua, which is no longer supported: it needs a game.lua (see README.md)\n" : "cartridge has no game.lua\n");
-        free(raw);
-        return 1;
-    }
-    free(src);
-    /* register the framework's modules, then let gs.boot load game.lua and define init / update / draw */
-    if (luaL_loadbuffer(L, (const char *)gs_framework_lua, gs_framework_lua_len, "=framework") || lua_pcall(L, 0, 0, 0)) {
-        fprintf(stderr, "framework: %s\n", lua_tostring(L, -1)); return 1;
-    }
-    if (luaL_dostring(L, "require('gs.boot')")) { fprintf(stderr, "boot: %s\n", lua_tostring(L, -1)); return 1; }
-    call_global(L, "init", 0, 0);
+    lua_State *L = game_start();
+    if (!L) return 1;
 
     Uint64 last = ticks_ns();
     /* GS_MAX_FRAMES=N exits after N frames: for automated tests */
@@ -2144,15 +2167,8 @@ int main(int argc, char **argv) {
         static double start_select_held;
         start_select_held = btn_now[B_START] && btn_now[B_SELECT] ? start_select_held + raw_dt : 0;
         if (start_select_held >= 3.0) g_quit = true;
-        call_global(L, "update", 1, dt);
-        const Uint64 t_upd = ticks_ns();
-        SDL_SetRenderDrawColor(g_ren, 0, 0, 0, 255); SDL_RenderClear(g_ren);
-        g_cam_x = g_cam_y = 0; g_zoom = 1; /* every frame starts with no scroll and no zoom */
-        g_blend = SDL_BLENDMODE_BLEND; SDL_SetRenderDrawBlendMode(g_ren, g_blend); /* ... and normal blending */
-        call_global(L, "draw", 0, 0);
-        if (g_blend != SDL_BLENDMODE_BLEND) { g_blend = SDL_BLENDMODE_BLEND; SDL_SetRenderDrawBlendMode(g_ren, g_blend); } /* a draw left it set */
-        if (g_mosaic > 1) apply_mosaic();
-        const Uint64 t_draw = ticks_ns();
+        game_frame(L, dt);
+        const Uint64 t_upd = g_t_updated, t_draw = ticks_ns();
         g_px_last = g_px_frame; g_calls_last = g_calls_frame; g_px_frame = 0; g_calls_frame = 0;
         if (g_win) present_window(); else SDL_RenderPresent(g_ren);
         const Uint64 t_pres = ticks_ns();
@@ -2253,3 +2269,4 @@ int main(int argc, char **argv) {
     SDL_Quit();
     return 0;
 }
+#endif
