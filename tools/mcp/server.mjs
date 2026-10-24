@@ -78,17 +78,19 @@ tool("sound_check", "Listen to a sound effect", "Renders a sound effect and repo
   { game, name: z.string() }, T.sound_check);
 tool("sound_write", "Write a sound effect", "Writes sfx/<name>.json and checks it. sound: { speed (ticks a step, 1-8), tracks: [{ instrument, steps: [[pitch, volume 0-7, effect], ...] }] } where pitch 48 = C5 and effects are 0 none, 1 slide, 2 vibrato, 3 drop, 4 fade in, 5 fade out, 6 arpeggio, 7 hold. Optional reverb (0-100): rings in the playing song's space; most effects stay dry.",
   { game, name: z.string(), sound: z.record(z.string(), z.any()) }, T.sound_write);
-tool("room_view", "See a room", "Draws a room (rooms/<name>.lua) at its real size: tile layers, things as their sprites, paths in yellow, a dashed box one screen big. Plus its size in screens, layers and how many things of each kind.",
+const items = z.object({ clear: z.boolean().optional(), remove: z.array(z.string()).optional(), add: z.array(z.record(z.string(), z.any())).optional() }).optional();
+tool("room_view", "See a room or a scene's layout", "Draws a room (name \"level1\": rooms/level1.lua) or a scene's layout (name \"scenes/title\": scenes/title.layout.lua) at its real size: tile layers, panels, pictures, things as their sprites, texts in the game's fonts, paths in yellow, a dashed box one screen big. Plus its size in screens and what is in it.",
   { game, name: z.string(), scale: z.number().int().min(1).max(4).optional() }, T.room_view);
-tool("room_write", "Build or change a room", "Creates or edits rooms/<name>.lua and returns its picture. All parts optional: size { width, height, background }; " +
+tool("room_write", "Build or change a room or a scene's layout", "Creates or edits rooms/<name>.lua, or a scene's layout with name \"scenes/<scene>\", and returns its picture. All parts optional: size { width, height, background }; " +
   "layers [{ name, tileset (new layers), depth (bigger = further back), solid, visible, map: { legend: { '#': 3, '.': -1 }, rows: ['....###', ...], at: [col, row] }, paint: [['fill', tile], ['rect', col, row, w, h, tile], ['clear']], remove }] " +
-  "(maps and paint are in tiles; -1 is empty); entities { clear, remove: [names], add: [[name, x, y, { values }], ...] } in pixels; paths { name: { points: [[x, y], ...], loop } or null to delete }.",
+  "(maps and paint are in tiles; -1 is empty); entities { clear, remove: [names], add: [[name, x, y, { values }], ...] } in pixels; paths { name: { points: [[x, y], ...], loop } or null to delete }; texts, pictures and panels { clear, remove: [names], add: [{ text, x, y, name, color, size, align, font, shadow } | { sprite, x, y, name, frame, scale } | { x, y, w, h, tileset, tile, name }] }.",
   {
     game, name: z.string(),
     size: z.object({ width: z.number().optional(), height: z.number().optional(), background: z.string().optional() }).optional(),
     layers: z.array(z.record(z.string(), z.any())).optional(),
     entities: z.object({ clear: z.boolean().optional(), remove: z.array(z.string()).optional(), add: z.array(z.array(z.any())).optional() }).optional(),
     paths: z.record(z.string(), z.any()).optional(),
+    texts: items, pictures: items, panels: items,
   }, T.room_write);
 tool("push", "Send to the handheld", "Packs a game and sends it to the handheld with scripts/push.sh (needs scripts/device.env and an open device connection).",
   { game }, T.push);

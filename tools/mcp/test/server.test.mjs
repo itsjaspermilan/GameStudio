@@ -68,6 +68,17 @@ test("writing: a sprite, a sound and a song land in a game and come back checked
     assert.equal(room.content[1].type, "image");
     const lua = readFileSync(join(ws, "carts/breakout/rooms/level1.lua"), "utf8");
     assert.match(lua, /patrol = \{ \{ 100, 60 \}, \{ 500, 60 \}, loop = true \}/);
+    // a scene's layout: seen with its texts and panels, and changed in place (the layout keeps what it had)
+    const title = await call("room_view", { game: "breakout", name: "scenes/title" });
+    assert.match(title.content[0].text, /texts: "BREAKOUT" at 128,44 \(self\.title\)/);
+    const titleChanged = await call("room_write", { game: "breakout", name: "scenes/title", texts: { remove: ["best"], add: [{ text: "HI", x: 10, y: 10, name: "hi", font: "bold_small" }] },
+      panels: { add: [{ x: 0, y: 176, w: 256, h: 16, tileset: "ts_ui", tile: 0, name: "floor" }] } });
+    assert.match(titleChanged.content[0].text, /^wrote scenes\/title\.layout\.lua/);
+    const layout = readFileSync(join(ws, "carts/breakout/scenes/title.layout.lua"), "utf8");
+    assert.match(layout, /"HI", 10, 10, name = "hi"/);
+    assert.doesNotMatch(layout, /name = "best"/);
+    assert.match(layout, /spr_brick/);
+    assert.match(layout, /^-- The scene's layout/);
     const ts = await call("sprite_write", { game: "breakout", name: "ts_cave", w: 16, h: 16, tileset: { cols: 2 }, frames: [{ ops: [["rect", 0, 0, 16, 16, 9]] }, { ops: [["rect", 0, 0, 16, 16, 17]] }, { ops: [["rect", 0, 4, 16, 12, 1]] }] });
     assert.match(ts.content[0].text, /3 tiles of 16x16 in rows of 2/);
     assert.deepEqual(JSON.parse(readFileSync(join(ws, "carts/breakout/tilesets/ts_cave.json"), "utf8")), { image: "tilesets/ts_cave.png", tile_w: 16, tile_h: 16 });

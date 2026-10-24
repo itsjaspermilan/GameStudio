@@ -8,11 +8,12 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from "node:pat
 import { fileURLToPath } from "node:url";
 import { inflateSync } from "node:zlib";
 import { parseApi, buildIndex, diagnose } from "../../studio/src/lua-intel-core.js";
-import { scanProject, consoleIdOf } from "../../studio/src/project-core.js";
+import { scanProject, consoleIdOf, LAYOUT_COMMENT } from "../../studio/src/project-core.js";
 import { normalizePalette } from "../../studio/src/palette-core.js";
 import { parseSong, serializeSong, normalizeSfx, renderSongDesc, renderSfxWith, setBuiltinInstruments, builtinInstruments, songSeconds } from "../../studio/src/audio-core.js";
 import { analyzeSong, describeAnalysis } from "../../studio/src/music-core.js";
-import { parseRoom, normalizeRoom, serializeRoom, fitLayer } from "../../studio/src/room-core.js";
+import { parseRoom, normalizeRoom, serializeRoom, fitLayer, glyphOf, builtinWidth, isBuiltinFont, shadowOf } from "../../studio/src/room-core.js";
+import { FONTS } from "../../studio/src/fonts.js";
 import { parsePage } from "../../studio/src/help-core.js";
 import { reindent } from "../../studio/src/search-core.js";
 import { Canvas, strip } from "../../scripts/lib/canvas.mjs";
@@ -455,16 +456,33 @@ function tilesetOf(dir, name) {
   const tw = meta.tile_w || 16, th = meta.tile_h || 16, cols = Math.max(1, Math.floor(img.width / tw));
   return { img, tw, th, cols, count: cols * Math.max(1, Math.floor(img.height / th)) };
 }
-// what an entity looks like: the first frame of the sprite its file names, or null
+// a sprite's picture, frame size and origin, or null
+function spriteOf(dir, name) {
+  try {
+    const meta = readJson(join(dir, `sprites/${name}.json`)), img = decodePng(readFileSync(join(dir, meta.image || `sprites/${name}.png`)));
+    const f = meta.frames || 1, o = meta.origin || [0, 0];
+    return { img, frames: f, fw: Math.floor(img.width / f), fh: img.height, ox: o[0], oy: o[1] };
+  } catch { return null; }
+}
+// what an entity looks like: the sprite its file names, or null
 function lookOf(dir, name) {
   try {
-    const t = read(join(dir, `entities/${name}.lua`));
-    const m = t.match(/\bsprite\s*=\s*["']([\w/-]+)["']/);
-    if (!m) return null;
-    const meta = readJson(join(dir, `sprites/${m[1]}.json`)), img = decodePng(readFileSync(join(dir, meta.image || `sprites/${m[1]}.png`)));
-    const f = meta.frames || 1, o = meta.origin || [0, 0];
-    return { img, fw: Math.floor(img.width / f), fh: img.height, ox: o[0], oy: o[1] };
+    const m = read(join(dir, `entities/${name}.lua`)).match(/\bsprite\s*=\s*["']([\w/-]+)["']/);
+    return m ? spriteOf(dir, m[1]) : null;
   } catch { return null; }
+}
+// A level is a room (rooms/<name>.lua) or a scene's layout: "scenes/title" is scenes/title.layout.lua.
+function levelFile(n) { const m = n.match(/^scenes\/(.+)$/); return m ? `scenes/${m[1]}.layout.lua` : `rooms/${n}.lua`; }
+// A colour as the game reads it: "#rrggbb", "bank:place" (1-15 in palette.json) or a place in the console's fixed palette.
+function colorReader(dir, con) {
+  const banks = banksOf(dir), byName = {}, pal = palOf(con);
+  if (banks) for (const b of [...banks.sprites, ...banks.tiles]) byName[b.name] = b.colors;
+  return (c) => {
+    if (typeof c === "number") return hexRgb(pal[c] || "#ffffff");
+    const m = /^([\w/-]+):(\d+)$/.exec(c || "");
+    if (m) return hexRgb((byName[m[1]] || [])[Number(m[2]) - 1] || "#ffffff");
+    return /^#[0-9a-fA-F]{6}/.test(c || "") ? hexRgb(c.slice(0, 7)) : [255, 255, 255];
+  };
 }
 const hexRgb = (h) => (/^#[0-9a-fA-F]{6}$/.test(h || "") ? [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) : [0, 0, 0]);
 
@@ -489,11 +507,71 @@ function drawRoom(dir, room, con) {
     if (!t) continue;
     l.data.forEach((row, r) => row.forEach((v, c) => { if (v >= 0 && v < t.count) blit(t.img, (v % t.cols) * t.tw, Math.floor(v / t.cols) * t.th, t.tw, t.th, c * t.tw, r * t.th); }));
   }
+  const tileset = (n) => { if (tiles[n] === undefined) { try { tiles[n] = tilesetOf(dir, n); } catch { tiles[n] = null; } } return tiles[n]; };
+  const sprites = {}, sprite = (n) => (n in sprites ? sprites[n] : (sprites[n] = spriteOf(dir, n)));
+  // panels as the engine draws them: the 3x3 block's tiles repeated, with the right column and bottom row at the far side of the size
+  for (const b of room.panels || []) {
+    const t = tileset(b.tileset);
+    if (!t) continue;
+    const w = Math.max(1, Math.floor(b.w)), h = Math.max(1, Math.floor(b.h));
+    let cols = Math.max(1, Math.ceil(w / t.tw)), rows = Math.max(1, Math.ceil(h / t.th));
+    if (w > t.tw && cols < 2) cols = 2;
+    if (h > t.th && rows < 2) rows = 2;
+    const part = (i, n) => (n === 1 || i === 0 ? 0 : i === n - 1 ? 2 : 1);
+    const lw = cols > 1 ? w - t.tw : w, lh = rows > 1 ? h - t.th : h;
+    const piece = (c, r, sx, sy, sw, sh, dx, dy) => {
+      const v = (b.tile || 0) + part(r, rows) * t.cols + part(c, cols);
+      if (v < t.count) blit(t.img, (v % t.cols) * t.tw + sx, Math.floor(v / t.cols) * t.th + sy, sw, sh, dx, dy);
+    };
+    const region = (x0, y0, rw, rh, dx, dy) => {
+      for (let r = Math.floor(y0 / t.th); r * t.th < y0 + rh; r++) for (let c = Math.floor(x0 / t.tw); c * t.tw < x0 + rw; c++) {
+        const sx = Math.max(0, x0 - c * t.tw), sy = Math.max(0, y0 - r * t.th);
+        const sw = Math.min(t.tw, x0 + rw - c * t.tw) - sx, sh = Math.min(t.th, y0 + rh - r * t.th) - sy;
+        piece(c, r, sx, sy, sw, sh, dx + c * t.tw + sx - x0, dy + r * t.th + sy - y0);
+      }
+    };
+    const x = Math.floor(b.x), y = Math.floor(b.y);
+    region(0, 0, lw, lh, x, y);
+    if (cols > 1) region((cols - 1) * t.tw, 0, t.tw, lh, x + w - t.tw, y);
+    if (rows > 1) region(0, (rows - 1) * t.th, lw, t.th, x, y + h - t.th);
+    if (cols > 1 && rows > 1) region((cols - 1) * t.tw, (rows - 1) * t.th, t.tw, t.th, x + w - t.tw, y + h - t.th);
+  }
+  const scaled = (sp, f, x, y, k) => {
+    const fx = (f % sp.frames) * sp.fw;
+    for (let yy = 0; yy < sp.fh * k; yy++) for (let xx = 0; xx < sp.fw * k; xx++) {
+      const s = ((Math.floor(yy / k)) * sp.img.width + fx + Math.floor(xx / k)) * 4;
+      blend(x + xx, y + yy, sp.img.data[s], sp.img.data[s + 1], sp.img.data[s + 2], sp.img.data[s + 3]);
+    }
+  };
+  for (const p of room.pictures || []) {
+    const sp = sprite(p.sprite), k = Math.max(1, Math.round(Number(p.scale) || 1));
+    if (sp) scaled(sp, Number(p.frame) || 0, p.x - sp.ox * k, p.y - sp.oy * k, k);
+  }
   const looks = {};
   for (const [n, x, y] of room.entities) {
     const lk = n in looks ? looks[n] : (looks[n] = lookOf(dir, n));
     if (lk) blit(lk.img, 0, 0, lk.fw, lk.fh, x - lk.ox, y - lk.oy);
     else { for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (dx * dx + dy * dy <= 5) blend(x + dx, y + dy, 255, 120, 200, 255); }
+  }
+  // texts in the game's own letters: a built-in font (shadow first, one pixel down and right) or a sprite font, a frame a letter from " "
+  const colorOf = colorReader(dir, con);
+  for (const t of room.texts || []) {
+    const s = String(t.text ?? ""), k = Math.max(1, Math.round(Number(t.size) || 1)), sp = !isBuiltinFont(t.font) && sprite(t.font);
+    const w = (sp ? s.length * sp.fw : builtinWidth(s, t.font)) * k;
+    const x0 = Math.round(t.align === "center" ? t.x - w / 2 : t.align === "right" ? t.x - w : t.x), y0 = Math.round(t.y);
+    if (sp) { [...s].forEach((ch, i) => { const f = ch.charCodeAt(0) - 32; if (f >= 0 && f < sp.frames) scaled(sp, f, x0 + i * sp.fw * k, y0, k); }); continue; }
+    if (!isBuiltinFont(t.font)) continue;
+    const f = FONTS[t.font || "round_small"], rgb = colorOf(t.color ?? "#ffffff");
+    const shadow = t.shadow === true ? shadowOf(rgb) : t.shadow != null && t.shadow !== false ? colorOf(t.shadow) : null;
+    const dot = (x, y, c) => { for (let yy = 0; yy < k; yy++) for (let xx = 0; xx < k; xx++) blend(x + xx, y + yy, ...c, 255); };
+    for (const [c, off] of shadow ? [[shadow, 1], [rgb, 0]] : [[rgb, 0]]) {
+      let x = x0;
+      for (const ch of s) {
+        const g = glyphOf(t.font, ch.codePointAt(0));
+        for (let r = 0; r < f.h; r++) for (let b = 0; b < g[0]; b++) if ((g[r + 1] >> b) & 1) dot(x + (b + off) * k, y0 + (r + off) * k, c);
+        x += (g[0] + 1) * k;
+      }
+    }
   }
   for (const p of Object.values(room.paths)) {
     const pts = p.points;
@@ -516,13 +594,19 @@ function roomText(name, room, con) {
     L.push(`  layer ${l.name || "?"}: tileset ${l.tileset}, depth ${l.depth ?? 100}${l.solid ? ", solid" : ""}${l.visible === false ? ", hidden" : ""}, ${filled} of ${cells} cells filled`);
   }
   L.push(`  things: ${room.entities.length ? Object.entries(counts).map(([n, c]) => `${n} x${c}`).join(", ") : "none"} (${(room.entities.length / Math.max(1, screens)).toFixed(1)} a screen; this console allows ${(con.limits || {}).instances_alive || "?"} alive at once)`);
+  const named = (list) => list.filter((x) => x.name).map((x) => x.name);
+  for (const [k, list, what] of [["texts", room.texts || [], (t) => JSON.stringify(t.text)], ["pictures", room.pictures || [], (p) => p.sprite], ["panels", room.panels || [], (b) => `${b.w}x${b.h} of ${b.tileset}`]]) {
+    if (list.length) L.push(`  ${k}: ${list.map((x) => `${what(x)} at ${x.x},${x.y}${x.name ? ` (self.${x.name})` : ""}`).join("; ")}`);
+  }
   const ps = Object.entries(room.paths);
   if (ps.length) L.push(`  paths: ${ps.map(([k, p]) => `${k} (${p.points.length} points${p.loop ? ", loops" : ""})`).join(", ")}`);
   return L.join("\n");
 }
 export function room_view({ game, name, scale }) {
-  const dir = gameDir(game), n = resName(name), r = parseRoom(read(join(dir, `rooms/${n}.lua`)));
-  if (r.error) return { text: `rooms/${n}.lua has code in it, so it is not drawn (${r.error}); read it as text.` };
+  const dir = gameDir(game), n = resName(name), f = levelFile(n);
+  if (!existsSync(join(dir, f))) throw new Error(`${f} does not exist${f.startsWith("scenes/") ? " (scenes/<name> is a scene's layout)" : " (rooms/<name>.lua; a scene's layout is scenes/<name>)"}`);
+  const r = parseRoom(read(join(dir, f)));
+  if (r.error) return { text: `${f} has code in it, so it is not drawn (${r.error}); read it as text.` };
   const con = consoleOf(dir), px = drawRoom(dir, r.room, con);
   return { text: roomText(n, r.room, con), images: [picture(r.room.width, r.room.height, px, scale || Math.max(1, Math.min(4, Math.floor(1280 / Math.max(r.room.width, r.room.height)))), [0, 0, 0])] };
 }
@@ -533,14 +617,16 @@ export function room_view({ game, name, scale }) {
 //             paint?: [["fill", tile], ["rect", col, row, w, h, tile], ["clear"]], remove?: true }]   (tiles in tile units; -1 is empty)
 //   entities: { clear?: true, remove?: [names], add?: [[name, x, y, { values }?], ...] }      (pixels)
 //   paths: { name: { points: [[x, y], ...], loop } | null }
-export function room_write({ game, name, size, layers = [], entities, paths }) {
-  const dir = gameDir(game), n = resName(name), file = join(dir, `rooms/${n}.lua`);
+//   texts, pictures, panels: { clear?: true, remove?: [names], add?: [{ text | sprite | tileset, x, y, ... as the layout writes them }] }
+// name "scenes/<scene>" is that scene's layout (scenes/<scene>.layout.lua), any other name a room (rooms/<name>.lua).
+export function room_write({ game, name, size, layers = [], entities, texts, pictures, panels, paths }) {
+  const dir = gameDir(game), n = resName(name), f = levelFile(n), file = join(dir, f), layout = f.startsWith("scenes/");
   let room;
   if (existsSync(file)) {
     const r = parseRoom(read(file));
-    if (r.error) throw new Error(`rooms/${n}.lua has code in it (${r.error}); edit it as text instead`);
+    if (r.error) throw new Error(`${f} has code in it (${r.error}); edit it as text instead`);
     room = r.room;
-  } else room = normalizeRoom({ width: 256, height: 192, background: "#101220" });
+  } else room = normalizeRoom({ width: consoleOf(dir).screen.width, height: consoleOf(dir).screen.height, background: "#101220" });
   const con = consoleOf(dir), notes = [];
   if (size) {
     if (size.width) room.width = Math.max(16, Math.min(8192, Math.round(size.width)));
@@ -590,15 +676,28 @@ export function room_write({ game, name, size, layers = [], entities, paths }) {
     const out = room.entities.filter(([, x, y]) => x < 0 || y < 0 || x > room.width || y > room.height).length;
     if (out) notes.push(`${out} thing${out === 1 ? " is" : "s are"} outside the room`);
   }
+  // texts, pictures and panels (a layout's screen furniture): { clear, remove: [names], add: [{ ... }] }, each item as the layout writes it
+  for (const [k, spec, first] of [["texts", texts, "text"], ["pictures", pictures, "sprite"], ["panels", panels, null]]) {
+    if (!spec) continue;
+    room[k] = room[k] || [];
+    if (spec.clear) room[k] = [];
+    if (spec.remove) room[k] = room[k].filter((x) => !spec.remove.includes(x.name));
+    for (const it of spec.add || []) {
+      if (!it || typeof it !== "object") throw new Error(`${k}: each one to add is an object`);
+      if (first && it[first] == null) throw new Error(`${k}: each one needs '${first}'`);
+      if (k === "panels" && !it.tileset) throw new Error("panels: each one needs a tileset (and x, y, w, h, tile)");
+      room[k].push({ ...it, x: Number(it.x) || 0, y: Number(it.y) || 0, ...(k === "panels" ? { w: Number(it.w) || 16, h: Number(it.h) || 16, tile: Number(it.tile) || 0 } : {}) });
+    }
+  }
   for (const [k, p] of Object.entries(paths || {})) {
     if (!/^[A-Za-z_]\w*$/.test(k)) throw new Error(`path name '${k}': letters, digits and _`);
     if (p === null) delete room.paths[k];
     else room.paths[k] = { points: (p.points || []).map(([x, y]) => [Number(x) || 0, Number(y) || 0]), loop: !!p.loop };
   }
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, serializeRoom(room, `A room: gs.load_room("${n.replace(/\//g, ".")}") builds it. Plain data; the studio's room editor opens it.`));
+  writeFileSync(file, serializeRoom(room, layout ? LAYOUT_COMMENT : `A room: gs.load_room("${n.replace(/\//g, ".")}") builds it. Plain data; the studio's room editor opens it.`));
   const view = room_view({ game, name: n });
-  return { text: `wrote rooms/${n}.lua\n${view.text}${notes.length ? "\nnote: " + notes.join("; ") : ""}`, images: view.images };
+  return { text: `wrote ${f}\n${view.text}${notes.length ? "\nnote: " + notes.join("; ") : ""}`, images: view.images };
 }
 
 // ---------- the handheld ----------
