@@ -153,20 +153,22 @@ function Tests:enter()
     check("sprite particles at their own depth draw without error", true)
 
     -- ---- the camera
-    local hero = gs.spawn("dummy", 500, 500)
+    local hero = gs.spawn("dummy", 620, 470)
     gs.camera:follow(hero, { bounds = { 0, 0, 640, 480 } })
     gs.wait(0.05)
-    check("camera follows within bounds", gs.camera.x == 320 and gs.camera.y == 240, gs.camera.x .. "," .. gs.camera.y)
-    hero.x, hero.y = 100, 100
+    local sw, sh = gs.screen()
+    check("camera follows within bounds", gs.camera.x == 640 - sw and gs.camera.y == 480 - sh, gs.camera.x .. "," .. gs.camera.y)
+    hero.x, hero.y = 50, 50
     gs.wait(0.05)
-    check("camera follows", math.abs(gs.camera.x - 0) < 1 and math.abs(gs.camera.y - 0) < 1, gs.camera.x)
-    gs.camera.zoom = 2 -- the screen shows 160x120 of the world now
-    hero.x, hero.y = 500, 500
+    check("camera follows", math.abs(gs.camera.x - 0) < 1 and math.abs(gs.camera.y - 0) < 1, gs.camera.x .. "," .. gs.camera.y)
+    gs.camera.zoom = 2 -- the screen shows half the screen's width and height of the world now
+    hero.x, hero.y = 620, 470
     gs.wait(0.05)
-    check("zoomed camera keeps to the bounds by the zoomed view", gs.camera.x == 420 and gs.camera.y == 360, gs.camera.x .. "," .. gs.camera.y)
-    local sx, sy = gs.camera:to_screen(430, 370)
+    local cx, cy = 640 - sw / 2, 480 - sh / 2
+    check("zoomed camera keeps to the bounds by the zoomed view", gs.camera.x == cx and gs.camera.y == cy, gs.camera.x .. "," .. gs.camera.y)
+    local sx, sy = gs.camera:to_screen(cx + 10, cy + 10)
     local wx, wy = gs.camera:to_world(20, 20)
-    check("zoomed screen and world positions", sx == 20 and sy == 20 and wx == 430 and wy == 370, sx .. "," .. sy .. " " .. wx .. "," .. wy)
+    check("zoomed screen and world positions", sx == 20 and sy == 20 and wx == cx + 10 and wy == cy + 10, sx .. "," .. sy .. " " .. wx .. "," .. wy)
     check("the raw zoom is back to 1 after drawing (the UI is not zoomed)", gs.raw.zoom() == 1)
     gs.camera.zoom = 1
     gs.camera:stop(); hero:destroy()

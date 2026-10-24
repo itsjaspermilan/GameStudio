@@ -5,7 +5,7 @@ order: 80
 summary: Levels bigger than the screen, a camera that follows within them, tile layers for art, and rooms built from code.
 -->
 <h1>Big levels: rooms, tiles and the camera</h1>
-<p>The Glow43 screen is 320x240 pixels. A level can be much bigger, and the <strong>camera</strong> decides which part of it you see. A <strong>room</strong> is a data file in <code>rooms/</code> that describes a level:
+<p>The Glow43 screen is 256x192 pixels. A level can be much bigger, and the <strong>camera</strong> decides which part of it you see. A <strong>room</strong> is a data file in <code>rooms/</code> that describes a level:
 how big it is, its background, its tile layers, and which entities start where. <code>gs.load_room("arena")</code> builds it.</p>
 <div class="note"><strong>Rooms or layouts?</strong> A scene's <a href="help:layouts">layout</a> holds the same data and is built when the scene starts, so for a new level that is all you need:
 set its size to <em>Bigger: it scrolls</em> on the layout's Layout tab. A room is for when one scene builds levels from code, picking which one to load

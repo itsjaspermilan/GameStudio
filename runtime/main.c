@@ -1668,7 +1668,7 @@ static void embed_close(void) {
 }
 
 static bool embed_open(const char *port, const char *size) {
-    int w = 320, h = 240;
+    int w = 256, h = 192;
     if (size) sscanf(size, "%dx%d", &w, &h);
     if (w < 64 || h < 64 || w > 2048 || h > 2048) { fprintf(stderr, "embed: bad size %s\n", size); return false; }
 #ifdef _WIN32

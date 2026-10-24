@@ -11,11 +11,8 @@ It is easy to read, and it is good enough for a lot of games.</p>
 <h2>The level, as text</h2>
 <p>A level can be a picture made of letters. Each <code>#</code> is a block. It is easy to see and to edit, and when you want tiles with art you can switch to a tile layer (see
 <a href="help:rooms">Big levels</a>) without changing the rest of the game.</p>
-<pre class="lua" data-path="lib/level.lua"><code>-- 40 columns of 16 pixel tiles = 640 pixels wide, 15 rows = 240 tall
+<pre class="lua" data-path="lib/level.lua"><code>-- 40 columns of 16 pixel tiles = 640 pixels wide, 12 rows = 192 tall (one screen)
 return {
-  "                                        ",
-  "                                        ",
-  "                                        ",
   "                                        ",
   "                                        ",
   "                                        ",
@@ -110,8 +107,8 @@ function Main:enter()
       end
     end
   end
-  local hero = gs.spawn("hero", 40, 100)
-  gs.camera:follow(hero, { smooth = 0.1, bounds = { 0, 0, 640, 240 } })
+  local hero = gs.spawn("hero", 40, 52)
+  gs.camera:follow(hero, { smooth = 0.1, bounds = { 0, 0, 640, 192 } })
 end
 
 function Main:draw_ui()

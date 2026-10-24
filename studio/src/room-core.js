@@ -98,8 +98,8 @@ export function parseRoom(text) {
 // Fill in what the editor needs; keep everything else exactly as it was.
 export function normalizeRoom(r) {
   const room = { ...r };
-  room.width = Math.max(16, Math.round(Number(r.width) || 320));
-  room.height = Math.max(16, Math.round(Number(r.height) || 240));
+  room.width = Math.max(16, Math.round(Number(r.width) || 256));
+  room.height = Math.max(16, Math.round(Number(r.height) || 192));
   room.layers = Array.isArray(r.layers) ? r.layers.map((l) => ({ ...l, data: Array.isArray(l.data) ? l.data.map((row) => (Array.isArray(row) ? row.map((v) => (Number.isFinite(v) ? v : -1)) : [])) : [] })) : [];
   // an entity is { "kind", x, y, props } or, with a name, { "kind", x, y, props, name = "hero" } (its list part, then the name)
   room.entities = Array.isArray(r.entities)

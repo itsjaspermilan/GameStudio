@@ -12,7 +12,7 @@ test("a project that fits reports nothing, and a screen change is only a note", 
   const r = checkProject(dot, dash, facts);
   assert.equal(r.length, 1);
   assert.equal(r[0].level, "note");
-  assert.match(r[0].text, /320×240 to 320×180/);
+  assert.match(r[0].text, /256×192 to 320×180/);
 });
 
 test("rooms, instances and layers over the limits are problems", () => {

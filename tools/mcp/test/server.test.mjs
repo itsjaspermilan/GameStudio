@@ -59,10 +59,10 @@ test("writing: a sprite, a sound and a song land in a game and come back checked
     assert.match(song.content[0].text, /key C major[\s\S]*chords by bar: C/);
     assert.ok(JSON.parse(readFileSync(join(ws, "carts/breakout/music/msc_test.json"), "utf8")).format === "tracker");
     // a level written as a text map, with things and a path, comes back as a picture and as plain room data
-    const room = await call("room_write", { game: "breakout", name: "level1", size: { width: 640, height: 240, background: "#14234f" },
-      layers: [{ name: "ground", tileset: "ts_bg", depth: 50, solid: true, map: { legend: { "#": 1, ".": -1 }, at: [0, 12], rows: ["########....########################", "######################################", "######################################"] } }],
-      entities: { add: [["paddle", 40, 180], ["ball", 300, 120], ["ghost", 9999, 0]] }, paths: { patrol: { points: [[100, 60], [500, 60]], loop: true } } });
-    assert.match(room.content[0].text, /640x240 \(2\.0 x 1\.0 screens\)/);
+    const room = await call("room_write", { game: "breakout", name: "level1", size: { width: 512, height: 192, background: "#14234f" },
+      layers: [{ name: "ground", tileset: "ts_bg", depth: 50, solid: true, map: { legend: { "#": 1, ".": -1 }, at: [0, 9], rows: ["########....########################", "######################################", "######################################"] } }],
+      entities: { add: [["paddle", 40, 140], ["ball", 300, 120], ["ghost", 9999, 0]] }, paths: { patrol: { points: [[100, 60], [500, 60]], loop: true } } });
+    assert.match(room.content[0].text, /512x192 \(2\.0 x 1\.0 screens\)/);
     assert.match(room.content[0].text, /layer ground: tileset ts_bg, depth 50, solid, \d+ of \d+ cells filled/);
     assert.match(room.content[0].text, /no entities\/ghost\.lua[\s\S]*outside the room/);
     assert.equal(room.content[1].type, "image");

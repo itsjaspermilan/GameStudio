@@ -173,6 +173,9 @@ instead of breaking.
 
 ## 10. Sprite and tile sizes: what feels right on a 320x240 screen
 
+(Written when Dot/Glow43 was 320x240. Since 2026-10-23 Glow43 is 256x192, which fills the TrimUI Brick's 1024x768 screen at
+exactly 4x; the reasoning below still holds, with every share of the screen a fifth bigger.)
+
 Dot is 320x240, twice the pixels of a GBA (240x160) in each direction that matters, so GBA-sized art looks small on it. Void Swarm's
 16 px pilots are about 7% of the screen height; a GBA hero (16 px on 160) is 10%. That is the "a bit small" feeling. Text at 8x8 reads
 fine because text wants to be small.

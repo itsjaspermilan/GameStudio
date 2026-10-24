@@ -22,11 +22,11 @@ function Ball:update(dt)
     return
   end
   -- walls and ceiling (the score line takes the top 16 pixels)
-  local w = self:width()
+  local w, sw, sh = self:width(), gs.screen()
   if self.x < 0 then self.x, self.vx = 0, math.abs(self.vx); gs.sfx("sfx_wall")
-  elseif self.x + w > 320 then self.x, self.vx = 320 - w, -math.abs(self.vx); gs.sfx("sfx_wall") end
+  elseif self.x + w > sw then self.x, self.vx = sw - w, -math.abs(self.vx); gs.sfx("sfx_wall") end
   if self.y < 16 then self.y, self.vy = 16, math.abs(self.vy); gs.sfx("sfx_wall") end
-  if self.y > 240 then self:lose_life() end
+  if self.y > sh then self:lose_life() end
 end
 
 function Ball:lose_life()

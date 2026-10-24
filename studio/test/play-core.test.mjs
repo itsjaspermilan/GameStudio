@@ -57,7 +57,7 @@ test("the runtime sends its frames to the studio and takes buttons back", { skip
     });
     srv.listen(0, "127.0.0.1", () => {
       const p = spawn(gs, [join(root, "carts/breakout")], {
-        env: { ...process.env, GS_EMBED: String(srv.address().port), GS_EMBED_SIZE: "320x240", GS_SAVE_DIR: mkdtempSync(join(tmpdir(), "gs-play-")), SDL_AUDIODRIVER: "dummy" },
+        env: { ...process.env, GS_EMBED: String(srv.address().port), GS_EMBED_SIZE: "256x192", GS_SAVE_DIR: mkdtempSync(join(tmpdir(), "gs-play-")), SDL_AUDIODRIVER: "dummy" },
         stdio: "ignore",
       });
       const timer = setTimeout(() => { p.kill(); failed(new Error("the game did not leave when asked")); }, 15000);
@@ -65,6 +65,6 @@ test("the runtime sends its frames to the studio and takes buttons back", { skip
     });
   });
   assert.ok(frames.length >= 2, `frames: ${frames.length}`);
-  assert.ok(frames.every((f) => f && f.width === 320 && f.height === 240), "every message is a whole frame at the console's size");
+  assert.ok(frames.every((f) => f && f.width === 256 && f.height === 192), "every message is a whole frame at the console's size");
   assert.ok(frames.some((f) => f.pixels.some((v, i) => i % 4 !== 3 && v > 0)), "something is drawn");
 });

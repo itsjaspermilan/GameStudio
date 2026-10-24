@@ -7,6 +7,11 @@ Consoles were renamed on 2026-10-23: Dot is **Glow43** (4:3, G43 for short) and 
 The logos are GBA-era chrome (`scripts/make-console-logos.mjs`). On Knulli the new id means a new system folder (`/userdata/roms/glow43`):
 the old `dot` system and its folder stay until removed by hand.
 
+Glow43 became **256x192** on 2026-10-23 (was 320x240): the TrimUI Brick (1024x768, muOS) is now the target handheld, and 256x192 fills
+it at exactly 4x. Breakout, the device tools and the Help tutorials are laid out again; games made for the old size must be moved by hand.
+- [ ] On the Brick: Breakout and the tutorials fill the screen with no border; buttons, overlays and frame pacing (`GS_PERF=1`).
+- [ ] muOS covers and previews (`make-box-art.mjs`, 640x480 previews) were sized for the RG35XX's 640x480 list; check them on the Brick.
+
 ## Games as folders (2026-10-23)
 
 - [ ] Try it in the real app (only the browser mock was clicked through): Open folder…, New game asking where, Examples opening a copy of

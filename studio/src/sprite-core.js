@@ -375,9 +375,10 @@ export function colorAllowed(s, rgba, limit) {
 }
 
 // ---------- size guide (Help > Sprite and tile sizes; design section 10) ----------
-// What to draw at which size on a 320x240 screen: the new-sprite dialog offers these, and the editor shows the sprite beside squares of
+// What to draw at which size on a 256x192 screen: the new-sprite dialog offers these, and the editor shows the sprite beside squares of
 // the same sizes on a mock screen.
-// The sizes are GBA proportions on Glow43's taller screen: a GBA hero of about 16x24 is 15% of its 160 lines, which is 32 to 40 on 240.
+// The sizes are GBA proportions on Glow43's taller screen: a GBA hero of about 16x24 is 15% of its 160 lines, which is about 29 on 192,
+// so 32 is the nearest multiple of 8.
 export const SIZE_GUIDE = [
   { id: "hero", label: "Hero or main character", w: 32, h: 32, note: "32×32, up to 48×48: room for a face, shading and a walk" },
   { id: "enemy", label: "Common enemy", w: 24, h: 24, note: "24×24 to 32×32: readable in a crowd" },

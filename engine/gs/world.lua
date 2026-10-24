@@ -19,7 +19,7 @@ local talk = require("gs.talk")
 -- checks: hitbox comparisons so far this step (the collision pass and touching()); checks_last: the whole of the last step. The studio
 -- compares the busiest step with the console's collision_tests budget.
 local W = { all = {}, classes = {}, by_class = {}, tags = {}, layers = {}, scene = nil, alive = 0, dirty = false, step_id = 0, next_id = 1, checks = 0, checks_last = 0,
-  limits = {}, bg = "#000000", fade = 0, flash_t = 0, mosaic_now = 1, pending_scene = nil, view_w = 320, view_h = 240, time = 0 }
+  limits = {}, bg = "#000000", fade = 0, flash_t = 0, mosaic_now = 1, pending_scene = nil, view_w = 256, view_h = 192, time = 0 }
 
 local floor, sqrt, abs, atan2, rad, deg, cos, sin = math.floor, math.sqrt, math.abs, math.atan, math.rad, math.deg, math.cos, math.sin
 local sprite_of = assets.sprite

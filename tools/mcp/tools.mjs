@@ -540,7 +540,7 @@ export function room_write({ game, name, size, layers = [], entities, paths }) {
     const r = parseRoom(read(file));
     if (r.error) throw new Error(`rooms/${n}.lua has code in it (${r.error}); edit it as text instead`);
     room = r.room;
-  } else room = normalizeRoom({ width: 320, height: 240, background: "#101220" });
+  } else room = normalizeRoom({ width: 256, height: 192, background: "#101220" });
   const con = consoleOf(dir), notes = [];
   if (size) {
     if (size.width) room.width = Math.max(16, Math.min(8192, Math.round(size.width)));
