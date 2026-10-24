@@ -255,6 +255,21 @@ function Tests:enter()
     check("proportional letters", gs.draw.text_width("il") < gs.draw.text_width("mw"), gs.draw.text_width("il"))
     check("tall letters are wider", gs.draw.text_width("Hello", 1, "round_tall") > gs.draw.text_width("Hello"))
     check("a missing font is an error", raises(function() gs.draw.text("x", 0, 0, "#ffffff", 1, { font = "comic" }) end, "no built-in font"))
+    -- button icons in text: {a} is a picture a letter's gap from its neighbours, small beside small letters and tall beside tall ones
+    local tw = gs.draw.text_width
+    check("an icon in text is as wide as its picture", tw("A{a}B") == tw("A") + tw("B") + 2 + 9, tw("A{a}B"))
+    check("tall letters get tall icons", tw("{a}", 1, "round_tall") == 11 and tw("{start}", 2) == 2 * tw("{start}"), tw("{a}", 1, "round_tall"))
+    check("unknown braces stay text", tw("{nope}") == gs.raw.text_width("{nope}", 0), tw("{nope}"))
+    check("an icon types out as one letter", gs.draw.letters("Hi {a}!") == 5 and gs.draw.first_letters("Hi {a}!", 4) == "Hi {a}", gs.draw.first_letters("Hi {a}!", 4))
+    for _, st in ipairs({ "snes", "nes", "mono", "gba" }) do
+      gs.draw.buttons(st)
+      gs.draw.text("Press {a} or {start} {dpad}", 0, 0, "#ffffff", 1, { shadow = true })
+      gs.draw.text("{l}{r}", 0, 0, "#ffffff", 2, { font = "bold_tall" })
+      gs.draw.button("select", 0, 0, { size = "tall", color = "#ff0000" })
+    end
+    check("icons draw in every style", true)
+    check("a missing style is an error", raises(function() gs.draw.buttons("xbox") end, "no button style"))
+    check("a missing icon is an error", raises(function() gs.draw.button("z", 0, 0) end, "no button icon"))
     check("wrapping by width", #gs.draw.wrap("one two three four five six", 40) >= 3)
 
     -- ---- scenes

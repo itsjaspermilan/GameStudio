@@ -77,7 +77,8 @@ function M.ask(question, answers, name)
   return open(name, question, answers)
 end
 
-local function letters(page) local n = 0; for _, l in ipairs(page) do n = n + #l end return n end
+-- a button icon ({a}) types out as one letter
+local function letters(page) local n = 0; for _, l in ipairs(page) do n = n + draw.letters(l) end return n end
 
 -- called every step, also while the world stands still
 function M.update(dt)
@@ -122,8 +123,8 @@ function M.draw()
   local y = s.ty
   for _, line in ipairs(page) do
     if left <= 0 then break end
-    text_at(s, line:sub(1, left), s.tx, y)
-    left = left - #line
+    text_at(s, draw.first_letters(line, left), s.tx, y)
+    left = left - draw.letters(line)
     y = y + s.lh
   end
   local typed = t.shown >= letters(page)

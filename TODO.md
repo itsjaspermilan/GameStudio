@@ -50,8 +50,8 @@ Measuring (`GS_PERF=1`)
 - [ ] Layouts, next step: offer to turn a room into a scene's layout.
 - [ ] Later, once the Brick is measured: simulate the console in the Play panel (slow the game by the measured device/desktop ratio; Lua
   memory against what the console has).
-- [ ] Polish when wanted: hand-drawn square letters (now made from the round ones); window open/close animations; GBA-style button icons
-  in hint rows instead of "A:" text.
+- [ ] Polish when wanted: hand-drawn square letters (now made from the round ones); window open/close animations.
+- [ ] On the Brick: button icons ({a} in texts) in each style, small and tall, beside the real fonts.
 - [ ] (paused) Signing and notarizing the app (and the bundled `lua-language-server` inside it) for other Macs; only needed to hand the
   studio to someone else. When picked up: create a Developer ID Application certificate (Xcode > Settings > Accounts > Manage
   Certificates) and an App Store Connect API key (.p8, kept private); the build reads `APPLE_SIGNING_IDENTITY`, `APPLE_API_ISSUER`,

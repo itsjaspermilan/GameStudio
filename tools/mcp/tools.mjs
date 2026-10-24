@@ -8,11 +8,11 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from "node:pat
 import { fileURLToPath } from "node:url";
 import { inflateSync } from "node:zlib";
 import { parseApi, buildIndex, diagnose } from "../../studio/src/lua-intel-core.js";
-import { scanProject, consoleIdOf, LAYOUT_COMMENT } from "../../studio/src/project-core.js";
+import { scanProject, consoleIdOf, buttonsOfGame, LAYOUT_COMMENT } from "../../studio/src/project-core.js";
 import { normalizePalette } from "../../studio/src/palette-core.js";
 import { parseSong, serializeSong, normalizeSfx, renderSongDesc, renderSfxWith, setBuiltinInstruments, builtinInstruments, songSeconds } from "../../studio/src/audio-core.js";
 import { analyzeSong, describeAnalysis } from "../../studio/src/music-core.js";
-import { parseRoom, normalizeRoom, serializeRoom, fitLayer, glyphOf, builtinWidth, isBuiltinFont, shadowOf, lookDefaults, entityPose } from "../../studio/src/room-core.js";
+import { parseRoom, normalizeRoom, serializeRoom, fitLayer, glyphOf, builtinWidth, isBuiltinFont, shadowOf, lookDefaults, entityPose, splitButtons, buttonSize, buttonPixels } from "../../studio/src/room-core.js";
 import { FONTS } from "../../studio/src/fonts.js";
 import { parsePage } from "../../studio/src/help-core.js";
 import { reindent } from "../../studio/src/search-core.js";
@@ -574,6 +574,8 @@ function drawRoom(dir, room, con) {
   }
   // texts in the game's own letters: a built-in font (shadow first, one pixel down and right) or a sprite font, a frame a letter from " "
   const colorOf = colorReader(dir, con);
+  let buttonStyle = "gba";
+  try { buttonStyle = buttonsOfGame(read(join(dir, "game.lua"))); } catch { /* the default */ }
   for (const t of room.texts || []) {
     const s = String(t.text ?? ""), k = Math.max(1, Math.round(Number(t.size) || 1)), sp = !isBuiltinFont(t.font) && sprite(t.font);
     const w = (sp ? s.length * sp.fw : builtinWidth(s, t.font)) * k;
@@ -582,13 +584,21 @@ function drawRoom(dir, room, con) {
     if (!isBuiltinFont(t.font)) continue;
     const f = FONTS[t.font || "round_small"], rgb = colorOf(t.color ?? "#ffffff");
     const shadow = t.shadow === true ? shadowOf(rgb) : t.shadow != null && t.shadow !== false ? colorOf(t.shadow) : null;
-    const dot = (x, y, c) => { for (let yy = 0; yy < k; yy++) for (let xx = 0; xx < k; xx++) blend(x + xx, y + yy, ...c, 255); };
+    const dot = (x, y, c, a = 255) => { for (let yy = 0; yy < k; yy++) for (let xx = 0; xx < k; xx++) blend(x + xx, y + yy, ...c, a); };
     for (const [c, off] of shadow ? [[shadow, 1], [rgb, 0]] : [[rgb, 0]]) {
       let x = x0;
-      for (const ch of s) {
-        const g = glyphOf(t.font, ch.codePointAt(0));
-        for (let r = 0; r < f.h; r++) for (let b = 0; b < g[0]; b++) if ((g[r + 1] >> b) & 1) dot(x + (b + off) * k, y0 + (r + off) * k, c);
-        x += (g[0] + 1) * k;
+      for (const p of splitButtons(s) || [s]) {
+        if (typeof p !== "string") { // a button icon ({a}) in the game's style; "mono" takes the text's colour and shadow
+          const ic = buttonPixels(buttonStyle, buttonSize(f.h), p.icon, c);
+          if (!off || ic.tint) for (let y = 0; y < ic.h; y++) for (let xx = 0; xx < ic.w; xx++) { const v = ic.at(xx, y); if (v) dot(x + (xx + off) * k, y0 + (y + ic.dy + off) * k, v.slice(0, 3), v[3]); }
+          x += (ic.w + 1) * k;
+          continue;
+        }
+        for (const ch of p) {
+          const g = glyphOf(t.font, ch.codePointAt(0));
+          for (let r = 0; r < f.h; r++) for (let b = 0; b < g[0]; b++) if ((g[r + 1] >> b) & 1) dot(x + (b + off) * k, y0 + (r + off) * k, c);
+          x += (g[0] + 1) * k;
+        }
       }
     }
   }

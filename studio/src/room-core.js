@@ -10,6 +10,7 @@
 // A name makes the thing a field of the scene's code (self.<name>), see engine/gs/world.lua "scene layouts".
 
 import { FONTS, FONT_FIRST, FONT_GAP } from "./fonts.js";
+import { BUTTONS } from "./buttons.js";
 
 // ---------- reading ----------
 function tokenize(src) {
@@ -308,8 +309,49 @@ export function glyphOf(name, code) {
   return glyphs[i >= 0 && i < glyphs.length - 1 ? i : code === 9 ? 0 : glyphs.length - 1];
 }
 export function builtinWidth(text, name) {
+  const parts = splitButtons(text);
+  if (parts) return mixedWidth(parts, FONTS[name || "round_small"].h, (p) => builtinWidth(p, name));
   const cs = [...String(text ?? "")];
   return cs.reduce((w, c) => w + glyphOf(name, c.codePointAt(0))[0], 0) + Math.max(0, cs.length - 1) * FONT_GAP;
+}
+
+// ---------- button icons in text ("Press {a}"), as engine/gs/buttons.lua draws them ----------
+export const BUTTON_STYLES = Object.keys(BUTTONS.styles);
+const BUTTON_NAMES = new Set(BUTTONS.order);
+// the text in pieces, strings and { icon }, or null when it shows no icon (braces around anything else stay as they are)
+export function splitButtons(text) {
+  const s = String(text ?? "");
+  if (!s.includes("{")) return null;
+  const parts = [];
+  let i = 0, found = false;
+  for (const m of s.matchAll(/\{([A-Za-z]+)\}/g)) {
+    if (!BUTTON_NAMES.has(m[1])) continue;
+    if (m.index > i) parts.push(s.slice(i, m.index));
+    parts.push({ icon: m[1] });
+    i = m.index + m[0].length; found = true;
+  }
+  if (!found) return null;
+  if (i < s.length) parts.push(s.slice(i));
+  return parts;
+}
+export const buttonSize = (letterH) => (letterH >= 11 ? "tall" : "small");
+export const buttonWidth = (name, size) => BUTTONS.sizes[size].icons[name].w;
+// pieces a letter's gap apart, an icon as wide as it is
+export function mixedWidth(parts, letterH, width) {
+  const size = buttonSize(letterH);
+  return parts.reduce((w, p, i) => w + (i ? FONT_GAP : 0) + (typeof p === "string" ? width(p) : buttonWidth(p.icon, size)), 0);
+}
+const rgbaOf = (hex) => (hex ? [1, 3, 5, 7].map((i) => (hex.length > i ? parseInt(hex.slice(i, i + 2), 16) : 255)) : null);
+// One icon's pixels: { w, h, dy (rows above the text's top), at(x, y) -> [r, g, b, a] or null }. tint: [r, g, b] for the "mono" style.
+export function buttonPixels(style, size, name, tint) {
+  const st = BUTTONS.styles[style] || BUTTONS.styles.gba, ic = BUTTONS.sizes[size].icons[name], cs = st.colours[name];
+  return {
+    w: ic.w, h: ic.rows.length, dy: BUTTONS.sizes[size].dy, tint: !!st.tint,
+    at(x, y) {
+      const c = ic.rows[y][x], col = c === "." ? null : rgbaOf(cs[c]);
+      return col && st.tint && tint ? [tint[0], tint[1], tint[2], col[3]] : col;
+    },
+  };
 }
 // The shadow the game makes from a text's colour when `shadow = true` (gs.draw's shadow_of): light letters get a dark shadow of their
 // own hue, dark letters a pale one.

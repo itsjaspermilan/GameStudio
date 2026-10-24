@@ -16,7 +16,10 @@
 -- "bold_small", "bold_tall". Letters are as wide as they need to be, so measure text with gs.draw.text_width. They know " " to "~";
 -- any other character is drawn as a box. A shadow (true for one made from the text's colour, or a colour) sits right of and under
 -- every pixel, the way GBA games drew their words.
+-- Any text can show button icons: "Press {a} to jump" (see gs.buttons for the names and the styles; gs.draw.buttons("snes") changes
+-- the style while the game runs, gs.draw.button("start", x, y) draws one on its own).
 local assets = require("gs.assets")
+local buttons = require("gs.buttons")
 
 local M = { palette = {} }
 local cache = {}
@@ -86,8 +89,42 @@ local function shadow_color(shadow, r, g, b, a)
   local sr, sg, sb, sa = parse(shadow)
   return sr, sg, sb, sa * a // 255
 end
+-- Text with button icons in it: the words in pieces with the icons between them, a letter's gap apart, in the size that suits the
+-- letters (the "mono" style takes the text's colour and shadow).
+local function mixed(parts, letter_h, x, y, scale, word, width, r, g, b, a, shadow)
+  local sc, size = scale or 1, buttons.size_for(letter_h)
+  for i, p in ipairs(parts) do
+    if i > 1 then x = x + sc end
+    if type(p) == "string" then
+      word(p, x, y)
+      x = x + width(p)
+    else
+      if shadow and buttons.tinted() then buttons.draw(p.icon, size, x + sc, y + sc, sc, shadow[1], shadow[2], shadow[3], shadow[4]) end
+      buttons.draw(p.icon, size, x, y, sc, r, g, b, a)
+      x = x + buttons.width(p.icon, size) * sc
+    end
+  end
+end
+local function mixed_width(parts, letter_h, scale, width)
+  local sc, size, w = scale or 1, buttons.size_for(letter_h), 0
+  for i, p in ipairs(parts) do w = w + (i > 1 and sc or 0) + (type(p) == "string" and width(p) or buttons.width(p.icon, size) * sc) end
+  return w
+end
+
 -- opts: font (a built-in font's name), shadow (true or a colour), alpha (0 to 1, on top of the colour's own)
 function M.text(str, x, y, color, scale, opts)
+  str = tostring(str)
+  local parts = buttons.split(str)
+  if parts then
+    local font = opts and opts.font
+    if font and not font_of(font) then error("there is no built-in font called '" .. tostring(font) .. "' (round_small, round_tall, square_small, square_tall, bold_small, bold_tall); for a sprite font use gs.draw.font_text", 2) end
+    local _, h = font_of(font)
+    local r, g, b, a = parse(color)
+    if opts and opts.alpha then a = a * opts.alpha // 1 end
+    local shadow = opts and opts.shadow and { shadow_color(opts.shadow, r, g, b, a) }
+    mixed(parts, h, x, y, scale, function(p, px, py) M.text(p, px, py, color, scale, opts) end, function(p) return M.text_width(p, scale, font) end, r, g, b, a, shadow)
+    return
+  end
   local r, g, b, a = parse(color)
   local font, shadow = 0, nil
   if opts then
@@ -103,7 +140,39 @@ function M.text(str, x, y, color, scale, opts)
     raw.print(tostring(str), math.floor(x), math.floor(y), r, g, b, a, scale or 1, font, sr, sg, sb, sa)
   else raw.print(tostring(str), math.floor(x), math.floor(y), r, g, b, a, scale or 1, font) end
 end
-function M.text_width(str, scale, font) return raw.text_width(tostring(str), font and font_of(font) or 0) * (scale or 1) end
+function M.text_width(str, scale, font)
+  str = tostring(str)
+  local parts = buttons.split(str)
+  if parts then local _, h = font_of(font); return mixed_width(parts, h or 8, scale, function(p) return M.text_width(p, scale, font) end) end
+  return raw.text_width(str, font and font_of(font) or 0) * (scale or 1)
+end
+-- button icons on their own: gs.draw.button("a", x, y) (small; { size = "tall" }, scale, alpha, and color for the "mono" style)
+function M.button(name, x, y, opts)
+  if not buttons.names[name] then error("there is no button icon called '" .. tostring(name) .. "' (a, b, x, y, l, r, start, select, up, down, left, right, dpad)", 2) end
+  opts = opts or {}
+  local r, g, b, a = parse(opts.color)
+  buttons.draw(name, opts.size == "tall" and "tall" or "small", x, y, opts.scale or 1, r, g, b, a * (opts.alpha or 1) // 1)
+end
+function M.buttons(style) buttons.set_style(style) end
+-- How many letters a text has when a button icon counts as one, and its first n of them: for text that types out letter by letter.
+function M.letters(str)
+  local parts = buttons.split(str)
+  if not parts then return #str end
+  local n = 0
+  for _, p in ipairs(parts) do n = n + (type(p) == "string" and #p or 1) end
+  return n
+end
+function M.first_letters(str, n)
+  local parts = buttons.split(str)
+  if not parts then return str:sub(1, n) end
+  local out = {}
+  for _, p in ipairs(parts) do
+    if n <= 0 then break end
+    if type(p) == "string" then out[#out + 1] = p:sub(1, n); n = n - #p
+    else out[#out + 1] = "{" .. p.icon .. "}"; n = n - 1 end
+  end
+  return table.concat(out)
+end
 function M.text_centered(str, y, color, scale, opts)
   local w = gs.screen()
   M.text(str, (w - M.text_width(str, scale, opts and opts.font)) // 2, y, color, scale, opts)
@@ -129,10 +198,20 @@ end
 
 -- Text in a font of your own: a sprite whose frames are the letters, from " " (frame 0) on in ASCII order (! " # ... 0-9 ... A-Z ...).
 -- Letters it has no frame for are left as a gap. Every letter is as wide as a frame; the sprite's own colours are used.
-function M.font_width(font, str, scale) return #tostring(str) * assets.sprite(font, 2).fw * (scale or 1) end
+function M.font_width(font, str, scale)
+  str = tostring(str)
+  local parts = buttons.split(str)
+  if parts then return mixed_width(parts, assets.sprite(font, 2).fh, scale, function(p) return M.font_width(font, p, scale) end) end
+  return #str * assets.sprite(font, 2).fw * (scale or 1)
+end
 function M.font_text(font, str, x, y, scale, alpha)
   local s, sc, a = assets.sprite(font, 2), scale or 1, (alpha or 1) * 255
   str = tostring(str)
+  local parts = buttons.split(str)
+  if parts then
+    mixed(parts, s.fh, x, y, scale, function(p, px, py) M.font_text(font, p, px, py, scale, alpha) end, function(p) return M.font_width(font, p, scale) end, 255, 255, 255, a // 1)
+    return
+  end
   local fw, fh, img, tile = s.fw, s.fh, s.img, gs.tile
   x, y = math.floor(x), math.floor(y)
   for i = 1, #str do

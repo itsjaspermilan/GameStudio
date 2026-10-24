@@ -30,11 +30,11 @@ import { budgetRows, consoleSummary, parseStatsLine } from "./budget-core.js";
 import { GENRES, BOX_ART_PATH, normalizeInfo, defaultTitle, charsLeft, isPng, pngSize, boxArtScale, PICTURES, decodeBmp } from "./info-core.js";
 import { createSprite, createTileset, normalizeAnimations, toJSON, tilesetToJSON, offPaletteCount, usedColors, SIZE_GUIDE } from "./sprite-core.js";
 import { FIRST_STEPS, parseSteps, stringifySteps, showSteps } from "./steps-core.js";
-import { parseRoom, serializeRoom, lookDefaults } from "./room-core.js";
+import { parseRoom, serializeRoom, lookDefaults, buttonPixels } from "./room-core.js";
 import { findInFiles, replaceInText, outline, tidyLua, applyEdits } from "./search-core.js";
 import { SPEEDS, parseInspectLine, commandText, classRows, fmtMs } from "./inspector-core.js";
 import { createRoomEditor, PLACE } from "./room-editor.js";
-import { GROUPS, group, validName, folderTree, movedName, resourceFiles, layoutFile, scanProject, consoleIdOf, setConsoleInGame, TEMPLATES, LAYOUT_TEMPLATE, LAYOUT_COMMENT, newGameFiles, renameProblem } from "./project-core.js";
+import { GROUPS, group, validName, folderTree, movedName, resourceFiles, layoutFile, scanProject, consoleIdOf, setConsoleInGame, buttonsOfGame, setButtonsInGame, TEMPLATES, LAYOUT_TEMPLATE, LAYOUT_COMMENT, newGameFiles, renameProblem } from "./project-core.js";
 import { setupPanels } from "./panels.js";
 import { createPaletteEditor } from "./palette-editor.js";
 import { normalizePalette, paletteText, bankRgb, tilesOutsideBanks, bankLimits, checkPalette } from "./palette-core.js";
@@ -274,6 +274,9 @@ async function refreshFiles() {
   if (state.files.includes("meta/info.json")) {
     try { state.info = await readJson("meta/info.json"); } catch (e) { fail("meta/info.json: " + e); }
   }
+  // the look of the button icons in texts ({a}), which the layout editor shows as the game will
+  state.buttonStyle = "gba";
+  if (state.files.includes("game.lua")) { try { state.buttonStyle = buttonsOfGame(await invoke("read_file", { cart: state.cart, rel: "game.lua" })); } catch { /* the default */ } }
   state.palette = null;
   if (state.files.includes("palette.json")) {
     try { state.palette = normalizePalette(await readJson("palette.json")); } catch (e) { fail("palette.json: " + e); }
@@ -590,6 +593,7 @@ async function saveCurrent() {
   try {
     await invoke("write_file", { cart: state.cart, rel: state.file, content: view.state.doc.toString() });
     state.dirty = false; renderTitle();
+    if (state.file === "game.lua") state.buttonStyle = buttonsOfGame(view.state.doc.toString());
     if (state.running && state.file.endsWith(".lua")) stepDone("live");
     if (state.file.endsWith(".lua")) {
       luaTexts[state.file] = view.state.doc.toString(); luaIndex = buildIndex(state.scan ? state.scan.groups : {}, luaTexts);
@@ -664,9 +668,26 @@ $("btn-info").onclick = async () => {
   $("info-sprite").hidden = $("info-use-sprite").hidden = !sprites.length;
   const left = () => { $("info-left").textContent = `${charsLeft($("info-desc").value)} characters left`; };
   $("info-desc").oninput = left; left();
+  const bs = $("info-buttons");
+  bs.replaceChildren(...BUTTON_STYLE_NAMES.map(([k, label]) => new Option(label, k)));
+  bs.value = BUTTON_STYLE_NAMES.some(([k]) => k === state.buttonStyle) ? state.buttonStyle : "gba";
+  bs.onchange = showButtonPreview; showButtonPreview();
   await showInfoArt();
   $("info-dialog").showModal();
 };
+// The button icon styles, as the Game info dialog names them, and a strip of a few icons in the chosen one at four times their size.
+const BUTTON_STYLE_NAMES = [["gba", "GBA: grey"], ["snes", "SNES: four colours"], ["nes", "NES: red and black"], ["mono", "One colour: the text's own"]];
+function showButtonPreview() {
+  const c = $("info-buttons-preview"), style = $("info-buttons").value, names = ["a", "b", "l", "start", "dpad"], k = 3;
+  const icons = names.map((n) => buttonPixels(style, "tall", n, [255, 208, 138]));
+  c.width = (icons.reduce((w, p) => w + p.w + 3, 0) + 3) * k; c.height = 14 * k;
+  const g = c.getContext("2d"); g.fillStyle = "#2a3550"; g.fillRect(0, 0, c.width, c.height);
+  let x = 3;
+  for (const p of icons) {
+    for (let y = 0; y < p.h; y++) for (let xx = 0; xx < p.w; xx++) { const v = p.at(xx, y); if (v) { g.fillStyle = `rgba(${v[0]},${v[1]},${v[2]},${v[3] / 255})`; g.fillRect((x + xx) * k, (1 + y) * k, k, k); } }
+    x += p.w + 3;
+  }
+}
 $("info-use-sprite").onclick = () => run("picture", async () => { pending[picKey] = await spriteAsBoxArt($("info-sprite").value); await showInfoArt(); });
 $("info-shot").onclick = () => run("screenshot", async () => {
   await save();
@@ -701,6 +722,14 @@ $("info-save").onclick = () => run("game info", async () => {
   }
   if (pending.box_art === "" || (!pending.box_art && !hadArt)) fields.box_art = "";
   await writeJson("meta/info.json", { ...(state.info || {}), ...fields });
+  const style = $("info-buttons").value;
+  if (style !== state.buttonStyle) {
+    const next = setButtonsInGame(await invoke("read_file", { cart: state.cart, rel: "game.lua" }), style);
+    if (next === null) throw new Error(`game.lua has no plain console line to put the button style under. Add buttons = "${style}", inside gs.game{ ... } yourself.`);
+    await invoke("write_file", { cart: state.cart, rel: "game.lua", content: next });
+    state.buttonStyle = style;
+    if (state.file === "game.lua") setDoc(next);
+  }
   $("info-dialog").close();
   await refreshFiles();
   info("Saved the game info. It goes to the device with the next “Send to device”.");
@@ -1985,7 +2014,7 @@ $("settings").addEventListener("close", async () => {
   consoleEditor = createConsoleEditor($("console-dialog"), { takenIds: takenConsoleIds });
   roomEditor = createRoomEditor($("room-editor"), {
     onChange: renderTitle, getEntities: () => state.scan.groups.entities, getTilesets: () => state.scan.groups.tilesets,
-    loadTileset: loadRoomTileset, entityLook, getScreen: () => conInfo().screen,
+    loadTileset: loadRoomTileset, entityLook, getScreen: () => conInfo().screen, getButtonStyle: () => state.buttonStyle || "gba",
     editAsText: async () => { await save(); await openFile(dataRel(roomEditor.getKind(), roomEditor.getName()), true); },
     getSprites: () => state.scan.groups.sprites, getScenes: () => state.scan.groups.scenes, spriteLook,
     // a text's colour: a place in the classic palette, or (with colour banks) any of the game's bank colours, written as #rrggbb

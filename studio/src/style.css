@@ -658,6 +658,7 @@ input, textarea, select, [contenteditable="true"], .cm-editor, #output, .output,
 .info-row { display: flex; gap: 10px; }
 .info-row label { flex: 1; }
 .info-art { display: flex; flex-direction: column; gap: 6px; }
+.info-buttons-preview { display: block; width: auto !important; max-width: 100%; align-self: flex-start; image-rendering: pixelated; border-radius: 4px; margin-top: -4px; }
 .info-pics { display: flex; gap: 4px; }
 .info-pics button { flex: 1; padding: 4px 2px; font-size: 12px; }
 .info-pics button.active { background: var(--accent); color: var(--accent-text); }

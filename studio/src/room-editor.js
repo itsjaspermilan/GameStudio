@@ -4,10 +4,12 @@
 // remembered until the layout is saved, and main.js then renames it in the code too (getRenames).
 // hooks: { onChange(), getEntities() -> [names], getTilesets() -> [names], getSprites() -> [names], getScenes() -> [names],
 //          loadTileset(name) -> Promise<{ img, tw, th, cols, count }>, entityLook(name), spriteLook(name) -> Promise<{ img, fw, fh, ox, oy } | null>,
+//          getButtonStyle() -> the game's button icon style (gba, snes, nes, mono) for {a} in texts,
 //          getScreen() -> { width, height }, getPalette() -> { colors: ["#rrggbb", ...], fixed }, editAsText() }
 // A text's colour is a place in the palette when the console has a fixed one (as the game's code writes it), otherwise "#rrggbb".
 import { color as themeColor } from "./theme.js";
 import * as R from "./room-core.js";
+import { BUTTONS } from "./buttons.js";
 import { History } from "./sprite-core.js";
 import { settleRenames } from "./rename-core.js";
 import { FONTS } from "./fonts.js";
@@ -248,15 +250,40 @@ export function createRoomEditor(root, hooks = {}) {
     const name = t.font || "round_small", f = FONTS[name], hex = ctx.fillStyle;
     const rgb = /^#[0-9a-f]{6}/i.test(hex) ? [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) : [255, 255, 255];
     const shadow = t.shadow === true ? "#" + R.shadowOf(rgb).map((v) => v.toString(16).padStart(2, "0")).join("") : typeof t.shadow === "string" || typeof t.shadow === "number" ? colorOf(t.shadow) : null;
+    const parts = R.splitButtons(s) || [s], bsize = R.buttonSize(f.h), style = hooks.getButtonStyle ? hooks.getButtonStyle() : "gba";
+    const tinted = BUTTONS.styles[style] && BUTTONS.styles[style].tint;
     for (const [colour, row] of shadow ? [[shadow, 1], [hex, 0]] : [[hex, 0]]) {
       const strip = fontStrip(name, colour);
       let x = x0;
-      for (const ch of s) {
-        const code = ch.codePointAt(0), g = R.glyphOf(name, code), i = f.glyphs.indexOf(g);
-        if (code > 32) ctx.drawImage(strip, i * strip.cw, row * (f.h + 1), g[0] + 1, f.h + 1, x * zoom, y0 * zoom, (g[0] + 1) * size * zoom, (f.h + 1) * size * zoom);
-        x += (g[0] + 1) * size;
+      for (const p of parts) {
+        if (typeof p !== "string") { // a button icon ("{a}"): the "mono" style in the text's colour and with its shadow
+          const ic = buttonCanvas(style, bsize, p.icon, colour);
+          if (row === 0 || tinted) ctx.drawImage(ic, (x + row * size) * zoom, (y0 + (ic.dy + row) * size) * zoom, ic.width * size * zoom, ic.height * size * zoom);
+          x += (ic.width + 1) * size;
+          continue;
+        }
+        for (const ch of p) {
+          const code = ch.codePointAt(0), g = R.glyphOf(name, code), i = f.glyphs.indexOf(g);
+          if (code > 32) ctx.drawImage(strip, i * strip.cw, row * (f.h + 1), g[0] + 1, f.h + 1, x * zoom, y0 * zoom, (g[0] + 1) * size * zoom, (f.h + 1) * size * zoom);
+          x += (g[0] + 1) * size;
+        }
       }
     }
+  }
+  // a button icon as a little canvas, made once for each style, size, icon and colour
+  const buttonCanvases = new Map();
+  function buttonCanvas(style, size, name, colour) {
+    const key = [style, size, name, colour].join(":");
+    let c = buttonCanvases.get(key);
+    if (c) return c;
+    const tint = /^#[0-9a-f]{6}/i.test(colour) ? [1, 3, 5].map((i) => parseInt(colour.slice(i, i + 2), 16)) : null;
+    const px = R.buttonPixels(style, size, name, tint);
+    c = document.createElement("canvas"); c.width = px.w; c.height = px.h; c.dy = px.dy;
+    const img = new ImageData(px.w, px.h);
+    for (let y = 0; y < px.h; y++) for (let x = 0; x < px.w; x++) { const v = px.at(x, y); if (v) img.data.set(v, (y * px.w + x) * 4); }
+    c.getContext("2d").putImageData(img, 0, 0);
+    buttonCanvases.set(key, c);
+    return c;
   }
   // a thing's look as the game draws it: its blend mode, and its alpha times how faint the editor shows it now
   const COMPOSITE = { add: "lighter", darken: "multiply" };

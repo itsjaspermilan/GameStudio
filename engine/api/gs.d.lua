@@ -159,6 +159,10 @@ Scene = {}
 ---@field console "glow43"|"glow169"|table The handheld this game is made for. It sets the screen, palette and limits.
 ---@field start string The first scene, e.g. "scenes.title".
 ---@field preload? boolean Load every sprite and tileset at start (default true).
+---@field buttons? ButtonStyle How {a}, {start} and the other button icons in texts look (default "gba").
+
+---@alias ButtonStyle "gba"|"snes"|"nes"|"mono"
+---@alias ButtonIcon "a"|"b"|"x"|"y"|"l"|"r"|"start"|"select"|"up"|"down"|"left"|"right"|"dpad"
 
 gs = {}
 ---@type boolean True while the game runs from the studio with live reload.
@@ -468,8 +472,10 @@ function gs.draw.circle(x, y, radius, color) end
 ---@field font? BuiltinFont Small fonts are 8 pixels high (scores, labels), tall ones 12 (talking, menus). round_small when left out
 ---@field shadow? boolean|Color A drop shadow right of and under the letters: true makes one from the text's colour
 ---@field alpha? number 0 to 1
----Text in a built-in font: round, square or bold letters, small or tall, each letter as wide as it needs to be.
+---Text in a built-in font: round, square or bold letters, small or tall, each letter as wide as it needs to be. A button's name in
+---braces shows its icon: {a} {b} {x} {y} {l} {r} {start} {select} {up} {down} {left} {right} {dpad}.
 ---  gs.draw.text("Hello!", 8, 8, "#404040", 1, { font = "round_tall", shadow = true })
+---  gs.draw.text("Press {a} to jump", 8, 20, "#ffffff")
 ---@param str any
 ---@param x number
 ---@param y number
@@ -512,6 +518,25 @@ function gs.draw.font_width(font, str, scale) end
 ---@param font? BuiltinFont
 ---@return number
 function gs.draw.text_width(str, scale, font) end
+---One button icon on its own, small unless opts.size is "tall"; opts.color is the colour of the "mono" style.
+---  gs.draw.button("start", 8, 8, { size = "tall" })
+---@param name ButtonIcon
+---@param x number
+---@param y number
+---@param opts? { size?: "small"|"tall", scale?: number, alpha?: number, color?: Color }
+function gs.draw.button(name, x, y, opts) end
+---Change how button icons look while the game runs (game.lua's buttons = "..." sets it at the start).
+---@param style ButtonStyle
+function gs.draw.buttons(style) end
+---How many letters a text has, a button icon counting as one: for text that types out letter by letter.
+---@param str string
+---@return integer
+function gs.draw.letters(str) end
+---The first n letters of a text, a button icon counting as one.
+---@param str string
+---@param n integer
+---@return string
+function gs.draw.first_letters(str, n) end
 ---Split text into lines that fit a width in pixels.
 ---@param text string
 ---@param width number

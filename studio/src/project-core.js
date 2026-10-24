@@ -108,6 +108,25 @@ export function setConsoleInGame(text, id) {
   return re.test(text) ? text.replace(re, `$1"${id}"`) : null;
 }
 
+// The style of the button icons a game's texts show ({a}, {start}), named in game.lua (buttons = "snes"); "gba" when it names none.
+export function buttonsOfGame(text) {
+  const m = /\bbuttons\s*=\s*["']([A-Za-z0-9_-]+)["']/.exec(text || "");
+  return m ? m[1] : "gba";
+}
+// game.lua with its button style set: the buttons line changed, or a new one under the console line; null when neither is written
+// the plain way (then the studio asks you to change it yourself)
+export function setButtonsInGame(text, style) {
+  const re = /(\bbuttons\s*=\s*)(["'])[A-Za-z0-9_-]*\2/;
+  if (re.test(text)) return text.replace(re, `$1"${style}"`);
+  const con = /^([ \t]*)console\s*=\s*(["'])[A-Za-z0-9_-]*\2\s*,[^\n]*\n/m.exec(text);
+  if (con) {
+    const at = con.index + con[0].length, line = `${con[1]}buttons = "${style}",`;
+    return text.slice(0, at) + `${line}${" ".repeat(Math.max(1, 33 - line.length))}-- the look of {a}, {start} ... in texts\n` + text.slice(at);
+  }
+  const inline = /(\bconsole\s*=\s*(["'])[A-Za-z0-9_-]*\2\s*,)/;
+  return inline.test(text) ? text.replace(inline, `$1 buttons = "${style}",`) : null;
+}
+
 const pascal = (name) => name.split(/[\/_-]/).filter(Boolean).map((s) => s[0].toUpperCase() + s.slice(1)).join("") || "Thing";
 
 export const TEMPLATES = {

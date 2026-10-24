@@ -116,6 +116,7 @@ local function boot()
   if not ok then error("game.lua: " .. tostring(err), 0) end
   if not spec then error("game.lua must call gs.game{ title = ..., console = \"dot\", start = \"scenes.title\" }", 0) end
   console = load_console(spec.console)
+  if spec.buttons then dr.buttons(spec.buttons) end
   local screen = console.screen or { width = 256, height = 192 }
   raw.set_resolution(screen.width, screen.height)
   world.view_w, world.view_h = screen.width, screen.height

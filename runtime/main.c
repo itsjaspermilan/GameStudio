@@ -647,6 +647,25 @@ static int l_recolor(lua_State *L) {
     g_images[id].tex = t; g_images[id].px = out; g_images[id].w = w; g_images[id].h = h;
     push_image(L, id); return 1;
 }
+/* gs.raw.pixels(w, h, rgba) -> picture: a picture made from w * h * 4 bytes of RGBA, for art the framework itself carries (the button
+ * icons). The pixels are kept, so it can be recoloured like a loaded one. */
+static int l_pixels(lua_State *L) {
+    const int w = (int)luaL_checkinteger(L, 1), h = (int)luaL_checkinteger(L, 2);
+    size_t n; const char *src = luaL_checklstring(L, 3, &n);
+    if (w < 1 || h < 1 || w > 4096 || h > 4096 || n != (size_t)w * h * 4) return luaL_error(L, "pixels: want %d x %d x 4 bytes", w, h);
+    if (g_nimages >= MAX_IMAGES) return luaL_error(L, "too many images");
+    unsigned char *px = malloc(n);
+    if (!px) return luaL_error(L, "pixels: out of memory");
+    memcpy(px, src, n);
+    SDL_Texture *t = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
+    if (!t) { free(px); return luaL_error(L, "pixels: %s", SDL_GetError()); }
+    SDL_UpdateTexture(t, NULL, px, w * 4);
+    SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(t, SDL_ScaleModeNearest);
+    const int id = g_nimages++;
+    g_images[id].name = strdup("(pixels)"); g_images[id].tex = t; g_images[id].px = px; g_images[id].w = w; g_images[id].h = h;
+    push_image(L, id); return 1;
+}
 static SDL_Texture *check_image(lua_State *L, int i) {
     luaL_checktype(L, i, LUA_TTABLE);
     lua_getfield(L, i, "id"); int id = (int)luaL_checkinteger(L, -1); lua_pop(L, 1);
@@ -1210,7 +1229,7 @@ static const luaL_Reg gs_lib[] = {
     {"synth_config", l_synth_config}, {"soundfont_load", l_soundfont_load}, {"sample_load", l_sample_load}, {"inst_load", l_inst_load}, {"song_load", l_song_load}, {"song_play", l_song_play},
     {"save", l_save}, {"loadsave", l_loadsave}, {"sound", l_sound}, {"play", l_play}, {"stop", l_stop},
     {"clear", l_clear}, {"rect", l_rect}, {"line", l_line}, {"print", l_print}, {"text_width", l_text_width}, {"font", l_font},
-    {"camera", l_camera}, {"compose", l_compose}, {"recolor", l_recolor}, {"mosaic", l_mosaic}, {"blend", l_blend}, {"stats", l_stats}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
+    {"camera", l_camera}, {"compose", l_compose}, {"recolor", l_recolor}, {"pixels", l_pixels}, {"mosaic", l_mosaic}, {"blend", l_blend}, {"stats", l_stats}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
     {"btn", l_btn}, {"btnp", l_btnp}, {"time", l_time}, {"clock", l_clock}, {"quit", l_quit}, {"zoom", l_zoom}, {"load", l_load}, {"list", l_list}, {"mtime", l_mtime},
     {"pad_last", l_pad_last}, {"pad_set", l_pad_set}, {"pad_reset", l_pad_reset}, {NULL, NULL}};
 
