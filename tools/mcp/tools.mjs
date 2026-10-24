@@ -426,9 +426,16 @@ function songText(dir, name) {
 export function song_check({ game, name }) { const dir = gameDir(game); return { text: `${resName(name)}: ${songText(dir, name)}` }; }
 
 // spec: the song generator's options (scripts/lib/music.mjs Song), or a finished tracker song ({ format: "tracker", ... })
+// The consoles play eight tracks, so a generated song with a band of four gets the other four from it: a counter-melody on the lead's
+// instrument, a second harmony on the harmony's, hand percussion and a quiet echo of the melody. tracks: 4 keeps it at four.
+function bandOfEight(spec) {
+  if (!spec || spec.tracks === 4 || !Array.isArray(spec.inst) || spec.inst.length !== 4) return spec;
+  const [lead, harmony] = spec.inst;
+  return { ...spec, inst: [...spec.inst, lead, harmony, "gm_drum_kit", lead], ...(Array.isArray(spec.vol) && spec.vol.length === 4 ? { vol: [...spec.vol, -3, -3, -3, -4] } : {}) };
+}
 export function song_write({ game, name, spec }) {
   const dir = gameDir(game), n = resName(name);
-  const song = spec && spec.format === "tracker" ? serializeSong(parseSong(spec)) : new Song({ seed: 1, ...spec }).build();
+  const song = spec && spec.format === "tracker" ? serializeSong(parseSong(spec)) : new Song({ seed: 1, ...bandOfEight(spec) }).build();
   mkdirSync(join(dir, "music", dirname(n)), { recursive: true });
   writeFileSync(join(dir, "music", `${n}.json`), JSON.stringify(song, null, 1) + "\n");
   return { text: `wrote music/${n}.json\n${songText(dir, n)}` };

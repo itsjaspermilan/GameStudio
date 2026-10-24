@@ -57,7 +57,9 @@ test("writing: a sprite, a sound and a song land in a game and come back checked
     assert.match(snd.content[0].text, /loudness/);
     const song = await call("song_write", { game: "breakout", name: "msc_test", spec: { root: 0, scale: "major", tempo: 100, oct: 4, inst: ["gm_vibraphone", "gm_warm_pad", "gm_finger_bass", "gm_drum_kit"], harmony: "pad", bass: "half", drums: "soft", rhythms: [3, 1], sections: [{ prog: [0, 3, 4, 0] }], order: [0, 0] } });
     assert.match(song.content[0].text, /key C major[\s\S]*chords by bar: C/);
-    assert.ok(JSON.parse(readFileSync(join(ws, "carts/breakout/music/msc_test.json"), "utf8")).format === "tracker");
+    const written = JSON.parse(readFileSync(join(ws, "carts/breakout/music/msc_test.json"), "utf8"));
+    assert.equal(written.format, "tracker");
+    assert.equal(written.tracks, 8, "a band of four is filled out to the eight tracks the consoles play");
     // a level written as a text map, with things and a path, comes back as a picture and as plain room data
     const room = await call("room_write", { game: "breakout", name: "level1", size: { width: 512, height: 192, background: "#14234f" },
       layers: [{ name: "ground", tileset: "ts_bg", depth: 50, solid: true, map: { legend: { "#": 1, ".": -1 }, at: [0, 9], rows: ["########....########################", "######################################", "######################################"] } }],

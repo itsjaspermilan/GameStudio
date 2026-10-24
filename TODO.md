@@ -48,7 +48,6 @@ Measuring (`GS_PERF=1`)
 - [ ] Try PNG import in the Game info dialog on a real PNG (the file picker could not be driven in testing).
 - [ ] Help pages have no pictures yet; screenshots of the layout editor in "Make a game, step by step" would help beginners most.
 - [ ] Layouts, next steps: offer to turn a room into a scene's layout; the layout editor's entity look ignores frames and scale.
-- [ ] The MCP server's `song_write` still writes 4-track songs; consoles play 8.
 - [ ] Maybe: a game's own studio settings in `.gamestudio/` (its device, run in a window or the panel), and a `.gitignore` line for it in
   new games.
 - [ ] Later, once the Brick is measured: simulate the console in the Play panel (slow the game by the measured device/desktop ratio; Lua
