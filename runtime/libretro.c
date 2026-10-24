@@ -1,12 +1,14 @@
 /* gs as a libretro core (gs_libretro.so): a cart is a "rom", and the emulator that loads the core (NextUI's minarch, RetroArch) owns the
  * window, the sound device, the buttons and its menu. The core is the runtime itself, built from main.c without its main(): the game draws
- * into a surface in memory with SDL's software renderer (as for the studio's Play panel) and the frame is handed over as it is; the mixer
+ * on a GPU context of its own (runtime/gpu.c) and the frame is read back, or, without a GPU, into a surface in memory with SDL's software
+ * renderer (as for the studio's Play panel); either way the finished frame is handed over as it is. The mixer
  * is called once a frame for that frame's samples instead of from an audio thread.
  *
  * The emulator links SDL2 too, and on the handheld it is the same library: the core never initialises or quits SDL's video, audio or
  * controller parts, and never opens a controller, or it would read the pad behind the emulator's back. */
 #define _GNU_SOURCE /* dladdr, on glibc */
 #define GS_LIBRETRO 1
+#include "gpu.c" /* before main.c: its drawing calls go to the GPU when there is one */
 #include "main.c"
 #include <dlfcn.h>
 #include "libretro.h"
@@ -29,6 +31,7 @@ static int g_core_w, g_core_h; /* the size last told to the emulator */
 static double g_audio_due;      /* samples owed to the emulator, with the fraction of a sample a frame leaves over */
 static float g_mix[2 * 2048];
 static int16_t g_mix16[2 * 2048];
+static Uint32 g_frame[CORE_MAX_W * CORE_MAX_H]; /* the frame read back from the GPU */
 
 #include "ram.c" /* the console's RAM and save states */
 
@@ -126,23 +129,35 @@ bool retro_load_game(const struct retro_game_info *game) {
     g_sound_mutex = SDL_CreateMutex();
     g_audio_ok = true;
 
-    g_embed_surf = SDL_CreateRGBSurfaceWithFormat(0, CORE_MAX_W, CORE_MAX_H, 32, SDL_PIXELFORMAT_ARGB8888); /* XRGB8888 in memory */
-    g_ren = g_embed_surf ? SDL_CreateSoftwareRenderer(g_embed_surf) : NULL;
-    if (!g_ren) { fprintf(stderr, "software renderer: %s\n", SDL_GetError()); return false; }
+    if (gpu_open()) {
+        g_ren = (SDL_Renderer *)&G; /* never given to SDL: every drawing call goes to gpu.c */
+        gpu_begin();
+    } else {
+        g_embed_surf = SDL_CreateRGBSurfaceWithFormat(0, CORE_MAX_W, CORE_MAX_H, 32, SDL_PIXELFORMAT_ARGB8888); /* XRGB8888 in memory */
+        g_ren = g_embed_surf ? SDL_CreateSoftwareRenderer(g_embed_surf) : NULL;
+        if (!g_ren) { fprintf(stderr, "software renderer: %s\n", SDL_GetError()); return false; }
+    }
     screen_logical(g_screen_w, g_screen_h);
     SDL_SetRenderDrawBlendMode(g_ren, SDL_BLENDMODE_BLEND);
 
-    if (!ram_open()) { fprintf(stderr, "gs: no memory for the console's RAM\n"); return false; }
+    if (!ram_open()) { gpu_end(); fprintf(stderr, "gs: no memory for the console's RAM\n"); return false; }
     g_lua_alloc = ram_alloc; g_lua_panic = ram_panic;
     g_core_L = game_start();
+    gpu_end();
     if (!g_core_L) return false;
     g_core_w = g_screen_w; g_core_h = g_screen_h;
     return true;
 }
 
 void retro_unload_game(void) {
+    gpu_begin();
     if (g_core_L) { lua_close(g_core_L); g_core_L = NULL; }
     ram_close();
+    for (int i = 0; i < g_nimages; i++) if (g_images[i].tex) { SDL_DestroyTexture(g_images[i].tex); g_images[i].tex = NULL; }
+    for (int f = 0; f < GS_FONTS; f++) if (g_font_tex[f]) { SDL_DestroyTexture(g_font_tex[f]); g_font_tex[f] = NULL; }
+    if (g_target) { SDL_DestroyTexture(g_target); g_target = NULL; }
+    gpu_end();
+    if (g_gpu) { gpu_close(); g_ren = NULL; }
     if (g_ren) { SDL_DestroyRenderer(g_ren); g_ren = NULL; }
     if (g_embed_surf) { SDL_FreeSurface(g_embed_surf); g_embed_surf = NULL; }
 }
@@ -158,6 +173,7 @@ void retro_run(void) {
     g_embed_buttons = held; /* poll_buttons reads them as it reads the studio's */
     poll_buttons();
 
+    gpu_begin();
     game_frame(g_core_L, 1.0 / CORE_FPS);
     if (g_quit) { env_cb(RETRO_ENVIRONMENT_SHUTDOWN, NULL); g_quit = false; } /* gs.quit(): back to the emulator's menu */
 
@@ -166,7 +182,11 @@ void retro_run(void) {
         struct retro_game_geometry geo = { (unsigned)g_core_w, (unsigned)g_core_h, CORE_MAX_W, CORE_MAX_H, (float)g_core_w / (float)g_core_h };
         env_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &geo);
     }
-    video_cb(g_embed_surf->pixels, (unsigned)g_core_w, (unsigned)g_core_h, (size_t)g_embed_surf->pitch);
+    if (g_gpu) {
+        SDL_RenderReadPixels(g_ren, &(SDL_Rect){ 0, 0, g_core_w, g_core_h }, SDL_PIXELFORMAT_ARGB8888, g_frame, g_core_w * 4);
+        gpu_end();
+        video_cb(g_frame, (unsigned)g_core_w, (unsigned)g_core_h, (size_t)g_core_w * 4);
+    } else video_cb(g_embed_surf->pixels, (unsigned)g_core_w, (unsigned)g_core_h, (size_t)g_embed_surf->pitch);
 
     /* this frame's sound: 735 samples at 44.1 kHz, with the leftover fraction carried so none drift */
     g_audio_due += MIX_FREQ / CORE_FPS;
@@ -183,7 +203,7 @@ void retro_run(void) {
 /* Save states (and NextUI's Resume and rewind): the console's RAM and the runtime's state, see runtime/ram.c. One size for the whole run. */
 size_t retro_serialize_size(void) { return g_core_L ? state_size() : 0; }
 bool retro_serialize(void *data, size_t size) { return state_save(data, size); }
-bool retro_unserialize(const void *data, size_t size) { return state_load(data, size); }
+bool retro_unserialize(const void *data, size_t size) { gpu_begin(); const bool ok = state_load(data, size); gpu_end(); return ok; }
 void retro_cheat_reset(void) {}
 void retro_cheat_set(unsigned index, bool enabled, const char *code) { (void)index; (void)enabled; (void)code; }
 unsigned retro_get_region(void) { return RETRO_REGION_NTSC; }

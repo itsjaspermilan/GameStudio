@@ -367,7 +367,8 @@ static bool state_load(const unsigned char *in, size_t size) {
         FILE *const old_std[3] = { (FILE *)(uintptr_t)h.std[0], (FILE *)(uintptr_t)h.std[1], (FILE *)(uintptr_t)h.std[2] };
             shift_all(g_core_L, old_std);
     }
-    g_screen_w = rs.screen_w; g_screen_h = rs.screen_h; screen_logical(g_screen_w, g_screen_h); g_mosaic = rs.mosaic;
+    if (rs.screen_w != g_screen_w || rs.screen_h != g_screen_h) { g_screen_w = rs.screen_w; g_screen_h = rs.screen_h; screen_logical(g_screen_w, g_screen_h); }
+    g_mosaic = rs.mosaic;
     memcpy(btn_now, rs.now, sizeof rs.now); memcpy(btn_prev, rs.prev, sizeof rs.prev);
     for (int i = 0; i < MAX_VOICES; i++) {
         const bool ok = rs.voices[i].snd >= 0 && rs.voices[i].snd < g_nsounds;

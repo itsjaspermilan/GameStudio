@@ -1,6 +1,6 @@
 # runtime/: the `gs` player (C, SDL2, Lua 5.4)
 
-`main.c` (~2200 lines) is the player and CLI, `libretro.c` + `ram.c` the libretro core built from it (see "The libretro core" below), `synth.c`/`synth.h` (~700/100) is the sound engine, `fonts.h` the glyphs of `gs.print` (written by `scripts/make-fonts.mjs` from `engine/fonts/*.txt`; don't edit it). SDL2 (2.28.5,
+`main.c` (~2200 lines) is the player and CLI, `libretro.c` + `ram.c` + `gpu.c` the libretro core built from it (see "The libretro core" below), `synth.c`/`synth.h` (~700/100) is the sound engine, `fonts.h` the glyphs of `gs.print` (written by `scripts/make-fonts.mjs` from `engine/fonts/*.txt`; don't edit it). SDL2 (2.28.5,
 the oldest a handheld ships: call nothing newer), Lua, stb_image, TinySoundFont, TLSF and libretro.h are vendored in `../third_party` and built by `../CMakeLists.txt`. The
 desktop build links SDL2 in; the handheld build (`GS_SYSTEM_SDL2`) uses the system's `libSDL2-2.0.so.0`, which has the device's GPU driver, reads
 the frontend's controller mapping as written, and is what muOS's overlays hook (see "Video output" below). After any change here: `./scripts/build.sh`, `./tests/run.sh`,
@@ -66,8 +66,16 @@ take one input per button.
 
 `libretro.c` includes `main.c` with `GS_LIBRETRO` (no `main()`) and builds `gs_libretro` (`.so`/`.dylib`): a cart is a "rom" for NextUI's
 minarch or RetroArch, which own the window, sound device, buttons (by label: `RETRO_DEVICE_ID_JOYPAD_A` is the button marked A) and their
-menu. The program and the core share `game_start` / `game_frame`. Drawing goes through SDL's software renderer into a 640x480 XRGB8888
-surface (the game's corner is handed over); `mix_cb` is called once a frame for 735 samples at 44.1 kHz. The emulator links SDL2 too (on
+menu. The program and the core share `game_start` / `game_frame`. **Drawing** (`gpu.c`): the core opens a GPU context of its own (EGL,
+an off-screen surface; `libEGL`/`libGLESv2` loaded at run time), draws the frame into a target texture with GL ES 2 and reads it back
+(one `glReadPixels` a frame: reading row by row waited for the GPU 192 times). `gpu.c` has a stand-in for each of the ~20 SDL renderer
+calls `main.c` makes, swapped in by name, keeping SDL's meaning (texture blend/colour/alpha, draw colour, SDL's blend formulas); copies
+with the same texture and blend mode are batched. Rows are drawn top row first at GL row 0, so readback and targets used as textures need
+no flipping. The fragment shader asks for high precision. Without EGL (a Mac, the tests, `GS_CORE_GPU=0`) every stand-in passes to SDL's
+software renderer into a 640x480 XRGB8888 surface. Measured on the Brick (`tests/heavy`): GPU 3.9/4.9/6.8 ms for 100/200/400 stars
+against 21/34/60 on the CPU; frames match the CPU's (Breakout, blend, banks, mosaic exactly; turning sprites differ only at edges). Any
+new SDL renderer call in `main.c` needs a stand-in in `gpu.c`, or it reaches SDL with a GPU texture. `mix_cb` is called once a frame for
+735 samples at 44.1 kHz. The emulator links SDL2 too (on
 the handheld the same library): the core never initialises or quits SDL's video/audio/controller parts and never opens a controller.
 Saves go to the emulator's save folder, one folder per cart; the SoundFont is looked for beside the core (`dladdr`).
 

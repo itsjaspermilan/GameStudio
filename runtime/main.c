@@ -1902,10 +1902,13 @@ static void apply_mosaic_gpu(void) {
         if (small) { SDL_SetTextureBlendMode(small, SDL_BLENDMODE_NONE); SDL_SetTextureScaleMode(small, SDL_ScaleModeNearest); }
     }
     if (!small) return;
-    /* a shrink by n samples each block at its middle ((i + 0.5) * n); only the corner of the small texture that the frame needs is used */
+    /* A shrink by n samples each block at (i + 0.5) * n. For an even n that is the edge between two pixels, which a GPU rounds either way
+     * (in a pattern: on a 192-high screen every third block went black), so the small picture is moved half a pixel of the frame to sample
+     * the centre of pixel i * n + n / 2, the one the drawing in memory picks. Only the corner of the small texture the frame needs is used. */
     const int sw = (w + n - 1) / n, sh = (h + n - 1) / n;
+    const float nudge = n % 2 ? 0.0f : -0.5f / (float)n;
     SDL_SetRenderTarget(g_ren, small);
-    SDL_RenderCopyF(g_ren, g_target, NULL, &(SDL_FRect){ 0, 0, (float)w / n, (float)h / n });
+    SDL_RenderCopyF(g_ren, g_target, NULL, &(SDL_FRect){ nudge, nudge, (float)w / n, (float)h / n });
     SDL_SetRenderTarget(g_ren, g_target);
     SDL_RenderCopy(g_ren, small, &(SDL_Rect){ 0, 0, sw, sh }, &(SDL_Rect){ 0, 0, sw * n, sh * n });
 }
