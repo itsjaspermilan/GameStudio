@@ -9,11 +9,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "libretro.h"
 
 static unsigned v_w, v_h; static size_t v_pitch; static unsigned char *v_copy; static long v_frames;
 static long a_samples; static int a_peak; static long frame_no; static int shut_down;
 static unsigned fmt_ok;
+/* how long the core takes for a frame (retro_run), after the first 60 frames of loading: average, 95th percentile and worst, in ms */
+static double run_ms[100000]; static long run_n;
+static double now_ms(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec * 1e3 + ts.tv_nsec / 1e6; }
+static int cmp_d(const void *a, const void *b) { const double x = *(const double *)a, y = *(const double *)b; return x < y ? -1 : x > y; }
 
 static bool env(unsigned cmd, void *data) {
     switch (cmd) {
@@ -99,7 +104,9 @@ int main(int argc, char **argv) {
         }
         if (call == 0) continue;
         frame_no++;
+        const double t0 = now_ms();
         p_retro_run();
+        if (call > 60 && run_n < 100000) run_ms[run_n++] = now_ms() - t0;
         if (frame_no == dump_at && v_copy) { /* the first time to the file named, a replay after a load to <file>.again.bmp */
             static int dumps; char path[600]; snprintf(path, sizeof path, dumps++ ? "%s.again.bmp" : "%s", dump_f); save_bmp(path);
         }
@@ -115,6 +122,11 @@ int main(int argc, char **argv) {
     if (argc > 4 && v_copy) save_bmp(argv[4]);
     printf("RETRO frames=%ld size=%ux%u base=%ux%u fps=%.0f rate=%.0f samples=%ld peak=%d xrgb=%u shutdown=%d\n", v_frames, v_w, v_h,
            av.geometry.base_width, av.geometry.base_height, av.timing.fps, av.timing.sample_rate, a_samples, a_peak, fmt_ok, shut_down);
+    if (run_n) {
+        double sum = 0; for (long i = 0; i < run_n; i++) sum += run_ms[i];
+        qsort(run_ms, (size_t)run_n, sizeof run_ms[0], cmp_d);
+        printf("RETRO frame ms: average %.2f, 95%% %.2f, worst %.2f over %ld frames\n", sum / run_n, run_ms[run_n * 95 / 100], run_ms[run_n - 1], run_n);
+    }
     p_retro_unload_game(); p_retro_deinit();
     return 0;
 }

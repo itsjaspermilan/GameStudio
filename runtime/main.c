@@ -2180,6 +2180,7 @@ int main(int argc, char **argv) {
     double wd_dt = 0, wd_upd = 0, wd_draw = 0, wd_pres = 0, wd_fb = 0; int wd_n = 0; long wd_frames = 0; bool wd_warned = false;
     Uint64 bw_t0 = ticks_ns(); long bw_n = 0, bw_late = 0; double bw_dt = 0, bw_work = 0; /* a one-second window for the CPU floor controller */
     double prev_upd = 0, prev_draw = 0, prev_pres = 0, prev_fb = 0, prev_wait = 0; /* the previous frame's phases: a frame's time (now minus the last now) is that frame's work */
+    Uint32 *readback = getenv("GS_READBACK") ? malloc((size_t)2048 * 2048 * 4) : NULL;
     while (!g_quit) {
         if (max_frames && ++frame > max_frames) break;
         if (max_seconds > 0 && SDL_GetTicks() / 1000.0 > max_seconds) break;
@@ -2229,6 +2230,9 @@ int main(int argc, char **argv) {
         start_select_held = btn_now[B_START] && btn_now[B_SELECT] ? start_select_held + raw_dt : 0;
         if (start_select_held >= 3.0) g_quit = true;
         game_frame(L, dt);
+        /* GS_READBACK=1 copies every finished frame from the GPU into memory, as a libretro core drawing on a GPU of its own would have to
+         * (a measure of that cost on a device: it shows in GS_PERF's drawing time) */
+        if (readback && g_target) SDL_RenderReadPixels(g_ren, NULL, SDL_PIXELFORMAT_ARGB8888, readback, g_screen_w * 4);
         const Uint64 t_upd = g_t_updated, t_draw = ticks_ns();
         g_px_last = g_px_frame; g_calls_last = g_calls_frame; g_px_frame = 0; g_calls_frame = 0;
         if (g_win) present_window(); else SDL_RenderPresent(g_ren);

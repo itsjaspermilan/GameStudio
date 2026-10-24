@@ -112,6 +112,7 @@ skips the extra wait after the flip). Opaque composed pictures are copied withou
 | `GS_DEBUG_INPUT=1` | Prints joysticks, raw evdev key codes and presses (flushed with `fsync`) |
 | `GS_MAX_SECONDS=N`, `GS_MAX_FRAMES=N` | Leave after N seconds / frames |
 | `GS_DUMP_FRAME=file.bmp` | Saves the last frame (tests compare drawing paths with it) |
+| `GS_READBACK=1` | Copies every finished frame from the GPU into memory (what a libretro core drawing on a GPU of its own would pay); shows in `GS_PERF`'s drawing time |
 | `GS_EMBED=port`, `GS_EMBED_SIZE=WxH` | No window: draw with the software renderer at the console's size and send changed frames to the studio's Play panel on 127.0.0.1:port; take its buttons back (protocol in the "embedded preview" comment in `main.c`; `studio/src/play-core.js` reads it) |
 | `GS_FBDEV=path`, `GS_AUDIO_FRAMES=N` | Another framebuffer device; a device audio buffer of N frames (default: SDL's) |
 
