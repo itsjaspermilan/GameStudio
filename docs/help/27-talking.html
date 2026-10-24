@@ -7,7 +7,8 @@ summary: gs.say shows a text box that types itself out, gs.ask asks a question w
 <h1>Talking: text boxes and choices</h1>
 <p>Two calls do conversations. <code>gs.say(name, text)</code> shows a text box, types the words out and waits until the player presses A.
 <code>gs.ask(question, answers)</code> asks a question with answers to pick with up and down, and gives back the number of the one picked.
-While a box is up the world stands still: nothing moves, nothing hits the player.</p>
+While a box is up the world stands still: nothing moves, nothing hits the player. The box opens out from its middle and folds shut
+at the end, like a GBA window; one <code>gs.say</code> straight after another keeps it open (<code>gs.ui.style.open_time = 0</code> turns that off).</p>
 <p>Both wait for the player, so they go inside a little script that can wait: <code>gs.go(function() ... end)</code> in a scene, <code>self:go(...)</code> in an entity
 (see <a href="help:timers">Timers</a>). Inside it the conversation reads from top to bottom, like a script for a play.</p>
 

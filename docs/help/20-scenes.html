@@ -15,7 +15,7 @@ summary: A title screen, the game, a results screen, passing values between scen
 </ul>
 
 <h2>The title screen</h2>
-<p><code>gs.ui.menu</code> makes a list you move through with up and down and pick with A. Its <code>update</code> returns the number of the item that was picked, or <code>nil</code>. Saved values come back with <code>gs.save.get(key, default)</code>.</p>
+<p><code>gs.ui.menu</code> makes a list you move through with up and down and pick with A. Its <code>update</code> returns the number of the item that was picked, or <code>nil</code>. It rolls open line by line the first time it is drawn, and <code>menu:close()</code> rolls it away again (<code>menu.closed</code> is true once it is gone). Saved values come back with <code>gs.save.get(key, default)</code>.</p>
 <pre class="lua" data-path="scenes/title.lua"><code>local Title = gs.scene{}
 
 function Title:enter()

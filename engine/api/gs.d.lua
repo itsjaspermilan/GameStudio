@@ -559,17 +559,28 @@ function gs.draw.bar(x, y, w, h, value, max, opts) end
 
 -- ------------------------------------------------------------------ interface
 gs.ui = {}
+---How menus look: color, selected, cursor, line, on_move, on_pick, and open_time (seconds a menu or gs.say's box takes to open or
+---close, 0.12; 0 for none).
+gs.ui.style = {}
 ---@class Menu
 ---@field cur integer The selected item.
 ---@field items string[]
+---@field closed boolean True once menu:close() has rolled it away.
 local Menu = {}
----Handle up / down / A. Returns the number of the item when A is pressed, otherwise nil.
+---Handle up / down / A. Returns the number of the item when A is pressed, otherwise nil (also while it rolls open or shut).
 ---@return integer|nil
 function Menu:update() end
----Draw the items with a cursor.
+---Draw the items with a cursor. The first time it is drawn it rolls open, line by line.
 ---@param x number
 ---@param y number
 function Menu:draw(x, y) end
+---Roll the menu away, last line first; menu.closed is true when it is gone.
+function Menu:close() end
+---Roll a closed menu open again.
+function Menu:open() end
+---How far it has rolled open, 0 to 1.
+---@return number
+function Menu:unfolded() end
 ---A list of choices to pick with the D-pad.
 ---@param items string[]
 ---@param opts? { scale: number, line: number }

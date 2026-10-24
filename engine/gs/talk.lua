@@ -10,11 +10,21 @@
 -- itself): dialogue_box (a panel: where the box is and its tiles), dialogue_text (a text: where the words start, their font, colour and
 -- size), dialogue_name (a text: where the speaker's name goes) and dialogue_cursor (a picture: the arrow in front of the chosen answer
 -- and at the end of a page). Without them a pale box sits at the bottom of the screen with dark round_tall letters and their shadow.
+-- The box opens out from its middle line and folds shut when the conversation ends, the way GBA windows did; gs.say right after
+-- gs.say keeps it open. gs.ui.style.open_time (seconds, 0 for none) is how long that takes, for menus as well.
 local draw = require("gs.draw")
 local input = require("gs.input")
 local timers = require("gs.timers")
 
-local M = { speed = 40, active = nil } -- speed: letters a second
+local M = { speed = 40, active = nil, leaving = nil } -- speed: letters a second
+local function now() return require("gs.world").time end
+local function open_time() return require("gs.ui").style.open_time or 0 end
+-- how far open a box is, 0 to 1, eased so it slows as it settles
+local function opened(t0, closing)
+  local f = open_time() > 0 and math.min(1, (now() - t0) / open_time()) or 1
+  if closing then f = 1 - f end
+  return 1 - (1 - f) * (1 - f)
+end
 
 local PATTERN = { dialogue_box = true, dialogue_text = true, dialogue_name = true, dialogue_cursor = true }
 M.pattern = PATTERN
@@ -61,12 +71,17 @@ local function open(name, text, answers)
   -- the answers go under the last page's words, or on a page of their own when they do not fit
   if answers and #pages[#pages] + #answers > rows then pages[#pages + 1] = {} end
   local t = { name = name, pages = pages, page = 1, shown = 0, answers = answers, pick = 1, style = s, was_paused = W.paused, job = timers.current }
+  -- a box still folding shut from the last conversation opens again from where it is: gs.say after gs.say stays open
+  local back = M.leaving and M.leaving.style.x == s.x and M.leaving.style.y == s.y and opened(M.leaving.t0, true) or 0
+  t.t0 = now() - (1 - math.sqrt(1 - back)) * open_time() -- (the inverse of the easing, so it carries on from that size)
+  M.leaving = nil
   M.active = t
   t.job.talk = true -- this script keeps running while the world stands still
   W.pause(true)
   timers.wait_until(function() return t.done end)
   t.job.talk = nil
   M.active = nil
+  M.leaving = { style = s, t0 = now() }
   W.pause(t.was_paused == true)
   return t.pick
 end
@@ -84,6 +99,7 @@ local function letters(page) local n = 0; for _, l in ipairs(page) do n = n + dr
 function M.update(dt)
   local t = M.active
   if not t or t.done then return end
+  if opened(t.t0) < 1 then return end -- the words start once the box is open
   local page = t.pages[t.page]
   local total = letters(page)
   local last = t.page == #t.pages
@@ -108,16 +124,38 @@ local function cursor(s, x, y)
   else text_at(s, ">", x - s.cw / 2, y) end
 end
 
+-- the box at a part of its height (open from 0 to 1), its middle line kept where it is
+local function box(s, open)
+  local h = math.floor(s.h * open + 0.5)
+  if h < 2 then return end
+  local y = s.y + (s.h - h) // 2
+  if s.box then
+    local was_y, was_h = s.box.y, s.box.h
+    s.box.y, s.box.h = y, h
+    s.box.draw(s.box)
+    s.box.y, s.box.h = was_y, was_h
+  else -- a rounded dark edge, a light line inside it, and a pale page
+    draw.rect(s.x + 1, y, s.w - 2, h, "#38486a"); draw.rect(s.x, y + 1, s.w, h - 2, "#38486a")
+    if h > 4 then draw.rect(s.x + 2, y + 2, s.w - 4, h - 4, "#a8c4e0") end
+    if h > 6 then draw.rect(s.x + 3, y + 3, s.w - 6, h - 6, "#f8f8f0") end
+  end
+end
+
 -- drawn above everything else, after the scene's draw_ui
 function M.draw()
   local t = M.active
-  if not t or t.done then return end
-  local s = t.style
-  if s.box then s.box.draw(s.box)
-  else -- a rounded dark edge, a light line inside it, and a pale page
-    draw.rect(s.x + 1, s.y, s.w - 2, s.h, "#38486a"); draw.rect(s.x, s.y + 1, s.w, s.h - 2, "#38486a")
-    draw.rect(s.x + 2, s.y + 2, s.w - 4, s.h - 4, "#a8c4e0"); draw.rect(s.x + 3, s.y + 3, s.w - 6, s.h - 6, "#f8f8f0")
+  if not t or t.done then
+    local l = M.leaving
+    if l then
+      local f = opened(l.t0, true)
+      if f <= 0 then M.leaving = nil else box(l.style, f) end
+    end
+    return
   end
+  local s = t.style
+  local open = opened(t.t0)
+  box(s, open)
+  if open < 1 then return end
   if t.name and s.name then text_at(s, t.name, s.name.x, s.name.y, s.name.color) end
   local page, left = t.pages[t.page], math.floor(t.shown)
   local y = s.ty
