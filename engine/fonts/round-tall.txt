@@ -1,5 +1,5 @@
 # The tall built-in letters, rounded (round_tall), 12 rows: capitals and digits on rows 0-8, lowercase from row 3, tails on rows 9-11.
-# Drawn like round-small.txt; square_tall and bold_tall are made from these. After editing: node scripts/make-fonts.mjs
+# Drawn like round-small.txt; bold_tall is made from these. After editing: node scripts/make-fonts.mjs
 height 12
 = space
 ...

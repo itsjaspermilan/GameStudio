@@ -1,6 +1,6 @@
 # The small built-in letters, rounded (round_small), 8 rows: capitals and digits on rows 0-5, lowercase from row 2, tails on rows 6-7.
 # Each letter starts with "= <letter>" and is drawn with # (ink) and . (paper); its width is the width of its rows. Rows left out at
-# the bottom are empty. square_small and bold_small are made from these (scripts/make-fonts.mjs). After editing: node scripts/make-fonts.mjs
+# the bottom are empty. bold_small is made from these (scripts/make-fonts.mjs). After editing: node scripts/make-fonts.mjs
 height 8
 = space
 ..

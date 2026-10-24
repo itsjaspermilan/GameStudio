@@ -1,7 +1,7 @@
 // Writes the built-in fonts for the runtime (runtime/fonts.h) and the studio (studio/src/fonts.js) from the letters drawn in
-// engine/fonts/round-small.txt and round-tall.txt. Every style comes in a small size (8 rows, for scores and labels) and a tall one
-// (12 rows, for talking and menus). Only the round style is drawn by hand; the others are made from it the way GBA games often
-// made their variants: square squares off every rounded corner, bold thickens each stroke by a pixel to the right.
+// engine/fonts/*.txt. Every style comes in a small size (8 rows, for scores and labels) and a tall one (12 rows, for talking and
+// menus). Round and square are drawn by hand (round-*.txt, square-*.txt); bold is made from round the way GBA games often made their
+// variants, each stroke thickened by a pixel to the right.
 // Run it after editing the letters: node scripts/make-fonts.mjs (then scripts/build.sh). studio/test/fonts.test.mjs checks it was run.
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -42,18 +42,6 @@ export function parseFont(text, file = "font") {
 }
 
 const on = (g, x, y) => x >= 0 && x < g.w && y >= 0 && y < g.rows.length && (g.rows[y] >> x & 1) === 1;
-// A paper pixel at a rounded outside corner (two strokes of at least two pixels meet beside it, with paper between them) becomes ink.
-// Corners inside a letter (the joint of an L) have ink between the strokes and stay as they are.
-function squared(g) {
-  const rows = g.rows.slice();
-  for (let y = 0; y < rows.length; y++) for (let x = 0; x < g.w; x++) {
-    if (on(g, x, y)) continue;
-    for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
-      if (on(g, x + dx, y) && on(g, x + 2 * dx, y) && on(g, x, y + dy) && on(g, x, y + 2 * dy) && !on(g, x + dx, y + dy)) { rows[y] |= 1 << x; break; }
-    }
-  }
-  return { w: g.w, rows };
-}
 // Thickening would close a one-pixel gap between two strokes (the middle of an m), so such a gap is made two wide first.
 function bolded(g) {
   const cols = [];
@@ -70,7 +58,7 @@ export function buildFonts() {
   for (const size of ["small", "tall"]) {
     const round = parseFont(readFileSync(join(root, `engine/fonts/round-${size}.txt`), "utf8"), `round-${size}.txt`);
     fonts[`round_${size}`] = round;
-    fonts[`square_${size}`] = { h: round.h, glyphs: round.glyphs.map(squared) };
+    fonts[`square_${size}`] = parseFont(readFileSync(join(root, `engine/fonts/square-${size}.txt`), "utf8"), `square-${size}.txt`);
     fonts[`bold_${size}`] = { h: round.h, glyphs: round.glyphs.map(bolded) };
   }
   // the order the runtime numbers them in: round_small (0) is what text is drawn in when no font is named
