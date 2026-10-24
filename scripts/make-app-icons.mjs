@@ -1,9 +1,9 @@
 // Writes the studio's app icons into studio/src-tauri/icons/: icon.icns for macOS, icon.ico for Windows, and the PNGs Tauri wants
-// (Linux, the window icon, the Windows Store tiles). The picture is the TrimUI Brick (the handheld the games run on) as pixel art,
-// a Glow43 scene on its screen:
-//   - macOS: the Brick on Apple's app icon tile (an 824 tile on a 1024 canvas, continuous corners), an indigo night in pixel bands
+// (Linux, the window icon, the Windows Store tiles). The picture is a d-pad, a game controller's cross of arrows, as pixel art: a raised
+// plus in light grey with its side showing, lit along its top edges, an arrow on each arm and a dimple in the middle:
+//   - macOS: the d-pad on Apple's app icon tile (an 824 tile on a 1024 canvas, continuous corners), an indigo night in pixel bands
 //     with a hard pixel shadow, so it sits with the other icons in the Dock;
-//   - Windows: the Brick alone, no tile, as tall as the square.
+//   - Windows: the d-pad alone, no tile, as big as the square.
 // Each is drawn on a 32 x 32 grid and redrawn on a 16 x 16 one for the smallest sizes, and only ever scaled by whole numbers, so every
 // pixel stays square and sharp. The drawing is the code below; SVGs of it are written to studio/src-tauri/icons/source/ to look at.
 //   node scripts/make-app-icons.mjs        (from the repo root; on a Mac Apple's iconutil packs the .icns)
@@ -15,70 +15,56 @@ import { png } from "./png.mjs";
 
 const ICONS = resolve("studio/src-tauri/icons"), SRC = join(ICONS, "source");
 
-// o outline, l/m/s body light, mid and side, b bezel, G/g grey buttons dark and lit, t teal; the rest are the screen's scene.
-const PAL = { o: "#2a2638", l: "#f4f4f7", m: "#d8d9e2", s: "#a6a8b8", b: "#1d1c26", G: "#7d8191", g: "#b8bbc8", t: "#3fd6b4",
-  c: "#9ff0ff", C: "#5cc8f4", y: "#ffe27a", w: "#ffffff", p: "#ff7eb6", k: "#c23a7a", h: "#4fbf6a", n: "#7ee06a", d: "#a8643a",
-  S: "#22185e", "*": "#ffe9a8" };
+// o outline, l lit edge, m face, s side (the pad's depth), a arrows, d the dimple, S the shadow on the tile.
+const PAL = { o: "#211d30", l: "#ffffff", m: "#dfe0ea", s: "#8e91a6", a: "#9da0b4", d: "#c3c5d3", S: "#22185e" };
 
-// What the Brick's screen shows, one scene per screen size (4:3 like Glow43): sky, sun, a cloud, hills and a blob hero.
-const SCENES = {
-  16: ["cccccccccccccccc", "ccwwccccccccyycc", "cwwwwcccccccyyyc", "cccccccccccyyyyc", "cccccckkkccyyycc", "cccccpppppcccccc",
-    "CCCCCpwpwpCCCCCC", "hCCCCpppppCCCCCh", "hhCCCCkkkCCCCChh", "nnnnnnnnnnnnnnnn", "dddddddddddddddd", "dddddddddddddddd"],
-  12: ["ccccccccccyc", "cwwcccccyyyc", "ccccckkkcyyc", "ccccpppppccc", "CCCCpwpwpCCC", "hCCCpppppCCh", "hhCCCkkkCChh", "nnnnnnnnnnnn", "dddddddddddd"],
-  8: ["ccccccyc", "cwwccyyc", "cccppccc", "CCppppCC", "hCCkkCCh", "nnnnnnnn"],
-  4: ["ccyc", "cppc", "nnnn"],
-};
-
-// The Brick on a grid of size n, its top left at x0,y0, w x h, with the parts placed by the layout L (rows and columns from its corner).
-function brick(n, x0, y0, w, h, L) {
+// A d-pad on a grid of n: a plus `size` across with arms `arm` thick (size - arm even), its top left at x0, y0, standing `depth`
+// pixels proud of what is under it, in a one-pixel outline.
+function dpad(n, x0, y0, size, arm, depth) {
   const g = Array.from({ length: n }, () => Array(n).fill("."));
-  const put = (x, y, ch) => { if (x >= 0 && y >= 0 && x < w && y < h) g[y0 + y][x0 + x] = ch; };
-  const rect = (x, y, rw, rh, ch) => { for (let j = 0; j < rh; j++) for (let i = 0; i < rw; i++) put(x + i, y + j, ch); };
-  // the body: an outline with the corners cut, lit top left, a mid band low down and the side showing along the bottom
-  rect(0, 0, w, h, "o");
-  rect(1, 1, w - 2, h - 2, "l");
-  rect(1, h - 3, w - 2, 1, "m"); rect(w - 2, 1, 1, h - 3, "m"); rect(1, h - 2, w - 2, 1, "s");
-  for (const [x, y] of [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]]) put(x, y, ".");
-  if (L.round) for (const [x, y] of [[1, 1], [w - 2, 1], [1, h - 2], [w - 2, h - 2]]) put(x, y, "o");
-  // the screen in its bezel
-  const [bx, by, bw, bh] = L.bezel;
-  rect(bx, by, bw, bh, "b");
-  if (L.round) for (const [x, y] of [[bx, by], [bx + bw - 1, by], [bx, by + bh - 1], [bx + bw - 1, by + bh - 1]]) put(x, y, "l");
-  SCENES[L.scene].forEach((row, j) => [...row].forEach((ch, i) => put(bx + 1 + i, by + 1 + j, ch)));
-  // the D-pad: a plus, with thick arms lit along their top edges on the big grid
-  const [dx, dy, ds, dt] = L.dpad, a = (ds - dt) / 2;
-  rect(dx + a, dy, dt, ds, "G"); rect(dx, dy + a, ds, dt, "G");
-  if (dt > 1) { rect(dx + a, dy, dt, 1, "g"); rect(dx, dy + a, a, 1, "g"); rect(dx + a + dt, dy + a, a, 1, "g"); }
-  // X, Y, A, B in a diamond, dots of bs pixels (lit top left) a step apart: with a gap between them, or they read as a checkerboard
-  const [cx, cy, bs, step] = L.buttons;
-  for (const [i, j] of [[1, 0], [0, 1], [2, 1], [1, 2]]) {
-    const x = cx + i * step, y = cy + j * step;
-    rect(x, y, bs, bs, "G"); if (bs > 1) put(x, y, "g");
+  const a = (size - arm) / 2;
+  const plus = (x, y) => x >= 0 && y >= 0 && x < size && y < size && ((x >= a && x < a + arm) || (y >= a && y < a + arm));
+  const put = (x, y, ch) => { const gx = x0 + x, gy = y0 + y; if (gx >= 0 && gy >= 0 && gx < n && gy < n) g[gy][gx] = ch; };
+  // the side first, the plus shifted down by each step of its depth, then the face over it
+  for (let d = depth; d >= 1; d--) for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (plus(x, y)) put(x, y + d, "s");
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (plus(x, y)) put(x, y, plus(x, y - 1) && plus(x - 1, y) ? "m" : "l");
+  // the outline: every empty pixel beside the pad
+  const filled = (x, y) => { const gx = x0 + x, gy = y0 + y; return gx >= 0 && gy >= 0 && gx < n && gy < n && g[gy][gx] !== "." && g[gy][gx] !== "o"; };
+  for (let y = -1; y <= size + depth; y++) for (let x = -1; x <= size; x++)
+    if (!filled(x, y) && (filled(x - 1, y) || filled(x + 1, y) || filled(x, y - 1) || filled(x, y + 1))) put(x, y, "o");
+  // an arrow on each arm, pointing out, two rows deep where the arm is thick enough
+  if (arm >= 6) {
+    const mid = size / 2, tip = Math.max(1, Math.floor(a / 2) - 1);
+    for (const [w, r] of [[2, 0], [4, 1]]) {
+      for (let i = 0; i < w; i++) {
+        const c = mid - w / 2 + i;
+        put(c, tip + r, "a"); put(c, size - 1 - tip - r, "a"); // up, down
+        put(tip + r, c, "a"); put(size - 1 - tip - r, c, "a"); // left, right
+      }
+    }
   }
-  for (const [x, y, pw] of L.pills) rect(x, y, pw, 1, "t");
-  for (const [x, y, pw] of L.chin || []) rect(x, y, pw, 1, "G");
-  if (L.side) put(w - 1, L.side, "t"); // the teal button on the right edge
+  // the dimple where the arms cross
+  const ds = arm >= 6 ? 4 : 2, d0 = (size - ds) / 2;
+  for (let y = 0; y < ds; y++) for (let x = 0; x < ds; x++) {
+    const corner = ds === 4 && (x === 0 || x === 3) && (y === 0 || y === 3);
+    if (!corner) put(d0 + x, d0 + y, y < ds / 2 ? "s" : "d");
+  }
   return g;
 }
 
-// Windows: the Brick as tall as the square.
-const WIN32 = brick(32, 5, 1, 22, 30, { round: true, bezel: [2, 2, 18, 14], scene: 16, dpad: [2, 18, 7, 3], buttons: [12, 17, 2, 3],
-  pills: [[8, 17, 2], [11, 17, 2]], chin: [[6, 26, 2], [10, 26, 2], [14, 26, 2]], side: 9 });
-const WIN16 = brick(16, 2, 0, 12, 16, { bezel: [1, 1, 10, 8], scene: 8, dpad: [1, 10, 3, 1], buttons: [8, 10, 1, 1], pills: [[5, 10, 2]],
-  chin: [[4, 13, 1], [7, 13, 1]] });
-// macOS: a smaller Brick inside the tile (its screen nearly as wide as the body, as on the real one), and a hard shadow one pixel down
-// and right.
-const MAC32 = brick(32, 8, 5, 16, 21, { round: true, bezel: [1, 1, 14, 11], scene: 12, dpad: [1, 13, 5, 1], buttons: [9, 13, 1, 2],
-  pills: [[7, 13, 2]], side: 6 });
-const MAC16 = brick(16, 4, 2, 8, 11, { bezel: [1, 1, 6, 5], scene: 4, dpad: [1, 6, 3, 1], buttons: [4, 6, 1, 1], pills: [] });
-function shadowAndStars(g, stars) {
+// Windows: the d-pad as big as the square (outline and depth included).
+const WIN32 = dpad(32, 2, 1, 28, 10, 2);
+const WIN16 = dpad(16, 1, 1, 14, 6, 1);
+// macOS: a smaller d-pad inside the tile, and a hard shadow one pixel down and right.
+const MAC32 = dpad(32, 7, 6, 18, 6, 2);
+const MAC16 = dpad(16, 3, 2, 10, 4, 1);
+function shadow(g) {
   const n = g.length;
   for (let y = n - 1; y > 0; y--) for (let x = n - 1; x > 0; x--) if (g[y][x] === "." && g[y - 1][x - 1] !== "." && g[y - 1][x - 1] !== "S") g[y][x] = "S";
-  for (const [x, y] of stars) g[y][x] = "*";
   return g;
 }
-shadowAndStars(MAC32, [[6, 7], [26, 6], [5, 18], [26, 23]]);
-shadowAndStars(MAC16, []);
+shadow(MAC32);
+shadow(MAC16);
 
 // the tile: night in four bands, inside a superellipse close to Apple's continuous corners (at 45 degrees it meets a 185 px corner
 // radius on the 824 tile), with a soft shadow under it as in Apple's template
