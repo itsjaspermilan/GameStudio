@@ -3,15 +3,19 @@ import { color as themeColor, ink, tint } from "./theme.js";
 import * as C from "./sprite-core.js";
 import * as P from "./palette-core.js";
 
+// What Copy or Cut took, shared by every sprite and tileset editor so pixels can go from one picture to another: { x, y, w, h, data }
+let clipboard = null;
+
 const PALETTE = ["#000000", "#1d2b53", "#7e2553", "#008751", "#ab5236", "#5f574f", "#c2c3c7", "#fff1e8",
   "#ff004d", "#ffa300", "#ffec27", "#00e436", "#29adff", "#83769c", "#ff77a8", "#ffccaa"];
 // [id, tooltip, the word on the button]: words, not letters, so the tools read without hovering; the letter is the key
 const TOOLS = [
+  ["select", "Select: drag a box around pixels, then drag inside it to move them. Arrows nudge, Delete clears, Cmd/Ctrl+C, X and V copy, cut and paste (also into another frame or sprite), F flips, Esc lets go (S)", "Select"],
   ["pencil", "Pencil: draw single pixels (B)", "Pencil"], ["eraser", "Eraser: make pixels see-through (E)", "Eraser"], ["fill", "Fill an area of one colour (G)", "Fill"],
   ["line", "Line (L)", "Line"], ["rect", "Rectangle (R, Shift = filled)", "Box"], ["picker", "Pick a colour from the picture (I)", "Pick"],
   ["origin", "Set origin: the point that sits on the entity's position, usually between the feet (O)", "Origin"], ["mask", "Collision box: the part that touches things (M)", "Hitbox"],
 ];
-const KEY_TOOL = { b: "pencil", e: "eraser", g: "fill", l: "line", r: "rect", i: "picker", o: "origin", m: "mask" };
+const KEY_TOOL = { s: "select", b: "pencil", e: "eraser", g: "fill", l: "line", r: "rect", i: "picker", o: "origin", m: "mask" };
 
 export function createSpriteEditor(root, hooks = {}) {
   root.innerHTML = `
@@ -100,6 +104,10 @@ export function createSpriteEditor(root, hooks = {}) {
   let s = null, f = 0, tool = "pencil", zoom = 8, userZoom = false, dirty = false;
   let history = new C.History();
   let drag = null; // {kind, last:[x,y], start:[x,y], cur:[x,y], filled}
+  // The Select tool's box { x, y, w, h }. buf holds the pixels while they float (lifted out to move, or pasted): they are drawn over the
+  // frame at x, y and put down (settle) when you let go of them. The undo step was recorded when they were lifted, so one Undo takes the
+  // whole move back.
+  let sel = null;
   let cursor = null;
   let previewRaf = 0, previewT = 0, previewLast = 0;
 
@@ -114,6 +122,7 @@ export function createSpriteEditor(root, hooks = {}) {
     toolBox.appendChild(b);
   }
   function setTool(id) {
+    if (id !== "select") settle(true);
     tool = id;
     toolBox.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.tool === id));
     renderCanvas();
@@ -272,7 +281,57 @@ export function createSpriteEditor(root, hooks = {}) {
 
   // ---------- state helpers ----------
   function markDirty() { dirty = true; hooks.onChange && hooks.onChange(); }
+
+  // ---------- the selection ----------
+  // Put floating pixels down; forget the box too when `drop` is true (a box with nothing floating stays marked otherwise).
+  function settle(drop = false) {
+    if (!sel) return;
+    if (sel.buf) { C.stampArea(s, f, sel.buf, sel.x, sel.y); sel.buf = null; markDirty(); }
+    if (drop) sel = null;
+  }
+  // Lift the box's pixels so they can move: one undo step for the whole move.
+  function lift() {
+    if (!sel || sel.buf) return;
+    history.record(C.snapshot(s));
+    sel.buf = C.liftArea(s, f, sel);
+    markDirty();
+  }
+  function copySel() {
+    if (!sel) return false;
+    const b = sel.buf || C.copyArea(s, f, sel);
+    clipboard = { x: sel.x, y: sel.y, w: b.w, h: b.h, data: new Uint8ClampedArray(b.data) };
+    return true;
+  }
+  function deleteSel() {
+    if (!sel) return;
+    if (sel.buf) { sel.buf = null; markDirty(); renderAll(); return; } // lifted already: the undo step is there
+    const box = sel;
+    commit(() => C.clearArea(s, f, box));
+    sel = box;
+    renderAll();
+  }
+  // Pasted pixels float where they were copied from (kept on the picture), ready to drag into place.
+  function paste() {
+    if (!clipboard) return;
+    settle(true);
+    history.record(C.snapshot(s));
+    const x = Math.max(0, Math.min(clipboard.x, s.w - clipboard.w)), y = Math.max(0, Math.min(clipboard.y, s.h - clipboard.h));
+    sel = { x, y, w: clipboard.w, h: clipboard.h, buf: { w: clipboard.w, h: clipboard.h, data: new Uint8ClampedArray(clipboard.data) } };
+    setTool("select");
+    markDirty(); renderAll();
+  }
+  function nudge(dx, dy) {
+    lift();
+    sel.x += dx; sel.y += dy;
+    renderCanvas();
+  }
+  function flipSel() {
+    lift();
+    sel.buf = C.flipArea(sel.buf);
+    renderAll();
+  }
   function commit(mutator) {
+    settle();
     history.record(C.snapshot(s));
     mutator();
     f = Math.min(f, s.frames.length - 1);
@@ -300,6 +359,11 @@ export function createSpriteEditor(root, hooks = {}) {
     offCtx.putImageData(new ImageData(s.frames[f], s.w, s.h), 0, 0);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, s.w * z, s.h * z);
+    if (sel && sel.buf) { // floating pixels, over the frame
+      off.width = sel.buf.w; off.height = sel.buf.h;
+      offCtx.putImageData(new ImageData(sel.buf.data, sel.buf.w, sel.buf.h), 0, 0);
+      ctx.drawImage(off, sel.x * z, sel.y * z, sel.buf.w * z, sel.buf.h * z);
+    }
 
     if (z >= 8) {
       ctx.strokeStyle = ink(0.1); ctx.lineWidth = 1; ctx.beginPath();
@@ -320,6 +384,15 @@ export function createSpriteEditor(root, hooks = {}) {
       if (drag.kind === "line") C.line(drag.start[0], drag.start[1], drag.cur[0], drag.cur[1], plot);
       else C.rect(drag.start[0], drag.start[1], drag.cur[0], drag.cur[1], drag.filled, plot);
       ctx.globalAlpha = 1;
+    }
+    // the selection (or the box being dragged out): a dashed line in two colours, seen on any picture
+    const box = drag && drag.kind === "select" ? C.boxBetween(s, drag.start, drag.cur) : sel;
+    if (box) {
+      const bx = box.x * z + 0.5, by = box.y * z + 0.5, bw = box.w * z - 1, bh = box.h * z - 1;
+      ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = "#000000"; ctx.strokeRect(bx, by, bw, bh);
+      ctx.strokeStyle = "#ffffff"; ctx.lineDashOffset = 4; ctx.strokeRect(bx, by, bw, bh);
+      ctx.setLineDash([]); ctx.lineDashOffset = 0;
     }
     // collision box
     const m = isTS() ? null : (drag && drag.kind === "mask") ? C.clampMask(s, maskFromDrag()) : s.mask;
@@ -349,7 +422,7 @@ export function createSpriteEditor(root, hooks = {}) {
       return;
     }
     $(".se-status").textContent =
-      `${s.name}  |  ${s.w}×${s.h}  |  frame ${f + 1}/${s.frames.length}  |  zoom ${zoom}x  |  pixel ${pos}`;
+      `${s.name}  |  ${s.w}×${s.h}  |  frame ${f + 1}/${s.frames.length}  |  zoom ${zoom}x  |  pixel ${pos}` + (sel ? `  |  selected ${sel.w}×${sel.h}` : "");
   }
 
   function thumb(frame, w, h, cls) {
@@ -365,7 +438,7 @@ export function createSpriteEditor(root, hooks = {}) {
       cell.className = "se-frame" + (i === f ? " active" : "");
       cell.appendChild(thumb(fr, s.w, s.h, "se-thumb"));
       const n = document.createElement("span"); n.textContent = i + 1; cell.appendChild(n);
-      cell.onclick = () => { f = i; renderAll(); };
+      cell.onclick = () => { settle(true); f = i; renderAll(); };
       box.appendChild(cell);
     });
   }
@@ -412,6 +485,7 @@ export function createSpriteEditor(root, hooks = {}) {
   }
   // Run a change that may be refused (a bad or taken name); only a change that happened goes on the undo list.
   function commitIf(mutator) {
+    settle();
     const snap = C.snapshot(s);
     if (!mutator()) return false;
     history.record(snap); markDirty(); renderAll();
@@ -475,7 +549,10 @@ export function createSpriteEditor(root, hooks = {}) {
     canvas.setPointerCapture(e.pointerId);
     if (note) { note = ""; updateBanner(); }
     const p = pixelAt(e);
-    if (tool === "pencil" || tool === "eraser") {
+    if (tool === "select") {
+      if (sel && C.inBox(sel, p[0], p[1])) { lift(); drag = { kind: "move", start: p, ox: sel.x, oy: sel.y }; }
+      else { settle(true); drag = { kind: "select", start: p, cur: p }; }
+    } else if (tool === "pencil" || tool === "eraser") {
       history.record(C.snapshot(s)); markDirty();
       drag = { kind: "paint", last: p };
       paint(p[0], p[1]);
@@ -500,11 +577,14 @@ export function createSpriteEditor(root, hooks = {}) {
     if (!s) return;
     const p = pixelAt(e);
     cursor = p;
+    canvas.style.cursor = tool === "select" && (drag ? drag.kind === "move" : C.inBox(sel, p[0], p[1])) ? "move" : "";
     if (drag) {
       if (drag.kind === "paint") {
         C.line(drag.last[0], drag.last[1], p[0], p[1], paint);
         drag.last = p;
         renderFrames();
+      } else if (drag.kind === "move") {
+        sel.x = drag.ox + p[0] - drag.start[0]; sel.y = drag.oy + p[1] - drag.start[1];
       } else {
         drag.cur = p; drag.filled = e.shiftKey;
       }
@@ -515,7 +595,11 @@ export function createSpriteEditor(root, hooks = {}) {
   function endDrag(e) {
     if (!drag) return;
     const d = drag; drag = null;
-    if (d.kind === "paint") {
+    if (d.kind === "paint" || d.kind === "move") {
+      renderAll();
+    } else if (d.kind === "select") {
+      // a click without a drag lets go of the selection; a drag marks a new box
+      sel = d.start[0] === d.cur[0] && d.start[1] === d.cur[1] ? null : C.boxBetween(s, d.start, d.cur);
       renderAll();
     } else if (d.kind === "line" || d.kind === "rect") {
       if (!allowColor()) { renderAll(); return; }
@@ -531,15 +615,17 @@ export function createSpriteEditor(root, hooks = {}) {
     }
   }
   canvas.addEventListener("pointerup", endDrag);
-  canvas.addEventListener("pointercancel", () => { drag = null; renderCanvas(); });
+  canvas.addEventListener("pointercancel", () => { drag = null; renderAll(); });
   canvas.addEventListener("pointerleave", () => { cursor = null; renderCanvas(); });
 
   // ---------- buttons and property fields ----------
   function undo() {
+    settle(true);
     const snap = history.undo(C.snapshot(s));
     if (snap) { C.restore(s, snap); f = Math.min(f, s.frames.length - 1); note = ""; markDirty(); fitIfNeeded(); buildPalette(); renderAll(); }
   }
   function redo() {
+    settle(true);
     const snap = history.redo(C.snapshot(s));
     if (snap) { C.restore(s, snap); f = Math.min(f, s.frames.length - 1); note = ""; markDirty(); fitIfNeeded(); buildPalette(); renderAll(); }
   }
@@ -614,11 +700,24 @@ export function createSpriteEditor(root, hooks = {}) {
     const mod = e.metaKey || e.ctrlKey, k = e.key.toLowerCase();
     if (mod && k === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if (mod && k === "y") { e.preventDefault(); redo(); return; }
+    if (mod && k === "a") { e.preventDefault(); settle(true); sel = { x: 0, y: 0, w: s.w, h: s.h }; setTool("select"); renderAll(); return; }
+    if (mod && k === "c") { if (copySel()) e.preventDefault(); return; }
+    if (mod && k === "x") { if (copySel()) { e.preventDefault(); deleteSel(); } return; }
+    if (mod && k === "v") { if (clipboard) { e.preventDefault(); paste(); } return; }
+    if (mod && k === "d") { e.preventDefault(); settle(true); renderAll(); return; }
     if (mod) return;
+    if (sel) {
+      const step = e.shiftKey ? 8 : 1;
+      const arrows = { arrowleft: [-step, 0], arrowright: [step, 0], arrowup: [0, -step], arrowdown: [0, step] };
+      if (arrows[k]) { e.preventDefault(); nudge(...arrows[k]); return; }
+      if (k === "delete" || k === "backspace") { e.preventDefault(); deleteSel(); return; }
+      if (k === "escape" || k === "enter") { e.preventDefault(); settle(true); renderAll(); return; }
+      if (k === "f") { flipSel(); return; }
+    }
     if (KEY_TOOL[k] && !(isTS() && (k === "o" || k === "m"))) { setTool(KEY_TOOL[k]); return; }
     if (isTS()) return;
-    if (k === ",") { f = Math.max(0, f - 1); renderAll(); }
-    if (k === ".") { f = Math.min(s.frames.length - 1, f + 1); renderAll(); }
+    if (k === ",") { settle(true); f = Math.max(0, f - 1); renderAll(); }
+    if (k === ".") { settle(true); f = Math.min(s.frames.length - 1, f + 1); renderAll(); }
   });
   window.addEventListener("resize", () => { if (s && !userZoom && root.offsetParent !== null) { fitZoom(); renderCanvas(); } });
 
@@ -627,7 +726,7 @@ export function createSpriteEditor(root, hooks = {}) {
 
   return {
     load(sprite) {
-      s = sprite; f = 0; history = new C.History(); dirty = false; drag = null; userZoom = false; note = "";
+      s = sprite; f = 0; history = new C.History(); dirty = false; drag = null; sel = null; userZoom = false; note = "";
       buildPalette();
       requestAnimationFrame(() => { fitZoom(); renderAll(); }); // after layout, so the wrap has a size
       fitZoom(); renderAll();
@@ -635,7 +734,7 @@ export function createSpriteEditor(root, hooks = {}) {
     refit() { if (s && !userZoom) { fitZoom(); renderCanvas(); } },
     redraw() { if (s) renderAll(); }, // the look changed
     refreshPalette() { if (s) { buildPalette(); updateBanner(); } }, // the game's colours changed
-    getSprite: () => s,
+    getSprite: () => { settle(); return s; }, // floating pixels are put down first, so saving keeps them
     isDirty: () => dirty,
     markClean() { dirty = false; },
     destroy() { cancelAnimationFrame(previewRaf); },

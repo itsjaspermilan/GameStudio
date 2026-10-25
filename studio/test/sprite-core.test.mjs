@@ -259,3 +259,26 @@ test("the size guide fits Dot's sprite rules", async () => {
   assert.deepEqual([SIZE_GUIDE[0].w, SIZE_GUIDE[0].h], [32, 32], "a hero starts at 32x32");
   assert.deepEqual(REFERENCE_SIZES, [16, 32, 48, 64]);
 });
+
+test("selection: a box between corners, lifted, moved, stamped and flipped", () => {
+  const s = C.createSprite("sel", 4, 4);
+  C.setPixel(s, 0, 1, 1, RED); C.setPixel(s, 0, 2, 1, BLUE);
+  assert.deepEqual(C.boxBetween(s, [2, 1], [1, 1]), { x: 1, y: 1, w: 2, h: 1 }, "corners in any order, both included");
+  assert.deepEqual(C.boxBetween(s, [-3, -3], [9, 1]), { x: 0, y: 0, w: 4, h: 2 }, "kept inside the picture");
+  assert.equal(C.boxBetween(s, [5, 5], [7, 7]), null);
+  assert.ok(C.inBox({ x: 1, y: 1, w: 2, h: 1 }, 2, 1) && !C.inBox({ x: 1, y: 1, w: 2, h: 1 }, 3, 1));
+
+  const buf = C.liftArea(s, 0, { x: 1, y: 1, w: 2, h: 1 });
+  assert.deepEqual(C.getPixel(s, 0, 1, 1), CLEAR, "lifting leaves see-through pixels behind");
+  C.setPixel(s, 0, 0, 3, BLUE);
+  C.stampArea(s, 0, { w: 2, h: 1, data: new Uint8ClampedArray([0, 0, 0, 0, 255, 0, 0, 255]) }, 0, 3);
+  assert.deepEqual(C.getPixel(s, 0, 0, 3), BLUE, "see-through pixels leave what is under them");
+  assert.deepEqual(C.getPixel(s, 0, 1, 3), RED);
+  C.stampArea(s, 0, buf, 3, 0);
+  assert.deepEqual(C.getPixel(s, 0, 3, 0), RED, "pixels past the edge are dropped, the rest land");
+
+  const flipped = C.flipArea(buf);
+  assert.deepEqual([...flipped.data.slice(0, 4)], BLUE);
+  assert.deepEqual([...flipped.data.slice(4, 8)], RED);
+  assert.deepEqual([...C.copyArea(s, 0, { x: 3, y: 0, w: 2, h: 1 }).data.slice(4, 8)], CLEAR, "outside the picture copies as see-through");
+});

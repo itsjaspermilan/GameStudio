@@ -15,6 +15,10 @@ Nothing has to be listed or registered anywhere.</p>
 <li>Draw. Pick the sprite's <strong>colour bank</strong> at the top left; its 15 colours and see-through are below it (Glow43 works like a GBA:
 each sprite uses one bank of the game's colours, see <a href="help:art">Drawing pixel art</a>). Choosing another bank moves every pixel to the same place in the new one.
 Pixels outside the bank are flagged, and <em>Snap to bank</em> fixes them. A tileset ticks the tile banks it uses instead, and each tile keeps to one of them.</li>
+<li>To move pixels, take <strong>Select</strong> (S), drag a box around them, then drag inside the box. The arrow keys nudge them one pixel
+(Shift: eight), <kbd>F</kbd> flips them left to right, <kbd>Delete</kbd> clears them, and <kbd>Esc</kbd> puts them down. <kbd>Cmd/Ctrl+C</kbd>,
+<kbd>X</kbd> and <kbd>V</kbd> copy, cut and paste, also into another frame or another sprite (pasted pixels land where they were copied from).
+One Undo takes a whole move back.</li>
 <li>Add frames with <em>+ New</em> or <em>Copy</em> (copying the last frame and changing a little is the quick way to animate). The preview plays them at the speed you set.</li>
 <li>Set the <strong>origin</strong>: the point of the picture that sits on the entity's position. For a character that walks on the ground, put it between the feet. For a ball, the middle.</li>
 <li>Leave the <strong>collision box</strong> alone, and the whole picture is the hitbox. Make it smaller (just the body, not the sword) for collisions that feel fair.</li>

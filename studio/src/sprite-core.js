@@ -122,6 +122,50 @@ export function clampMask(s, m) {
   return [x, y, w, h];
 }
 
+// ---- selection (the Select tool: mark a box, then move, copy, cut or delete the pixels in it) ----
+// A box is { x, y, w, h } in pixels; lifted pixels are { w, h, data } (RGBA bytes, like a frame).
+
+// The box between two corners (both included), kept inside the picture; null when it misses the picture.
+export function boxBetween(s, a, b) {
+  const x0 = Math.max(0, Math.min(a[0], b[0])), y0 = Math.max(0, Math.min(a[1], b[1]));
+  const x1 = Math.min(s.w - 1, Math.max(a[0], b[0])), y1 = Math.min(s.h - 1, Math.max(a[1], b[1]));
+  return x1 < x0 || y1 < y0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+export const inBox = (box, x, y) => !!box && x >= box.x && y >= box.y && x < box.x + box.w && y < box.y + box.h;
+
+// A copy of the pixels in a box (outside the picture counts as see-through).
+export function copyArea(s, f, box) {
+  const data = new Uint8ClampedArray(box.w * box.h * 4), src = s.frames[f];
+  for (let y = 0; y < box.h; y++) for (let x = 0; x < box.w; x++) {
+    const sx = box.x + x, sy = box.y + y;
+    if (!inBounds(s, sx, sy)) continue;
+    const i = (sy * s.w + sx) * 4, o = (y * box.w + x) * 4;
+    data[o] = src[i]; data[o + 1] = src[i + 1]; data[o + 2] = src[i + 2]; data[o + 3] = src[i + 3];
+  }
+  return { w: box.w, h: box.h, data };
+}
+export function clearArea(s, f, box) {
+  for (let y = box.y; y < box.y + box.h; y++) for (let x = box.x; x < box.x + box.w; x++) setPixel(s, f, x, y, [0, 0, 0, 0]);
+}
+// Take the pixels out of the picture (what is left behind is see-through), to move them.
+export function liftArea(s, f, box) { const b = copyArea(s, f, box); clearArea(s, f, box); return b; }
+// Put lifted pixels down with their top-left at x, y. See-through pixels leave what is under them, and pixels past the edge are dropped.
+export function stampArea(s, f, buf, x, y) {
+  for (let yy = 0; yy < buf.h; yy++) for (let xx = 0; xx < buf.w; xx++) {
+    const o = (yy * buf.w + xx) * 4;
+    if (buf.data[o + 3] > 0) setPixel(s, f, x + xx, y + yy, [buf.data[o], buf.data[o + 1], buf.data[o + 2], buf.data[o + 3]]);
+  }
+}
+// Lifted pixels mirrored left to right (a walk cycle facing the other way, a symmetric shape drawn by halves).
+export function flipArea(buf) {
+  const data = new Uint8ClampedArray(buf.data.length);
+  for (let y = 0; y < buf.h; y++) for (let x = 0; x < buf.w; x++) {
+    const i = (y * buf.w + x) * 4, o = (y * buf.w + (buf.w - 1 - x)) * 4;
+    data[o] = buf.data[i]; data[o + 1] = buf.data[i + 1]; data[o + 2] = buf.data[i + 2]; data[o + 3] = buf.data[i + 3];
+  }
+  return { w: buf.w, h: buf.h, data };
+}
+
 // ---- history ----
 
 export function snapshot(s) {
