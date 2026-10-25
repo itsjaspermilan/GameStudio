@@ -9,7 +9,7 @@ import { lookChoice, setLook, scheme, onLookChange } from "./theme.js";
 import { setupWindowChrome } from "./window-chrome.js";
 import { luaIntel } from "./lua-editor.js";
 import { createLuaServer } from "./lua-server.js";
-import { createHelp } from "./help.js";
+import { createBridge } from "./help-bridge.js";
 import { forceLinting } from "@codemirror/lint";
 import { parseApi, buildIndex } from "./lua-intel-core.js";
 import apiText from "../../engine/api/gs.d.lua?raw";
@@ -57,7 +57,9 @@ const state = {
 };
 const luaApi = parseApi(apiText);
 let luaIndex = buildIndex({}, {});
-let help = null; // the Help window
+const help = { open: openHelp }; // the Help window (help.html), beside the studio
+let helpBridge = null, helpSaid = ""; // messages to and from it (help-bridge.js), and what it was last told
+let nativeApp = false; // the real app, decided at boot before the browser's mock backend fakes Tauri
 let luaServer = null; // the Lua language server (optional), created at boot
 let play = null; // the Play panel (the game inside the studio), created at boot
 const luaTexts = {}; // every Lua file of the open game, for completion and warnings
@@ -208,6 +210,7 @@ function listItem(text, { active, disabled, onclick } = {}) {
 }
 
 function render() {
+  tellHelp();
   const open = !!state.cart;
   $("app").classList.toggle("welcome-mode", !open);
   $("project-title").textContent = state.cartName || "";
@@ -1649,6 +1652,47 @@ $("btn-new-file").onclick = () => promptInList("files", "file.lua", async (rel) 
 });
 
 // ---------- help ----------
+// Help is a window of its own (help.html, help-window.js), so a tutorial stays open beside the studio. It asks this window to do what
+// its pages offer (add a file to the open game, make a tutorial's game, open an example) through the bridge and waits for the answer;
+// this window tells it whether a game is open and which consoles there are.
+async function openHelp(page, anchor) {
+  const hash = page ? "#" + encodeURIComponent(page + (anchor ? "/" + anchor : "")) : "";
+  if (nativeApp) {
+    const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+    const w = await WebviewWindow.getByLabel("help");
+    if (w) { await w.show(); await w.setFocus(); if (page && helpBridge) helpBridge.send("to-help:open", { page, anchor }); return; }
+    const made = new WebviewWindow("help", { url: "help.html" + hash, title: "GameStudio Help", width: 1000, height: 760, minWidth: 640, minHeight: 420 });
+    made.once("tauri://error", (e) => fail(e.payload));
+    return;
+  }
+  const w = window.open("help.html" + hash, "gamestudio-help", "width=1000,height=760"); // the same tab again if it is open
+  if (w) w.focus();
+}
+function tellHelp() {
+  if (!helpBridge) return;
+  const s = { hasGame: !!state.scan && state.scan.hasGame, consoles: allConsoles(state.customConsoles) }, said = JSON.stringify(s);
+  if (said === helpSaid) return;
+  helpSaid = said; helpBridge.send("to-help:state", s);
+}
+async function listenToHelp() {
+  helpBridge = await createBridge(nativeApp);
+  const actions = {
+    addFile: ({ rel, text }) => addHelpFile(rel, text),
+    makeGame: ({ title, files, consoleId }) => makeHelpGame(title, files, consoleId),
+    openGame: ({ name }) => openExample(name),
+  };
+  await helpBridge.on("to-studio:request", async ({ id, action, args }) => {
+    try {
+      await actions[action](args);
+      helpBridge.send("to-help:reply", { id, ok: true });
+      if (action !== "addFile") { // the game it made or opened is here: bring this window forward, Help stays open behind it
+        if (nativeApp) { const { getCurrentWindow } = await import("@tauri-apps/api/window"); getCurrentWindow().setFocus(); } else window.focus();
+      }
+    } catch (e) { helpBridge.send("to-help:reply", { id, ok: false, error: String((e && e.message) || e) }); }
+  });
+  await helpBridge.on("to-studio:page", ({ id }) => { if (id === "first-game" || id === "step-by-step") stepDone("tutorial"); });
+  await helpBridge.on("to-studio:hello", () => { helpSaid = ""; tellHelp(); });
+}
 $("btn-help").onclick = () => help.open();
 window.addEventListener("keydown", (e) => { if (e.key === "F1") { e.preventDefault(); help.open(); } });
 
@@ -1975,7 +2019,7 @@ $("settings").addEventListener("close", async () => {
 
 // ---------- boot ----------
 (async function boot() {
-  const native = !!window.__TAURI_INTERNALS__; // the real app (the mock below fakes the commands, not the window)
+  const native = nativeApp = !!window.__TAURI_INTERNALS__; // the real app (the mock below fakes the commands, not the window)
   if (import.meta.env.DEV && !native) {
     await import("./mock-backend.js"); // plain-browser development: in-memory fake of the Rust commands
   }
@@ -2009,8 +2053,7 @@ $("settings").addEventListener("close", async () => {
     render(); if (state.logTab === "hh") renderHandheld(); renderInspector();
   });
   luaServer = createLuaServer({ invoke, listen, note: info, onDiagnostics: (rel) => { if (rel === state.file && state.view === "code") forceLinting(view); } });
-  help = createHelp($("help-dialog"), { getApi: () => luaApi, hasGame: () => !!state.scan && state.scan.hasGame, addFile: addHelpFile, makeGame: makeHelpGame,
-    getConsoles: () => allConsoles(state.customConsoles), openGame: openExample, onPage: (id) => { if (id === "first-game" || id === "step-by-step") stepDone("tutorial"); } });
+  listenToHelp().catch(fail);
   makeEditor();
   const palette = artPalette;
   paletteEditor = createPaletteEditor($("palette-editor"), {

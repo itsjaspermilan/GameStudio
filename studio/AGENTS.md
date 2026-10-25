@@ -56,6 +56,11 @@ the framework's functions and Entity methods are all there) and then completes, 
 `docs/help/NN-slug.html` are the help pages (a comment header with `title`, `group`, `order`, `summary`, then HTML). A tutorial's game is its `<pre class="lua" data-path="entities/x.lua">` blocks (HTML-escaped: `&lt;`);
 **`test/help.test.mjs` writes each tutorial's files to a temp folder and plays it with `tests/random-bot.lua` through `build/gs`, and runs the editor's own lint over it**, so a tutorial with a mistake fails the tests.
 Links between pages are `href="help:<slug>"`. The API page is generated; document new `gs.*` functions in `engine/api/gs.d.lua`, not in a page.
+Help opens in a **window of its own** (`help.html` + `src/help-window.js`, the Vite build's second page; Tauri window label `help`), so
+a tutorial stays open beside the studio. `help.js` (`createHelp`) draws the pages in either that window or a `<dialog>`. What a page does
+to the game (Add to my game, Make this game, open an example) is a request to the studio's window over `src/help-bridge.js` (Tauri events
+in the app, a `BroadcastChannel` between tabs in the browser mock), which does it and replies; the studio tells Help whether a game is
+open and which consoles exist (`tellHelp`, on every render, only when it changed). Closing the studio's window quits the app, Help too.
 The Handheld tab gets its live numbers from the game's stderr (`@@gs {json}` once a second, only when `GS_STATS` is set, which `run_preview` does); `engine/gs/boot.lua` writes it. Times are CPU time on the computer, so the panel
 only uses them as a guide and treats the entity count as the exact number. The `@@gs` line also carries `checks` (collision checks in the busiest step), `screens` (pixels drawn in the busiest frame, in screens) and `calls` (drawing calls in it); the panel shows the first two against the console's `collision_tests` and `draw_screens` budgets.
 With the console's RAM (`GS_RAM`, or the core) it adds `ram_kb`, `ram_peak_kb` and `ram_size_kb` (from `gs.raw.ram()`: TLSF blocks in use, overhead included).

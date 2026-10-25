@@ -39,4 +39,5 @@ export function tint(name, alpha) {
 export const ink = (alpha) => `rgba(${color("ink")}, ${alpha})`;
 
 if (media) media.addEventListener("change", apply);
+window.addEventListener("storage", (e) => { if (e.key === "gs.look") apply(); }); // picked in the studio's Settings while Help is open
 apply();

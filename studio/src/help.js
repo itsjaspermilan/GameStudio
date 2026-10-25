@@ -1,4 +1,5 @@
-// The Help window: the pages in docs/help/ (HTML written by hand), a search box, and the API reference made from the editor's own notes.
+// Help: the pages in docs/help/ (HTML written by hand), a search box, and the API reference made from the editor's own notes. It fills
+// the Help window (help.html, help-window.js), a window of its own beside the studio; opts.window false puts it in a <dialog> instead.
 // hooks: { getApi(), hasGame(), addFile(rel, text) -> Promise, makeGame(title, files, consoleId) -> Promise, getConsoles(), openGame(name) -> Promise }
 // Links in pages: help:<page> opens a page, open:<game> opens a game from the workspace (the finished examples).
 import { parsePage, gameFiles, contents, search, apiPageHtml, highlightLua } from "./help-core.js";
@@ -8,12 +9,14 @@ const raw = import.meta.glob("../../docs/help/*.html", { query: "?raw", import: 
 const pictures = Object.fromEntries(Object.entries(import.meta.glob("../../docs/help/img/*.png", { query: "?url", import: "default", eager: true })).map(([path, url]) => ["img/" + path.split("/").pop(), url]));
 const filePages = Object.entries(raw).map(([path, text]) => parsePage(text, path.split("/").pop().replace(/^\d+-|\.html$/g, "")));
 
-export function createHelp(dialog, hooks) {
+export function createHelp(dialog, hooks, opts = {}) {
+  const inWindow = !!opts.window;
+  const done = () => { if (!inWindow) dialog.close(); }; // a dialog gets out of the way of the game it just opened; the window stays beside it
   let pages = filePages, current = null;
   const api = { id: "api", title: "API reference", group: "Guides", order: 999, summary: "Every function and value the engine gives you.", body: "" };
   const all = () => { api.body = apiPageHtml(hooks.getApi()); return [...pages, api]; };
 
-  dialog.className = "help-dialog";
+  dialog.className = "help-dialog" + (inWindow ? " help-window" : "");
   dialog.innerHTML = `
     <div class="help-nav">
       <div class="help-title">Help</div>
@@ -25,7 +28,8 @@ export function createHelp(dialog, hooks) {
       <article class="help-article"></article>
     </div>`;
   const list = dialog.querySelector(".help-list"), box = dialog.querySelector(".help-search"), article = dialog.querySelector(".help-article"), crumb = dialog.querySelector(".help-crumb");
-  dialog.querySelector(".help-close").onclick = () => dialog.close();
+  if (inWindow) dialog.querySelector(".help-close").remove(); // the window has its own close button
+  else dialog.querySelector(".help-close").onclick = () => dialog.close();
 
   function renderList() {
     list.replaceChildren();
@@ -74,7 +78,7 @@ export function createHelp(dialog, hooks) {
       const pick = document.createElement("select"); pick.className = "help-console";
       pick.title = "The console the new game is made for. The tutorials are laid out for Glow43 (256×192); on a smaller screen some things may sit off the edge.";
       for (const c of hooks.getConsoles ? hooks.getConsoles() : []) pick.appendChild(new Option(`${c.name} ${c.screen.width}×${c.screen.height}`, c.id));
-      b.onclick = async () => { b.disabled = true; try { await hooks.makeGame(page.title, files, pick.value || "glow43"); dialog.close(); } catch (e) { b.textContent = String(e).slice(0, 80); } };
+      b.onclick = async () => { b.disabled = true; try { await hooks.makeGame(page.title, files, pick.value || "glow43"); b.textContent = "Made: it is open in the studio"; done(); } catch (e) { b.textContent = String(e).slice(0, 80); } };
       const t = document.createElement("span"); t.textContent = `${Object.keys(files).length} files, ready to run.`;
       foot.append(b, ...(pick.options.length > 1 ? [pick] : []), t); article.appendChild(foot);
     }
@@ -93,7 +97,7 @@ export function createHelp(dialog, hooks) {
       a.classList.add("help-open");
       a.onclick = async (e) => {
         e.preventDefault();
-        try { await hooks.openGame(a.getAttribute("href").slice(5)); dialog.close(); } catch (err) { a.textContent = String(err.message || err); }
+        try { await hooks.openGame(a.getAttribute("href").slice(5)); done(); } catch (err) { a.textContent = String(err.message || err); }
       };
     }
     for (const a of article.querySelectorAll("a[href^='#']")) a.onclick = (e) => { e.preventDefault(); const t = article.querySelector(`[id="${CSS.escape(a.getAttribute("href").slice(1))}"]`); if (t) t.scrollIntoView({ block: "start" }); };
@@ -104,7 +108,8 @@ export function createHelp(dialog, hooks) {
 
   box.oninput = renderList;
   return {
-    open(id, anchor) { box.value = ""; show(id || current || "welcome", anchor); if (!dialog.open) dialog.showModal(); },
+    open(id, anchor) { box.value = ""; show(id || current || "welcome", anchor); if (!inWindow && !dialog.open) dialog.showModal(); },
+    refresh() { const top = article.scrollTop; show(current || "welcome"); article.scrollTop = top; }, // the studio opened or closed a game
     pages: () => all(),
   };
 }

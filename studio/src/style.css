@@ -724,6 +724,8 @@ input, textarea, select, [contenteditable="true"], .cm-editor, #output, .output,
 .help-dialog { width: min(1100px, 94vw); height: min(760px, 90vh); padding: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); overflow: hidden; }
 .help-dialog[open] { display: grid; grid-template-columns: 250px 1fr; }
 .help-dialog::backdrop { background: rgba(0, 0, 0, .55); }
+body.help-page { margin: 0; height: 100vh; overflow: hidden; background: var(--bg); }
+.help-dialog.help-window { display: grid; grid-template-columns: 250px 1fr; width: 100vw; height: 100vh; border: 0; border-radius: 0; }
 .help-nav { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; padding: 12px 10px; gap: 8px; }
 .help-title { font-weight: 700; font-size: 15px; padding: 0 4px; }
 .help-search { width: 100%; }

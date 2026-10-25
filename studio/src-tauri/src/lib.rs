@@ -997,6 +997,12 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
+        // closing the studio quits, even with the Help window still open beside it
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                window.app_handle().exit(0);
+            }
+        })
         .manage(lsp::LspState::default())
         .invoke_handler(tauri::generate_handler![
             lsp::lsp_start,

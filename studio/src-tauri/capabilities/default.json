@@ -1,9 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permissions for the main window; the window ones let the top bar move, zoom, minimise and close the window (it is the title bar)",
+  "description": "Permissions for the studio's window and the Help window; the window ones let the top bar move, zoom, minimise and close the window (it is the title bar), and let the studio open the Help window and bring it forward",
   "windows": [
-    "main"
+    "main",
+    "help"
   ],
   "permissions": [
     "core:default",
@@ -13,6 +14,9 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
     "core:window:allow-is-maximized",
-    "core:window:allow-is-fullscreen"
+    "core:window:allow-is-fullscreen",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-show",
+    "core:window:allow-set-focus"
   ]
 }
