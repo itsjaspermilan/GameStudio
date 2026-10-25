@@ -28,6 +28,10 @@ function M.sprite(name, level)
   local o = d.origin
   s = { name = name, img = img, frames = frames, fw = fw, fh = fh, ox = o and o[1] or fw // 2, oy = o and o[2] or fh // 2,
     mask = d.mask or { 0, 0, fw, fh }, fps = d.fps or 0, anims = d.animations or {}, bank = d.bank, swaps = {} }
+  -- the animation an entity shows until it plays another: the first in the strip (the studio keeps a sprite's animations one after another)
+  local first
+  for n, a in pairs(s.anims) do if not first or a.from < s.anims[first].from or (a.from == s.anims[first].from and n < first) then first = n end end
+  s.first_anim = first
   M.sprites[name] = s
   return s
 end

@@ -19,7 +19,8 @@ Pixels outside the bank are flagged, and <em>Snap to bank</em> fixes them. A til
 (Shift: eight), <kbd>F</kbd> flips them left to right, <kbd>Delete</kbd> clears them, and <kbd>Esc</kbd> puts them down. <kbd>Cmd/Ctrl+C</kbd>,
 <kbd>X</kbd> and <kbd>V</kbd> copy, cut and paste, also into another frame or another sprite (pasted pixels land where they were copied from).
 One Undo takes a whole move back.</li>
-<li>Add frames with <em>+ New</em> or <em>Copy</em> (copying the last frame and changing a little is the quick way to animate). The preview plays them at the speed you set.</li>
+<li>The frames are in the strip along the bottom of the editor. Add one with the <strong>+</strong> after the last frame, or <em>Copy</em> the one you are on
+(copying a frame and changing a little is the quick way to animate). Drag a frame to change the order. The preview plays them at the speed you set.</li>
 <li>Set the <strong>origin</strong>: the point of the picture that sits on the entity's position. For a character that walks on the ground, put it between the feet. For a ball, the middle.</li>
 <li>Leave the <strong>collision box</strong> alone, and the whole picture is the hitbox. Make it smaller (just the body, not the sword) for collisions that feel fair.</li>
 </ol>
@@ -30,8 +31,16 @@ One Undo takes a whole move back.</li>
 }</code></pre>
 <p>An entity with a sprite is drawn automatically at its position, and its hitbox is the sprite's collision box. Entities off the edge of the screen are skipped, so they cost nothing.</p>
 
-<h2>Animation clips</h2>
-<p>Under <em>Animations</em> in the sprite editor, name a run of frames, give it a speed and say whether it loops: <code>idle</code> is frames 0-1, <code>run</code> is 2-5, <code>die</code> is 6-9 and does not loop.</p>
+<h2>Animations</h2>
+<p>A new sprite's frames are one animation that loops ("All frames" in the <em>Animations</em> list at the bottom left). For a hero that stands, runs and falls over, give it several:</p>
+<ol>
+<li>Press <strong>+</strong> next to <em>Animations</em> and name the frames you have, for example <code>idle</code>. They all go into it.</li>
+<li>Press <strong>+</strong> again for each of the others (<code>run</code>, <code>die</code>). Each starts with one blank frame; the <strong>+</strong> at the end of the strip adds more,
+and <em>Copy</em> copies the frame you are on into the same animation.</li>
+<li>Over the strip, give each a speed (fps) and say whether it loops. <code>die</code> should not: it stays on its last frame.</li>
+</ol>
+<p>Click an animation in the list to see its frames; the preview plays it. Drag a frame onto another animation in the list to move it there.
+The first animation is what an entity shows until its code plays another; × deletes an animation with its frames (on the only one, it just takes the name off).</p>
 <pre class="lua"><code>function Hero:update(dt)
   local dx = gs.input.dir()
   self.x = self.x + dx * 80 * dt
@@ -47,7 +56,7 @@ end
 function Hero:on_animation_end(name)
   if name == "die" then self:destroy() end
 end</code></pre>
-<p>Without clips the whole sprite loops at its speed. <code>self.frame</code> is the frame being shown and <code>self.anim_speed</code> speeds the animation up or slows it down (1 is normal).
+<p>Without animations the whole sprite loops at its speed. <code>self.frame</code> is the frame being shown and <code>self.anim_speed</code> speeds the animation up or slows it down (1 is normal).
 Other things every entity has for its looks: <code>alpha</code> (0 invisible to 1), <code>sx</code> and <code>sy</code> (scale, negative mirrors), <code>angle</code> (degrees), <code>visible</code>, and <code>depth</code> (bigger is further back).
 <code>self:set_sprite("hero_hurt")</code> switches to another picture. In code that is not an entity, <code>gs.draw.sprite("star", x, y, { frame = 1, scale = 2 })</code> draws one.</p>
 

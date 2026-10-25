@@ -72,26 +72,48 @@ export function rect(x0, y0, x1, y1, filled, plot) {
 
 // ---- frames ----
 
+// Frames belong to animations (see "animations" below): a new frame joins the animation of the frame before it, a deleted one leaves its
+// animation (an animation left with no frames goes), and a frame only moves within its own animation.
 export function addFrame(s, at = s.frames.length) {
   if (s.frames.length >= MAX_FRAMES) return false;
-  s.frames.splice(at, 0, blankFrame(s.w, s.h));
+  insertFrame(s, at, blankFrame(s.w, s.h), ownerOf(s, Math.max(0, at - 1)));
   return true;
 }
 export function duplicateFrame(s, f) {
   if (s.frames.length >= MAX_FRAMES) return false;
-  s.frames.splice(f + 1, 0, new Uint8ClampedArray(s.frames[f]));
+  insertFrame(s, f + 1, new Uint8ClampedArray(s.frames[f]), ownerOf(s, f));
   return true;
 }
 export function deleteFrame(s, f) {
   if (s.frames.length <= 1) return false;
+  const owner = ownerOf(s, f);
   s.frames.splice(f, 1);
+  for (const [name, a] of Object.entries(s.animations || {})) {
+    if (name === owner) { a.to -= 1; if (a.to < a.from) delete s.animations[name]; }
+    else if (a.from > f) { a.from -= 1; a.to -= 1; }
+  }
   return true;
 }
 export function moveFrame(s, f, to) {
-  if (to < 0 || to >= s.frames.length || f === to) return false;
+  if (to < 0 || to >= s.frames.length || f === to || ownerOf(s, f) !== ownerOf(s, to)) return false;
   const [fr] = s.frames.splice(f, 1);
   s.frames.splice(to, 0, fr);
   return true;
+}
+// Move a frame to the end of another animation (dragged onto it). Its own animation goes if it was its last frame. Returns where the frame
+// is now, or -1 when it cannot move there.
+export function moveFrameToAnimation(s, f, name) {
+  const owner = ownerOf(s, f), target = s.animations && s.animations[name];
+  if (!owner || !target || owner === name) return -1;
+  const data = s.frames[f];
+  deleteFrame(s, f);
+  insertFrame(s, target.to + 1, data, name);
+  return target.to;
+}
+// a new blank frame at the end of an animation (null: the sprite's only, unnamed one)
+export function addFrameTo(s, name) {
+  const a = name && s.animations && s.animations[name];
+  return addFrame(s, a ? a.to + 1 : s.frames.length);
 }
 
 // ---- size ----
@@ -222,8 +244,11 @@ export function toJSON(s) {
   return out;
 }
 
-// ---- animations: named runs of frames ("walk" = frames 2 to 5) that an object plays with the Play an animation action ----
-// Stored as {from, to, fps, loop} with 0-based frame numbers (the editor shows them from 1).
+// ---- animations: named runs of frames ("walk" = frames 2 to 5) that an entity plays with self:play("walk") ----
+// Stored as {from, to, fps, loop} with 0-based frame numbers (the editor shows them from 1). A sprite with none is one unnamed animation:
+// every frame, looping at the sprite's fps. Once one is named, every frame belongs to exactly one animation and the animations follow each
+// other in the strip (idle 0-1, walk 2-5, jump 6-7); the first is what an entity shows until it plays another. The file format is the
+// same either way, so games and the engine read old and new sprites alike.
 
 export const isValidAnimationName = (n) => /^[A-Za-z_][A-Za-z0-9_-]{0,30}$/.test(n);
 
@@ -240,10 +265,65 @@ export function normalizeAnimations(raw, frameCount, defaultFps = 6) {
   return out;
 }
 
+const byStart = (anims) => Object.entries(anims || {}).sort((x, y) => x[1].from - y[1].from || (x[0] < y[0] ? -1 : 1));
+// the animation a frame belongs to, or null when none is named
+export function ownerOf(s, f) {
+  for (const [name, a] of Object.entries(s.animations || {})) if (f >= a.from && f <= a.to) return name;
+  return null;
+}
+// Put a frame in at `at`; the animation `owner` gets one frame longer and the animations after it move along.
+function insertFrame(s, at, data, owner) {
+  s.frames.splice(at, 0, data);
+  for (const [name, a] of Object.entries(s.animations || {})) {
+    if (name === owner) a.to += 1;
+    else if (a.from >= at) { a.from += 1; a.to += 1; }
+  }
+}
+// The animations in the order of the strip, as the editor groups the frames: [{ name, from, to, fps, loop }]; one with name null when
+// none is named.
+export function animationGroups(s) {
+  const list = byStart(s.animations);
+  if (!list.length) return [{ name: null, from: 0, to: s.frames.length - 1, fps: s.fps, loop: true }];
+  return list.map(([name, a]) => ({ name, ...a }));
+}
+// Do the animations follow each other, covering every frame once?
+export function animationsTidy(anims, frameCount) {
+  const list = byStart(anims);
+  if (!list.length) return true;
+  let next = 0;
+  for (const [, a] of list) { if (a.from !== next || a.to < a.from) return false; next = a.to + 1; }
+  return next === frameCount;
+}
+// Older sprites could share frames between animations or leave frames out. Make them tidy: each animation gets its own copy of its frames,
+// in order, and frames no animation used become an animation called "frames". Returns true when the sprite changed.
+export function tidyAnimations(s) {
+  if (animationsTidy(s.animations, s.frames.length)) return false;
+  const frames = [], anims = {}, used = new Set();
+  for (const [name, a] of byStart(s.animations)) {
+    const from = frames.length;
+    for (let i = a.from; i <= a.to; i++) { frames.push(new Uint8ClampedArray(s.frames[i])); used.add(i); }
+    anims[name] = { ...a, from, to: frames.length - 1 };
+  }
+  const rest = s.frames.map((_, i) => i).filter((i) => !used.has(i));
+  if (rest.length) {
+    let name = "frames", n = 2;
+    while (anims[name]) name = "frames" + n++;
+    const from = frames.length;
+    for (const i of rest) frames.push(new Uint8ClampedArray(s.frames[i]));
+    anims[name] = { from, to: frames.length - 1, fps: s.fps || 6, loop: true };
+  }
+  s.frames = frames; s.animations = anims;
+  return true;
+}
+
+// Name an animation. The first one takes every frame the sprite has; after that a new one starts with one blank frame at the end.
 export function addAnimation(s, name) {
   s.animations = s.animations || {};
   if (!isValidAnimationName(name) || s.animations[name]) return false;
-  s.animations[name] = { from: 0, to: s.frames.length - 1, fps: s.fps || 6, loop: true };
+  if (!Object.keys(s.animations).length) { s.animations[name] = { from: 0, to: s.frames.length - 1, fps: s.fps || 6, loop: true }; return true; }
+  if (s.frames.length >= MAX_FRAMES) return false;
+  s.frames.push(blankFrame(s.w, s.h));
+  s.animations[name] = { from: s.frames.length - 1, to: s.frames.length - 1, fps: s.fps || 6, loop: true };
   return true;
 }
 
@@ -257,9 +337,15 @@ export function renameAnimation(s, from, to) {
   return true;
 }
 
+// Delete an animation and its frames. The last one only loses its name: its frames stay and loop as the whole sprite, at its speed.
 export function removeAnimation(s, name) {
-  if (!s.animations || !s.animations[name]) return false;
-  delete s.animations[name];
+  const anims = s.animations || {}, a = anims[name];
+  if (!a) return false;
+  if (Object.keys(anims).length === 1) { s.fps = a.fps; delete anims[name]; return true; }
+  const n = a.to - a.from + 1;
+  s.frames.splice(a.from, n);
+  delete anims[name];
+  for (const b of Object.values(anims)) if (b.from > a.from) { b.from -= n; b.to -= n; }
   return true;
 }
 

@@ -227,28 +227,63 @@ test("usedColors and colorAllowed enforce a limit on distinct colours", () => {
   assert.ok(C.colorAllowed(s, [9, 9, 9, 255], 0));   // no limit
 });
 
-test("animations: add, rename, clamp and play", () => {
+test("animations: the first takes every frame, later ones start with a frame of their own", () => {
   const s = C.createSprite("hero", 4, 4);
-  C.addFrame(s); C.addFrame(s); C.addFrame(s); // 4 frames
-  assert.ok(C.addAnimation(s, "walk"));
-  assert.ok(!C.addAnimation(s, "walk"), "no duplicates");
+  C.addFrame(s); // 2 frames, no names: one unnamed animation
+  assert.deepEqual(C.animationGroups(s), [{ name: null, from: 0, to: 1, fps: 6, loop: true }]);
+  assert.ok(C.addAnimation(s, "idle"));
+  assert.ok(!C.addAnimation(s, "idle"), "no duplicates");
   assert.ok(!C.addAnimation(s, "bad name"), "names are simple words");
-  assert.deepEqual(s.animations.walk, { from: 0, to: 3, fps: 6, loop: true });
-  assert.ok(C.addAnimation(s, "jump"));
-  assert.ok(!C.renameAnimation(s, "jump", "walk"), "rename onto a taken name is refused");
-  assert.ok(C.renameAnimation(s, "jump", "hop"));
-  assert.deepEqual(Object.keys(s.animations), ["walk", "hop"]);
-  C.deleteFrame(s, 3); C.deleteFrame(s, 2);
-  s.animations = C.normalizeAnimations(s.animations, s.frames.length);
-  assert.equal(s.animations.walk.to, 1, "clips shrink with the frames");
+  assert.deepEqual(s.animations.idle, { from: 0, to: 1, fps: 6, loop: true }, "the frames there were go into the first");
+  assert.ok(C.addAnimation(s, "walk"));
+  assert.equal(s.frames.length, 3);
+  assert.deepEqual(s.animations.walk, { from: 2, to: 2, fps: 6, loop: true }, "a later one gets a new frame at the end");
+  assert.ok(C.addFrameTo(s, "idle"));
+  assert.deepEqual([s.animations.idle.to, s.animations.walk.from, s.animations.walk.to], [2, 3, 3], "a frame added to idle pushes walk along");
+  C.setPixel(s, 3, 0, 0, RED);
+  assert.ok(C.duplicateFrame(s, 3));
+  assert.deepEqual(s.animations.walk, { from: 3, to: 4, fps: 6, loop: true });
+  assert.deepEqual(C.getPixel(s, 4, 0, 0), RED);
+  assert.ok(!C.moveFrame(s, 2, 3), "a frame moves only inside its own animation");
+  assert.ok(C.moveFrame(s, 4, 3));
+  assert.ok(C.animationsTidy(s.animations, s.frames.length));
+  assert.ok(!C.renameAnimation(s, "walk", "idle"), "rename onto a taken name is refused");
+  assert.ok(C.renameAnimation(s, "walk", "run"));
+  assert.deepEqual(C.animationGroups(s).map((g) => g.name), ["idle", "run"]);
+
+  C.deleteFrame(s, 0);
+  assert.deepEqual([s.animations.idle.from, s.animations.idle.to, s.animations.run.from], [0, 1, 2]);
+  assert.ok(C.removeAnimation(s, "idle"));
+  assert.deepEqual([s.frames.length, s.animations.run.from, s.animations.run.to], [2, 0, 1], "deleting one takes its frames with it");
+  s.animations.run.fps = 12;
+  assert.ok(C.removeAnimation(s, "run"));
+  assert.deepEqual([s.frames.length, Object.keys(s.animations).length, s.fps], [2, 0, 12], "the last one only loses its name");
+  assert.equal(C.ownerOf(s, 0), null);
+
+  const t = C.createSprite("t", 4, 4); C.addFrame(t); C.addFrame(t); C.addAnimation(t, "a");
+  C.deleteFrame(t, 2); C.deleteFrame(t, 1);
+  assert.deepEqual(t.animations.a, { from: 0, to: 0, fps: 6, loop: true }, "clips shrink with the frames");
   assert.deepEqual(C.normalizeAnimations({ x: { from: 5, to: 1 }, "no way": {}, y: 3 }, 6), { x: { from: 1, to: 5, fps: 6, loop: true } });
-  assert.deepEqual(C.toJSON(s).animations.walk, s.animations.walk);
+  assert.deepEqual(C.toJSON(t).animations.a, t.animations.a);
   assert.equal(C.toJSON(C.createSprite("p")).animations, undefined, "a sprite without clips keeps its file as before");
   const loop = { from: 1, to: 3, fps: 10, loop: true }, once = { ...loop, loop: false };
-  assert.deepEqual([0, 0.1, 0.2, 0.3, 0.4].map((t) => C.animationFrame(loop, t)), [1, 2, 3, 1, 2]);
+  assert.deepEqual([0, 0.1, 0.2, 0.3, 0.4].map((x) => C.animationFrame(loop, x)), [1, 2, 3, 1, 2]);
   assert.equal(C.animationFrame(once, 5), 3);
-  const snap = C.snapshot(s); s.animations.walk.to = 0; C.restore(s, snap);
-  assert.equal(s.animations.walk.to, 1, "undo brings clips back");
+  const snap = C.snapshot(t); t.animations.a.to = 5; C.restore(t, snap);
+  assert.equal(t.animations.a.to, 0, "undo brings clips back");
+});
+
+test("animations: older sprites that share or skip frames are made tidy", () => {
+  const s = C.createSprite("old", 2, 1);
+  for (let i = 0; i < 5; i++) C.addFrame(s); // 6 frames
+  for (let i = 0; i < 6; i++) C.setPixel(s, i, 0, 0, [i * 10, 0, 0, 255]);
+  s.animations = { walk: { from: 1, to: 3, fps: 8, loop: true }, step: { from: 2, to: 2, fps: 4, loop: false } }; // overlap; 0, 4, 5 unused
+  assert.ok(!C.animationsTidy(s.animations, 6));
+  assert.ok(C.tidyAnimations(s));
+  assert.ok(C.animationsTidy(s.animations, s.frames.length));
+  assert.deepEqual(C.animationGroups(s).map((g) => [g.name, g.from, g.to]), [["walk", 0, 2], ["step", 3, 3], ["frames", 4, 6]]);
+  assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map((i) => C.getPixel(s, i, 0, 0)[0]), [10, 20, 30, 20, 0, 40, 50], "each keeps the pictures it had");
+  assert.equal(C.tidyAnimations(s), false, "a tidy sprite is left alone");
 });
 
 test("the size guide fits Dot's sprite rules", async () => {
@@ -281,4 +316,17 @@ test("selection: a box between corners, lifted, moved, stamped and flipped", () 
   assert.deepEqual([...flipped.data.slice(0, 4)], BLUE);
   assert.deepEqual([...flipped.data.slice(4, 8)], RED);
   assert.deepEqual([...C.copyArea(s, 0, { x: 3, y: 0, w: 2, h: 1 }).data.slice(4, 8)], CLEAR, "outside the picture copies as see-through");
+});
+
+test("animations: a frame dragged onto another animation moves to its end", () => {
+  const s = C.createSprite("drag", 1, 1);
+  C.addFrame(s); C.addAnimation(s, "idle"); C.addAnimation(s, "walk"); C.addFrameTo(s, "walk"); // idle 0-1, walk 2-3
+  C.setPixel(s, 0, 0, 0, RED);
+  assert.equal(C.moveFrameToAnimation(s, 0, "walk"), 3);
+  assert.deepEqual([s.animations.idle, s.animations.walk].map((a) => [a.from, a.to]), [[0, 0], [1, 3]]);
+  assert.deepEqual(C.getPixel(s, 3, 0, 0), RED);
+  assert.equal(C.moveFrameToAnimation(s, 1, "walk"), -1, "already there");
+  assert.equal(C.moveFrameToAnimation(s, 0, "walk"), 3, "the last frame of idle moves, and idle goes");
+  assert.deepEqual(Object.keys(s.animations), ["walk"]);
+  assert.ok(C.animationsTidy(s.animations, s.frames.length));
 });

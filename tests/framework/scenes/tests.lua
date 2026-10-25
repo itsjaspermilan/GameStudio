@@ -88,6 +88,8 @@ function Tests:enter()
     check("velocity", math.abs(m.x - 50) < 4, m.x)
     m:destroy()
     local bl = gs.spawn("blinker", 0, 0)
+    gs.wait(0.7) -- nothing played yet: the sprite's first animation (flash, frames 0-2) shows, not all six frames
+    check("an entity shows its sprite's first animation until it plays one", bl.anim == nil and bl.frame >= 0 and bl.frame < 3, bl.frame)
     bl:play("once")
     gs.wait(0.5)
     check("a clip that does not loop rests on its last frame and reports it", math.floor(bl.frame) == 5 and bl.ended >= 1 and bl.last_end == "once", bl.frame)

@@ -698,13 +698,14 @@ local function advance(dt)
       if name then
         local s = sprite_of(name)
         if s.frames > 1 then
-          local anim = e.anim
+          local anim = e.anim or s.first_anim
           if anim then
             if not e._anim_done then
               local a = s.anims[anim]
               if a then
                 local span = a.to - a.from + 1
                 local t = (e.frame - a.from) + (a.fps or s.fps or 8) * e.anim_speed * dt
+                if t < 0 then t = 0 end -- a frame set by hand before the animation's own
                 if t >= span then
                   if a.loop == false then t = span - 1; e._anim_done = true else t = t % span end
                   local hook = e.on_animation_end

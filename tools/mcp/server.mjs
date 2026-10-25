@@ -60,7 +60,7 @@ tool("sprite_write", "Draw a sprite", "Writes sprites/<name>.png and .json and r
     bank: z.string().optional().describe("A game with colour banks: the sprite bank this sprite draws with (default the first)"),
     banks: z.array(z.string()).optional().describe("A game with colour banks, writing a tileset: the tile banks it uses (default the first tile bank)"),
     origin: z.array(z.number()).length(2).optional(), fps: z.number().optional(),
-    animations: z.record(z.string(), z.object({ from: z.number().int(), to: z.number().int(), fps: z.number(), loop: z.boolean() })).optional().describe("Named clips, frames counted from 0: { walk: { from: 2, to: 7, fps: 12, loop: true } }"),
+    animations: z.record(z.string(), z.object({ from: z.number().int(), to: z.number().int(), fps: z.number(), loop: z.boolean() })).optional().describe("Named clips, frames counted from 0, one after another and covering every frame (as the studio keeps them): { idle: { from: 0, to: 1, fps: 4, loop: true }, walk: { from: 2, to: 7, fps: 12, loop: true } }. The first is what an entity shows until it plays another."),
     outline: z.union([z.number(), z.string()]).optional().describe("Outline every frame in this colour"),
     tileset: z.object({ cols: z.number().int().min(1).max(32).optional() }).optional().describe("Write a tileset instead: each frame is one tile, laid out in rows of cols (tilesets/<name>.png, at most the console's tileset size: 512x512 on Glow43 and Glow169)"),
   }, T.sprite_write);

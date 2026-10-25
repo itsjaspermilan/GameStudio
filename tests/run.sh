@@ -97,7 +97,11 @@ if [ -x build/retro-run ] && [ -n "$core" ]; then
   prog_out="$(GS_RAM=1 FRAMES=300 run ./build/gs tests/ramhog)"
   prog_last="$(echo "$prog_out" | grep '^ramhog' | tail -1)"
   echo "$prog_out" | grep -q 'not enough memory' || { echo "FAIL: the program with GS_RAM=1 did not run out of memory"; status=1; }
-  [ -n "$core_last" ] && [ "${core_last%%/*}" = "${prog_last%%/*}" ] || { echo "core: $core_last"; echo "program: $prog_last"; echo "FAIL: the program and the core run out of memory at different points"; status=1; }
+  # The same step, or one apart: the two keep about a kilobyte of different bookkeeping, so a run that ends near a step's edge can tip
+  # either way (a step is one 32 KB string, 0.4% of the 8 MB).
+  core_step="$(echo "$core_last" | awk '{print $2}')"; prog_step="$(echo "$prog_last" | awk '{print $2}')"
+  [ -n "$core_step" ] && [ -n "$prog_step" ] && [ $(( core_step - prog_step )) -ge -1 ] && [ $(( core_step - prog_step )) -le 1 ] \
+    || { echo "core: $core_last"; echo "program: $prog_last"; echo "FAIL: the program and the core run out of memory at different points"; status=1; }
   case "$prog_last" in *"/8192 KB"*) ;; *) echo "$prog_last"; echo "FAIL: gs.raw.ram() does not report the 8 MB RAM"; status=1 ;; esac
   rm -rf "$tmp"
 else

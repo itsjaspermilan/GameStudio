@@ -23,7 +23,7 @@
 ---@field visible boolean
 ---@field flip boolean Mirror the sprite sideways.
 ---@field frame number Frame of the sprite being shown.
----@field anim string|nil Name of the animation playing.
+---@field anim string|nil Name of the animation playing (nil: the sprite's first animation shows, if it has any).
 ---@field anim_speed number 1 is normal speed.
 ---@field depth number Draw order: larger is further back.
 ---@field sprite string|nil Name of a file in sprites/.
@@ -87,7 +87,7 @@ function Entity:set_velocity(angle, speed) end
 function Entity:speed() end
 ---Mirror the sprite to face where it is moving (left or right).
 function Entity:face_motion() end
----Play one of the sprite's named animations. Does nothing if it is already playing (unless restart is true).
+---Play one of the sprite's named animations. Does nothing if it is already playing (unless restart is true). Until an entity plays one, it shows the sprite's first animation.
 ---@param name string An animation from the sprite's file
 ---@param restart? boolean
 function Entity:play(name, restart) end

@@ -53,27 +53,11 @@ export function createSpriteEditor(root, hooks = {}) {
       </div>
       <div class="se-sprite-only">
       <div class="se-use se-sprite-only"><button data-act="makeentity" class="primary" title="Make an entity (entities/<name>.lua) that looks like this sprite, ready to place in a layout or spawn from code">Make an entity with it</button></div>
-      <h3>Frames</h3>
-      <div class="se-frames"></div>
-      <div class="se-row">
-        <button data-act="addframe" title="New blank frame">+ New</button>
-        <button data-act="dupframe" title="Duplicate frame">Copy</button>
-        <button data-act="delframe" title="Delete frame">Delete</button>
-      </div>
-      <div class="se-row">
-        <button data-act="frameleft" title="Move frame left">&larr;</button>
-        <button data-act="frameright" title="Move frame right">&rarr;</button>
-      </div>
       <h3>Preview</h3>
-      <canvas class="se-preview"></canvas>
+      <canvas class="se-preview" title="The animation of the frame you are on, at its speed"></canvas>
       <h3>On the screen</h3>
       <canvas class="se-screen" title="The whole console screen, with your sprite at its real size next to squares of 16, 32, 48 and 64 pixels"></canvas>
       <p class="se-hint se-screen-hint"></p>
-      <label class="se-field">Speed (frames/sec) <input type="number" class="p-fps" min="0" max="60" step="1"></label>
-      <h3>Animations</h3>
-      <div class="se-anims"></div>
-      <div class="se-row"><button data-act="addanim" title="Name a run of frames, like walk or jump, so an entity can play it">+ New animation</button></div>
-      <p class="se-hint">An entity plays one with <code>self:play("walk")</code>. Without any, the whole sprite just loops.</p>
       <h3>Size</h3>
       <div class="se-row se-fields">
         <label>W <input type="number" class="p-w" min="1" max="256"></label>
@@ -92,7 +76,18 @@ export function createSpriteEditor(root, hooks = {}) {
         <label>W <input type="number" class="p-mw"></label><label>H <input type="number" class="p-mh"></label>
       </div>
       </div>
+    </div>
+    <div class="se-timeline se-sprite-only">
+      <div class="se-animlist">
+        <div class="se-tl-head"><span>Animations</span><button data-act="addanim" class="small se-addanim">+</button></div>
+        <div class="se-anim-items"></div>
+      </div>
+      <div class="se-tl-main">
+        <div class="se-tl-bar"></div>
+        <div class="se-strip"></div>
+      </div>
     </div>`;
+  root.classList.add("se-has-timeline");
   root.classList.toggle("se-tileset", hooks.mode === "tileset");
   const isTS = () => hooks.mode === "tileset";
 
@@ -414,6 +409,11 @@ export function createSpriteEditor(root, hooks = {}) {
     renderStatus();
   }
 
+  // "walk frame 2/4" when the sprite has animations, else "frame 2/4"
+  function frameLabel() {
+    const g = C.animationGroups(s).find((x) => f >= x.from && f <= x.to);
+    return g && g.name ? `${g.name} frame ${f - g.from + 1}/${g.to - g.from + 1}` : `frame ${f + 1}/${s.frames.length}`;
+  }
   function renderStatus() {
     const pos = cursor && C.inBounds(s, cursor[0], cursor[1]) ? `${cursor[0]}, ${cursor[1]}` : "-";
     if (isTS()) {
@@ -422,7 +422,7 @@ export function createSpriteEditor(root, hooks = {}) {
       return;
     }
     $(".se-status").textContent =
-      `${s.name}  |  ${s.w}×${s.h}  |  frame ${f + 1}/${s.frames.length}  |  zoom ${zoom}x  |  pixel ${pos}` + (sel ? `  |  selected ${sel.w}×${sel.h}` : "");
+      `${s.name}  |  ${s.w}×${s.h}  |  ${frameLabel()}  |  zoom ${zoom}x  |  pixel ${pos}` + (sel ? `  |  selected ${sel.w}×${sel.h}` : "");
   }
 
   function thumb(frame, w, h, cls) {
@@ -431,16 +431,125 @@ export function createSpriteEditor(root, hooks = {}) {
     c.getContext("2d").putImageData(new ImageData(frame, w, h), 0, 0);
     return c;
   }
+  // The timeline at the bottom: the animations as a list on the left (one unnamed "All frames" until one is named), and the frames of the
+  // one you are on in a strip on the right, scrolling sideways. Frames drag to a new place in the strip, or onto another animation in the
+  // list to move there. `naming` shows the name box of an animation being added.
+  let naming = false, nameError = "", nameDraft = "", dragFrame = -1;
   function renderFrames() {
-    const box = $(".se-frames"); box.replaceChildren();
-    s.frames.forEach((fr, i) => {
-      const cell = document.createElement("div");
-      cell.className = "se-frame" + (i === f ? " active" : "");
-      cell.appendChild(thumb(fr, s.w, s.h, "se-thumb"));
-      const n = document.createElement("span"); n.textContent = i + 1; cell.appendChild(n);
-      cell.onclick = () => { settle(true); f = i; renderAll(); };
-      box.appendChild(cell);
+    if (isTS()) return;
+    const groups = C.animationGroups(s), named = groups[0].name !== null;
+    const cur = groups.find((g) => f >= g.from && f <= g.to) || groups[0];
+    const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+
+    // the list of animations
+    const list = $(".se-anim-items"); list.replaceChildren();
+    for (const g of groups) {
+      const item = el("div", "se-anim-item" + (g === cur ? " active" : ""));
+      item.append(el("span", "se-anim-label", g.name || "All frames"), el("span", "se-anim-count", String(g.to - g.from + 1)));
+      item.title = g.name ? `self:play("${g.name}")${g === groups[0] ? ": shown until the code plays another" : ""}` : "Every frame, looping";
+      item.onclick = () => { if (g !== cur) { settle(true); f = g.from; previewT = 0; renderAll(); } };
+      if (g.name && named) { // a frame dropped here moves to the end of this animation
+        item.ondragover = (e) => { if (dragFrame >= 0 && C.ownerOf(s, dragFrame) !== g.name) { e.preventDefault(); item.classList.add("drop"); } };
+        item.ondragleave = () => item.classList.remove("drop");
+        item.ondrop = (e) => {
+          e.preventDefault(); item.classList.remove("drop");
+          const from = dragFrame; dragFrame = -1;
+          commit(() => { const at = C.moveFrameToAnimation(s, from, g.name); if (at >= 0) f = at; });
+        };
+      }
+      list.appendChild(item);
+    }
+    if (naming) {
+      const row = el("div", "se-anim-item se-naming");
+      const input = el("input", "se-anim-name"); input.spellcheck = false; input.value = nameDraft;
+      input.placeholder = named ? "walk, jump…" : "Name them: idle";
+      input.oninput = () => { nameDraft = input.value; };
+      const done = (ok) => {
+        if (!ok) { naming = false; nameError = ""; nameDraft = ""; renderFrames(); return; }
+        const name = input.value.trim();
+        const why = !C.isValidAnimationName(name) ? "Letters, digits, - and _, starting with a letter." : (s.animations || {})[name] ? `There is already a ${name}.` : "";
+        if (why) { nameError = why; renderFrames(); return; }
+        naming = false; nameError = ""; nameDraft = "";
+        commit(() => { if (C.addAnimation(s, name) && named) { f = s.animations[name].from; previewT = 0; } });
+      };
+      input.onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") done(true); if (e.key === "Escape") done(false); };
+      input.onblur = () => { if (!input.value.trim()) done(false); };
+      row.appendChild(input);
+      list.appendChild(row);
+      if (nameError) list.appendChild(el("p", "se-hint se-error", nameError));
+      requestAnimationFrame(() => input.focus());
+    } else if (!named) {
+      list.appendChild(el("p", "se-hint", "+ names these frames (idle), then you can add more animations (walk, jump)."));
+    }
+    const addBtn = $(".se-addanim");
+    addBtn.title = named ? "A new animation (walk, jump, hurt), starting with one blank frame" : "Give these frames a name (idle), then add more animations";
+
+    // the bar over the strip: the animation's name, speed and loop, and what to do with the frame you are on
+    const bar = $(".se-tl-bar"); bar.replaceChildren();
+    const lab = (text, input) => { const l = el("label"); l.append(text, input); return l; };
+    if (cur.name) {
+      const nm = el("input", "se-anim-name"); nm.value = cur.name; nm.spellcheck = false; nm.title = `The animation's name: self:play("${cur.name}")`;
+      nm.onchange = () => { if (nm.value !== cur.name && !commitIf(() => C.renameAnimation(s, cur.name, nm.value.trim()))) nm.value = cur.name; };
+      bar.appendChild(nm);
+    } else bar.appendChild(el("span", "se-tl-title", "All frames"));
+    const speed = el("input"); speed.type = "number"; speed.min = 0; speed.max = 60; speed.step = 1; speed.value = cur.fps; speed.title = "Frames per second";
+    speed.onchange = () => commit(() => {
+      const v = Math.max(0, Math.min(60, Number(speed.value) || 0));
+      if (cur.name) s.animations[cur.name].fps = v; else s.fps = v;
     });
+    bar.appendChild(lab("fps", speed));
+    if (cur.name) {
+      const loop = el("input"); loop.type = "checkbox"; loop.checked = cur.loop; loop.title = "Start over when it reaches the end (off: stay on the last frame)";
+      loop.onchange = () => commit(() => { s.animations[cur.name].loop = loop.checked; });
+      bar.appendChild(lab("loop", loop));
+    }
+    bar.appendChild(el("span", "se-tl-gap"));
+    const btn = (text, title, act) => { const b = el("button", "small", text); b.title = title; b.onclick = act; return b; };
+    bar.append(
+      btn("Copy", "A copy of this frame after it (change it a little to animate)", () => commit(() => { if (C.duplicateFrame(s, f)) f = f + 1; })),
+      btn("Delete", "Delete this frame", () => commit(() => { C.deleteFrame(s, f); })));
+    if (cur.name) bar.appendChild(btn("\u00D7", groups.length > 1 ? `Delete ${cur.name} and its frames` : "Take the name off: the frames stay and loop as the whole sprite",
+      () => commit(() => C.removeAnimation(s, cur.name))));
+
+    // the frames of this animation, in a strip that scrolls sideways; drag one to a new place
+    const strip = $(".se-strip"); strip.replaceChildren();
+    const cells = [];
+    for (let i = cur.from; i <= cur.to; i++) {
+      const cell = el("div", "se-frame" + (i === f ? " active" : ""));
+      cell.appendChild(thumb(s.frames[i], s.w, s.h, "se-thumb"));
+      cell.appendChild(el("span", "", String(i - cur.from + 1)));
+      cell.title = `Frame ${i - cur.from + 1}. Drag it to change the order${named && groups.length > 1 ? ", or onto another animation on the left" : ""}.`;
+      cell.draggable = true;
+      cell.onclick = () => { settle(true); f = i; renderAll(); };
+      cell.ondragstart = (e) => { settle(true); dragFrame = i; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); cell.classList.add("dragging"); };
+      cell.ondragend = () => { dragFrame = -1; cell.classList.remove("dragging"); clearMarks(); };
+      cells.push(cell);
+      strip.appendChild(cell);
+    }
+    // where a dropped frame would go: before the first cell whose middle is right of the pointer
+    const insertAt = (x) => { let k = cells.length; for (let j = 0; j < cells.length; j++) { const r = cells[j].getBoundingClientRect(); if (x < r.left + r.width / 2) { k = j; break; } } return k; };
+    const clearMarks = () => cells.forEach((c) => c.classList.remove("drop-before", "drop-after"));
+    strip.ondragover = (e) => {
+      if (dragFrame < cur.from || dragFrame > cur.to) return;
+      e.preventDefault();
+      clearMarks();
+      const k = insertAt(e.clientX);
+      if (k < cells.length) cells[k].classList.add("drop-before"); else cells[cells.length - 1].classList.add("drop-after");
+    };
+    strip.ondragleave = (e) => { if (!strip.contains(e.relatedTarget)) clearMarks(); };
+    strip.ondrop = (e) => {
+      if (dragFrame < cur.from || dragFrame > cur.to) return;
+      e.preventDefault(); clearMarks();
+      const from = dragFrame, ins = cur.from + insertAt(e.clientX), to = ins > from ? ins - 1 : ins;
+      dragFrame = -1;
+      if (to !== from) commit(() => { if (C.moveFrame(s, from, to)) f = to; });
+    };
+    const add = el("button", "se-frame-add", "+");
+    add.title = cur.name ? `A new blank frame at the end of ${cur.name}` : "A new blank frame at the end";
+    add.onclick = () => commit(() => { if (C.addFrameTo(s, cur.name)) f = cur.name ? s.animations[cur.name].to : s.frames.length - 1; });
+    strip.appendChild(add);
+    const active = strip.querySelector(".se-frame.active");
+    if (active) active.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
   function syncProps() {
     if (isTS()) {
@@ -448,41 +557,13 @@ export function createSpriteEditor(root, hooks = {}) {
       $(".p-cols").value = C.tilesetCols(s); $(".p-rows").value = C.tilesetRows(s);
       return;
     }
-    $(".p-fps").value = s.fps; $(".p-w").value = s.w; $(".p-h").value = s.h;
+    $(".p-w").value = s.w; $(".p-h").value = s.h;
     $(".p-ox").value = s.origin[0]; $(".p-oy").value = s.origin[1];
     const m = s.mask || [0, 0, s.w, s.h];
     $(".p-mask-on").checked = !!s.mask;
     ["mx", "my", "mw", "mh"].forEach((k, i) => { const el = $(".p-" + k); el.value = m[i]; el.disabled = !s.mask; });
   }
   // One row per named animation: name, first and last frame (counted from 1), speed, loop, play (shows it in the preview) and delete.
-  let playing = null; // the animation name the preview is showing, or null for the whole sprite
-  function renderAnims() {
-    const box = $(".se-anims"); if (!box) return;
-    box.replaceChildren();
-    const anims = s.animations || {};
-    if (playing && !anims[playing]) playing = null;
-    for (const [name, a] of Object.entries(anims)) {
-      const row = document.createElement("div"); row.className = "se-anim" + (playing === name ? " playing" : "");
-      const field = (cls, value, title, max) => {
-        const el = document.createElement("input"); el.type = "number"; el.className = cls; el.value = value; el.title = title; el.min = 0; if (max) el.max = max; return el;
-      };
-      const nm = document.createElement("input"); nm.className = "se-anim-name"; nm.value = name; nm.spellcheck = false; nm.title = "Animation name";
-      nm.onchange = () => { if (nm.value !== name && !commitIf(() => C.renameAnimation(s, name, nm.value.trim()))) nm.value = name; };
-      const from = field("se-anim-from", a.from + 1, "First frame", s.frames.length), to = field("se-anim-to", a.to + 1, "Last frame", s.frames.length);
-      const fps = field("se-anim-fps", a.fps, "Frames per second", 60);
-      const edit = () => commit(() => { Object.assign(s.animations, C.normalizeAnimations({ ...s.animations, [name]: { ...a, from: from.value - 1, to: to.value - 1, fps: Number(fps.value) } }, s.frames.length)); });
-      from.onchange = to.onchange = fps.onchange = edit;
-      const loop = document.createElement("input"); loop.type = "checkbox"; loop.checked = a.loop; loop.title = "Start over when it reaches the end";
-      loop.onchange = () => commit(() => { a.loop = loop.checked; });
-      const play = document.createElement("button"); play.className = "small"; play.textContent = playing === name ? "\u25A0" : "\u25B6"; play.title = "Show it in the preview";
-      play.onclick = () => { playing = playing === name ? null : name; previewT = 0; renderAnims(); };
-      const del = document.createElement("button"); del.className = "small"; del.textContent = "\u00D7"; del.title = "Delete this animation";
-      del.onclick = () => commit(() => C.removeAnimation(s, name));
-      const lab = (text, el) => { const l = document.createElement("label"); l.append(text, el); return l; };
-      row.append(nm, lab("from", from), lab("to", to), lab("fps", fps), lab("loop", loop), play, del);
-      box.appendChild(row);
-    }
-  }
   // Run a change that may be refused (a bad or taken name); only a change that happened goes on the undo list.
   function commitIf(mutator) {
     settle();
@@ -491,15 +572,15 @@ export function createSpriteEditor(root, hooks = {}) {
     history.record(snap); markDirty(); renderAll();
     return true;
   }
-  function renderAll() { renderCanvas(); renderFrames(); syncProps(); renderAnims(); drawPreviewFrame(); updateBanner(); }
+  function renderAll() { renderCanvas(); renderFrames(); syncProps(); drawPreviewFrame(); updateBanner(); }
 
   // ---------- preview animation ----------
   const pv = $(".se-preview"), pvCtx = pv.getContext("2d");
   function drawPreviewFrame() {
     if (!s) return;
     pv.width = s.w; pv.height = s.h;
-    const clip = playing && s.animations && s.animations[playing];
-    const idx = clip ? C.animationFrame(clip, previewT) : s.fps > 0 ? Math.floor(previewT * s.fps) % s.frames.length : f;
+    const clip = C.animationGroups(s).find((g) => f >= g.from && f <= g.to);
+    const idx = clip ? C.animationFrame(clip, previewT) : f;
     pvCtx.clearRect(0, 0, s.w, s.h);
     pvCtx.putImageData(new ImageData(s.frames[idx], s.w, s.h), 0, 0);
     drawScreen(idx);
@@ -636,13 +717,8 @@ export function createSpriteEditor(root, hooks = {}) {
     zoomin: () => { userZoom = true; zoom = Math.min(32, zoom + 1); renderCanvas(); },
     zoomout: () => { userZoom = true; zoom = Math.max(1, zoom - 1); renderCanvas(); },
     fit: () => { userZoom = false; fitZoom(); renderCanvas(); },
-    addframe: () => commit(() => { C.addFrame(s, f + 1); f = f + 1; }),
     makeentity: () => hooks.makeEntity && hooks.makeEntity(),
-    addanim: () => commit(() => { let n = 1; while ((s.animations || {})["anim" + n]) n++; C.addAnimation(s, "anim" + n); }),
-    dupframe: () => commit(() => { if (C.duplicateFrame(s, f)) f = f + 1; }),
-    delframe: () => commit(() => { C.deleteFrame(s, f); }),
-    frameleft: () => commit(() => { if (C.moveFrame(s, f, f - 1)) f = f - 1; }),
-    frameright: () => commit(() => { if (C.moveFrame(s, f, f + 1)) f = f + 1; }),
+    addanim: () => { settle(true); naming = true; nameError = ""; nameDraft = ""; renderFrames(); },
     resizesheet: () => {
       const tw = +$(".p-tw").value, th = +$(".p-th").value, cols = +$(".p-cols").value, rows = +$(".p-rows").value;
       commit(() => C.resizeSheet(s, tw, th, cols, rows));
@@ -680,7 +756,6 @@ export function createSpriteEditor(root, hooks = {}) {
   });
 
   const num = (sel) => { const v = parseInt($(sel).value, 10); return Number.isFinite(v) ? v : 0; };
-  $(".p-fps").addEventListener("change", () => commit(() => { s.fps = Math.max(0, Math.min(60, num(".p-fps"))); }));
   const setOrigin = () => commit(() => {
     s.origin = [Math.max(0, Math.min(s.w - 1, num(".p-ox"))), Math.max(0, Math.min(s.h - 1, num(".p-oy")))];
   });
@@ -726,7 +801,9 @@ export function createSpriteEditor(root, hooks = {}) {
 
   return {
     load(sprite) {
-      s = sprite; f = 0; history = new C.History(); dirty = false; drag = null; sel = null; userZoom = false; note = "";
+      s = sprite; f = 0; history = new C.History(); dirty = false; drag = null; sel = null; userZoom = false; note = ""; naming = false;
+      // older sprites could share frames between animations; the editor keeps every frame in exactly one
+      if (!isTS() && C.tidyAnimations(s)) { dirty = true; note = "This sprite's animations shared frames or left some out. Each now has its own frames (frame numbers changed); save to keep it."; }
       buildPalette();
       requestAnimationFrame(() => { fitZoom(); renderAll(); }); // after layout, so the wrap has a size
       fitZoom(); renderAll();
