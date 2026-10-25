@@ -2,7 +2,7 @@
 return {
   width = 256, height = 192, background = "#0b0d1a",
   layers = {
-    { name = "stars", tileset = "ts_space", depth = 100, data = {
+    { name = "stars", tileset = "space", depth = 100, data = {
       { 0, 2, 0, 0, 0, 0, 0, 0 },
       { 2, 2, 0, 1, 3, 1, 1, 0 },
       { 0, 1, 0, 0, 2, 0, 1, 0 },
@@ -58,7 +58,7 @@ return {
     { "brick", 208, 104, { row = 5 } },
   },
   panels = {
-    { 0, 0, 256, 16, tileset = "ts_ui", tile = 0, name = "bar" },
+    { 0, 0, 256, 16, tileset = "ui", tile = 0, name = "bar" },
   },
   texts = {
     { "SCORE 0", 8, 4, name = "score", color = "text:1" },

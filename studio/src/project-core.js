@@ -9,14 +9,15 @@ import { paletteText, starterPalette } from "./palette-core.js";
 export const GROUPS = [
   { key: "entities", title: "Entities", dir: "entities", ext: "lua", kind: "code", nested: true, single: "entity", tip: "Things in your game: the player, enemies, bullets. One Lua file each." },
   { key: "scenes", title: "Scenes", dir: "scenes", ext: "lua", layout: "layout.lua", kind: "code", nested: true, single: "scene", tip: "Screens and levels of your game: title, play, game over. Each has a layout (what is placed where) and code." },
-  { key: "rooms", title: "Rooms", dir: "rooms", ext: "lua", kind: "code", nested: true, single: "room", tip: "Level data: tile layers and where things start." },
+  // rooms/ is the older home of levels (a scene's layout holds the same data); kept so older games open, with no way to make a new one
+  { key: "rooms", title: "Rooms", dir: "rooms", ext: "lua", kind: "code", nested: true, single: "room", legacy: true, tip: "Levels made before scenes had layouts. Open one and press Make it a scene layout to move it to Scenes, where new levels go." },
   { key: "lib", title: "Code", dir: "lib", ext: "lua", kind: "code", nested: true, single: "code file", tip: "Shared code and game state you load with require." },
   { key: "sprites", title: "Sprites", dir: "sprites", ext: "json", pair: "png", kind: "sprite", nested: true, single: "sprite" },
   { key: "tilesets", title: "Tilesets", dir: "tilesets", ext: "json", pair: "png", kind: "tileset", nested: true, single: "tileset" },
   { key: "sfx", title: "Sound effects", dir: "sfx", ext: "json", kind: "sfx", nested: true, single: "sound effect" },
   { key: "music", title: "Music", dir: "music", ext: "json", kind: "music", nested: true, single: "song" },
   { key: "instruments", title: "Instruments", dir: "instruments", ext: "json", kind: "instrument", nested: true, single: "instrument" },
-  { key: "sounds", title: "Samples", dir: "sounds", ext: "wav", kind: "sample", nested: true, single: "sample", importFile: true },
+  { key: "sounds", title: "Samples", dir: "sounds", ext: "wav", kind: "sample", nested: true, single: "sample", importFile: true, tip: "Recorded sounds (WAV). A game plays one through an instrument: make an instrument, set its kind to Sample, then use it in a sound effect or a song." },
 ];
 export const group = (key) => GROUPS.find((g) => g.key === key);
 
@@ -178,7 +179,7 @@ end
 return Scene
 `,
   // a scene's layout (scenes/<name>.layout.lua): see LAYOUT_TEMPLATE below
-  rooms: (name, screen) => `-- A room is plain data: gs.load_room("${name.replace(/\//g, ".")}") builds it.
+  rooms: (name, screen) => `-- A room (the older home of a level) is plain data: gs.load_layout("${name.replace(/\//g, ".")}") builds it.
 return {
   width = ${screen.width}, height = ${screen.height},
   background = "#101220",

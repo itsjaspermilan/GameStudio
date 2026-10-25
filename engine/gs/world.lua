@@ -378,7 +378,9 @@ end
 -- to fill the size. One tile high (or wide) it is a bar: only the block's top row (or left column). A text's `font` is a built-in font
 -- ("round_small" when there is none, "round_tall", "square_small", ... see gs.draw) in its color, or a sprite, one frame a letter from
 -- " " (frame 0) on in ASCII order, in the sprite's own colours. `shadow = true` (or a colour) gives built-in letters a drop shadow.
--- rooms/<name>.lua holds the same data without a scene; gs.load_room(name) builds one into the scene that is running.
+-- gs.load_layout(name) builds another scene's layout into the scene that is running (picking a level from code, a level made of
+-- pieces); its named things become fields of the running scene. rooms/<name>.lua is the older home of the same data: gs.load_layout
+-- falls back to it, and gs.load_room is the older name of gs.load_layout.
 
 -- Classes are named after the file that is loading; this file makes three, so each gets a name of its own (one name would be one class).
 local function builtin(name, kind, spec)
@@ -471,11 +473,6 @@ local function build(data, where, scene)
   return data
 end
 
-function W.load_room(name)
-  local data = require("rooms." .. name)
-  if type(data) ~= "table" then error("rooms/" .. name .. ".lua must end with 'return { ... }'", 2) end
-  return build(data, "rooms/" .. name .. ".lua", nil)
-end
 
 -- "title", "scenes.title" -> "scenes.title"; its files are scenes/title.lua and scenes/title.layout.lua
 local function scene_module(name) return name:find("^scenes%.") and name or "scenes." .. name end
@@ -493,6 +490,20 @@ function W.layout_of(name)
   if type(data) ~= "table" then error(path .. " must end with 'return { ... }'", 0) end
   return data, path
 end
+
+-- Build a layout into the scene that is running: a scene's (scenes/<name>.layout.lua), else an older room (rooms/<name>.lua).
+function W.load_layout(name)
+  local data, path = W.layout_of(name)
+  if data then return build(data, path, W.scene) end
+  local room = name:gsub("^rooms%.", "")
+  if not gs.raw.load("rooms/" .. room:gsub("%.", "/") .. ".lua") then
+    error("gs.load_layout: there is no layout '" .. name .. "' (no " .. file_of(scene_module(name)) .. ".layout.lua)", 2)
+  end
+  local old = require("rooms." .. room)
+  if type(old) ~= "table" then error("rooms/" .. room .. ".lua must end with 'return { ... }'", 2) end
+  return build(old, "rooms/" .. room .. ".lua", nil)
+end
+W.load_room = W.load_layout
 
 -- ---------------------------------------------------------------- paths
 -- A path is a list of points, drawn in the room editor or written by hand: paths = { patrol = { { 0, 0 }, { 64, 0 }, loop = true } }.

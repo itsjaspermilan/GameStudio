@@ -31,7 +31,7 @@ test("every gs function the framework really exposes is documented", () => {
   const boot = readFileSync(resolve(root, "engine/gs/boot.lua"), "utf8");
   const exposed = [...boot.matchAll(/\bgs\.([a-z_]+)\s*[,=\n]/g)].map((m) => m[1]);
   const defined = [...boot.matchAll(/^function gs\.([a-z_]+)/gm)].map((m) => m[1]);
-  const wanted = new Set([...defined, "spawn", "each", "all", "first", "count", "nearest", "in_radius", "in_rect", "send", "goto_scene", "load_room", "add_layer", "layer", "tile_at", "set_tile", "sfx", "music", "music_stop", "sfx_stop", "after", "every", "go", "tween", "wait", "wait_until", "entity", "scene", "color", "pause", "defaults"]);
+  const wanted = new Set([...defined, "spawn", "each", "all", "first", "count", "nearest", "in_radius", "in_rect", "send", "goto_scene", "load_layout", "load_room", "add_layer", "layer", "tile_at", "set_tile", "sfx", "music", "music_stop", "sfx_stop", "after", "every", "go", "tween", "wait", "wait_until", "entity", "scene", "color", "pause", "defaults"]);
   const gsMembers = new Set(labels(api.members.get("gs")));
   const missing = [...wanted].filter((n) => !gsMembers.has(n));
   assert.deepEqual(missing, []);
@@ -68,7 +68,8 @@ test("completion: API members, asset names, tags, hooks", () => {
   assert.deepEqual(labels(at('gs.spawn("')), ["enemies.grub", "player"]);
   assert.deepEqual(labels(at('gs.goto_scene("')), ["scenes.play", "scenes.title"]);
   assert.deepEqual(labels(at('gs.sfx("z')), ["zap"]);
-  assert.deepEqual(labels(at('gs.load_room("')), ["lvl1"]);
+  assert.deepEqual(labels(at('gs.load_layout("')), ["lvl1", "play", "title"], "a scene's layout or an older room");
+  assert.deepEqual(labels(at('gs.load_room("')), ["lvl1", "play", "title"]);
   assert.deepEqual(labels(at('local s = require("')).filter((l) => l.startsWith("lib")), ["lib.state"]);
   assert.deepEqual(labels(at('gs.first("')), ["bug", "enemy", "player"]);
   assert.deepEqual(labels(at('gs.nearest(self.x, self.y, "e')), ["enemy"]);

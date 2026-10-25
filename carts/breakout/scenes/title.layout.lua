@@ -2,7 +2,7 @@
 return {
   width = 256, height = 192, background = "#0b0d1a",
   layers = {
-    { name = "stars", tileset = "ts_space", depth = 100, data = {
+    { name = "stars", tileset = "space", depth = 100, data = {
       { 0, 2, 0, 0, 0, 0, 0, 0 },
       { 2, 2, 0, 1, 3, 1, 1, 0 },
       { 0, 1, 0, 0, 2, 0, 1, 0 },
@@ -19,8 +19,8 @@ return {
     { "BEST 0", 128, 162, name = "best", color = "text:3", align = "center" },
   },
   pictures = {
-    { "spr_brick", 64, 96, name = "brick_left", frame = 0 },
-    { "spr_brick", 112, 96, name = "brick_mid", frame = 2 },
-    { "spr_brick", 160, 96, name = "brick_right", frame = 4 },
+    { "brick", 64, 96, name = "brick_left", frame = 0 },
+    { "brick", 112, 96, name = "brick_mid", frame = 2 },
+    { "brick", 160, 96, name = "brick_right", frame = 4 },
   },
 }

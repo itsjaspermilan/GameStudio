@@ -49,6 +49,7 @@ export function createRoomEditor(root, hooks = {}) {
           <select class="re-code" title="Ten levels can share one set of rules: each level's layout runs the same scene's code"></select>
         </div>
         <p class="re-astext-row"><button class="link re-astext" data-act="text">Edit as text…</button></p>
+        <p class="re-toscene-row" hidden><button class="re-toscene" data-act="toscene" title="Rooms are the older home of levels. This moves it to scenes/ as a layout (the code's gs.load_room calls become gs.load_layout), where new levels go">Make it a scene layout</button></p>
       </section>
     </div>
     <div class="se-center">
@@ -458,6 +459,7 @@ export function createRoomEditor(root, hooks = {}) {
     $(".re-sizehint").textContent = one ? "The camera stays put. Right for menus and single-screen games." : `${(room.width / scr.width).toFixed(1)} × ${(room.height / scr.height).toFixed(1)} screens. The camera never shows outside it; the dashed box in the layout is one screen.`;
     swatches($(".re-bg-colors"), room.background ?? (pal().fixed ? 0 : "#000000"), (v) => { room.background = v; });
     $(".re-code-row").hidden = kind !== "layout";
+    $(".re-toscene-row").hidden = kind === "layout";
     if (kind === "layout") {
       const codeSel = $(".re-code"), scenes = (hooks.getScenes ? hooks.getScenes() : []).filter((n) => n !== name);
       const want = ["", ...scenes];
@@ -906,6 +908,7 @@ export function createRoomEditor(root, hooks = {}) {
     zoomout: () => { zoom = Math.max(0.25, zoom > 1 ? zoom - 1 : zoom / 2); render(); },
     fit, undo, redo,
     text: () => hooks.editAsText && hooks.editAsText(),
+    toscene: () => hooks.roomToLayout && hooks.roomToLayout(),
     addlayer: async () => {
       const tsName = $(".re-newlayer-ts").value; if (!tsName) return;
       if (!tilesets[tsName]) { try { tilesets[tsName] = await hooks.loadTileset(tsName); } catch (e) { status(String(e.message || e)); return; } }

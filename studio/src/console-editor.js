@@ -115,10 +115,10 @@ export function createConsoleEditor(dialog, hooks = {}) {
   field("Largest tileset width", numInput("graphics.tileset_max.width", { max: 1024 }));
   field("Largest tileset height", numInput("graphics.tileset_max.height", { max: 1024 }));
 
-  section("Rooms");
-  field("Largest room width", numInput("rooms.max_width", { max: 8192 }));
-  field("Largest room height", numInput("rooms.max_height", { max: 8192 }));
-  field("Tile layers per room", numInput("rooms.tile_layers", { max: 16 }));
+  section("Levels");
+  field("Largest level width", numInput("rooms.max_width", { max: 8192 }));
+  field("Largest level height", numInput("rooms.max_height", { max: 8192 }));
+  field("Tile layers per level", numInput("rooms.tile_layers", { max: 16 }));
   field("Views (cameras)", numInput("rooms.views", { max: 8 }));
   const par = el("input"); par.type = "checkbox"; par.onchange = () => { setp("rooms.parallax", par.checked); };
   field("Parallax scrolling", par);
@@ -133,7 +133,7 @@ export function createConsoleEditor(dialog, hooks = {}) {
 
   section("Limits and budgets");
   form.appendChild(el("div", "ce-hint", "Limits stop you; budgets only warn. Leave a box empty for none."));
-  field("Instances per room (limit)", numInput("limits.instances_per_room", { optional: true, max: 1000000 }), TYPICAL.instances);
+  field("Entities per level (limit)", numInput("limits.instances_per_room", { optional: true, max: 1000000 }), TYPICAL.instances);
   field("Entities alive at once (limit)", numInput("limits.instances_alive", { optional: true, max: 1000000 }), "While the game runs, no more than this many entities exist at once. Extra ones are ignored and the Output says so. Keeps a game that makes entities in a loop from freezing the handheld. " + TYPICAL.alive);
   field("Particles at once (limit)", numInput("limits.particles", { optional: true, max: 100000 }), "Extra particles are simply not made. " + TYPICAL.particles);
   field("Collision checks a step (budget)", numInput("budgets.collision_tests", { optional: true, max: 10000000 }), "Every entity with an on_collide method checks the entities with that tag, every step. The Handheld tab measures it while the game runs. " + TYPICAL.collisions);

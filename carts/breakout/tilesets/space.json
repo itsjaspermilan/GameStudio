@@ -1,5 +1,5 @@
 {
-  "image": "tilesets/ts_space.png",
+  "image": "tilesets/space.png",
   "tile_w": 32,
   "tile_h": 32,
   "banks": [

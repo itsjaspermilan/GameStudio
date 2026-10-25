@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renameReferences, countCodeMentions, renameInCode, renameSceneFields, settleRenames } from "../src/rename-core.js";
+import { renameReferences, countCodeMentions, renameInCode, renameSceneFields, settleRenames, roomCallsToLayout } from "../src/rename-core.js";
 
 const fixture = () => ({
   "music/song.json": { patterns: [["boop", null, "boop", null], [null, null, null, "other"]] },
@@ -86,4 +86,10 @@ test("renaming something in a layout renames self.<it> in the scene's code, and 
   assert.deepEqual(settleRenames([["a", "b"]], ["a"]), {}, "an undone rename is not applied");
   const moved = renameInCode({ "scenes/lvl1.layout.lua": 'return { code = "level", entities = { { "grub", 1, 2 } } }' }, "scenes", "level", "rules/level");
   assert.equal(moved.files["scenes/lvl1.layout.lua"], 'return { code = "rules.level", entities = { { "grub", 1, 2 } } }', "a layout follows its code when that scene is renamed");
+});
+
+test("a room moved to scenes/: its gs.load_room calls become gs.load_layout", () => {
+  const r = roomCallsToLayout({ "scenes/play.lua": 'gs.load_room("caves.deep")\ngs.load_room "caves.deep"\ngs.load_room("caves.other")', "lib/x.lua": "local a = 1" }, "caves/deep");
+  assert.equal(r.count, 1);
+  assert.deepEqual(r.files, { "scenes/play.lua": 'gs.load_layout("caves.deep")\ngs.load_room "caves.deep"\ngs.load_room("caves.other")' });
 });

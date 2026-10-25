@@ -5,7 +5,7 @@ local state = require "lib.state"
 local Title = gs.scene{}
 
 function Title:enter()
-  gs.music("msc_title")
+  gs.music("title")
   self.best.text = "BEST " .. state.best
 end
 

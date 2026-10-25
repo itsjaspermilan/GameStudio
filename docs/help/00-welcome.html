@@ -5,7 +5,7 @@ order: 0
 summary: How GameStudio works, in two minutes.
 -->
 <h1>Welcome to GameStudio</h1>
-<p>GameStudio makes small 2D games for a cheap handheld (an Anbernic RG35XX Pro running Knulli) and runs them on your computer while you work. You write the game in
+<p>GameStudio makes small 2D games for a handheld (the TrimUI Brick running NextUI) and runs them on your computer while you work. You write the game in
 <strong>Lua</strong>, a small, friendly language. You draw the sprites and make the sound and music in editors built into this window.</p>
 
 <h2>The folder is the game</h2>
@@ -16,7 +16,7 @@ Everything you see in the list on the left is a file in it, so you can also use 
 <tr><td><code>game.lua</code></td><td>The game's title, the console it is made for, and the first scene.</td></tr>
 <tr><td><code>entities/</code></td><td>Things in your game: the player, enemies, bullets. <em>One Lua file for each kind of thing.</em></td></tr>
 <tr><td><code>scenes/</code></td><td>Screens: the title, the level, game over. Each has a <strong>Layout</strong> (<code>title.layout.lua</code>: what is placed where) and <strong>Code</strong> (<code>title.lua</code>: what happens).</td></tr>
-<tr><td><code>rooms/</code></td><td>The older form of level data (a scene's layout does the same now, see <a href="help:layouts">Layouts</a>).</td></tr>
+<tr><td><code>rooms/</code></td><td>Only in older games: levels from before scenes had layouts. They still load; a room's Details tab moves it to Scenes.</td></tr>
 <tr><td><code>lib/</code></td><td>Shared code and game state you load with <code>require</code>.</td></tr>
 <tr><td><code>sprites/</code>, <code>tilesets/</code></td><td>Pictures, drawn in the sprite editor.</td></tr>
 <tr><td><code>sfx/</code>, <code>music/</code>, <code>instruments/</code>, <code>sounds/</code></td><td>Sound effects and songs, made in the sound editors; imported WAV samples.</td></tr>

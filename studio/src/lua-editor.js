@@ -138,7 +138,7 @@ function tooltip(h, index, openHelp) {
     row("lua-doc", h.exists ? "Entities with this tag are found with gs.first / gs.each / gs.count." : "No entity has this tag yet.");
   } else {
     const g = group(h.kind);
-    const label = h.kind === "module" ? "file" : g ? g.single : h.kind;
+    const label = h.kind === "module" ? "file" : h.kind === "layouts" ? "layout" : g ? g.single : h.kind;
     if (h.exists) { row("lua-sig", `${label} '${h.name}'`); if (h.target) row("lua-doc", "Ctrl-click (Cmd-click on a Mac) to open it."); }
     else {
       const names = namesFor(h.kind, ASSET_CALLS.find((c) => c.kind === h.kind), index);

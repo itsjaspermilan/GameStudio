@@ -2,10 +2,10 @@
 title: Designing levels
 group: Guides
 order: 94
-summary: Rooms that are fun and fair: jump distances from your hero's numbers, pacing, landmarks, and layouts for each kind of game.
+summary: Levels that are fun and fair: jump distances from your hero's numbers, pacing, landmarks, and layouts for each kind of game.
 -->
 <h1>Designing levels</h1>
-<p>A level is a scene's layout (<code>scenes/&lt;name&gt;.layout.lua</code>, see <a href="help:layouts">Layouts</a>) or a room (<code>rooms/&lt;name&gt;.lua</code>, see <a href="help:rooms">Big levels</a>): the same data,
+<p>A level is a scene's layout (<code>scenes/&lt;name&gt;.layout.lua</code>, see <a href="help:layouts">Layouts</a> and <a href="help:rooms">Big levels</a>),
 made in the layout editor or written by hand.
 This page is about making it good to play.</p>
 
@@ -35,7 +35,7 @@ the full distance is for a deliberate challenge, never over a pit early in the g
 <li><strong>Show the way.</strong> The way on should be visible or hinted from where the player stands: an opening, a line of coins, something interesting.</li>
 <li><strong>Rest after effort.</strong> A quiet stretch after a hard one. Let difficulty go up and down, and end on the hardest part followed by a reward.</li>
 <li><strong>Fair surprises.</strong> Enemies come into view with time to react, not right on top of the hero at the edge of the screen. Dangers look dangerous (red, spiky) and show themselves before they matter.</li>
-<li><strong>Landmarks.</strong> In a big room, something distinctive every couple of screens tells the player where they are.</li>
+<li><strong>Landmarks.</strong> In a big level, something distinctive every couple of screens tells the player where they are.</li>
 </ul>
 
 <h2>For each kind of game</h2>
@@ -51,11 +51,11 @@ Moving platforms and patrolling enemies follow paths drawn in the layout editor 
 <h2>Before you call it done</h2>
 <ul>
 <li>Play the whole route, including the jumps you think are easy.</li>
-<li>No thing sits outside the room, and every thing in the room has its entity file.</li>
+<li>No thing sits outside the level, and every thing in it has its entity file.</li>
 <li>The Handheld tab shows the busiest moments well inside the limits.</li>
 </ul>
 
 <h2>With an agent</h2>
-<p>An AI agent connected to GameStudio follows this page with its tools: <code>overview</code> for the entities and tilesets, <code>room_write</code> to build a room (for now its tools write <code>rooms/</code>, not scene layouts;
+<p>An AI agent connected to GameStudio follows this page with its tools: <code>overview</code> for the entities and tilesets, <code>room_write</code> to build a level (a scene's layout;
 a layer can be written as a text map of characters, one per tile), <code>room_view</code> to see it as a picture with counts per screen, <code>run</code> with button presses
 to play a stretch, and <code>check</code> and <code>inspect</code> for errors and costs.</p>

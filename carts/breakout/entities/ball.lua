@@ -3,7 +3,7 @@
 local state = require "lib.state"
 
 local Ball = gs.entity{
-  sprite = "spr_ball",
+  sprite = "ball",
   tags = { "ball" },
   launched = false,
   max_speed = 330,                   -- pixels a second
@@ -17,21 +17,21 @@ function Ball:update(dt)
     if gs.input.pressed("a") then
       self.launched = true
       self:set_velocity(gs.choose(-70, -110), 200)          -- up and a little to one side
-      gs.sfx("sfx_launch")
+      gs.sfx("launch")
     end
     return
   end
   -- walls and ceiling (the score line takes the top 16 pixels)
   local w, sw, sh = self:width(), gs.screen()
-  if self.x < 0 then self.x, self.vx = 0, math.abs(self.vx); gs.sfx("sfx_wall")
-  elseif self.x + w > sw then self.x, self.vx = sw - w, -math.abs(self.vx); gs.sfx("sfx_wall") end
-  if self.y < 16 then self.y, self.vy = 16, math.abs(self.vy); gs.sfx("sfx_wall") end
+  if self.x < 0 then self.x, self.vx = 0, math.abs(self.vx); gs.sfx("wall")
+  elseif self.x + w > sw then self.x, self.vx = sw - w, -math.abs(self.vx); gs.sfx("wall") end
+  if self.y < 16 then self.y, self.vy = 16, math.abs(self.vy); gs.sfx("wall") end
   if self.y > sh then self:lose_life() end
 end
 
 function Ball:lose_life()
   state.lives = state.lives - 1
-  gs.sfx("sfx_lose")
+  gs.sfx("lose")
   if state.lives <= 0 then gs.goto_scene("scenes.over", { fade = 0.3 }, false)
   else self.launched, self.vx, self.vy = false, 0, 0 end
 end
@@ -44,7 +44,7 @@ function Ball:on_collide_paddle(paddle)
   local speed = math.min(self:speed() * 1.02, self.max_speed)
   self:set_velocity(270 + hit * 53, speed)
   self.y = paddle.y - self:height()
-  gs.sfx("sfx_paddle")
+  gs.sfx("paddle")
 end
 
 function Ball:on_collide_brick(brick)

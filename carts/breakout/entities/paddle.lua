@@ -1,6 +1,6 @@
 -- The paddle slides left and right with the d-pad and stays on screen.
 local Paddle = gs.entity{
-  sprite = "spr_paddle",
+  sprite = "paddle",
   tags = { "paddle" },
   speed = 240,                       -- pixels a second
 }

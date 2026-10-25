@@ -139,6 +139,14 @@ function Tests:enter()
     check("a one-point looping path does not hang", w.x == 5 and w.y == 5)
     w:stop_path(); w:destroy()
 
+    -- ---- another scene's layout built into this one
+    local was = gs.count("enemy")
+    gs.load_layout("piece")
+    check("load_layout builds a layout into the running scene", gs.count("enemy") == was + 1 and #gs.path("hop") == 2)
+    check("a loaded layout's names are fields of the running scene", gs.world.scene.gem and gs.world.scene.gem.hp == 7)
+    gs.world.scene.gem:destroy(); gs.world.scene.gem = nil
+    check("gs.load_room is load_layout and still reads rooms/", gs.load_room == gs.load_layout and raises(function() gs.load_layout("nowhere") end, "no layout 'nowhere'"))
+
     -- ---- particles
     gs.burst(50, 50, { count = 10, life = 0.2, speed = 100, angle = 0, spread = 0 })
     check("burst makes particles", gs.particle_count() == 10, gs.particle_count())

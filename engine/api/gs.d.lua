@@ -264,11 +264,18 @@ function gs.goto_scene(name, opts, ...) end
 ---@param color? Color white when left out
 ---@param seconds? number 0.3 when left out
 function gs.flash(color, seconds) end
----Build a room from rooms/<name>.lua: its background, tile layers and the entities it places.
+---Build another scene's layout into the scene that is running: its background, tile layers, entities, texts, pictures and paths. For
+---picking a level from code or building a level from pieces; named things become fields of the running scene. A scene's own layout is
+---built for you when it starts, so this is only for more.
+---  gs.load_layout("levels.level" .. n)     -- scenes/levels/level3.layout.lua
+---@param name string
+---@return table
+function gs.load_layout(name) end
+---The older name of gs.load_layout (it also reads the older rooms/<name>.lua files).
 ---@param name string
 ---@return table
 function gs.load_room(name) end
----A path of the room loaded last: a list of points { {x, y}, ... } (loop = true if it goes round). Paths are drawn in the room editor.
+---A path of the layout built last: a list of points { {x, y}, ... } (loop = true if it goes round). Paths are drawn in the layout editor.
 ---@param name string
 ---@return number[][]
 function gs.path(name) end

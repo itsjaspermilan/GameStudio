@@ -1,5 +1,5 @@
 {
-  "image": "sprites/spr_paddle.png",
+  "image": "sprites/ball.png",
   "frames": 1,
   "origin": [
     0,
@@ -7,5 +7,5 @@
   ],
   "mask": null,
   "fps": 0,
-  "bank": "paddle"
+  "bank": "ball"
 }

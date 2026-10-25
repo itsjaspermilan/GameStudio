@@ -2,36 +2,30 @@
 title: Big levels
 group: Tutorials
 order: 80
-summary: Levels bigger than the screen, a camera that follows within them, tile layers for art, and rooms built from code.
+summary: Levels bigger than the screen, a camera that follows within them, tile layers for art, and picking a level from code.
 -->
-<h1>Big levels: rooms, tiles and the camera</h1>
-<p>The Glow43 screen is 256x192 pixels. A level can be much bigger, and the <strong>camera</strong> decides which part of it you see. A <strong>room</strong> is a data file in <code>rooms/</code> that describes a level:
-how big it is, its background, its tile layers, and which entities start where. <code>gs.load_room("arena")</code> builds it.</p>
-<div class="note"><strong>Rooms or layouts?</strong> A scene's <a href="help:layouts">layout</a> holds the same data and is built when the scene starts, so for a new level that is all you need:
-set its size to <em>Bigger: it scrolls</em> on the layout's Layout tab. A room is for when one scene builds levels from code, picking which one to load
-(<code>gs.load_room("level" .. n)</code>). Both open in the same layout editor. The list on the left shows <strong>Rooms</strong> once a game has one:
-make the first with <strong>+</strong> under <em>Other files</em> (<code>rooms/arena.lua</code>), or with <strong>Make this game</strong> below.</div>
+<h1>Big levels: layouts, tiles and the camera</h1>
+<p>The Glow43 screen is 256x192 pixels. A level can be much bigger, and the <strong>camera</strong> decides which part of it you see. A level is a scene's
+<a href="help:layouts">layout</a> made bigger than the screen: how big it is, its background, its tile layers, and which entities start where.</p>
 
-<h2>A room file</h2>
-<p>A room is plain Lua that returns a table, so you can write it by hand or generate it. Entities are <code>{ name, x, y }</code> (an optional fourth value is a table of values to set).</p>
-<pre class="lua" data-path="rooms/arena.lua"><code>return {
+<h2>A big layout</h2>
+<p>Open a scene's <strong>Layout</strong>, and on the <strong>Details</strong> tab on its left pick <em>Bigger: it scrolls</em> and type a width and height. The dashed box in the layout is one screen.
+<strong>Select</strong> picks things up and moves them, <strong>Tiles</strong> paints the chosen layer (Shift-click fills, right-click picks a tile up, Alt-click erases), <strong>Entities</strong> places the entity chosen on the right,
+and <strong>Paths</strong> draws routes. Saving writes plain data you can read (and write) yourself; <em>Edit as text</em> on the Details tab shows it. Entities are <code>{ name, x, y }</code>
+(an optional fourth value is a table of values to set; <code>name = </code> makes it <code>self.&lt;name&gt;</code> in the scene's code):</p>
+<pre class="lua" data-path="scenes/main.layout.lua"><code>-- The scene's layout, built when it starts. Named things are fields of its code: self.&lt;name&gt;.
+return {
   width = 640, height = 480,           -- bigger than the screen: the camera will scroll
   background = "#14234f",
   entities = {
-    { "walker", 320, 240 },
+    { "walker", 320, 240, {}, name = "walker" },
     { "tree", 100, 100 }, { "tree", 520, 90 }, { "tree", 300, 380 },
     { "tree", 80, 400 },  { "tree", 560, 420 }, { "tree", 450, 250, { size = 14 } },
   },
 }</code></pre>
 
-<h2>The layout editor</h2>
-<p>Click a room in the list and it opens in the <strong>layout editor</strong>, the same one scenes use (a room with code in it, like a <code>local</code> or a sum, opens as text instead).
-<strong>Select</strong> picks things up and moves them, <strong>Tiles</strong> paints the chosen layer (Shift-click fills, right-click picks a tile up, Alt-click erases), <strong>Entities</strong> places the entity chosen on the right,
-and <strong>Paths</strong> draws routes. The size (on the <em>Layout</em> tab) is the camera's limits; the dashed box shows one screen. Saving writes the same plain data you see here, so you can always
-switch to <em>Edit as text</em>.</p>
-
 <h2>Paths</h2>
-<p>A path is a list of points in the room, for a guard's patrol or a platform's route. Draw it in the layout editor, or write it in the room file:</p>
+<p>A path is a list of points in the level, for a guard's patrol or a platform's route. Draw it in the layout editor, or write it in the layout:</p>
 <pre class="lua"><code>paths = {
   patrol = { { 40, 40 }, { 280, 40 }, { 280, 200 }, loop = true },
 },</code></pre>
@@ -67,17 +61,16 @@ end
 return Walker</code></pre>
 
 <h2>The camera</h2>
-<p><code>gs.load_room</code> already tells the camera the size of the level, so it never shows the empty space outside. All that is left is whom to follow. <code>smooth</code> is how lazily the camera catches up
+<p>A big layout already tells the camera the size of the level, so it never shows the empty space outside. All that is left is whom to follow. <code>smooth</code> is how lazily the camera catches up
 (0 is stiff, 0.1 a little soft, 0.3 floaty). <code>gs.camera:shake(amount, seconds)</code> is for hits and explosions; <code>gs.camera:set(x, y)</code> moves it directly (for a cutscene).</p>
 <pre class="lua" data-path="scenes/main.lua"><code>local Main = gs.scene{}
 
 function Main:enter()
-  gs.load_room("arena")
-  gs.camera:follow(gs.first("walker") or gs.spawn("walker", 320, 240), { smooth = 0.1 })
+  gs.camera:follow(self.walker, { smooth = 0.1 })   -- the walker the layout placed and named
 end
 
 function Main:draw_ui()
-  gs.draw.text("THE ARENA IS 640x480", 8, 6, "#ffffff")
+  gs.draw.text("THE ARENA IS 640x480", 8, 6, "#ffffff", 1, { shadow = true })
 end
 
 return Main</code></pre>
@@ -85,10 +78,24 @@ return Main</code></pre>
 <p><strong>Zoom.</strong> <code>gs.camera.zoom = 2</code> shows the world twice as big (a quarter of it fits on the screen); the camera still keeps to the level's edges. Whole numbers keep pixel art crisp.
 <code>draw_ui</code> is never zoomed, so the score stays the same size. Going to another scene puts the zoom back to 1.</p>
 
+<h2>Many levels, one set of rules</h2>
+<p>Ten levels are ten layouts. Two ways to play them, both plain code:</p>
+<ul>
+<li><strong>A scene per level.</strong> Make <code>level1</code>, <code>level2</code>, ... under Scenes, and on each layout's Details tab set <em>Runs the code of</em> to one scene (say <code>play</code>).
+Every level then runs the same rules, and <code>gs.goto_scene("level" .. (n + 1))</code> moves on.</li>
+<li><strong>Build a layout into the running scene</strong> with <code>gs.load_layout(name)</code>: for a level picked from code, or one made of pieces. Its things, tiles and paths are added to what is there,
+and its named things become fields of the running scene.</li>
+</ul>
+<pre class="lua"><code>function Play:enter(n)
+  gs.load_layout("levels.level" .. n)   -- scenes/levels/level3.layout.lua when n is 3
+end</code></pre>
+<p>Older games keep levels in <code>rooms/</code>, the earlier home of the same data. They still load (<code>gs.load_room</code> is the older name of <code>gs.load_layout</code>), and
+<em>Make it a scene layout</em> on a room's Details tab moves one to Scenes.</p>
+
 <h2>Tile layers</h2>
 <p>Real levels are made of tiles drawn in the tileset editor: a picture sheet where each tile is 8, 16 or 32 pixels square. A layer is a grid of tile numbers (counting from 0, left to right then down; <code>-1</code> is empty).
-Add layers in a room file, or by hand with <code>gs.add_layer</code>:</p>
-<pre class="lua"><code>-- in rooms/arena.lua
+Paint them with the layout editor's Tiles tool, or add them by hand with <code>gs.add_layer</code>:</p>
+<pre class="lua"><code>-- in scenes/main.layout.lua
 layers = {
   { tileset = "ground", depth = 100, data = {
       { 0, 0, 1, 0 },
@@ -98,5 +105,5 @@ layers = {
   { tileset = "clouds", depth = 90, scroll_x = 0.5, wrap_x = true, data = { { 0, 1, 2, 1 } } },
 },</code></pre>
 <p>A layer is drawn from one picture that the engine builds once, so a big map costs almost nothing per frame. Ask a layer what is at a spot with <code>gs.tile_at(layer, x, y)</code> (for walls and floors),
-and change it with <code>gs.set_tile</code>. Glow43 allows four tile layers in a room. Names go with the files: <code>"ground"</code> is <code>tilesets/ground.json</code>.</p>
+and change it with <code>gs.set_tile</code>. Glow43 allows four tile layers in a level. Names go with the files: <code>"ground"</code> is <code>tilesets/ground.json</code>.</p>
 <p>Next: <a href="help:sprites-sound">Sprites, animation and sound</a>.</p>

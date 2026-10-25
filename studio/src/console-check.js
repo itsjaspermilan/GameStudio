@@ -15,14 +15,14 @@ export function checkProject(oldConsole, c, facts) {
   const note = (text) => out.push({ level: "note", text });
 
   if (oldConsole && (oldConsole.screen.width !== c.screen.width || oldConsole.screen.height !== c.screen.height)) {
-    note(`The screen changes from ${oldConsole.screen.width}×${oldConsole.screen.height} to ${c.screen.width}×${c.screen.height}. Rooms and object positions are not changed.`);
+    note(`The screen changes from ${oldConsole.screen.width}×${oldConsole.screen.height} to ${c.screen.width}×${c.screen.height}. Levels and positions are not changed.`);
   }
   const r = c.rooms, lim = c.limits || {}, bud = c.budgets || {};
   for (const [name, room] of Object.entries(facts.rooms || {})) {
-    if (room.width > r.max_width || room.height > r.max_height) problem(`Room ${name} is ${room.width}×${room.height}; this console allows up to ${r.max_width}×${r.max_height}.`);
-    if (lim.instances_per_room && room.instances > lim.instances_per_room) problem(`Room ${name} has ${room.instances} instances; this console allows ${lim.instances_per_room}.`);
-    if (lim.instances_alive && (!lim.instances_per_room || lim.instances_alive < lim.instances_per_room) && room.instances > lim.instances_alive) problem(`Room ${name} starts with ${room.instances} instances; this console allows ${lim.instances_alive} alive at once, so the rest would be ignored.`);
-    if (room.layers > r.tile_layers) problem(`Room ${name} has ${room.layers} tile layers; this console allows ${r.tile_layers}.`);
+    if (room.width > r.max_width || room.height > r.max_height) problem(`Level ${name} is ${room.width}×${room.height}; this console allows up to ${r.max_width}×${r.max_height}.`);
+    if (lim.instances_per_room && room.instances > lim.instances_per_room) problem(`Level ${name} has ${room.instances} entities; this console allows ${lim.instances_per_room}.`);
+    if (lim.instances_alive && (!lim.instances_per_room || lim.instances_alive < lim.instances_per_room) && room.instances > lim.instances_alive) problem(`Level ${name} starts with ${room.instances} entities; this console allows ${lim.instances_alive} alive at once, so the rest would be ignored.`);
+    if (room.layers > r.tile_layers) problem(`Level ${name} has ${room.layers} tile layers; this console allows ${r.tile_layers}.`);
   }
   const g = c.graphics, ss = g.sprite_size;
   for (const [name, s] of Object.entries(facts.sprites || {})) {

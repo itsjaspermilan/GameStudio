@@ -112,11 +112,11 @@ function Main:enter()
 end
 
 function Main:draw_ui()
-  gs.draw.text("ARROWS MOVE, Z JUMPS", 8, 6, "#ffffff")
+  gs.draw.text("{left}{right} MOVE, {a} JUMPS", 8, 6, "#ffffff", 1, { shadow = true })
 end
 
 return Main</code></pre>
-<p>The screen behind everything is black. A room file can set a background color (see <a href="help:rooms">Big levels</a>), or draw a big rectangle from an entity with a high <code>depth</code> (bigger numbers are drawn further back).</p>
+<p>The screen behind everything is black. A layout can set a background color (see <a href="help:rooms">Big levels</a>), or draw a big rectangle from an entity with a high <code>depth</code> (bigger numbers are drawn further back).</p>
 
 <h2>Improving it</h2>
 <ul>

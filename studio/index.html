@@ -22,12 +22,12 @@
           <button id="btn-save" title="Save (Cmd/Ctrl+S)">Save</button>
         </div>
         <div class="group">
-          <button id="btn-run" class="primary" title="Run the game from its first room (Cmd/Ctrl+Enter)">&#9654; Run</button>
+          <button id="btn-run" class="primary" title="Play the game from its first scene, beside the code (Cmd/Ctrl+Enter)">&#9654; Run</button>
           <button id="btn-stop" title="Stop the preview" disabled>&#9632; Stop</button>
         </div>
         <div class="group">
           <button id="btn-pack" title="Make the game file to share or play: &lt;name&gt;.g43 for a Glow43 game, saved next to the game's folder">Pack</button>
-          <button id="btn-push" title="Pack and copy to the device over SSH">Send to device</button>
+          <button id="btn-push" title="Pack the game and copy it to your handheld over the network (set it up in Settings)">Send to device</button>
         </div>
         <span id="status"></span>
         <div class="spacer"></div>
@@ -81,7 +81,7 @@
           <ul id="examples"></ul>
           <h2>Consoles</h2>
           <ul id="consoles"></ul>
-          <div class="welcome-actions"><button id="btn-new-console" title="Start from Dot and change its screen, colours and limits">New console</button></div>
+          <div class="welcome-actions"><button id="btn-new-console" title="Start from Glow43 and change its screen, colours and limits">New console</button></div>
         </div>
       </section>
 
@@ -165,7 +165,7 @@
 
     <dialog id="console-change">
       <h2>Change console</h2>
-      <p class="hint">Pick a console to see what would no longer fit. Nothing is changed until you press Apply, and your art and rooms are never edited.</p>
+      <p class="hint">Pick a console to see what would no longer fit. Nothing is changed until you press Apply, and your art and levels are never edited.</p>
       <select id="cc-select"></select>
       <div id="cc-report" class="cc-report"></div>
       <div class="actions"><button id="cc-cancel">Cancel</button><button id="cc-apply" class="primary">Apply</button></div>

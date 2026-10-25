@@ -32,7 +32,7 @@ my-game/
   entities/         things in the game, one Lua file each (the player, an enemy, a bullet)
   scenes/           screens and levels: each is its code (title.lua) and its layout (title.layout.lua: tiles, things,
                     texts, pictures, panels, placed in the studio's layout editor), or just one of the two
-  rooms/            the older form of level data, built from code with gs.load_room
+  rooms/            older games only: levels from before scene layouts (still load; gs.load_layout builds either)
   lib/              shared code and state, loaded with require
   sprites/ tilesets/ sfx/ music/ instruments/ sounds/    art and sound, made in the studio's editors
   meta/info.json    title, description, console and box art for the device's game list (not packed into the cart)
@@ -81,7 +81,7 @@ Every game has a `game.lua`. (Plain `main.lua` games with `init`/`update`/`draw`
 look up the `gs` API and the Help, get a one-page overview of a game, check it (lint plus a headless run), run it and see a screenshot, look inside
 with the inspector, view and draw sprites, and write and check sound effects and songs. A song check reads the notes like a musician (key, chords,
 whether the melody sits on the chords, clashes, shrill or muddy registers, melody shape) and measures the rendered sound (loudness, clipping,
-brightness). Rooms can be built as text maps and seen as pictures. The repository's `.mcp.json` starts it; run `npm install` in `tools/mcp`
+brightness). Levels (scene layouts) can be built as text maps and seen as pictures. The repository's `.mcp.json` starts it; run `npm install` in `tools/mcp`
 once. The craft for the kind of game being made (art, levels, music) is in three Help guides that people read in the studio and agents read
 through the server (`help`, and the prompts `draw-art`, `design-level`, `compose-music`); Claude Code's skills in `.claude/skills/` point to them. See `tools/mcp/AGENTS.md`.
 

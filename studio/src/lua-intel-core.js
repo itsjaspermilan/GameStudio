@@ -118,7 +118,7 @@ export const ASSET_CALLS = [
   { re: /\bgs\.sfx\s*\(\s*$/, kind: "sfx" },
   { re: /\bgs\.music\s*\(\s*$/, kind: "music" },
   { re: /\bgs\.goto_scene\s*\(\s*$/, kind: "scenes", asModule: true },
-  { re: /\bgs\.load_room\s*\(\s*$/, kind: "rooms" },
+  { re: /\bgs\.load_(?:layout|room)\s*\(\s*$/, kind: "layouts" },
   { re: /\bgs\.draw\.sprite\s*\(\s*$/, kind: "sprites" },
   { re: /\bgs\.assets\.sprite\s*\(\s*$/, kind: "sprites" },
   { re: /\bgs\.assets\.tileset\s*\(\s*$/, kind: "tilesets" },
@@ -136,6 +136,8 @@ export const ASSET_CALLS = [
 export function namesFor(kind, call, index) {
   if (kind === "tag") return [...index.tags].sort();
   if (kind === "module") return [...index.modules].sort();
+  // gs.load_layout takes a scene's name (its layout) or an older room's
+  if (kind === "layouts") return [...new Set([...(index.names.scenes || []), ...(index.names.rooms || [])].map((n) => n.replace(/\//g, ".")))].sort();
   const g = group(kind);
   if (!g) return [];
   return (index.names[kind] || []).map((n) => (call && call.asModule ? moduleName(g, n) : kind === "sprites" || kind === "tilesets" || kind === "sfx" || kind === "music" ? n : refName(g, n))).sort();
@@ -204,7 +206,7 @@ export function complete(ctx, api, index, text, file, pos) {
   const starts = (label) => label.toLowerCase().startsWith((ctx.prefix || "").toLowerCase());
   if (ctx.type === "asset") {
     const names = namesFor(ctx.kind, ctx.call, index);
-    const label = ctx.kind === "tag" ? "tag" : ctx.kind === "module" ? "file" : group(ctx.kind).single;
+    const label = ctx.kind === "tag" ? "tag" : ctx.kind === "module" ? "file" : ctx.kind === "layouts" ? "layout" : group(ctx.kind).single;
     return names.filter(starts).map((n) => ({ label: n, type: "constant", detail: label }));
   }
   if (ctx.type === "hook") {
@@ -276,6 +278,10 @@ export function assetTarget(call, text, index) {
     const [dir, ...rest] = text.split(".");
     return dir && rest.length ? { group: dir, name: rest.join("/") } : null;
   }
+  if (call.kind === "layouts") {
+    const name = text.replace(/\./g, "/"), scenes = index.names.scenes || [];
+    return { group: scenes.includes(name) || !(index.names.rooms || []).includes(name) ? "scenes" : "rooms", name };
+  }
   if (call.kind === "tag" || !group(call.kind)) return null;
   if (call.asModule) return { group: call.kind, name: text.replace(/^[a-z]+\./, "").replace(/\./g, "/") };
   return { group: call.kind, name: group(call.kind).nested ? text.replace(/\./g, "/") : text };
@@ -327,7 +333,7 @@ export function diagnose(text, file, index) {
     if (kind === "module" && !/^(entities|scenes|lib|rooms)\./.test(nm)) return; // built-in or library modules are not ours to judge
     if (kind === "tag" && index.tags.size === 0) return;
     const guess = closest(nm, names);
-    const what = kind === "tag" ? "tag" : kind === "module" ? "file" : group(kind).single;
+    const what = kind === "tag" ? "tag" : kind === "module" ? "file" : kind === "layouts" ? "layout" : group(kind).single;
     out.push({ from, to: from + nm.length, severity: kind === "tag" ? "warning" : "error",
       message: kind === "tag" ? `No entity has the tag '${nm}'.${guess ? ` Did you mean '${guess}'?` : ""} Tags are set in an entity's tags = { ... }.`
         : `There is no ${what} called '${nm}'.${guess ? ` Did you mean '${guess}'?` : ""}` });

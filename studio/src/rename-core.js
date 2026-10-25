@@ -44,7 +44,7 @@ export function countCodeMentions(luaTexts, kind, name) {
 
 // Rewrite the plain ways Lua code names a code resource after it is renamed or moved to another folder: its module name as a string
 // anywhere ("entities.enemies.grub", require "lib.state"), and its short name where a call takes one: gs.spawn("enemies.grub"),
-// gs.goto_scene("play"), gs.load_room("caves.deep"), the first item of an entry in a room's or layout's entity list ({ "enemies.grub", 10, 20 }),
+// gs.goto_scene("play"), gs.load_layout("caves.deep"), the first item of an entry in a room's or layout's entity list ({ "enemies.grub", 10, 20 }),
 // and a layout's `code = "level"`.
 // files: { rel: text }. Returns { files: {rel: new text} (only those that changed), count }.
 export function renameInCode(files, kind, from, to) {
@@ -53,7 +53,7 @@ export function renameInCode(files, kind, from, to) {
   if (!g || g.kind !== "code") return { files: {}, count: 0 };
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const dotted = (n) => n.replace(/\//g, ".");
-  const call = { entities: "gs\\.spawn", scenes: "gs\\.goto_scene", rooms: "gs\\.load_room" }[kind];
+  const call = { entities: "gs\\.spawn", scenes: "gs\\.(?:goto_scene|load_layout)", rooms: "gs\\.load_(?:room|layout)" }[kind];
   // each pattern captures what comes before the name and the quote around it
   const patterns = [new RegExp(`()(["'])${esc(moduleName(g, from))}\\2`, "g")];
   if (call) patterns.push(new RegExp(`(\\b${call}\\s*\\(\\s*)(["'])${esc(dotted(from))}\\2`, "g"));
@@ -152,6 +152,20 @@ function renameAsset(files, kind, from, to) {
     }
     let t = String(text);
     for (const re of patterns) t = t.replace(re, (_, pre, q) => { count++; return pre + q + to + q; });
+    if (t !== text) out[rel] = t;
+  }
+  return { files: out, count };
+}
+
+// A room moved to scenes/ as a layout: gs.load_room("caves.deep") calls that name it become gs.load_layout("caves.deep").
+// files: { rel: text }. Returns { files: {rel: new text} (only those that changed), count }.
+export function roomCallsToLayout(files, name) {
+  const dotted = name.replace(/\//g, ".").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`\\bgs\\.load_room(\\s*\\(\\s*)(["'])${dotted}\\2`, "g");
+  const out = {};
+  let count = 0;
+  for (const [rel, text] of Object.entries(files)) {
+    const t = String(text).replace(re, (_, open, q) => { count++; return `gs.load_layout${open}${q}${name.replace(/\//g, ".")}${q}`; });
     if (t !== text) out[rel] = t;
   }
   return { files: out, count };

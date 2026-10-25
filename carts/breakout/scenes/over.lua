@@ -5,7 +5,7 @@ local Over = gs.scene{}
 
 function Over:enter(won)
   gs.music_stop()
-  if won then gs.sfx("sfx_win") end
+  if won then gs.sfx("win") end
   self.result.text = won and "YOU WIN!" or "GAME OVER"
   self.score.text = "SCORE " .. state.score .. "   BEST " .. state.best
 end

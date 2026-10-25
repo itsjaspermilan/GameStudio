@@ -484,8 +484,13 @@ function lookOf(dir, name) {
     return look && { ...look, defaults: lookDefaults(src) };
   } catch { return null; }
 }
-// A level is a room (rooms/<name>.lua) or a scene's layout: "scenes/title" is scenes/title.layout.lua.
-function levelFile(n) { const m = n.match(/^scenes\/(.+)$/); return m ? `scenes/${m[1]}.layout.lua` : `rooms/${n}.lua`; }
+// A level is a scene's layout: "level1" and "scenes/level1" are scenes/level1.layout.lua. An older game's rooms/level1.lua is used when it
+// has one (rooms are the older home of the same data).
+function levelFile(dir, n) {
+  const m = n.match(/^scenes\/(.+)$/);
+  if (m) return `scenes/${m[1]}.layout.lua`;
+  return existsSync(join(dir, `rooms/${n}.lua`)) ? `rooms/${n}.lua` : `scenes/${n}.layout.lua`;
+}
 // A colour as the game reads it: "#rrggbb", "bank:place" (1-15 in palette.json) or a place in the console's fixed palette.
 function colorReader(dir, con) {
   const banks = banksOf(dir), byName = {}, pal = palOf(con);
@@ -638,8 +643,8 @@ function roomText(name, room, con) {
   return L.join("\n");
 }
 export function room_view({ game, name, scale }) {
-  const dir = gameDir(game), n = resName(name), f = levelFile(n);
-  if (!existsSync(join(dir, f))) throw new Error(`${f} does not exist${f.startsWith("scenes/") ? " (scenes/<name> is a scene's layout)" : " (rooms/<name>.lua; a scene's layout is scenes/<name>)"}`);
+  const dir = gameDir(game), n = resName(name), f = levelFile(dir, n);
+  if (!existsSync(join(dir, f))) throw new Error(`${f} does not exist (a level is a scene's layout: name "level1" is scenes/level1.layout.lua)`);
   const r = parseRoom(read(join(dir, f)));
   if (r.error) return { text: `${f} has code in it, so it is not drawn (${r.error}); read it as text.` };
   const con = consoleOf(dir), px = drawRoom(dir, r.room, con);
@@ -653,9 +658,9 @@ export function room_view({ game, name, scale }) {
 //   entities: { clear?: true, remove?: [names], add?: [[name, x, y, { values }?], ...] }      (pixels)
 //   paths: { name: { points: [[x, y], ...], loop } | null }
 //   texts, pictures, panels: { clear?: true, remove?: [names], add?: [{ text | sprite | tileset, x, y, ... as the layout writes them }] }
-// name "scenes/<scene>" is that scene's layout (scenes/<scene>.layout.lua), any other name a room (rooms/<name>.lua).
+// name "level1" or "scenes/level1" is that scene's layout (scenes/level1.layout.lua); an older game's rooms/level1.lua if it has one.
 export function room_write({ game, name, size, layers = [], entities, texts, pictures, panels, paths }) {
-  const dir = gameDir(game), n = resName(name), f = levelFile(n), file = join(dir, f), layout = f.startsWith("scenes/");
+  const dir = gameDir(game), f = levelFile(dir, resName(name)), n = name.replace(/^scenes\//, ""), file = join(dir, f), layout = f.startsWith("scenes/");
   let room;
   if (existsSync(file)) {
     const r = parseRoom(read(file));
@@ -730,8 +735,8 @@ export function room_write({ game, name, size, layers = [], entities, texts, pic
     else room.paths[k] = { points: (p.points || []).map(([x, y]) => [Number(x) || 0, Number(y) || 0]), loop: !!p.loop };
   }
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, serializeRoom(room, layout ? LAYOUT_COMMENT : `A room: gs.load_room("${n.replace(/\//g, ".")}") builds it. Plain data; the studio's room editor opens it.`));
-  const view = room_view({ game, name: n });
+  writeFileSync(file, serializeRoom(room, layout ? LAYOUT_COMMENT : `A room (the older home of a level): gs.load_layout("${n.replace(/\//g, ".")}") builds it. Plain data; the studio's layout editor opens it.`));
+  const view = room_view({ game, name: layout ? `scenes/${n}` : n });
   return { text: `wrote ${f}\n${view.text}${notes.length ? "\nnote: " + notes.join("; ") : ""}`, images: view.images };
 }
 

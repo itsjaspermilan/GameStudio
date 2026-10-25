@@ -80,8 +80,8 @@ export function validateConsole(c) {
   if (g.tile_sizes != null && (!Array.isArray(g.tile_sizes) || !g.tile_sizes.length || !g.tile_sizes.every((t) => int(t, 1, 256)))) bad.push("tile sizes must be a list of whole numbers from 1 to 256, or empty for any size");
   if (g.tileset_max && (!int(g.tileset_max.width, 1, 1024) || !int(g.tileset_max.height, 1, 1024))) bad.push("the tileset size limit must be whole numbers up to 1024");
   const r = c.rooms || {};
-  if (!int(r.max_width, 1, 8192) || !int(r.max_height, 1, 8192)) bad.push("room size limits must be whole numbers up to 8192");
-  else if (int(s.width, 64, 2048) && (r.max_width < s.width || r.max_height < s.height)) bad.push("rooms must be at least as big as the screen");
+  if (!int(r.max_width, 1, 8192) || !int(r.max_height, 1, 8192)) bad.push("level size limits must be whole numbers up to 8192");
+  else if (int(s.width, 64, 2048) && (r.max_width < s.width || r.max_height < s.height)) bad.push("levels must be at least as big as the screen");
   if (!int(r.tile_layers, 1, 16)) bad.push("tile layers must be 1 to 16");
   if (!int(r.views, 1, 8)) bad.push("views must be 1 to 8");
   if (c.audio && c.audio.music_tracks !== undefined && !int(c.audio.music_tracks, 1, 8)) bad.push("music tracks must be 1 to 8");
@@ -107,7 +107,7 @@ export function clampRoomSize(c, w, h) {
 // What a typical GBA-style game uses, to put next to the limits (they are ceilings the handheld can hold, not targets). From general knowledge of the
 // GBA: 128 hardware sprites at most, usually tens on screen; logic over tens of objects; hardware layers made see-through and parallax cheap.
 export const TYPICAL = {
-  instances: "A GBA-style game usually has 20 to 100 objects in a room.",
+  instances: "A GBA-style game usually has 20 to 100 entities in a level.",
   alive: "A GBA-style game usually has 20 to 100 objects alive at once.",
   particles: "A GBA-style game usually shows well under 100.",
   collisions: "A GBA-style game usually makes tens to a few hundred checks a step.",

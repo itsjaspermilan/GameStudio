@@ -15,12 +15,12 @@ test("a project that fits reports nothing, and a screen change is only a note", 
   assert.match(r[0].text, /256×192 to 320×180/);
 });
 
-test("rooms, instances and layers over the limits are problems", () => {
+test("levels, entities and layers over the limits are problems", () => {
   const facts = { rooms: { big: { width: 2000, height: 100, instances: 600, layers: 5 } } };
   const t = texts(checkProject(dot, dot, facts));
   assert.equal(t.length, 3);
   assert.ok(t[0].includes("2000×100") && t[0].includes("1024×1024"));
-  assert.ok(t[1].includes("600 instances") && t[1].includes("512"));
+  assert.ok(t[1].includes("600 entities") && t[1].includes("512"));
   assert.ok(t[2].includes("5 tile layers") && t[2].includes("4"));
 });
 
@@ -73,5 +73,5 @@ test("a room that starts with more objects than may be alive at once is a proble
   const c = K.duplicateConsole(dot, "tight", "Tight"); c.limits = { instances_alive: 100 };
   const facts = { rooms: { rm: { width: 320, height: 240, instances: 150, layers: 1 } }, sprites: {}, tilesets: {} };
   const t = texts(checkProject(dot, c, facts));
-  assert.ok(t.some((x) => /starts with 150 instances; this console allows 100 alive at once/.test(x)), t.join(" | "));
+  assert.ok(t.some((x) => /starts with 150 entities; this console allows 100 alive at once/.test(x)), t.join(" | "));
 });

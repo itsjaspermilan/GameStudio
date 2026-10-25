@@ -1,5 +1,5 @@
 {
-  "image": "sprites/spr_brick.png",
+  "image": "sprites/brick.png",
   "frames": 6,
   "origin": [
     0,

@@ -84,5 +84,6 @@ return {
   code = "level",
   entities = { { "player", 32, 160, {}, name = "player" }, { "door", 224, 160, {}, name = "door" } },
 }</code></pre>
-<div class="note"><strong>Rooms</strong> (<code>rooms/</code>, <a href="help:rooms">Big levels</a>) are the older way to do this: the same data, built by <code>gs.load_room</code> from code. They still work.</div>
+<div class="note"><strong>From code.</strong> <code>gs.load_layout("level2")</code> builds another scene's layout into the scene that is running, for a level picked from code
+(see <a href="help:rooms">Big levels</a>). Older games keep the same data in <code>rooms/</code>; those still load.</div>
 <p>Next: <a href="help:talking">Talking: text boxes and choices</a>.</p>

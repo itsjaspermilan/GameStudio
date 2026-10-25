@@ -6,7 +6,7 @@ local Play = gs.scene{}
 
 function Play:enter()
   state.reset()
-  gs.music("msc_main")
+  gs.music("main")
 end
 
 function Play:update(dt)

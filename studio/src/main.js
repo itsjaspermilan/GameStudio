@@ -24,7 +24,7 @@ import { encodeSpritePng, decodeSpritePng } from "./sprite-io.js";
 import { BUILTIN_CONSOLES, allConsoles, budgetStatus, formatKB, consoleFor, duplicateConsole, paletteOf, parseCustomConsoles, screenText, uniqueId, consoleFileOf, consoleFileText, resolveConsole, cartExtension } from "./consoles.js";
 import { createConsoleEditor } from "./console-editor.js";
 import { parseWav, sampleName, fitWav } from "./wav.js";
-import { renameReferences, countCodeMentions, renameInCode, renameSceneFields } from "./rename-core.js";
+import { renameReferences, countCodeMentions, renameInCode, renameSceneFields, roomCallsToLayout } from "./rename-core.js";
 import { checkProject } from "./console-check.js";
 import { budgetRows, consoleSummary, parseStatsLine } from "./budget-core.js";
 import { GENRES, BOX_ART_PATH, normalizeInfo, defaultTitle, charsLeft, isPng, pngSize, boxArtScale, PICTURES, decodeBmp } from "./info-core.js";
@@ -505,6 +505,14 @@ async function projectFacts(target) {
     }
     return out;
   };
+  // every level, a scene's layout or an older room: its size, the entities it starts with and its tile layers
+  const levels = [...state.scan.layouts.map((n) => [n, layoutFile(n)]), ...state.scan.groups.rooms.map((n) => [`rooms/${n}`, `rooms/${n}.lua`])];
+  for (const [n, rel] of levels) {
+    try {
+      const { room } = parseRoom(await invoke("read_file", { cart: state.cart, rel }));
+      if (room) facts.rooms[n] = { width: room.width, height: room.height, instances: room.entities.length, layers: room.layers.length };
+    } catch { /* skip */ }
+  }
   for (const n of state.scan.groups.sprites) {
     try { const m = await readJson(`sprites/${n}.json`); facts.sprites[n] = { ...(await measure(m.image || `sprites/${n}.png`, m.frames || 1, m)), frames: m.frames || 1 }; } catch { /* skip */ }
   }
@@ -808,11 +816,29 @@ const openScene = (name) => { state.sceneLink = null; return openScenePart(name,
 async function saveRoom() {
   const name = roomEditor.getName(); if (!name) return;
   const kind = roomEditor.getKind(), def = roomEditor.getDef();
-  const comment = kind === "layout" ? LAYOUT_COMMENT : `A room: gs.load_room("${name.replace(/\//g, ".")}") builds it. Made in the room editor; plain data you can also edit as text.`;
+  const comment = kind === "layout" ? LAYOUT_COMMENT : `A room (the older home of a level): gs.load_layout("${name.replace(/\//g, ".")}") builds it. Plain data you can also edit as text.`;
   await invoke("write_file", { cart: state.cart, rel: dataRel(kind, name), content: serializeRoom(def, comment) });
   const renames = roomEditor.getRenames();
   roomEditor.markClean(); renderTitle();
   if (kind === "layout" && Object.keys(renames).length) await carryRenames(name, def.code, renames);
+}
+
+// A room (the older home of levels) moved to scenes/ as a layout, where new levels go; code that loaded it loads the layout instead.
+async function roomToLayout() {
+  const name = roomEditor.getName();
+  if (!name || roomEditor.getKind() !== "room") return;
+  if (state.scan.groups.scenes.includes(name)) throw new Error(`There is already a scene called '${name}'. Rename the room first.`);
+  await save();
+  const text = await invoke("read_file", { cart: state.cart, rel: `rooms/${name}.lua` });
+  const parsed = parseRoom(text);
+  if (parsed.error) throw new Error(`rooms/${name}.lua has code in it (${parsed.error}), so it can't move as plain data. Move it by hand.`);
+  await invoke("write_file", { cart: state.cart, rel: layoutFile(name), content: serializeRoom(parsed.room, LAYOUT_COMMENT) });
+  const code = roomCallsToLayout(await readLuaFiles(), name);
+  for (const [rel, t] of Object.entries(code.files)) await invoke("write_file", { cart: state.cart, rel, content: t });
+  await invoke("delete_file", { cart: state.cart, rel: `rooms/${name}.lua` });
+  await refreshFiles();
+  await openLayout(name, true);
+  info(`rooms/${name}.lua is now scenes/${name}.layout.lua${code.count ? `; ${code.count} gs.load_room call${code.count > 1 ? "s" : ""} now say gs.load_layout` : ""}.`);
 }
 
 // The scene that is open, by its layout or its code (code another layout runs counts as that layout's scene while you go back and forth).
@@ -952,7 +978,7 @@ function renderTree() {
       if (g.importFile) { $("wav-input").click(); return; } // samples are imported from a file
       state.collapsed[g.key] = false; renderTree(); promptInList(`tree-${g.key}`, "name", (n) => creators[g.key](g, n));
     };
-    head.appendChild(add);
+    if (!g.legacy) head.appendChild(add); // no new rooms: levels are scene layouts now
     wrap.appendChild(head);
     if (open) {
       const ul = document.createElement("ul"); ul.id = `tree-${g.key}`; ul.className = "tree-items";
@@ -2084,6 +2110,7 @@ $("settings").addEventListener("close", async () => {
     onChange: renderTitle, getEntities: () => state.scan.groups.entities, getTilesets: () => state.scan.groups.tilesets,
     loadTileset: loadRoomTileset, entityLook, getScreen: () => conInfo().screen, getButtonStyle: () => state.buttonStyle || "gba",
     editAsText: async () => { await save(); await openFile(dataRel(roomEditor.getKind(), roomEditor.getName()), true); },
+    roomToLayout: () => run("make it a scene layout", roomToLayout),
     getSprites: () => state.scan.groups.sprites, getScenes: () => state.scan.groups.scenes, spriteLook,
     // a text's colour: a place in the classic palette, or (with colour banks) any of the game's bank colours, written as #rrggbb
     getPalette: () => { const p = artPalette(); return p.mode === "banks" ? { colors: [...new Set([...p.sprites, ...p.tiles].flatMap((b) => b.colors))], fixed: false } : { colors: p.colors || [], fixed: p.mode === "fixed" }; },
