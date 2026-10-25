@@ -108,6 +108,27 @@ export function setConsoleInGame(text, id) {
   return re.test(text) ? text.replace(re, `$1"${id}"`) : null;
 }
 
+// game.lua is where a game's title and console live. meta/info.json carries a copy of both for the tools that don't run Lua (push.sh, the
+// MCP server, the game-list scripts); infoFromGame refreshes that copy whenever the studio sees game.lua.
+const TITLE_RE = /(\btitle\s*=\s*)(["'])((?:(?!\2)[^\\\n])*)\2/;
+const CONSOLE_RE = /\bconsole\s*=\s*["']([A-Za-z0-9_-]{1,40})["']/;
+export const titleOfGame = (text) => { const m = TITLE_RE.exec(text || ""); return m ? m[3] : null; };
+export const consoleOfGame = (text) => { const m = CONSOLE_RE.exec(text || ""); return m ? m[1] : null; };
+// game.lua with its title changed, or null when it doesn't say it the plain way (then the studio asks you to change it yourself)
+export function setTitleInGame(text, title) {
+  const safe = String(title).replace(/[\\"\n\r]/g, "").trim();
+  return TITLE_RE.test(text) ? text.replace(TITLE_RE, (_, head) => `${head}"${safe}"`) : null;
+}
+// meta/info.json's fields with game.lua's title and console copied in, or null when they already agree
+export function infoFromGame(info, gameText) {
+  const now = info && typeof info === "object" ? info : {};
+  const title = titleOfGame(gameText), con = consoleOfGame(gameText);
+  const next = { ...now };
+  if (title !== null) next.title = title;
+  if (con !== null) next.console = con;
+  return next.title === now.title && next.console === now.console ? null : next;
+}
+
 // The style of the button icons a game's texts show ({a}, {start}), named in game.lua (buttons = "snes"); "gba" when it names none.
 export function buttonsOfGame(text) {
   const m = /\bbuttons\s*=\s*["']([A-Za-z0-9_-]+)["']/.exec(text || "");
@@ -171,23 +192,24 @@ return {
 };
 
 export const LAYOUT_COMMENT = "The scene's layout, built when it starts. Named things are fields of its code: self.<name>.";
-export const LAYOUT_TEMPLATE = (screen) => `-- ${LAYOUT_COMMENT}
+export const LAYOUT_TEMPLATE = (screen, entities = "") => `-- ${LAYOUT_COMMENT}
 return {
   width = ${screen.width}, height = ${screen.height},
   background = "#101220",
   entities = {
-  },
+${entities}  },
 }
 `;
 
 // Starter files of a new game. On a console with colour banks it starts with the ready-made banks (palette.json). The first scene has
-// both halves, an empty layout and its code, as every scene made in the studio does.
+// both halves, as every scene made in the studio does: the player is placed in its layout (what you can point at goes in the layout, the
+// way the step-by-step tutorial teaches) and its code is where the rules go.
 export function newGameFiles(title, consoleId, { banks = false, screen = { width: 256, height: 192 } } = {}) {
   const safe = String(title).replace(/[\\"]/g, "");
   return {
     "game.lua": `-- ${safe}\nreturn gs.game{\n  title = "${safe}",\n  console = "${consoleId}",\n  start = "scenes.main",\n}\n`,
-    "scenes/main.layout.lua": LAYOUT_TEMPLATE(screen),
-    "scenes/main.lua": `local Main = gs.scene{}\n\nfunction Main:enter()\n  gs.spawn("player", 128, 96)\nend\n\nreturn Main\n`,
+    "scenes/main.layout.lua": LAYOUT_TEMPLATE(screen, `    { "player", ${Math.round(screen.width / 2)}, ${Math.round(screen.height / 2)}, {}, name = "player" },\n`),
+    "scenes/main.lua": `-- The rules of this scene. Its layout places the player, so self.player is that player here.\nlocal Main = gs.scene{}\n\nfunction Main:enter()\nend\n\nfunction Main:update(dt)\nend\n\nreturn Main\n`,
     "entities/player.lua": `-- The player moves with the D-pad. Save the file while the game runs and the change shows at once.\nlocal Player = gs.entity{\n  tags = { "player" },\n  speed = 90,                     -- pixels a second\n}\n\nfunction Player:update(dt)\n  local dx, dy = gs.input.dir()\n  self.x = self.x + dx * self.speed * dt\n  self.y = self.y + dy * self.speed * dt\nend\n\nfunction Player:draw()\n  gs.draw.rect(self.x - 8, self.y - 8, 16, 16, "#ea5a4b")\nend\n\nreturn Player\n`,
     "meta/info.json": JSON.stringify({ title, console: consoleId }, null, 2) + "\n",
     ...(banks ? { "palette.json": paletteText(starterPalette()) } : {}),

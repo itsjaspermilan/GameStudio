@@ -80,7 +80,7 @@ export function budgetRows(c, facts, live) {
   // ---- running
   if (live) {
     const cap = live.limit || lim.instances_alive;
-    row("While it runs", "Things alive at once", `${live.entities} now, ${live.peak} at most${cap ? ` (limit ${cap})` : ""}`, cap ? budgetStatus(live.peak, cap).level : "info", cap ? live.peak / cap : null,
+    row("While it runs", "Entities alive at once", `${live.entities} now, ${live.peak} at most${cap ? ` (limit ${cap})` : ""}`, cap ? budgetStatus(live.peak, cap).level : "info", cap ? live.peak / cap : null,
       "Entities alive. Past the limit new ones are ignored. A GBA-style game usually has 20 to 100.");
     const here = `On this computer: ${live.update_ms.toFixed(2)} ms update + ${live.draw_ms.toFixed(2)} ms drawing.`;
     const speed = brickSpeed(live);

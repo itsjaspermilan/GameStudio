@@ -34,7 +34,7 @@ import { parseRoom, serializeRoom, lookDefaults, buttonPixels } from "./room-cor
 import { findInFiles, replaceInText, outline, tidyLua, applyEdits } from "./search-core.js";
 import { SPEEDS, parseInspectLine, commandText, classRows, fmtMs } from "./inspector-core.js";
 import { createRoomEditor, PLACE } from "./room-editor.js";
-import { GROUPS, group, validName, folderTree, movedName, resourceFiles, layoutFile, scanProject, consoleIdOf, setConsoleInGame, buttonsOfGame, setButtonsInGame, TEMPLATES, LAYOUT_TEMPLATE, LAYOUT_COMMENT, newGameFiles, renameProblem } from "./project-core.js";
+import { GROUPS, group, validName, folderTree, movedName, resourceFiles, layoutFile, scanProject, consoleIdOf, setConsoleInGame, buttonsOfGame, setButtonsInGame, titleOfGame, setTitleInGame, infoFromGame, TEMPLATES, LAYOUT_TEMPLATE, LAYOUT_COMMENT, newGameFiles, renameProblem } from "./project-core.js";
 import { setupPanels } from "./panels.js";
 import { createPaletteEditor } from "./palette-editor.js";
 import { normalizePalette, paletteText, bankRgb, tilesOutsideBanks, bankLimits, checkPalette } from "./palette-core.js";
@@ -268,6 +268,11 @@ async function refreshGames() {
 
 const readJson = (rel) => invoke("read_file", { cart: state.cart, rel }).then(JSON.parse);
 const writeJson = (rel, obj) => invoke("write_file", { cart: state.cart, rel, content: JSON.stringify(obj, null, 2) + "\n" });
+// game.lua holds the title and console; meta/info.json keeps a copy for the tools that don't read Lua, refreshed whenever game.lua is seen.
+async function syncInfo(gameText) {
+  const next = infoFromGame(state.info, gameText);
+  if (next) { await writeJson("meta/info.json", next); state.info = next; }
+}
 
 // The file list is the project: scan it, read meta/info.json, and tell the editors that use the instrument list.
 async function refreshFiles() {
@@ -279,7 +284,9 @@ async function refreshFiles() {
   }
   // the look of the button icons in texts ({a}), which the layout editor shows as the game will
   state.buttonStyle = "gba";
-  if (state.files.includes("game.lua")) { try { state.buttonStyle = buttonsOfGame(await invoke("read_file", { cart: state.cart, rel: "game.lua" })); } catch { /* the default */ } }
+  if (state.files.includes("game.lua")) {
+    try { const text = await invoke("read_file", { cart: state.cart, rel: "game.lua" }); state.buttonStyle = buttonsOfGame(text); await syncInfo(text); } catch { /* the default */ }
+  }
   state.palette = null;
   if (state.files.includes("palette.json")) {
     try { state.palette = normalizePalette(await readJson("palette.json")); } catch (e) { fail("palette.json: " + e); }
@@ -596,7 +603,7 @@ async function saveCurrent() {
   try {
     await invoke("write_file", { cart: state.cart, rel: state.file, content: view.state.doc.toString() });
     state.dirty = false; renderTitle();
-    if (state.file === "game.lua") state.buttonStyle = buttonsOfGame(view.state.doc.toString());
+    if (state.file === "game.lua") { state.buttonStyle = buttonsOfGame(view.state.doc.toString()); await syncInfo(view.state.doc.toString()); }
     if (state.running && state.file.endsWith(".lua")) stepDone("live");
     if (state.file.endsWith(".lua")) {
       luaTexts[state.file] = view.state.doc.toString(); luaIndex = buildIndex(state.scan ? state.scan.groups : {}, luaTexts);
@@ -663,7 +670,9 @@ $("btn-info").onclick = async () => {
   const i = normalizeInfo(state.info);
   const sprites = state.scan.groups.sprites;
   pending = {}; picKey = "box_art";
-  $("info-title").value = i.title; $("info-title").placeholder = defaultTitle(state.cartName);
+  let gameText = "";
+  try { gameText = await invoke("read_file", { cart: state.cart, rel: "game.lua" }); } catch { /* no game.lua: the copy is all there is */ }
+  $("info-title").value = titleOfGame(gameText) ?? i.title; $("info-title").placeholder = defaultTitle(state.cartName);
   $("info-desc").value = i.description; $("info-dev").value = i.developer;
   const g = $("info-genre"); g.replaceChildren(new Option("(none)", ""), ...GENRES.map((x) => new Option(x, x))); g.value = i.genre;
   const p = $("info-players"); p.replaceChildren(...[1, 2, 3, 4].map((n) => new Option(String(n), String(n)))); p.value = String(i.players);
@@ -724,15 +733,24 @@ $("info-save").onclick = () => run("game info", async () => {
     else if (v) await invoke("write_binary", { cart: state.cart, rel: p.path, data: v });
   }
   if (pending.box_art === "" || (!pending.box_art && !hadArt)) fields.box_art = "";
-  await writeJson("meta/info.json", { ...(state.info || {}), ...fields });
+  // the title and the button style live in game.lua (the title is copied into meta/info.json for the tools)
+  const gameText = await invoke("read_file", { cart: state.cart, rel: "game.lua" });
+  let next = gameText;
+  if (fields.title && fields.title !== titleOfGame(next)) {
+    next = setTitleInGame(next, fields.title);
+    if (next === null) throw new Error(`game.lua has no plain title line. Put title = "${fields.title}", inside gs.game{ ... } yourself.`);
+  }
   const style = $("info-buttons").value;
   if (style !== state.buttonStyle) {
-    const next = setButtonsInGame(await invoke("read_file", { cart: state.cart, rel: "game.lua" }), style);
+    next = setButtonsInGame(next, style);
     if (next === null) throw new Error(`game.lua has no plain console line to put the button style under. Add buttons = "${style}", inside gs.game{ ... } yourself.`);
-    await invoke("write_file", { cart: state.cart, rel: "game.lua", content: next });
     state.buttonStyle = style;
+  }
+  if (next !== gameText) {
+    await invoke("write_file", { cart: state.cart, rel: "game.lua", content: next });
     if (state.file === "game.lua") setDoc(next);
   }
+  await writeJson("meta/info.json", { ...(state.info || {}), ...fields, title: titleOfGame(next) ?? fields.title });
   $("info-dialog").close();
   await refreshFiles();
   info("Saved the game info. It goes to the device with the next “Send to device”.");
@@ -1843,6 +1861,7 @@ async function saveSplit() {
   if (!split.file || !split.dirty) return;
   const text = split.view.state.doc.toString();
   await invoke("write_file", { cart: state.cart, rel: split.file, content: text });
+  if (split.file === "game.lua") await syncInfo(text);
   luaTexts[split.file] = text; luaIndex = buildIndex(state.scan ? state.scan.groups : {}, luaTexts);
   if (luaServer) luaServer.saved(split.file);
   split.dirty = false; $("split-dirty").textContent = "";

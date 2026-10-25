@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { GROUPS, group, validName, folderTree, movedName, resourceFiles, moduleName, refName, scanProject, consoleIdOf, setConsoleInGame, TEMPLATES, newGameFiles, renameProblem } from "../src/project-core.js";
+import { GROUPS, group, validName, folderTree, movedName, resourceFiles, moduleName, refName, scanProject, consoleIdOf, setConsoleInGame, titleOfGame, consoleOfGame, setTitleInGame, infoFromGame, TEMPLATES, newGameFiles, renameProblem } from "../src/project-core.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -70,6 +70,7 @@ test("a new game runs without errors, and templates are valid Lua", { skip: !exi
   // load every template file as a module from the starter scene so a syntax error or a missing hook shows up
   writeFileSync(join(dir, "scenes/main.lua"), `local Main = gs.scene{}
 function Main:enter()
+  assert(self.player and self.player.x == 128 and self.player.y == 96, "the starter layout places the player in the middle")
   gs.spawn("player", 160, 120); gs.spawn("enemy", 10, 10); gs.spawn("big.boss_one", 20, 20)
   require "lib.util"; require "scenes.second"; gs.load_room("lvl1")
   print("NEW GAME OK")
@@ -105,4 +106,15 @@ test("folderTree puts names in folders, folders first, and keeps empty folders m
   assert.equal(movedName("enemies/grub", "bosses"), "bosses/grub");
   assert.equal(movedName("enemies/grub", ""), "grub");
   assert.equal(movedName("grub", "a/b"), "a/b/grub");
+});
+
+test("game.lua holds the title and console; meta/info.json gets a copy", () => {
+  const game = newGameFiles("Star Catch", "glow43")["game.lua"];
+  assert.equal(titleOfGame(game), "Star Catch");
+  assert.equal(consoleOfGame(game), "glow43");
+  assert.equal(titleOfGame(setTitleInGame(game, 'Star "Catch" 2')), "Star Catch 2");
+  assert.equal(setTitleInGame("return gs.game{ title = make_title() }", "X"), null);
+  assert.deepEqual(infoFromGame({ title: "Old", console: "glow43", description: "kept" }, game), { title: "Star Catch", console: "glow43", description: "kept" });
+  assert.equal(infoFromGame({ title: "Star Catch", console: "glow43" }, game), null);
+  assert.deepEqual(infoFromGame(null, 'return gs.game{ console = "dot" }'), { console: "dot" });
 });

@@ -17,7 +17,7 @@ import { FONTS } from "./fonts.js";
 const TOOLS = [
   ["select", "Select", "Click a thing to select it; drag to move it (Shift: in a straight line), drag a panel's handles to resize it. Arrow keys nudge, Delete removes. The other tools only place. (V, or Escape)", "v"],
   ["tiles", "Tiles", "Paint tiles on the chosen layer. Shift-click fills an area, Alt-click erases, right-click picks a tile up. (T)", "t"],
-  ["entities", "Things", "Click to place the chosen entity; drag one to move it; Delete removes the selected one. (N)", "n"],
+  ["entities", "Entities", "Click to place the chosen entity; drag one to move it; Delete removes the selected one. (N)", "n"],
   ["texts", "Text", "Click to put a text; drag one to move it; Delete removes the selected one. (X)", "x"],
   ["pictures", "Pictures", "Click to put the chosen sprite as a picture (no code of its own); drag one to move it; Delete removes it. (I)", "i"],
   ["panels", "Panels", "Drag to draw a panel or a bar made of tiles, behind texts and pictures. Drag one to move it; Delete removes it. (B)", "b"],
@@ -31,7 +31,7 @@ export const PLACE = "application/x-gs-place";
 export function createRoomEditor(root, hooks = {}) {
   root.innerHTML = `
     <div class="se-left re-left">
-      <div class="re-lefttabs" role="tablist"><button data-side="list" class="on">In this layout</button><button data-side="details">Layout</button></div>
+      <div class="re-lefttabs" role="tablist"><button data-side="list" class="on">In this layout</button><button data-side="details" title="The layout's size, background and the code it runs">Details</button></div>
       <section class="re-outline-wrap"><div class="re-outline"></div></section>
       <section class="re-details" hidden>
         <h3>Size</h3>
@@ -504,7 +504,7 @@ export function createRoomEditor(root, hooks = {}) {
     }));
     group("Panels", room.panels.map((p, i) => ({ label: p.name ? `self.${p.name}` : "panel", detail: `${p.w} × ${p.h}`, on: isOn("panels", i), pick: choose("panels", i), hover: { kind: "panels", i }, buttons: [del("panels", i)] })));
     group("Pictures", room.pictures.map((p, i) => ({ label: p.name ? `self.${p.name}` : p.sprite, detail: p.name ? p.sprite : "", on: isOn("pictures", i), pick: choose("pictures", i), hover: { kind: "pictures", i }, buttons: [del("pictures", i)] })));
-    group("Things", room.entities.map((e, i) => ({ label: e[4] ? `self.${e[4]}` : e[0], detail: e[4] ? e[0] : `${e[1]}, ${e[2]}`, on: isOn("entities", i), pick: choose("entities", i), hover: { kind: "entities", i }, buttons: [del("entities", i)] })));
+    group("Entities", room.entities.map((e, i) => ({ label: e[4] ? `self.${e[4]}` : e[0], detail: e[4] ? e[0] : `${e[1]}, ${e[2]}`, on: isOn("entities", i), pick: choose("entities", i), hover: { kind: "entities", i }, buttons: [del("entities", i)] })));
     group("Texts", room.texts.map((t, i) => ({ label: t.name ? `self.${t.name}` : `"${t.text}"`, detail: t.name ? `"${t.text}"` : "", on: isOn("texts", i), pick: choose("texts", i), hover: { kind: "texts", i }, buttons: [del("texts", i)] })));
     group("Paths", Object.entries(room.paths).map(([k, p]) => ({ label: k, detail: `${p.points.length} point${p.points.length === 1 ? "" : "s"}`, on: tool === "paths" && k === pathName,
       pick: () => { tool = "paths"; pathName = k; pointIx = -1; render(); },

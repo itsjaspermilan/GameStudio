@@ -57,6 +57,17 @@ run without a build proves less than it looks: build first.
 - **A game names its console** in `game.lua` (`console = "glow43"`); the spec comes from `engine/consoles/*.json` at build time.
 - **SoundFont licence.** `assets/soundfonts/TimGM6mb.sf2` is GPL-2.0 (documented in `README.md` → Licences). Keep that note when moving files.
 
+## Easy, but never slower or narrower
+
+The old card engine was dropped because making things easy had piled layers of conditionals into every frame. So:
+
+- **The studio only writes plain Lua and plain data** that the engine reads directly. A studio feature never needs a layer in the engine
+  that interprets something while the game runs.
+- **"One way to do it" is about the studio's beginner path**, not the engine. Remove duplicated *studio* routes freely; never remove an
+  engine ability (loading a level from code, `gs.set_tile`, drawing by hand) to get there.
+- **Everything the layout editor can do, code can do too**, and the studio's output stays code a person could have typed.
+- Before adding a check to a hot call (`draw`, `update`, collisions, `gs.draw.*`), ask whether the convenience is worth it on the handheld.
+
 ## Conventions
 
 - Match the surrounding code. Comments say *why*, in plain sentences, not what the next line does. No emoji in code except the few

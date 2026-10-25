@@ -50,11 +50,11 @@ test("a sprite that is not a multiple of 8 is a warning, not an error", () => {
 
 test("live numbers: entities against the limit, time against the Brick's frame", () => {
   const calm = budgetRows(dot, { lua: { files: 0, lines: 0 } }, { entities: 40, peak: 60, limit: 512, update_ms: 0.2, draw_ms: 0.3, fps: 60, mem_kb: 800, screens: 1.5 });
-  assert.equal(find(calm, "Things alive at once").level, "ok");
+  assert.equal(find(calm, "Entities alive at once").level, "ok");
   assert.equal(find(calm, "Frame time on the Brick").level, "ok");
   assert.match(find(calm, "Frame time on the Brick").tip, /0\.20 ms update/);
   const busy = budgetRows(dot, { lua: { files: 0, lines: 0 } }, { entities: 500, peak: 512, limit: 512, update_ms: 2.5, draw_ms: 1.5, fps: 44, mem_kb: 2000, screens: 2 });
-  assert.equal(find(busy, "Things alive at once").level, "warn");
+  assert.equal(find(busy, "Entities alive at once").level, "warn");
   assert.equal(find(busy, "Frame time on the Brick").level, "over");
   const old = budgetRows(dot, { lua: { files: 0, lines: 0 } }, { entities: 4, peak: 4, limit: 512, update_ms: 0.2, draw_ms: 0.3, fps: 60, mem_kb: 800 });
   assert.equal(find(old, "Time per frame (this computer)").level, "info", "an older runtime sends no screens: no estimate");
