@@ -64,7 +64,7 @@ const gs = join(root, "build/gs");
 test("a new game runs without errors, and templates are valid Lua", { skip: !existsSync(gs) }, () => {
   const dir = mkdtempSync(join(tmpdir(), "gs-new-"));
   const files = { ...newGameFiles("My Game", "dot"),
-    "entities/enemy.lua": TEMPLATES.entities("enemy"), "entities/big/boss_one.lua": TEMPLATES.entities("big/boss_one"),
+    "entities/enemy.lua": TEMPLATES.entities("enemy"), "entities/big/boss_one.lua": TEMPLATES.entities("big/boss_one"), "entities/hero.lua": TEMPLATES.spriteEntity("hero", "hero"),
     "scenes/second.lua": TEMPLATES.scenes("second"), "lib/util.lua": TEMPLATES.lib("util"), "rooms/lvl1.lua": TEMPLATES.rooms("lvl1", { width: 320, height: 240 }) };
   for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(dir, rel)), { recursive: true }); writeFileSync(join(dir, rel), text); }
   // load every template file as a module from the starter scene so a syntax error or a missing hook shows up
@@ -72,7 +72,7 @@ test("a new game runs without errors, and templates are valid Lua", { skip: !exi
 function Main:enter()
   assert(self.player and self.player.x == 128 and self.player.y == 96, "the starter layout places the player in the middle")
   gs.spawn("player", 160, 120); gs.spawn("enemy", 10, 10); gs.spawn("big.boss_one", 20, 20)
-  require "lib.util"; require "scenes.second"; gs.load_room("lvl1")
+  require "lib.util"; require "scenes.second"; require "entities.hero"; gs.load_room("lvl1")
   print("NEW GAME OK")
   gs.raw.quit()
 end

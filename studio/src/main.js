@@ -379,7 +379,15 @@ async function openGame(name) {
   // back where you were: the tabs that are still there, and the one you had open
   state.scenePart = saved.scenePart; state.tabs = saved.tabs;
   renderTabs();
-  if (saved.current && state.tabs.includes(saved.current)) { try { await openTab(saved.current); return; } catch { /* fall back to game.lua */ } }
+  if (saved.current && state.tabs.includes(saved.current)) { try { await openTab(saved.current); return; } catch { /* fall back to the first scene */ } }
+  // a game opened for the first time shows the scene it starts with (a new game: the player in its layout), else game.lua
+  if (state.scan.hasGame) {
+    try {
+      const m = /\bstart\s*=\s*["'](?:scenes\.)?([\w.]+)["']/.exec(await invoke("read_file", { cart: state.cart, rel: "game.lua" }));
+      const start = m && m[1].replace(/\./g, "/");
+      if (start && state.scan.groups.scenes.includes(start)) { await openScene(start); return; }
+    } catch { /* game.lua below */ }
+  }
   const first = state.scan.hasGame ? "game.lua" : state.files.includes("main.lua") ? "main.lua" : null;
   if (first) await openFile(first, true);
 }
@@ -1189,6 +1197,23 @@ async function deleteResource(g, name) {
 }
 
 // ---------- sprites ----------
+// The sprite editor's "Make an entity with it": entities/<name>.lua with sprite = "<name>", the step every new sprite needs before it is in a game.
+async function entityFromSprite() {
+  const sp = spriteEditor.getSprite();
+  if (!sp) return;
+  await save();
+  const g = group("entities"), name = sp.name;
+  if (state.scan.groups.entities.includes(name)) {
+    await openFile(resourceFiles(g, name)[0], true);
+    info(`There is already an entity called ${name}: it is open now. Put sprite = "${sp.name}", in its gs.entity{ ... } to give it this look.`);
+    return;
+  }
+  await invoke("write_file", { cart: state.cart, rel: resourceFiles(g, name)[0], content: TEMPLATES.spriteEntity(name, sp.name) });
+  await refreshFiles();
+  await openFile(resourceFiles(g, name)[0], true);
+  info(`Made the entity ${name} with this sprite. Place it in a scene's layout with the Entities tool, or spawn it from code: gs.spawn("${name.replace(/\//g, ".")}", x, y).`);
+}
+
 async function saveSprite() {
   const sp = spriteEditor.getSprite();
   if (!sp) return;
@@ -2104,7 +2129,7 @@ $("settings").addEventListener("close", async () => {
   paletteEditor = createPaletteEditor($("palette-editor"), {
     onChange: renderTitle, getLimits: () => bankLimits(conInfo()), getUsers: (name) => bankUsersCache[name] || [],
   });
-  spriteEditor = createSpriteEditor($("sprite-editor"), { onChange: renderTitle, getPalette: palette, getBudgets: () => conInfo().budgets, getScreen: () => conInfo().screen });
+  spriteEditor = createSpriteEditor($("sprite-editor"), { onChange: renderTitle, makeEntity: () => run("make an entity", entityFromSprite), getPalette: palette, getBudgets: () => conInfo().budgets, getScreen: () => conInfo().screen });
   consoleEditor = createConsoleEditor($("console-dialog"), { takenIds: takenConsoleIds });
   roomEditor = createRoomEditor($("room-editor"), {
     onChange: renderTitle, getEntities: () => state.scan.groups.entities, getTilesets: () => state.scan.groups.tilesets,

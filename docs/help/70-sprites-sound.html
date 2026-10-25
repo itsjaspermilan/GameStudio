@@ -19,7 +19,7 @@ Pixels outside the bank are flagged, and <em>Snap to bank</em> fixes them. A til
 <li>Set the <strong>origin</strong>: the point of the picture that sits on the entity's position. For a character that walks on the ground, put it between the feet. For a ball, the middle.</li>
 <li>Leave the <strong>collision box</strong> alone, and the whole picture is the hitbox. Make it smaller (just the body, not the sword) for collisions that feel fair.</li>
 </ol>
-<p>The files are <code>sprites/hero.png</code> (all the frames side by side) and <code>sprites/hero.json</code>. Now use it:</p>
+<p>The files are <code>sprites/hero.png</code> (all the frames side by side) and <code>sprites/hero.json</code>. Now use it: <strong>Make an entity with it</strong> at the top right of the sprite editor makes <code>entities/hero.lua</code> for you, or put the sprite in an entity you already have:</p>
 <pre class="lua"><code>local Hero = gs.entity{
   sprite = "hero",              -- sprites/hero.json
   tags = { "hero" },

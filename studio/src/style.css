@@ -188,8 +188,8 @@ code { background: var(--bg); padding: 1px 4px; border-radius: 3px; }
 .se-left, .se-right { background: var(--panel); padding: 10px; overflow: auto; }
 .se-left { border-right: 1px solid var(--border); }
 .se-right { border-left: 1px solid var(--border); }
-.se-toolbtns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-.se-toolbtns button { padding: 6px 0; font-weight: 600; }
+.se-toolbtns { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+.se-toolbtns button { padding: 5px 0; font-size: 12px; }
 .se-toolbtns button.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 .se-palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 12px 0 8px; }
 .swatch { height: 26px; padding: 0; border-radius: 4px; }
@@ -378,6 +378,8 @@ a.help-open { font-weight: 600; }
 /* sprite editor in tileset mode */
 .se:not(.se-tileset) .se-tileset-only { display: none; }
 .se.se-tileset .se-sprite-only { display: none; }
+.se-use { margin-bottom: 4px; }
+.se-use button { width: 100%; }
 .se-hint { color: var(--muted); font-size: 12px; margin: 4px 0; }
 
 

@@ -165,6 +165,17 @@ end
 
 return ${pascal(name.split("/").pop())}
 `,
+  // an entity that looks like a sprite (the sprite editor's "Make an entity with it")
+  spriteEntity: (name, sprite) => `local ${pascal(name.split("/").pop())} = gs.entity{
+  sprite = "${sprite}",
+  tags = {},
+}
+
+function ${pascal(name.split("/").pop())}:update(dt)
+end
+
+return ${pascal(name.split("/").pop())}
+`,
   scenes: () => `local Scene = gs.scene{}
 
 function Scene:enter()

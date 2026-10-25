@@ -11,7 +11,7 @@ Design and rationale: `docs/lua-engine-design.md`. Every cart has a `game.lua` a
 | --- | --- |
 | `boot.lua` | `gs.game{}`, the public API table, init/update/draw, the fixed 60 Hz step, the error overlay (GS_DEV) |
 | `entity.lua` | `gs.entity` / `gs.scene` classes, inheritance + flattening, `on_collide_<tag>` discovery, the `require` wrapper that names classes |
-| `world.lua` | spawn/destroy, tag lists, spatial grids, collisions, depth buckets, scenes and fades, scene layouts (`scenes/<name>.layout.lua`: built before `enter`, named things become scene fields, `code = "other"` runs another scene's code; texts and pictures are the built-in kinds `gs.world.Text` / `gs.world.Picture`), rooms, tile layers. Live reload restarts the scene when its layout changes |
+| `world.lua` | spawn/destroy, tag lists, spatial grids, collisions, depth buckets, scenes and fades, scene layouts (`scenes/<name>.layout.lua`: built before `enter`, named things become scene fields, `code = "other"` runs another scene's code; texts and pictures are the built-in kinds `gs.world.Text` / `gs.world.Picture`), `gs.load_layout` (another scene's layout built into the running one; falls back to the older `rooms/`, and `gs.load_room` is its older name), tile layers. Live reload restarts the scene when its layout changes |
 | `timers.lua` | after / every / tween / coroutines (`gs.go`, `gs.wait`), owned by an entity or scene so they die with it |
 | `camera.lua`, `input.lua`, `draw.lua`, `ui.lua`, `save.lua`, `sound.lua`, `assets.lua`, `json.lua` | what the names say |
 | `reload.lua` | live reload (GS_DEV=1): polls file mtimes, re-requires changed files into the same class tables, rolls back on error |

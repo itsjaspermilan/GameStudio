@@ -5,10 +5,11 @@ import * as P from "./palette-core.js";
 
 const PALETTE = ["#000000", "#1d2b53", "#7e2553", "#008751", "#ab5236", "#5f574f", "#c2c3c7", "#fff1e8",
   "#ff004d", "#ffa300", "#ffec27", "#00e436", "#29adff", "#83769c", "#ff77a8", "#ffccaa"];
+// [id, tooltip, the word on the button]: words, not letters, so the tools read without hovering; the letter is the key
 const TOOLS = [
-  ["pencil", "Pencil (B)", "B"], ["eraser", "Eraser (E)", "E"], ["fill", "Fill (G)", "G"],
-  ["line", "Line (L)", "L"], ["rect", "Rectangle (R, Shift = filled)", "R"], ["picker", "Pick color (I)", "I"],
-  ["origin", "Set origin (O)", "O"], ["mask", "Collision box (M)", "M"],
+  ["pencil", "Pencil: draw single pixels (B)", "Pencil"], ["eraser", "Eraser: make pixels see-through (E)", "Eraser"], ["fill", "Fill an area of one colour (G)", "Fill"],
+  ["line", "Line (L)", "Line"], ["rect", "Rectangle (R, Shift = filled)", "Box"], ["picker", "Pick a colour from the picture (I)", "Pick"],
+  ["origin", "Set origin: the point that sits on the entity's position, usually between the feet (O)", "Origin"], ["mask", "Collision box: the part that touches things (M)", "Hitbox"],
 ];
 const KEY_TOOL = { b: "pencil", e: "eraser", g: "fill", l: "line", r: "rect", i: "picker", o: "origin", m: "mask" };
 
@@ -47,6 +48,7 @@ export function createSpriteEditor(root, hooks = {}) {
         <input type="file" class="se-file" accept="image/png" hidden>
       </div>
       <div class="se-sprite-only">
+      <div class="se-use se-sprite-only"><button data-act="makeentity" class="primary" title="Make an entity (entities/<name>.lua) that looks like this sprite, ready to place in a layout or spawn from code">Make an entity with it</button></div>
       <h3>Frames</h3>
       <div class="se-frames"></div>
       <div class="se-row">
@@ -549,6 +551,7 @@ export function createSpriteEditor(root, hooks = {}) {
     zoomout: () => { userZoom = true; zoom = Math.max(1, zoom - 1); renderCanvas(); },
     fit: () => { userZoom = false; fitZoom(); renderCanvas(); },
     addframe: () => commit(() => { C.addFrame(s, f + 1); f = f + 1; }),
+    makeentity: () => hooks.makeEntity && hooks.makeEntity(),
     addanim: () => commit(() => { let n = 1; while ((s.animations || {})["anim" + n]) n++; C.addAnimation(s, "anim" + n); }),
     dupframe: () => commit(() => { if (C.duplicateFrame(s, f)) f = f + 1; }),
     delframe: () => commit(() => { C.deleteFrame(s, f); }),
