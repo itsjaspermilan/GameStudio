@@ -73,10 +73,16 @@ Measuring (`GS_PERF=1`)
   Breakout, Make this game asking where, the recent list (× forgets one), Show folder, reopening a game coming back to its tabs, the Play
   panel, switching a scene between its Layout and Code, Game info's button icon picker (writes `buttons = ...` into game.lua), the
   pictures in Help, and a `.gamestudio/.gitignore` appearing in a game kept in git.
+- [ ] Try in the real app what the one-way cleanup added (2026-10-24, branch one-way-cleanup; only the browser mock was clicked): a new
+  game opening on its main scene with the player in the layout, the sprite editor's Make an entity with it, a room's Make it a scene
+  layout (on an older game with rooms/), Game info changing the title in game.lua, and the console-change report listing levels.
+- [ ] `docs/help/img/step-layout.png` still shows the layout editor's old "Things" tool and "Layout" side tab (now Entities and Details):
+  take the picture again.
+- [ ] The collision grid now sizes its cells to the things in it (about a third faster on the M4); see whether the Brick's frame for
+  `GS_HEAVY_THINGS=300` drops from 20.3 ms as the estimate expects.
 - [ ] Try PNG import in the Game info dialog on a real PNG (the file picker could not be driven in testing).
 - [ ] Help pages can show pictures now (`docs/help/img/`, two in "Make a game, step by step"); add more where a beginner would look for one
   (the sprite editor with colour banks, the Play panel, Send to device).
-- [ ] Layouts, next step: offer to turn a room into a scene's layout.
 - [x] The Play panel plays like the Brick (2026-10-24): Lua in the core's fixed 8 MB RAM (`GS_RAM=1`, runs out at the same step:
   `tests/ramhog`), RAM in use and the estimated Brick frame under the screen and in the Handheld tab, Save state / Load state. It still
   runs the program, not the core: sound, live reload and the Inspector stay as they are, and the core's frames match the program's.
