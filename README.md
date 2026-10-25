@@ -2,6 +2,15 @@
 
 A cheap Linux handheld (an Anbernic RG35XX Pro) becomes a small console for 2D games. This repository has the runtime (C + SDL2 + Lua 5.4), a Lua game framework (`gs`: entities, scenes with layouts, conversations, sound), the **Studio** (a desktop app with a Lua code editor, a layout editor, sprite, tileset and sound editors, the game running beside the code with live reload, and in-app tutorials) and scripts to build everything, pack games into cartridges and push them to a device.
 
+## The studio as an app (this Mac)
+
+```sh
+./scripts/build-app.sh   # -> studio/src-tauri/target/release/bundle/macos/GameStudio.app, with the runtimes, SoundFont and examples inside
+```
+
+The app needs nothing from this folder afterwards. Send to device uses the handheld's address from the app's Settings and Node.js on
+the Mac. It is unsigned, so it is for this Mac (other Macs would need it signed and notarized).
+
 ## Quick start (desktop)
 
 ```sh

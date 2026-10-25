@@ -1,0 +1,5 @@
+{
+  "bundle": {
+    "resources": { "../../third_party/luals": "luals", "bundled/gamestudio": "gamestudio" }
+  }
+}

@@ -19,3 +19,5 @@ third_party/luals/
 carts/*.g43
 carts/*.g169
 carts/*.cart
+# the copy of the GameStudio folder the built app carries (scripts/build-app.sh)
+studio/src-tauri/bundled/

@@ -98,8 +98,48 @@ fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     fs::write(path, text).map_err(|e| e.to_string())
 }
 
+/// Inside the built app (scripts/build-app.sh): its own read-only copy of the GameStudio folder, with the runtimes, the SoundFont, the
+/// console specs and logos, push.sh and the examples. The app then needs nothing from the repository; in development there is none and
+/// the workspace from Settings (the repository) is used.
+fn bundled_root(app: &AppHandle) -> Option<PathBuf> {
+    let root = app.path().resource_dir().ok()?.join("gamestudio");
+    root.join("build").join("gs").is_file().then_some(root)
+}
+
 fn workspace(app: &AppHandle) -> PathBuf {
-    PathBuf::from(load_settings(app).workspace)
+    bundled_root(app).unwrap_or_else(|| PathBuf::from(load_settings(app).workspace))
+}
+
+/// Where the studio writes files of its own (packed copies on their way to the device, the language server's settings): the
+/// workspace's build folder in development, the app's cache folder in the built app, whose bundled copy cannot be written to.
+pub fn scratch_dir(app: &AppHandle) -> PathBuf {
+    if bundled_root(app).is_some() {
+        if let Ok(dir) = app.path().app_cache_dir() {
+            return dir;
+        }
+    }
+    workspace(app).join("build")
+}
+
+/// The person's own consoles: the workspace's consoles folder in development, the app's data folder in the built app.
+fn consoles_dir(app: &AppHandle) -> PathBuf {
+    if bundled_root(app).is_some() {
+        if let Ok(dir) = app.path().app_data_dir() {
+            return dir.join("consoles");
+        }
+    }
+    workspace(app).join("consoles")
+}
+
+/// The desktop runtime, told where the General MIDI SoundFont is (SDL's idea of the program's folder inside an app bundle is the
+/// bundle's, not the runtime's own).
+fn runtime_command(ws: &Path, bin: &Path) -> Command {
+    let mut cmd = Command::new(bin);
+    let font = ws.join("assets").join("soundfonts").join("TimGM6mb.sf2");
+    if font.is_file() {
+        cmd.env("GS_SOUNDFONT", font);
+    }
+    cmd
 }
 
 fn desktop_bin(ws: &Path) -> PathBuf {
@@ -356,7 +396,7 @@ fn valid_console_id(id: &str) -> bool {
 /// The text of every custom console file; the studio parses and validates them.
 #[tauri::command]
 fn list_consoles(app: AppHandle) -> Vec<String> {
-    let dir = workspace(&app).join("consoles");
+    let dir = consoles_dir(&app);
     let mut files: Vec<PathBuf> = match fs::read_dir(&dir) {
         Ok(rd) => rd.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().map_or(false, |x| x == "json")).collect(),
         Err(_) => Vec::new(),
@@ -380,7 +420,7 @@ fn save_console(app: AppHandle, id: String, content: String) -> Result<(), Strin
     if value["id"].as_str() != Some(id.as_str()) {
         return Err("the console's id must match its file name".into());
     }
-    let dir = workspace(&app).join("consoles");
+    let dir = consoles_dir(&app);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let text = serde_json::to_string_pretty(&value).map_err(|e| e.to_string())? + "\n";
     fs::write(dir.join(format!("{id}.json")), text).map_err(|e| e.to_string())
@@ -391,7 +431,7 @@ fn delete_console(app: AppHandle, id: String) -> Result<(), String> {
     if !valid_console_id(&id) || RESERVED_CONSOLES.contains(&id.as_str()) {
         return Err("that console can't be deleted".into());
     }
-    let path = workspace(&app).join("consoles").join(format!("{id}.json"));
+    let path = consoles_dir(&app).join(format!("{id}.json"));
     if path.is_file() {
         fs::remove_file(path).map_err(|e| e.to_string())?;
     }
@@ -610,7 +650,7 @@ fn run_preview(app: AppHandle, state: State<'_, AppState>, cart: String, embed: 
         return Err("this game has no game.lua, so it cannot run (an old plain main.lua game: move its code into a scene)".into());
     }
     stop_locked(&app, &state, false);
-    let mut cmd = Command::new(&bin);
+    let mut cmd = runtime_command(&ws, &bin);
     cmd.env("GS_DEV", "1");
     cmd.env("GS_STATS", "1"); // a line of numbers a second for the Handheld panel
     // Lua gets the handheld's fixed RAM (runtime/ram.c), so a game runs out of memory here where it would there, and can save states
@@ -768,7 +808,7 @@ async fn render_audio(app: AppHandle, desc: String, cart: Option<String>) -> Res
     let (txt, wav) = (dir.join(format!("{id}.txt")), dir.join(format!("{id}.wav")));
     fs::write(&txt, desc).map_err(|e| e.to_string())?;
     // Run inside the project so imported samples (sounds/...) resolve; the runtime only accepts paths under sounds/.
-    let mut cmd = Command::new(&bin);
+    let mut cmd = runtime_command(&ws, &bin);
     cmd.arg("render-audio").arg(&txt).arg(&wav);
     if let Some(c) = cart {
         let d = cart_dir(&app, &c)?;
@@ -801,11 +841,12 @@ async fn pack_cart(app: AppHandle, cart: String, ext: Option<String>) -> Result<
 
 /// Packs a game's folder into one file with the runtime (`gs pack`).
 fn pack_into(app: &AppHandle, dir: &Path, out: &Path) -> Result<String, String> {
-    let bin = desktop_bin(&workspace(app));
+    let ws = workspace(app);
+    let bin = desktop_bin(&ws);
     if !bin.is_file() {
         return Err(format!("runtime not found at {}. Run scripts/build.sh in the workspace.", bin.display()));
     }
-    let ok = run_logged(app, Command::new(&bin).arg("pack").arg(dir).arg(out))?;
+    let ok = run_logged(app, runtime_command(&ws, &bin).arg("pack").arg(dir).arg(out))?;
     if ok { Ok(out.to_string_lossy().into_owned()) } else { Err("packing failed".into()) }
 }
 
@@ -841,7 +882,7 @@ async fn take_screenshot(app: AppHandle, cart: String, seconds: f64) -> Result<S
     let bmp = tmp.join(format!("{}.bmp", cart_label(&cart)));
     let _ = fs::remove_file(&bmp);
     let frames = (seconds.clamp(0.1, 30.0) * 60.0).round() as u32;
-    let out = Command::new(&bin)
+    let out = runtime_command(&ws, &bin)
         .arg(&dir)
         .env("SDL_VIDEODRIVER", "dummy")
         .env("SDL_AUDIODRIVER", "dummy")
@@ -863,12 +904,6 @@ fn valid_remote_part(s: &str, extra: &str) -> bool {
         && !s.starts_with('-')
         && s.chars().all(|c| c.is_ascii_alphanumeric() || extra.contains(c))
 }
-
-const SSH_OPTS: [&str; 6] = [
-    "-o", "BatchMode=yes",
-    "-o", "ConnectTimeout=8",
-    "-o", "StrictHostKeyChecking=accept-new",
-];
 
 /// Like `run_logged`, but remembers the child's process id in `slot` while it runs (and starts it in its own process group, so cancelling
 /// reaches the ssh and scp that the script started).
@@ -902,80 +937,59 @@ fn cancel_push(state: State<'_, AppState>) -> bool {
 
 #[tauri::command]
 async fn push_cart(app: AppHandle, state: State<'_, AppState>, cart: String) -> Result<(), String> {
-    // With scripts/device.env in the workspace, sending is done by scripts/push.sh, so the studio and the command line do exactly the same
-    // (launcher in the console's game list, box art and description from "Game info"). It needs node on the PATH; a desktop app does not always
+    // Sending is always scripts/push.sh, so the studio and the command line do exactly the same (on the Brick: the console as a NextUI
+    // system run by its emulator, box art and title from "Game info"). A scripts/device.env in the workspace says where; otherwise the
+    // studio writes one from Settings (NextUI, the Brick) into its own folder. It needs node on the PATH; a desktop app does not always
     // inherit the shell's PATH, so the usual places are added.
     let ws = workspace(&app);
     let script = ws.join("scripts").join("push.sh");
-    if script.is_file() && ws.join("scripts").join("device.env").is_file() {
-        let dir = cart_dir(&app, &cart)?;
-        emit_log(&app, "stdout", "Sending with scripts/push.sh (settings from scripts/device.env)".to_string());
-        let home = std::env::var("HOME").unwrap_or_default();
-        let path = format!(
-            "{}:/opt/homebrew/bin:/usr/local/bin:{home}/.asdf/shims:{home}/.volta/bin",
-            std::env::var("PATH").unwrap_or_default()
+    if !script.is_file() {
+        return Err(format!("scripts/push.sh not found in {}", ws.display()));
+    }
+    let scratch = scratch_dir(&app);
+    let mut env_file = ws.join("scripts").join("device.env");
+    if !env_file.is_file() {
+        let s = load_settings(&app);
+        if s.device_host.is_empty() || !valid_remote_part(&s.device_host, ".-_:") {
+            return Err("set the handheld's address (its IP) in Settings first".into());
+        }
+        if !valid_remote_part(&s.device_user, "._-") {
+            return Err("set a valid device user in Settings".into());
+        }
+        let dir = if s.device_dir.is_empty() { "/mnt/SDCARD/GameStudio".to_string() } else { s.device_dir.clone() };
+        if !dir.starts_with('/') || !valid_remote_part(&dir[1..], "/._-") || dir.contains("..") {
+            return Err("set an absolute device folder in Settings (letters, digits, / . _ -)".into());
+        }
+        // One shared SSH connection the person opens once in a terminal (push.sh prints the command when it is not open): the
+        // handheld's password is never typed into the studio.
+        let text = format!(
+            "# written by GameStudio from its Settings\nDEVICE_OS=nextui\nDEVICE_HOST={}\nDEVICE_USER={}\nDEVICE_DIR={}\nSSH_OPTS=\"-o ControlPath=$HOME/.ssh/gamestudio-%r@%h\"\n",
+            s.device_host, s.device_user, dir
         );
-        if !std::env::split_paths(&path).any(|d| d.join("node").is_file()) {
-            return Err("Sending needs Node.js (the 'node' program), which was not found. Install it from nodejs.org (or 'brew install node'), then send again.".into());
-        }
-        let ok = run_logged_tracked(&app, Command::new("sh").arg(&script).arg(&dir).current_dir(&ws).env("PATH", path), &state.push_pid)?;
-        return if ok {
-            Ok(())
-        } else {
-            Err("Sending stopped: the output above says why. Most often the connection to the device was closed (it drops when the handheld sleeps): open it again in a terminal as shown, then send again.".into())
-        };
+        fs::create_dir_all(&scratch).map_err(|e| e.to_string())?;
+        env_file = scratch.join("device.env");
+        fs::write(&env_file, text).map_err(|e| e.to_string())?;
     }
-    let s = load_settings(&app);
-    if !valid_remote_part(&s.device_host, ".-_:") {
-        return Err("set a valid device host in Settings".into());
+    let dir = cart_dir(&app, &cart)?;
+    emit_log(&app, "stdout", format!("Sending with scripts/push.sh (settings from {})", env_file.display()));
+    let home = std::env::var("HOME").unwrap_or_default();
+    let path = format!(
+        "{}:/opt/homebrew/bin:/usr/local/bin:{home}/.asdf/shims:{home}/.volta/bin",
+        std::env::var("PATH").unwrap_or_default()
+    );
+    if !std::env::split_paths(&path).any(|d| d.join("node").is_file()) {
+        return Err("Sending needs Node.js (the 'node' program), which was not found. Install it from nodejs.org (or 'brew install node'), then send again.".into());
     }
-    if !valid_remote_part(&s.device_user, "._-") {
-        return Err("set a valid device user in Settings".into());
+    let ok = run_logged_tracked(
+        &app,
+        Command::new("sh").arg(&script).arg(&dir).current_dir(&ws).env("PATH", path).env("DEVICE_ENV", &env_file).env("GS_BUILD_DIR", scratch.join("push")),
+        &state.push_pid,
+    )?;
+    if ok {
+        Ok(())
+    } else {
+        Err("Sending stopped: the output above says why. Most often the connection to the device was closed (it drops when the handheld sleeps): open it again in a terminal as shown, then send again.".into())
     }
-    if !s.device_dir.starts_with('/') || !valid_remote_part(&s.device_dir[1..], "/._-") || s.device_dir.contains("..") {
-        return Err("set an absolute device folder in Settings (letters, digits, / . _ -)".into());
-    }
-    let ws = workspace(&app);
-    let runtime = device_bin(&ws);
-    if !runtime.is_file() {
-        return Err(format!("device runtime not found at {}. Run scripts/build-aarch64.sh.", runtime.display()));
-    }
-
-    // packed into the studio's build folder, not beside the game: this copy only travels to the device
-    fs::create_dir_all(ws.join("build")).map_err(|e| e.to_string())?;
-    let packed = PathBuf::from(pack_into(&app, &cart_dir(&app, &cart)?, &ws.join("build").join(format!("{}.cart", cart_label(&cart))))?);
-    let target = format!("{}@{}", s.device_user, s.device_host);
-    let dir = s.device_dir.trim_end_matches('/').to_string();
-    let step = |what: &str| emit_log(&app, "stdout", what.to_string());
-
-    step(&format!("Preparing {target}:{dir}"));
-    let ok = run_logged(&app, Command::new("ssh").args(SSH_OPTS).arg(&target).arg(format!("mkdir -p '{dir}/carts'")))?;
-    if !ok {
-        return Err("could not reach the device over SSH (is key login set up? try: ssh-copy-id)".into());
-    }
-    step("Copying runtime");
-    if !run_logged(&app, Command::new("scp").arg("-q").args(SSH_OPTS).arg(&runtime).arg(format!("{target}:{dir}/gs")))? {
-        return Err("copying the runtime failed".into());
-    }
-    // The General MIDI SoundFont (about 6 MB) goes once, beside the runtime: it is not packed into each game.
-    let font = ws.join("assets").join("soundfonts").join("TimGM6mb.sf2");
-    if font.is_file() {
-        let have = run_logged(&app, Command::new("ssh").args(SSH_OPTS).arg(&target).arg(format!("test -f '{dir}/TimGM6mb.sf2'")))?;
-        if !have {
-            step("Copying the General MIDI SoundFont (once)");
-            if !run_logged(&app, Command::new("scp").arg("-q").args(SSH_OPTS).arg(&font).arg(format!("{target}:{dir}/TimGM6mb.sf2")))? {
-                return Err("copying the SoundFont failed".into());
-            }
-        }
-    }
-    step("Copying game");
-    if !run_logged(&app, Command::new("scp").arg("-q").args(SSH_OPTS).arg(&packed).arg(format!("{target}:{dir}/carts/{}.cart", cart_label(&cart))))? {
-        return Err("copying the game failed".into());
-    }
-    if !run_logged(&app, Command::new("ssh").args(SSH_OPTS).arg(&target).arg(format!("chmod +x '{dir}/gs'")))? {
-        return Err("could not mark the runtime executable".into());
-    }
-    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

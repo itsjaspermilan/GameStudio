@@ -46,8 +46,8 @@ pub fn stop(state: &LspState) {
 }
 
 /// What the server is told about the project: Lua 5.4, our API annotations as a library, and quiet defaults for beginners.
-fn write_config(ws: &std::path::Path) -> Result<PathBuf, String> {
-    let dir = ws.join("build").join("luals");
+fn write_config(ws: &std::path::Path, scratch: &std::path::Path) -> Result<PathBuf, String> {
+    let dir = scratch.join("luals");
     fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let api = ws.join("engine").join("api");
     let config = serde_json::json!({
@@ -74,7 +74,7 @@ pub fn lsp_start(app: AppHandle, state: State<'_, LspState>, cart: String) -> Re
         return Err("the Lua language server is not installed (run scripts/fetch-luals.sh)".into());
     };
     let root = super::cart_dir(&app, &cart)?;
-    let config = write_config(&ws)?;
+    let config = write_config(&ws, &super::scratch_dir(&app))?;
     stop(&state);
     let work = ws.join("build").join("luals");
     let mut child = Command::new(&bin)

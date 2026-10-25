@@ -7,13 +7,17 @@
 set -e
 cd "$(dirname "$0")/.."
 [ -n "$1" ] || { echo "usage: $0 <cart-dir>" >&2; exit 2; }
-ENVFILE="scripts/device${GS_DEVICE:+-$GS_DEVICE}.env"
+# DEVICE_ENV=<file> reads that device file instead (the studio app writes one from its Settings); GS_BUILD_DIR=<folder> is where the packed
+# game and the launcher are made before they are copied (default build/; the app's own copy of this folder cannot be written to).
+ENVFILE="${DEVICE_ENV:-scripts/device${GS_DEVICE:+-$GS_DEVICE}.env}"
 [ -f "$ENVFILE" ] || { echo "create $ENVFILE (see $ENVFILE.example, or scripts/device.env.example)" >&2; exit 1; }
-. "./$ENVFILE"
+case "$ENVFILE" in /*) . "$ENVFILE" ;; *) . "./$ENVFILE" ;; esac
+B="${GS_BUILD_DIR:-build}"
+mkdir -p "$B"
 DEVICE_OS="${DEVICE_OS:-knulli}"
 command -v node >/dev/null 2>&1 || { echo "Sending needs Node.js (the 'node' program) for the game list entry. Install it (nodejs.org, or 'brew install node'), then send again." >&2; exit 1; }
 SRC="${1%/}"; NAME="$(basename "$SRC")"
-HOSTCART="build/$NAME.cart"
+HOSTCART="$B/$NAME.cart"
 
 # The cart's console (named in meta/info.json) as "id|Display name" ("glow43|Glow43", "glow169|Glow169", a custom one), or nothing for a plain Lua cart. Projects saved when
 console_info() {
@@ -139,7 +143,7 @@ FLOOR
       if [ -n "$GS_GOVERNOR" ]; then RUN="$RUN >> \"$GS_LOG\" 2>&1"; else RUN="$RUN > \"$GS_LOG\" 2>&1"; fi
     fi
     echo "$RUN"
-  } > "build/$NAME.sh"
+  } > "$B/$NAME.sh"
   # ssh joins its arguments into one command for the remote shell, so each one is quoted ("Glow43 (G43)", "Then & Now")
   q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
   TITLE="$(node -e 'try { const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(d.title || "").replace(/[\r\n"\\\t]/g, " ").trim()); } catch {}' "$SRC/meta/info.json" 2>/dev/null)"
@@ -174,9 +178,9 @@ FLOOR
           [ -n "$GS_DEBUG" ] && echo 'export GS_DEBUG_INPUT=1'
           [ -n "$GS_PERF" ] && echo 'export GS_PERF=1'
           echo "minarch.elf \"$DEVICE_DIR/gs_libretro.so\" \"\$1\" &> \"\$LOGS_PATH/\$EMU_TAG.txt\""
-        } > "build/$NAME.sh"
+        } > "$B/$NAME.sh"
       fi
-      scp -q $SSH_OPTS "build/$NAME.sh" "$T:$PAK/launch.sh"
+      scp -q $SSH_OPTS "$B/$NAME.sh" "$T:$PAK/launch.sh"
       ssh $SSH_OPTS "$T" "chmod +x $(q "$PAK/launch.sh") '$DEVICE_DIR/gs'"
       if [ -f "$SRC/meta/box_art.png" ]; then scp -q $SSH_OPTS "$SRC/meta/box_art.png" "$T:$FOLDER/.media/$NAME.png"
       else ssh $SSH_OPTS "$T" "rm -f $(q "$FOLDER/.media/$NAME.png")"; fi
@@ -193,7 +197,7 @@ REMOTE
     else
       PAK="$SD/Tools/$PLAT/${TITLE:-$NAME}.pak"
       ssh $SSH_OPTS "$T" "mkdir -p $(q "$PAK")"
-      scp -q $SSH_OPTS "build/$NAME.sh" "$T:$PAK/launch.sh"
+      scp -q $SSH_OPTS "$B/$NAME.sh" "$T:$PAK/launch.sh"
       ssh $SSH_OPTS "$T" "chmod +x $(q "$PAK/launch.sh") '$DEVICE_DIR/gs'"
       echo "launcher: $PAK (Tools in the NextUI menu)"
     fi
@@ -209,7 +213,7 @@ REMOTE
     CNAME="${INFO#*|}"; [ -n "$INFO" ] || CNAME="Tools"
     FOLDER="$CNAME"
     DEST="$DEVICE_ROMS_DIR/$FOLDER/$NAME.sh"
-    node -e 'try { const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(d.description || "")); } catch {}' "$SRC/meta/info.json" > "build/$NAME.txt"
+    node -e 'try { const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(d.description || "")); } catch {}' "$SRC/meta/info.json" > "$B/$NAME.txt"
     CAT="/mnt/mmc/MUOS/info/catalogue/External - Ports"
     ssh $SSH_OPTS "$T" "sh -s -- $(q "$DEVICE_ROMS_DIR") $(q "$FOLDER") $(q "$NAME") $(q "${TITLE:-$NAME}") $(q "$CAT")" <<'REMOTE'
 roms="$1"; folder="$2"; cart="$3"; title="$4"; cat="$5"
@@ -234,8 +238,8 @@ REMOTE
       f="${pic%%:*}"; d="${pic#*:}"
       if [ -f "$SRC/meta/$f.png" ]; then scp -q $SSH_OPTS "$SRC/meta/$f.png" "$T:$CAT/$d/$NAME.png"; else ssh $SSH_OPTS "$T" "rm -f '$CAT/$d/$NAME.png'"; fi
     done
-    scp -q $SSH_OPTS "build/$NAME.txt" "$T:$CAT/text/$NAME.txt"
-    scp -q $SSH_OPTS "build/$NAME.sh" "$T:$DEST"
+    scp -q $SSH_OPTS "$B/$NAME.txt" "$T:$CAT/text/$NAME.txt"
+    scp -q $SSH_OPTS "$B/$NAME.sh" "$T:$DEST"
     ssh $SSH_OPTS "$T" "chmod +x '$DEST' '$DEVICE_DIR/gs'"
     # the first muOS version put each console in "GameStudio <name>": move this game out of there (and drop the folder once empty)
     ssh $SSH_OPTS "$T" "rm -f $(q "$DEVICE_ROMS_DIR/GameStudio $CNAME/$NAME.sh"); rmdir $(q "$DEVICE_ROMS_DIR/GameStudio $CNAME") 2>/dev/null; true"
@@ -317,13 +321,13 @@ REMOTE
   else
     DEST="$DEVICE_PORTS_DIR/GS-$NAME.sh"
   fi
-  scp -q $SSH_OPTS "build/$NAME.sh" "$T:$DEST"
+  scp -q $SSH_OPTS "$B/$NAME.sh" "$T:$DEST"
   ssh $SSH_OPTS "$T" "chmod +x '$DEST' '$DEVICE_DIR/gs'"
   # HOTKEY + START leaves the game the way it leaves every other app: Knulli/Batocera's launcher starts its button watcher (evmapy) with a
   # <launcher>.keys file found beside the launcher. Stopping gs with TERM lets it save and close like a normal quit. The runtime watches
   # for HOTKEY + START itself too, for when the watcher is not running.
-  printf '{\n  "actions_player1": [\n    { "trigger": ["hotkey", "start"], "type": "exec", "target": "killall -TERM gs" }\n  ]\n}\n' > "build/$NAME.sh.keys"
-  scp -q $SSH_OPTS "build/$NAME.sh.keys" "$T:$DEST.keys"
+  printf '{\n  "actions_player1": [\n    { "trigger": ["hotkey", "start"], "type": "exec", "target": "killall -TERM gs" }\n  ]\n}\n' > "$B/$NAME.sh.keys"
+  scp -q $SSH_OPTS "$B/$NAME.sh.keys" "$T:$DEST.keys"
   echo "launcher: $DEST"
   # The game list entry: name, description, box art and details from the project's Game info (studio: "Game info..."), merged into the
   # gamelist.xml next to the launcher. An entry for the same launcher is replaced; what EmulationStation recorded itself (play count,
@@ -334,8 +338,8 @@ REMOTE
   [ -f "$SRC/meta/box_art.png" ] && IMG_BOX="images/$NAME.png"
   [ -f "$SRC/meta/screenshot.png" ] && IMG_SHOT="images/$NAME-screenshot.png"
   [ -f "$SRC/meta/logo.png" ] && IMG_LOGO="images/$NAME-logo.png"
-  node scripts/gamelist.mjs "$SRC" "$LAUNCH" "$IMG_BOX" "$IMG_SHOT" "$IMG_LOGO" > "build/$NAME.gamelist-entry.xml"
-  scp -q $SSH_OPTS "build/$NAME.gamelist-entry.xml" "$T:/tmp/gs-$NAME.entry.xml"
+  node scripts/gamelist.mjs "$SRC" "$LAUNCH" "$IMG_BOX" "$IMG_SHOT" "$IMG_LOGO" > "$B/$NAME.gamelist-entry.xml"
+  scp -q $SSH_OPTS "$B/$NAME.gamelist-entry.xml" "$T:/tmp/gs-$NAME.entry.xml"
   ssh $SSH_OPTS "$T" "mkdir -p '$GLDIR/images'"
   if [ -n "$IMG_BOX" ]; then scp -q $SSH_OPTS "$SRC/meta/box_art.png" "$T:$GLDIR/$IMG_BOX"; else ssh $SSH_OPTS "$T" "rm -f '$GLDIR/images/$NAME.png'"; fi
   if [ -n "$IMG_SHOT" ]; then scp -q $SSH_OPTS "$SRC/meta/screenshot.png" "$T:$GLDIR/$IMG_SHOT"; else ssh $SSH_OPTS "$T" "rm -f '$GLDIR/images/$NAME-screenshot.png'"; fi
