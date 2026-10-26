@@ -11,7 +11,7 @@ function Main:update(dt)
 end
 
 function Main:draw()
-  gs.draw.rect(0, 0, 256, 192, "#14141e")
+  gs.draw.rect(0, 0, 320, 240, "#14141e")
   gs.draw.text("BUTTON TEST", 12, 8, "#ffffff", 2)
   gs.draw.text("Press a button: its name lights up.", 12, 30, "#b4b4c8")
   gs.draw.text("Hold L + R for 2 seconds to leave.", 12, 42, "#b4b4c8")

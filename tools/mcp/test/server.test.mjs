@@ -61,10 +61,10 @@ test("writing: a sprite, a sound and a song land in a game and come back checked
     assert.equal(written.format, "tracker");
     assert.equal(written.tracks, 8, "a band of four is filled out to the eight tracks the consoles play");
     // a level written as a text map, with things and a path, comes back as a picture and as plain room data
-    const room = await call("room_write", { game: "breakout", name: "level1", size: { width: 512, height: 192, background: "#14234f" },
-      layers: [{ name: "ground", tileset: "ts_bg", depth: 50, solid: true, map: { legend: { "#": 1, ".": -1 }, at: [0, 9], rows: ["########....########################", "######################################", "######################################"] } }],
-      entities: { add: [["paddle", 40, 140], ["ball", 300, 120], ["ghost", 9999, 0]] }, paths: { patrol: { points: [[100, 60], [500, 60]], loop: true } } });
-    assert.match(room.content[0].text, /512x192 \(2\.0 x 1\.0 screens\)/);
+    const room = await call("room_write", { game: "breakout", name: "level1", size: { width: 640, height: 240, background: "#14234f" },
+      layers: [{ name: "ground", tileset: "ts_bg", depth: 50, solid: true, map: { legend: { "#": 1, ".": -1 }, at: [0, 12], rows: ["########....########################", "######################################", "######################################"] } }],
+      entities: { add: [["paddle", 40, 180], ["ball", 300, 120], ["ghost", 9999, 0]] }, paths: { patrol: { points: [[100, 60], [500, 60]], loop: true } } });
+    assert.match(room.content[0].text, /640x240 \(2\.0 x 1\.0 screens\)/);
     assert.match(room.content[0].text, /layer ground: tileset ts_bg, depth 50, solid, \d+ of \d+ cells filled/);
     assert.match(room.content[0].text, /no entities\/ghost\.lua[\s\S]*outside the room/);
     assert.equal(room.content[1].type, "image");
@@ -73,7 +73,7 @@ test("writing: a sprite, a sound and a song land in a game and come back checked
     assert.match(lua, /patrol = \{ \{ 100, 60 \}, \{ 500, 60 \}, loop = true \}/);
     // a scene's layout: seen with its texts and panels, and changed in place (the layout keeps what it had)
     const title = await call("room_view", { game: "breakout", name: "scenes/title" });
-    assert.match(title.content[0].text, /texts: "BREAKOUT" at 128,44 \(self\.title\)/);
+    assert.match(title.content[0].text, /texts: "BREAKOUT" at 160,70 \(self\.title\)/);
     const titleChanged = await call("room_write", { game: "breakout", name: "scenes/title", texts: { remove: ["best"], add: [{ text: "HI", x: 10, y: 10, name: "hi", font: "bold_small" }] },
       panels: { add: [{ x: 0, y: 176, w: 256, h: 16, tileset: "ui", tile: 0, name: "floor" }] } });
     assert.match(titleChanged.content[0].text, /^wrote scenes\/title\.layout\.lua/);

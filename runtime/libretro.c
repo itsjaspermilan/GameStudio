@@ -14,7 +14,7 @@
 #include "libretro.h"
 
 /* The largest screen a game can switch to while it runs (gs.set_resolution): the surface is made once, since the renderer's textures
- * belong to it. Glow43 (256x192) and Glow169 (320x180) are far below it. */
+ * belong to it. Glow43 (320x240) and Glow169 (320x180) are far below it. */
 #define CORE_MAX_W 640
 #define CORE_MAX_H 480
 #define CORE_FPS 60.0

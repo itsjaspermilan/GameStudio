@@ -53,7 +53,7 @@ tool("sprite_write", "Draw a sprite", "Writes sprites/<name>.png and .json and r
   "['rect',x,y,w,h,c] ['frame',x,y,w,h,c] ['px',x,y,c] ['line',x0,y0,x1,y1,c] ['disc',cx,cy,r,c] ['ellipse',cx,cy,rx,ry,c] ['ring',cx,cy,r,thick,c] ['poly',[[x,y],...],c] " +
   "['sphere',cx,cy,r,[dark,mid,light,highlight]] ['dither',x,y,w,h,c] ['outline',c] ['mirror'] (copies the left half to the right) ['erase',x,y,w,h]. Colours are the console's palette places (numbers, or letters as sprite_view lists them). " +
   "In a game with colour banks (palette.json) a sprite draws with one sprite bank (bank, default the first) and colours are its places 1-15 (numbers or hex digits 1-f, 0 or '.' see-through); a tileset lists tile banks (banks) and each tile may name its own (frame.bank), like the GBA. " +
-  "Sizes for a 256x192 screen: hero 32-48, common enemy 24-32, big enemy 48-64, boss 64-128, bullet/pickup 8-16, multiples of 8 up to the console's limit (128 on Glow43 and Glow169); tiles 16 or 32. Origin defaults to the centre.",
+  "Sizes for a 320x240 screen: hero 32-48, common enemy 24-32, big enemy 48-64, boss 64-128, bullet/pickup 8-16, multiples of 8 up to the console's limit (128 on Glow43 and Glow169); tiles 16 or 32. Origin defaults to the centre.",
   {
     game, name: z.string(), w: z.number().int(), h: z.number().int(),
     frames: z.array(z.object({ rows: z.array(z.string()).optional(), ops: z.array(z.array(z.any())).optional(), bank: z.string().optional().describe("A tileset with banks: this tile's bank (default the first of banks)") })),

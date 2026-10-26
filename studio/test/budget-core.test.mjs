@@ -79,5 +79,5 @@ test("the stats line and the console summary", () => {
   assert.equal(parseStatsLine("hello"), null);
   assert.equal(parseStatsLine("@@gs not json"), null);
   assert.equal(parseStatsLine('@@gs {"x":1}'), null);
-  assert.deepEqual(consoleSummary(dot), ["Glow43 256×192", "colour banks: 16 sprite, 16 tile", "8 music tracks", "4 sound effect channels"]);
+  assert.deepEqual(consoleSummary(dot), ["Glow43 320×240", "colour banks: 16 sprite, 16 tile", "8 music tracks", "4 sound effect channels"]);
 });

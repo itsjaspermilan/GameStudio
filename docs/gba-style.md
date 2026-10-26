@@ -10,7 +10,7 @@ Galaxies, Iridion II).
 
 | | NES | SNES | GBA | Glow43 (ours) |
 | --- | --- | --- | --- | --- |
-| Screen | 256x240 | 256x224 | 240x160 | 256x192 (4x on the TrimUI Brick's 1024x768) |
+| Screen | 256x240 | 256x224 | 240x160 | 320x240 |
 | Colours | 54 fixed | 32,768, 256 on screen | 32,768, 512 on screen (16 banks of 16 for tiles, 16 for sprites) | the same banks (`palette.json`) |
 | Sprites | 64, 8x8 or 8x16, 3 colours | 128, up to 64x64, 15 colours | 128, 12 shapes from 8x8 to 64x64, 15 colours, rotate and scale (32 at once) | entities, up to 128x128, any angle and scale |
 | Effects | none | colour maths, mode 7 | alpha blending in 17 steps, fade to white or black, mosaic, two windows | blending (add, darken, alpha), fades, **mosaic and white fades: added in this overhaul** |

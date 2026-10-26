@@ -3,7 +3,7 @@
 A console is a small JSON spec that says what a game made for it may use. A game names one in `game.lua` (`console = "glow43"`) and the framework reads the spec at start (`engine/gs/boot.lua`).
 The studio reads these files too (new game, console editor, the Handheld panel).
 
-Built in: **Glow43** (4:3, 256x192) and **Glow169** (16:9, 320x180). Both have the same features; only the screen differs.
+Built in: **Glow43** (4:3, 320x240) and **Glow169** (16:9, 320x180). Both have the same features; only the screen differs.
 A custom console is a copy of one of these with its own numbers (for example a 240x160 console). The studio keeps yours in `<workspace>/consoles/<id>.json`;
 a game made for one carries a copy as `consoles/<id>.json` in its own folder (the studio writes and refreshes it), and that copy is what the runtime
 reads, so the game runs the same on another computer and on the device.

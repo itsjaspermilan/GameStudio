@@ -25,8 +25,8 @@ local Ship = gs.entity{
 
 function Ship:update(dt)
   local dx, dy = gs.input.dir()
-  self.x = gs.clamp(self.x + dx * self.speed * dt, 8, 248)
-  self.y = gs.clamp(self.y + dy * self.speed * dt, 8, 184)
+  self.x = gs.clamp(self.x + dx * self.speed * dt, 8, 312)
+  self.y = gs.clamp(self.y + dy * self.speed * dt, 8, 232)
   if gs.input.pressed("a") then
     gs.spawn("bullet", self.x, self.y - 8)
   end
@@ -97,7 +97,7 @@ function Rock:hurt(amount)
 end
 
 function Rock:update(dt)
-  if self.y &gt; 210 then self:destroy() end
+  if self.y &gt; 260 then self:destroy() end
 end
 
 function Rock:draw()
@@ -122,20 +122,20 @@ local Main = gs.scene{}
 function Main:enter()
   state.reset()
   self.next_rock = 0.5
-  gs.spawn("ship", 128, 170)
+  gs.spawn("ship", 160, 210)
 end
 
 function Main:update(dt)
   self.next_rock = self.next_rock - dt
   if self.next_rock &lt;= 0 then
-    gs.spawn("rock", gs.random(10, 246), -10)
+    gs.spawn("rock", gs.random(10, 310), -10)
     self.next_rock = 0.6
   end
 end
 
 function Main:draw_ui()
   gs.draw.text("SCORE " .. state.score, 8, 6, "#ffffff")
-  gs.draw.text("HITS " .. state.hits, 200, 6, "#ffa38c")
+  gs.draw.text("HITS " .. state.hits, 260, 6, "#ffa38c")
 end
 
 return Main</code></pre>

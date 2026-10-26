@@ -56,7 +56,7 @@ test("writing and reading again gives the same room", () => {
 test("the rooms in the repository read as data", () => {
   const { room, error } = parseRoom(readFileSync(join(root, "carts/breakout/scenes/play.layout.lua"), "utf8"));
   assert.equal(error, undefined);
-  assert.equal(room.width, 256);
+  assert.equal(room.width, 320);
 });
 
 test("an entity's name survives normalizing twice (the editor normalizes what it loads)", () => {

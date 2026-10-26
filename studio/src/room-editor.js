@@ -322,7 +322,7 @@ export function createRoomEditor(root, hooks = {}) {
       ctx.stroke();
     }
     // one screen's worth from the top-left corner: how much the camera shows at once
-    const scr = hooks.getScreen ? hooks.getScreen() : { width: 256, height: 192 };
+    const scr = hooks.getScreen ? hooks.getScreen() : { width: 320, height: 240 };
     ctx.setLineDash([6, 4]); ctx.strokeStyle = "rgba(255,255,255,0.35)";
     ctx.strokeRect(0.5, 0.5, Math.min(scr.width, room.width) * zoom - 1, Math.min(scr.height, room.height) * zoom - 1);
     ctx.setLineDash([]);
@@ -450,7 +450,7 @@ export function createRoomEditor(root, hooks = {}) {
     root.querySelectorAll(".re-lefttabs button").forEach((b) => b.classList.toggle("on", b.dataset.side === side));
     $(".re-outline-wrap").hidden = side !== "list"; $(".re-details").hidden = side !== "details";
     // size: one screen (the console's) unless the level scrolls
-    const scr = hooks.getScreen ? hooks.getScreen() : { width: 256, height: 192 };
+    const scr = hooks.getScreen ? hooks.getScreen() : { width: 320, height: 240 };
     const one = room.width === scr.width && room.height === scr.height && !bigSize;
     $(".re-one").checked = one; $(".re-big").checked = !one; $(".re-bigsize").hidden = one;
     $(".re-one-label").textContent = `One screen (${scr.width} × ${scr.height}, the console's)`;
@@ -926,8 +926,8 @@ export function createRoomEditor(root, hooks = {}) {
   $(".re-loop").onchange = () => commit(() => { if (room.paths[pathName]) room.paths[pathName].loop = $(".re-loop").checked; });
   $(".re-grid").onchange = () => render();
   root.querySelectorAll(".re-lefttabs button").forEach((b) => { b.onclick = () => { side = b.dataset.side; renderSide(); }; });
-  $(".re-one").onchange = () => { bigSize = false; const scr = hooks.getScreen ? hooks.getScreen() : { width: 256, height: 192 }; $(".re-w").value = scr.width; $(".re-h").value = scr.height; resize(); };
-  $(".re-big").onchange = () => { bigSize = true; const scr = hooks.getScreen ? hooks.getScreen() : { width: 256, height: 192 }; if (room.width === scr.width && room.height === scr.height) { $(".re-w").value = scr.width * 2; $(".re-h").value = scr.height; resize(); } else renderSide(); };
+  $(".re-one").onchange = () => { bigSize = false; const scr = hooks.getScreen ? hooks.getScreen() : { width: 320, height: 240 }; $(".re-w").value = scr.width; $(".re-h").value = scr.height; resize(); };
+  $(".re-big").onchange = () => { bigSize = true; const scr = hooks.getScreen ? hooks.getScreen() : { width: 320, height: 240 }; if (room.width === scr.width && room.height === scr.height) { $(".re-w").value = scr.width * 2; $(".re-h").value = scr.height; resize(); } else renderSide(); };
   $(".re-code").onchange = () => commit(() => { if ($(".re-code").value) room.code = $(".re-code").value; else delete room.code; });
   // the size: every layer grows or shrinks with it, so painting reaches the new edge
   const resize = () => commit(() => {
@@ -978,7 +978,7 @@ export function createRoomEditor(root, hooks = {}) {
   return {
     // kind: "layout" (a scene's) or "room"
     async load(n, def, k = "room") {
-      const scr = hooks.getScreen ? hooks.getScreen() : { width: 256, height: 192 };
+      const scr = hooks.getScreen ? hooks.getScreen() : { width: 320, height: 240 };
       name = n; kind = k; room = R.normalizeRoom(def && def.width == null ? { ...def, width: scr.width, height: scr.height } : def); bigSize = false; dirty = false; history.undoStack = []; history.redoStack = []; renames = [];
       layerIx = 0; tile = 0; sel = null; pathName = Object.keys(room.paths)[0] || ""; pointIx = -1;
       if (!entName) entName = (hooks.getEntities ? hooks.getEntities() : [])[0] || "";

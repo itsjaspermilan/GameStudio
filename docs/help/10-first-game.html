@@ -12,7 +12,7 @@ Press <strong>Make this game</strong> at the bottom to get all of it as a ready-
 <p><code>game.lua</code> says what the game is called, which console it is made for (the console decides the screen size, colours and limits) and which scene starts first.</p>
 <pre class="lua" data-path="game.lua"><code>return gs.game{
   title = "Star Catcher",
-  console = "glow43",            -- 256x192, the Glow43 handheld
+  console = "glow43",            -- 320x240, the Glow43 handheld
   start = "scenes.main",      -- the file scenes/main.lua
 }</code></pre>
 
@@ -30,7 +30,7 @@ local Player = gs.entity{
 
 function Player:update(dt)
   local dx = gs.input.dir()          -- -1 for left, 0 for still, 1 for right
-  self.x = gs.clamp(self.x + dx * self.speed * dt, 16, 240)
+  self.x = gs.clamp(self.x + dx * self.speed * dt, 16, 304)
 end
 
 function Player:draw()
@@ -60,7 +60,7 @@ function Star:create()
 end
 
 function Star:update(dt)
-  if self.y > 200 then               -- fell past the bottom: a life lost
+  if self.y > 250 then               -- fell past the bottom: a life lost
     state.lives = state.lives - 1
     self:destroy()
   end
@@ -90,14 +90,14 @@ local Main = gs.scene{}
 
 function Main:enter()
   state.reset()
-  gs.spawn("player", 128, 176)       -- the name of the file in entities/, and where to put it
+  gs.spawn("player", 160, 220)       -- the name of the file in entities/, and where to put it
   self.next_star = 0
 end
 
 function Main:update(dt)
   self.next_star = self.next_star - dt
   if self.next_star &lt;= 0 then
-    gs.spawn("star", gs.random(10, 246), -10)
+    gs.spawn("star", gs.random(10, 310), -10)
     self.next_star = 0.8
   end
   if state.lives &lt;= 0 then
@@ -107,7 +107,7 @@ end
 
 function Main:draw_ui()
   gs.draw.text("SCORE " .. state.score, 8, 6, "#ffffff")
-  gs.draw.text("LIVES " .. state.lives, 196, 6, "#ffffff")
+  gs.draw.text("LIVES " .. state.lives, 248, 6, "#ffffff")
 end
 
 return Main</code></pre>

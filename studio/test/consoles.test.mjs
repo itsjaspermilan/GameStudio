@@ -6,7 +6,7 @@ test("the built-in consoles are valid and have the documented screens", () => {
   assert.deepEqual(K.BUILTIN_CONSOLES.map((c) => c.id), ["glow43", "glow169"]);
   for (const c of K.BUILTIN_CONSOLES) assert.deepEqual(K.validateConsole(c), [], c.id);
   const [dot, dash] = K.BUILTIN_CONSOLES;
-  assert.equal(K.screenText(dot), "256×192");
+  assert.equal(K.screenText(dot), "320×240");
   assert.equal(K.screenText(dash), "320×180");
   assert.equal(dot.palette.colors.length, 32);
 });
@@ -43,17 +43,16 @@ test("validateConsole reports clear problems", () => {
 
 test("fitScale picks the largest whole-number scale", () => {
   const dot = K.BUILTIN_CONSOLES[0].screen, dash = K.BUILTIN_CONSOLES[1].screen;
-  assert.deepEqual(K.fitScale(dot, { width: 1024, height: 768 }), { scale: 4, width: 1024, height: 768 }); // the TrimUI Brick, exactly
-  assert.deepEqual(K.fitScale(dot, { width: 640, height: 480 }), { scale: 2, width: 512, height: 384 });
+  assert.deepEqual(K.fitScale(dot, { width: 640, height: 480 }), { scale: 2, width: 640, height: 480 });
   assert.deepEqual(K.fitScale(dash, { width: 640, height: 480 }), { scale: 2, width: 640, height: 360 });
   assert.deepEqual(K.fitScale(dash, { width: 1920, height: 1080 }), { scale: 6, width: 1920, height: 1080 });
-  assert.deepEqual(K.fitScale(dot, { width: 1920, height: 1080 }), { scale: 5, width: 1280, height: 960 });
+  assert.deepEqual(K.fitScale(dot, { width: 1920, height: 1080 }), { scale: 4, width: 1280, height: 960 });
   assert.equal(K.fitScale(dot, { width: 100, height: 100 }).scale, 1); // never below 1
 });
 
 test("clampRoomSize respects the console and the 16 px floor", () => {
   const c = K.BUILTIN_CONSOLES[0];
-  assert.deepEqual(K.clampRoomSize(c, 256, 192), [256, 192]);
+  assert.deepEqual(K.clampRoomSize(c, 320, 240), [320, 240]);
   assert.deepEqual(K.clampRoomSize(c, 5000, 5000), [1024, 1024]);
   assert.deepEqual(K.clampRoomSize(c, 1, 1), [16, 16]);
   assert.deepEqual(K.clampRoomSize(c, "abc", 100), [1024, 100]); // not a number: the maximum
@@ -64,7 +63,7 @@ test("duplicateConsole makes an independent copy for a custom console", () => {
   const src = K.BUILTIN_CONSOLES[0], copy = K.duplicateConsole(src, "tiny", "Tiny");
   assert.equal(copy.based_on, "glow43");
   copy.screen.width = 240; copy.screen.height = 160;
-  assert.equal(src.screen.width, 256); // the original is untouched
+  assert.equal(src.screen.width, 320); // the original is untouched
   assert.deepEqual(K.validateConsole(copy), []);
 });
 

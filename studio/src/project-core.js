@@ -197,7 +197,7 @@ return {
   background = "#101220",
   layers = {},
   entities = {
-    -- { "player", 128, 96 },
+    -- { "player", 160, 120 },
   },
 }
 `,
@@ -257,7 +257,7 @@ export function textSpriteFiles(name, spec) {
 // ready-made banks (palette.json). The first scene has both halves, as every scene made in the studio does: the player is placed in its
 // layout (what you can point at goes in the layout, the way the step-by-step tutorial teaches) and its code is where the rules go. The
 // player looks like its sprite, ready to be drawn over: no drawing in code.
-export function newGameFiles(title, consoleId, { banks = false, screen = { width: 256, height: 192 } } = {}) {
+export function newGameFiles(title, consoleId, { banks = false, screen = { width: 320, height: 240 } } = {}) {
   const safe = String(title).replace(/[\\"]/g, "");
   return {
     "game.lua": `-- ${safe}\nreturn gs.game{\n  title = "${safe}",\n  console = "${consoleId}",\n  start = "scenes.main",\n}\n`,
