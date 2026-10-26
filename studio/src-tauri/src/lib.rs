@@ -938,9 +938,10 @@ fn cancel_push(state: State<'_, AppState>) -> bool {
 #[tauri::command]
 async fn push_cart(app: AppHandle, state: State<'_, AppState>, cart: String) -> Result<(), String> {
     // Sending is always scripts/push.sh, so the studio and the command line do exactly the same (on the Brick: the console as a NextUI
-    // system run by its emulator, box art and title from "Game info"). A scripts/device.env in the workspace says where; otherwise the
-    // studio writes one from Settings (NextUI, the Brick) into its own folder. It needs node on the PATH; a desktop app does not always
-    // inherit the shell's PATH, so the usual places are added.
+    // system run by its emulator, box art and title from "Game info"). The studio writes the device file from Settings (NextUI, the
+    // Brick) into its own folder. Only when Settings has no address does a scripts/device.env in the workspace say where (the command
+    // line's file; in a checkout it may still be the old Knulli handheld, which is why Settings comes first). It needs node on the PATH;
+    // a desktop app does not always inherit the shell's PATH, so the usual places are added.
     let ws = workspace(&app);
     let script = ws.join("scripts").join("push.sh");
     if !script.is_file() {
@@ -948,8 +949,8 @@ async fn push_cart(app: AppHandle, state: State<'_, AppState>, cart: String) -> 
     }
     let scratch = scratch_dir(&app);
     let mut env_file = ws.join("scripts").join("device.env");
-    if !env_file.is_file() {
-        let s = load_settings(&app);
+    let s = load_settings(&app);
+    if !s.device_host.is_empty() || !env_file.is_file() {
         if s.device_host.is_empty() || !valid_remote_part(&s.device_host, ".-_:") {
             return Err("set the handheld's address (its IP) in Settings first".into());
         }

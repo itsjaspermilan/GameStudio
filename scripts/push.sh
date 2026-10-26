@@ -58,8 +58,10 @@ console_ext() {
   ' "$1" "$2"
 }
 
-[ -x build/gs ] || ./scripts/build.sh
-{ [ -x build-aarch64/gs ] && [ -f build-aarch64/gs_libretro.so ]; } || ./scripts/build-aarch64.sh
+# Always build: both are incremental (about a second when nothing changed), and a handheld left on an older engine than the studio
+# runs the game differently or not at all.
+./scripts/build.sh >/dev/null 2>&1 || { echo "the desktop build failed: run scripts/build.sh to see why" >&2; exit 1; }
+./scripts/build-aarch64.sh >/dev/null 2>&1 || { echo "the handheld build failed: run scripts/build-aarch64.sh to see why" >&2; exit 1; }
 ./build/gs pack "$SRC" "$HOSTCART"
 T="$DEVICE_USER@$DEVICE_HOST"
 # Never wait for a password (a studio window cannot answer one): without a working shared connection or key, stop at once and say how to fix it.
