@@ -20,7 +20,7 @@ import { createInstrumentEditor } from "./instrument-editor.js";
 import { newSfx, INSTRUMENT_PRESETS, newSong, serializeSong, renderSfxWith, renderSongDesc, instrumentPreviewDesc, namedNotePreviewDesc, setBuiltinInstruments, builtinDef, isBuiltinName, normalizeInstrument } from "./audio-core.js";
 import builtinInstrumentsDoc from "../../engine/instruments.json";
 setBuiltinInstruments(builtinInstrumentsDoc);
-import { encodeSpritePng, decodeSpritePng } from "./sprite-io.js";
+import { encodeSpritePng, decodeSpritePng, encodePng } from "./sprite-io.js";
 import { BUILTIN_CONSOLES, allConsoles, budgetStatus, formatKB, consoleFor, duplicateConsole, paletteOf, parseCustomConsoles, screenText, uniqueId, consoleFileOf, consoleFileText, resolveConsole, cartExtension } from "./consoles.js";
 import { createConsoleEditor } from "./console-editor.js";
 import { parseWav, sampleName, fitWav } from "./wav.js";
@@ -267,6 +267,11 @@ async function refreshGames() {
 }
 
 const readJson = (rel) => invoke("read_file", { cart: state.cart, rel }).then(JSON.parse);
+// A file of a starter game or a tutorial: text, a picture { width, height, data } (written as a PNG), or PNG data already encoded { base64 }.
+async function writeGameFile(cart, rel, content) {
+  if (typeof content === "string") return invoke("write_file", { cart, rel, content });
+  return invoke("write_binary", { cart, rel, data: content.base64 || (await encodePng(content)) });
+}
 const writeJson = (rel, obj) => invoke("write_file", { cart: state.cart, rel, content: JSON.stringify(obj, null, 2) + "\n" });
 // game.lua holds the title and console; meta/info.json keeps a copy for the tools that don't read Lua, refreshed whenever game.lua is seen.
 async function syncInfo(gameText) {
@@ -1698,7 +1703,7 @@ const createProject = () => run("create", async () => {
     path = await invoke("new_project", { name });
     if (!path) return;
     const banks = paletteOf(chosenConsole).mode === "banks";
-    for (const [rel, content] of Object.entries(newGameFiles(defaultTitle(name), chosenConsole.id, { banks, screen: chosenConsole.screen }))) await invoke("write_file", { cart: path, rel, content });
+    for (const [rel, content] of Object.entries(newGameFiles(defaultTitle(name), chosenConsole.id, { banks, screen: chosenConsole.screen }))) await writeGameFile(path, rel, content);
     const copy = consoleFileOf(chosenConsole.id);
     if (copy) await invoke("write_file", { cart: path, rel: copy, content: consoleFileText(chosenConsole) });
   } catch (e) { $("np-error").textContent = String(e); return; }
@@ -1769,9 +1774,12 @@ window.addEventListener("keydown", (e) => { if (e.key === "F1") { e.preventDefau
 async function addHelpFile(rel, text) {
   if (!state.cart) throw new Error("Open a game first.");
   if (state.files.includes(rel)) throw new Error(`${rel} already exists`);
-  await invoke("write_file", { cart: state.cart, rel, content: text });
+  await writeGameFile(state.cart, rel, text);
   await refreshFiles(); render();
-  await openFile(rel);
+  // a sprite comes as its JSON and its PNG: open the sprite once both are there; anything else opens as a file
+  const sprite = /^sprites\/(.+)\.(json|png)$/.exec(rel);
+  if (!sprite) await openFile(rel);
+  else if (state.scan.groups.sprites.includes(sprite[1])) await openers.sprite(group("sprites"), sprite[1]);
 }
 // "Open this example": a finished game that comes with the studio, copied into a folder of your own first so the original stays as it was.
 async function openExample(name) {
@@ -1791,7 +1799,7 @@ async function makeHelpGame(title, files, consoleId = "glow43") {
   if (!path) return;
   const target = allConsoles(state.customConsoles).find((c) => c.id === consoleId) || BUILTIN_CONSOLES[0];
   for (const [rel, content] of Object.entries(files)) {
-    await invoke("write_file", { cart: path, rel, content: rel === "game.lua" ? setConsoleInGame(content, target.id) ?? content : content });
+    await writeGameFile(path, rel, rel === "game.lua" ? setConsoleInGame(content, target.id) ?? content : content);
   }
   await invoke("write_file", { cart: path, rel: "meta/info.json", content: JSON.stringify({ title: gameTitle, console: target.id }, null, 2) + "\n" });
   const copy = consoleFileOf(target.id);

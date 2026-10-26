@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { parsePage, gameFiles, decodeEntities } from "../src/help-core.js";
 import { parseApi, buildIndex, diagnose } from "../src/lua-intel-core.js";
 import { scanProject } from "../src/project-core.js";
+import { png } from "../../scripts/png.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const dir = join(root, "docs/help");
@@ -51,7 +52,7 @@ for (const p of pages) {
   if (!files) continue;
   test(`tutorial "${p.title}": the game runs, and its code has no warnings`, { skip: !existsSync(gs) }, () => {
     const out = mkdtempSync(join(tmpdir(), "gs-help-"));
-    for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(out, rel)), { recursive: true }); writeFileSync(join(out, rel), text); }
+    for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(out, rel)), { recursive: true }); writeFileSync(join(out, rel), typeof text === "string" ? text : png(text.width, text.height, text.data)); }
     for (const seed of [1]) {
       const r = spawnSync(gs, [out], { encoding: "utf8", timeout: 60000, env: { ...process.env, SDL_VIDEODRIVER: "dummy", SDL_AUDIODRIVER: "dummy", GS_SAVE_DIR: out, GS_FF: "20", GS_MAX_FRAMES: "240", GS_BOT_LUA: join(root, "tests/random-bot.lua"), GS_SEED: String(seed) } });
       const text = r.stdout + r.stderr;

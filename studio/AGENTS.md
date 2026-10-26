@@ -53,7 +53,10 @@ the framework's functions and Entity methods are all there) and then completes, 
 
 ## Help pages and the Handheld panel
 
-`docs/help/NN-slug.html` are the help pages (a comment header with `title`, `group`, `order`, `summary`, then HTML). A tutorial's game is its `<pre class="lua" data-path="entities/x.lua">` blocks (HTML-escaped: `&lt;`);
+`docs/help/NN-slug.html` are the help pages (a comment header with `title`, `group`, `order`, `summary`, then HTML). A tutorial's game is its `<pre class="lua" data-path="entities/x.lua">` blocks (HTML-escaped: `&lt;`)
+and its art, sprites written as text: `<pre class="sprite" data-path="sprites/coin.json" data-bank="items" data-origin="8,8" data-mask="..." data-animations="idle 0-0 4; walk 1-2 6">`, one character a
+pixel (`.` see-through, `1`-`f` the bank's places), frames apart by an empty line; Help shows them as pictures and they become real sprites (`spriteBlockFiles` in help-core, `spriteFromText` in sprite-core).
+Tutorials draw with sprites, not with `gs.draw.rect`, like the starter game (its player is `STARTER_PLAYER` in project-core);
 **`test/help.test.mjs` writes each tutorial's files to a temp folder and plays it with `tests/random-bot.lua` through `build/gs`, and runs the editor's own lint over it**, so a tutorial with a mistake fails the tests.
 Links between pages are `href="help:<slug>"`. The API page is generated; document new `gs.*` functions in `engine/api/gs.d.lua`, not in a page.
 Help opens in a **window of its own** (`help.html` + `src/help-window.js`, the Vite build's second page; Tauri window label `help`), so

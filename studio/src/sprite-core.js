@@ -188,6 +188,35 @@ export function flipArea(buf) {
   return { w: buf.w, h: buf.h, data };
 }
 
+// ---- sprites written as text (Help pages and the starter game carry their art this way) ----
+// Each frame is a list of rows, one character a pixel: "." is see-through, 1-9 and a-f are places 1 to 15 in a colour bank (the bank's
+// colours as "#rrggbb", in order). Returns the sprite's JSON text and its picture as { width, height, data } (the frames side by side).
+//   spriteFromText("coin", { frames: [["..33..", ".3443."]], bank: "items", origin: [3, 1] }, colors)
+export function spriteFromText(name, spec, colors) {
+  const frames = spec.frames, h = frames[0].length, w = frames[0][0].length;
+  const s = createSprite(name, w, h);
+  s.frames = frames.map((rows, fi) => {
+    if (rows.length !== h || rows.some((r) => r.length !== w)) throw new Error(`${name}: every row of every frame must be ${w} characters, and every frame ${h} rows (frame ${fi + 1})`);
+    const data = blankFrame(w, h);
+    rows.forEach((row, y) => [...row].forEach((ch, x) => {
+      if (ch === "." || ch === " ") return;
+      const place = parseInt(ch, 16);
+      const hex = place >= 1 && colors[place - 1];
+      if (!hex) throw new Error(`${name}: '${ch}' (frame ${fi + 1}, row ${y + 1}) is not a place in the bank (1-9, a-f)`);
+      const i = (y * w + x) * 4, rgba = hexToRgba(hex);
+      data[i] = rgba[0]; data[i + 1] = rgba[1]; data[i + 2] = rgba[2]; data[i + 3] = 255;
+    }));
+    return data;
+  });
+  s.origin = spec.origin || [w >> 1, h >> 1];
+  s.mask = spec.mask || null;
+  s.fps = spec.fps ?? (frames.length > 1 ? 8 : 6);
+  if (spec.animations) s.animations = normalizeAnimations(spec.animations, frames.length, s.fps);
+  if (spec.bank) s.bank = spec.bank;
+  const json = JSON.stringify(toJSON(s), null, 2) + "\n";
+  return { json, png: packStrip(s) };
+}
+
 // ---- history ----
 
 export function snapshot(s) {

@@ -89,7 +89,7 @@ test("every Lua file in the repository and every tutorial is already formatted",
   }
   for (const f of readdirSync(join(root, "docs/help")).filter((f) => f.endsWith(".html"))) {
     const g = gameFiles(parsePage(readFileSync(join(root, "docs/help", f), "utf8"), f));
-    for (const [rel, text] of Object.entries(g || {})) assert.equal(tidyLua(text), text, `${f} ${rel}`);
+    for (const [rel, text] of Object.entries(g || {})) if (rel.endsWith(".lua")) assert.equal(tidyLua(text), text, `${f} ${rel}`);
   }
 });
 

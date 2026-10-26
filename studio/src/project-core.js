@@ -2,6 +2,7 @@
 // (or by git) appears at once. This module knows the folders, how names map to files and Lua module names, and the starter text of new files.
 
 import { paletteText, starterPalette } from "./palette-core.js";
+import { spriteFromText } from "./sprite-core.js";
 
 // kind: how the studio opens it ("code" = the Lua editor, otherwise the named editor). nested: names may contain folders (entities/enemies/grub,
 // sprites/ui/logo is the sprite "ui/logo"): a folder is part of the name, and moving something to another folder renames it.
@@ -213,16 +214,57 @@ ${entities}  },
 }
 `;
 
-// Starter files of a new game. On a console with colour banks it starts with the ready-made banks (palette.json). The first scene has
-// both halves, as every scene made in the studio does: the player is placed in its layout (what you can point at goes in the layout, the
-// way the step-by-step tutorial teaches) and its code is where the rules go.
+// The starter player: a small figure in the hero bank (1-5 skin, 6-a hair, b-f tunic), 16x24 with its origin at the feet, for the player to
+// draw over. Its collision box is the body.
+export const STARTER_PLAYER = {
+  bank: "hero", origin: [8, 22], mask: [3, 6, 10, 17],
+  frames: [[
+    "................",
+    ".....111111.....",
+    "....17788771....",
+    "...1788998871...",
+    "...1789999871...",
+    "...1778888771...",
+    "...1733333371...",
+    "...1314334131...",
+    "...1334444331...",
+    "....13333331....",
+    ".....122221.....",
+    "....1bccccb1....",
+    "...1bcddddcb1...",
+    "..12bcdeedcb21..",
+    "..13bcddddcb31..",
+    "..13bccccccb31..",
+    "..121bcbbcb121..",
+    "...1bbb11bbb1...",
+    "...1bbb11bbb1...",
+    "...1bb1..1bb1...",
+    "...1661..1661...",
+    "..17761..16771..",
+    "..11111..11111..",
+    "................",
+  ]],
+};
+// A sprite written as text (see spriteFromText) as the game's files: { "sprites/<name>.json": text, "sprites/<name>.png": picture }, coloured
+// with the starter banks (the colours a new game's palette.json starts with).
+export function textSpriteFiles(name, spec) {
+  const bank = starterPalette().sprites.find((b) => b.name === spec.bank) || starterPalette().sprites[0];
+  const { json, png } = spriteFromText(name, spec, bank.colors);
+  return { [`sprites/${name}.json`]: json, [`sprites/${name}.png`]: png };
+}
+
+// Starter files of a new game: text, or a picture { width, height, data } for a PNG. On a console with colour banks it starts with the
+// ready-made banks (palette.json). The first scene has both halves, as every scene made in the studio does: the player is placed in its
+// layout (what you can point at goes in the layout, the way the step-by-step tutorial teaches) and its code is where the rules go. The
+// player looks like its sprite, ready to be drawn over: no drawing in code.
 export function newGameFiles(title, consoleId, { banks = false, screen = { width: 256, height: 192 } } = {}) {
   const safe = String(title).replace(/[\\"]/g, "");
   return {
     "game.lua": `-- ${safe}\nreturn gs.game{\n  title = "${safe}",\n  console = "${consoleId}",\n  start = "scenes.main",\n}\n`,
     "scenes/main.layout.lua": LAYOUT_TEMPLATE(screen, `    { "player", ${Math.round(screen.width / 2)}, ${Math.round(screen.height / 2)}, {}, name = "player" },\n`),
     "scenes/main.lua": `-- The rules of this scene. Its layout places the player, so self.player is that player here.\nlocal Main = gs.scene{}\n\nfunction Main:enter()\nend\n\nfunction Main:update(dt)\nend\n\nreturn Main\n`,
-    "entities/player.lua": `-- The player moves with the D-pad. Save the file while the game runs and the change shows at once.\nlocal Player = gs.entity{\n  tags = { "player" },\n  speed = 90,                     -- pixels a second\n}\n\nfunction Player:update(dt)\n  local dx, dy = gs.input.dir()\n  self.x = self.x + dx * self.speed * dt\n  self.y = self.y + dy * self.speed * dt\nend\n\nfunction Player:draw()\n  gs.draw.rect(self.x - 8, self.y - 8, 16, 16, "#ea5a4b")\nend\n\nreturn Player\n`,
+    "entities/player.lua": `-- The player moves with the D-pad. It looks like its sprite (sprites/player): draw over it in the sprite editor.\n-- Save a file while the game runs and the change shows at once.\nlocal Player = gs.entity{\n  sprite = "player",\n  tags = { "player" },\n  speed = 90,                     -- pixels a second\n}\n\nfunction Player:update(dt)\n  local dx, dy = gs.input.dir()\n  self.x = self.x + dx * self.speed * dt\n  self.y = self.y + dy * self.speed * dt\nend\n\nreturn Player\n`,
+    ...textSpriteFiles("player", banks ? STARTER_PLAYER : { ...STARTER_PLAYER, bank: undefined }),
     "meta/info.json": JSON.stringify({ title, console: consoleId }, null, 2) + "\n",
     ...(banks ? { "palette.json": paletteText(starterPalette()) } : {}),
   };

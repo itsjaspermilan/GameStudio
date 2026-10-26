@@ -5,8 +5,12 @@
 //   order: 10
 //   summary: One line for the list.
 //   -->
-// Tutorials hold their game's files as <pre class="lua" data-path="entities/player.lua"><code>...</code></pre>. This reads pages and pulls those files out,
-// so the studio can offer "Make this game" and the tests can play every tutorial.
+// Tutorials hold their game's files as <pre class="lua" data-path="entities/player.lua"><code>...</code></pre>, and their art as sprites written
+// as text: <pre class="sprite" data-path="sprites/coin.json" data-bank="items" data-origin="8,8" data-mask="3,2,10,12">rows</pre>, one
+// character a pixel ("." see-through, 1-9 and a-f the places of the bank), frames apart by an empty line, and optionally
+// data-animations="idle 0-1 4; walk 2-5 8; die 6-9 10 once". This reads pages and pulls those files out, so the studio can offer "Make
+// this game" (the Help window shows each sprite as a picture) and the tests can play every tutorial.
+import { textSpriteFiles } from "./project-core.js";
 
 export function decodeEntities(s) {
   return s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
@@ -19,10 +23,30 @@ export function parsePage(text, id) {
   return { id, title: meta.title || id, group: meta.group || "Guides", order: Number(meta.order ?? 100), summary: meta.summary || "", body: m ? text.slice(m[0].length).trim() : text.trim() };
 }
 
-// The files of the page's game, { path: text }, or null when the page has none. A game.lua is added if the page does not give one.
+// One sprite block as the game's files: { "sprites/x.json": text, "sprites/x.png": { width, height, data } }. `data` is the block's
+// data-* attributes (as an element's dataset gives them), `text` its rows.
+export function spriteBlockFiles(data, text) {
+  const m = /^sprites\/(.+)\.json$/.exec(data.path || "");
+  if (!m) throw new Error(`a sprite block's data-path is sprites/<name>.json, not ${data.path}`);
+  const frames = text.trim().split(/\n\s*\n/).map((f) => f.split("\n").map((r) => r.trim()).filter(Boolean));
+  const nums = (v) => (v ? v.split(",").map(Number) : undefined);
+  let animations;
+  if (data.animations) {
+    animations = {};
+    for (const part of data.animations.split(";").map((x) => x.trim()).filter(Boolean)) {
+      const [name, range, fps, once] = part.split(/\s+/), [from, to] = range.split("-").map(Number);
+      animations[name] = { from, to, fps: Number(fps) || 8, loop: once !== "once" };
+    }
+  }
+  return textSpriteFiles(m[1], { frames, bank: data.bank, origin: nums(data.origin), mask: nums(data.mask), animations });
+}
+const attrsOf = (s) => Object.fromEntries([...s.matchAll(/data-([\w-]+)="([^"]*)"/g)].map((a) => [a[1], a[2]]));
+
+// The files of the page's game, { path: text or picture }, or null when the page has none. A game.lua is added if the page does not give one.
 export function gameFiles(page) {
   const files = {};
   for (const m of page.body.matchAll(/<pre class="lua" data-path="([^"]+)"><code>([\s\S]*?)<\/code><\/pre>/g)) files[m[1]] = decodeEntities(m[2]) + "\n";
+  for (const m of page.body.matchAll(/<pre class="sprite"([^>]*)>([\s\S]*?)<\/pre>/g)) Object.assign(files, spriteBlockFiles(attrsOf(m[1]), m[2]));
   if (!Object.keys(files).length) return null;
   if (!files["game.lua"]) files["game.lua"] = `return gs.game{ title = ${JSON.stringify(page.title)}, console = "glow43", start = "scenes.main" }\n`;
   return files;

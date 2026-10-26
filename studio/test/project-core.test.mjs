@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { GROUPS, group, validName, folderTree, movedName, resourceFiles, moduleName, refName, scanProject, consoleIdOf, setConsoleInGame, titleOfGame, consoleOfGame, setTitleInGame, infoFromGame, TEMPLATES, newGameFiles, renameProblem } from "../src/project-core.js";
+import { png } from "../../scripts/png.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -66,7 +67,7 @@ test("a new game runs without errors, and templates are valid Lua", { skip: !exi
   const files = { ...newGameFiles("My Game", "dot"),
     "entities/enemy.lua": TEMPLATES.entities("enemy"), "entities/big/boss_one.lua": TEMPLATES.entities("big/boss_one"), "entities/hero.lua": TEMPLATES.spriteEntity("hero", "hero"),
     "scenes/second.lua": TEMPLATES.scenes("second"), "lib/util.lua": TEMPLATES.lib("util"), "rooms/lvl1.lua": TEMPLATES.rooms("lvl1", { width: 320, height: 240 }) };
-  for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(dir, rel)), { recursive: true }); writeFileSync(join(dir, rel), text); }
+  for (const [rel, text] of Object.entries(files)) { mkdirSync(dirname(join(dir, rel)), { recursive: true }); writeFileSync(join(dir, rel), typeof text === "string" ? text : png(text.width, text.height, text.data)); }
   // load every template file as a module from the starter scene so a syntax error or a missing hook shows up
   writeFileSync(join(dir, "scenes/main.lua"), `local Main = gs.scene{}
 function Main:enter()

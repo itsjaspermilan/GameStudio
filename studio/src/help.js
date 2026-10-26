@@ -2,7 +2,8 @@
 // the Help window (help.html, help-window.js), a window of its own beside the studio; opts.window false puts it in a <dialog> instead.
 // hooks: { getApi(), hasGame(), addFile(rel, text) -> Promise, makeGame(title, files, consoleId) -> Promise, getConsoles(), openGame(name) -> Promise }
 // Links in pages: help:<page> opens a page, open:<game> opens a game from the workspace (the finished examples).
-import { parsePage, gameFiles, contents, search, apiPageHtml, highlightLua } from "./help-core.js";
+import { parsePage, gameFiles, spriteBlockFiles, contents, search, apiPageHtml, highlightLua } from "./help-core.js";
+import { encodePng } from "./sprite-io.js";
 
 const raw = import.meta.glob("../../docs/help/*.html", { query: "?raw", import: "default", eager: true });
 // pictures a page shows with <img src="img/name.png">: bundled with the studio, so the window finds them offline
@@ -52,7 +53,35 @@ export function createHelp(dialog, hooks, opts = {}) {
     }
   }
 
+  // A sprite block (rows of characters) is shown as its picture, four times its size, with the frames side by side.
+  function showSprite(pre) {
+    let files;
+    try { files = spriteBlockFiles(pre.dataset, pre.textContent); } catch (e) { pre.textContent = String(e.message || e); return; }
+    const pngRel = Object.keys(files).find((k) => k.endsWith(".png")), pic = files[pngRel];
+    const canvas = document.createElement("canvas"); canvas.width = pic.width; canvas.height = pic.height;
+    canvas.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(pic.data), pic.width, pic.height), 0, 0);
+    const k = Math.max(1, Math.min(6, Math.floor(320 / pic.width)));
+    canvas.style.width = `${pic.width * k}px`; canvas.style.height = `${pic.height * k}px`;
+    pre.replaceChildren(canvas); pre.classList.add("help-sprite");
+    const bar = document.createElement("div"); bar.className = "help-codebar";
+    const name = document.createElement("span"); name.textContent = `${pre.dataset.path.replace(/\.json$/, "")} · ${pic.height}px high${pre.dataset.bank ? ` · ${pre.dataset.bank} bank` : ""}`;
+    bar.appendChild(name);
+    if (hooks.hasGame()) {
+      const add = document.createElement("button"); add.className = "small"; add.textContent = "Add to my game"; add.title = "Put this sprite in the game you have open";
+      add.onclick = async () => {
+        try {
+          await hooks.addFile(pngRel, { base64: await encodePng(pic) }); // the picture first, so the sprite opens once its JSON lands
+          for (const [rel, text] of Object.entries(files)) if (rel !== pngRel) await hooks.addFile(rel, text);
+          add.textContent = "Added"; add.disabled = true;
+        } catch (e) { add.textContent = String(e).slice(0, 60); }
+      };
+      bar.appendChild(add);
+    }
+    pre.before(bar);
+  }
+
   function decorate(page) {
+    for (const pre of article.querySelectorAll("pre.sprite")) showSprite(pre);
     for (const pre of article.querySelectorAll("pre")) {
       const code = pre.querySelector("code"); if (!code) continue;
       const text = code.textContent;
@@ -78,7 +107,11 @@ export function createHelp(dialog, hooks, opts = {}) {
       const pick = document.createElement("select"); pick.className = "help-console";
       pick.title = "The console the new game is made for. The tutorials are laid out for Glow43 (256×192); on a smaller screen some things may sit off the edge.";
       for (const c of hooks.getConsoles ? hooks.getConsoles() : []) pick.appendChild(new Option(`${c.name} ${c.screen.width}×${c.screen.height}`, c.id));
-      b.onclick = async () => { b.disabled = true; try { await hooks.makeGame(page.title, files, pick.value || "glow43"); b.textContent = "Made: it is open in the studio"; done(); } catch (e) { b.textContent = String(e).slice(0, 80); } };
+      b.onclick = async () => { b.disabled = true; try {
+        // pictures go to the studio as PNG data (they cross to its window as text)
+        const ready = {};
+        for (const [rel, f] of Object.entries(files)) ready[rel] = typeof f === "string" ? f : { base64: await encodePng(f) };
+        await hooks.makeGame(page.title, ready, pick.value || "glow43"); b.textContent = "Made: it is open in the studio"; done(); } catch (e) { b.textContent = String(e).slice(0, 80); } };
       const t = document.createElement("span"); t.textContent = `${Object.keys(files).length} files, ready to run.`;
       foot.append(b, ...(pick.options.length > 1 ? [pick] : []), t); article.appendChild(foot);
     }

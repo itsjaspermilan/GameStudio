@@ -779,6 +779,8 @@ body.help-page { margin: 0; height: 100vh; overflow: hidden; background: var(--b
 .help-article pre code { background: transparent; padding: 0; font-size: 12.5px; line-height: 1.5; }
 .help-codebar { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 4px 8px; background: var(--panel-2); border: 1px solid var(--border); border-bottom: 0; border-radius: 6px 6px 0 0; font: 12px var(--mono); color: var(--muted); }
 .help-codebar span { flex: 1; }
+.help-article pre.help-sprite { display: flex; justify-content: center; padding: 14px; background: repeating-conic-gradient(var(--surface-3) 0 25%, var(--panel) 0 50%) 0 0 / 12px 12px; }
+.help-article pre.help-sprite canvas { image-rendering: pixelated; }
 .help-article table { border-collapse: collapse; margin: 10px 0 14px; font-size: 13px; }
 .help-article th, .help-article td { border: 1px solid var(--border); padding: 5px 10px; text-align: left; vertical-align: top; }
 .help-article th { background: var(--panel-2); }

@@ -7,6 +7,15 @@ function canvasFor(w, h) {
   return c;
 }
 
+// Base64 PNG data (no data: prefix) of a picture { width, height, data }.
+export async function encodePng(pic) {
+  const c = canvasFor(pic.width, pic.height);
+  c.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(pic.data), pic.width, pic.height), 0, 0);
+  const blob = await new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("PNG encode failed"))), "image/png"));
+  const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+  return url.slice(url.indexOf(",") + 1);
+}
+
 // Returns base64 PNG data (no data: prefix) for the sprite's horizontal frame strip.
 export async function encodeSpritePng(sprite) {
   const strip = packStrip(sprite);
