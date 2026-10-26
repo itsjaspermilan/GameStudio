@@ -7,7 +7,7 @@ local Paddle = gs.entity{
 
 function Paddle:update(dt)
   local dx = gs.input.dir()
-  self.x = gs.clamp(self.x + dx * self.speed * dt, 0, 320 - self:width())
+  self.x = gs.clamp(self.x + dx * self.speed * dt, 0, gs.screen() - self:width())
 end
 
 return Paddle

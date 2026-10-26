@@ -182,8 +182,8 @@ local Player = gs.entity{
 
 function Player:update(dt)
   local dx, dy = gs.input.dir()
-  self.x = gs.clamp(self.x + dx * self.speed * dt, 8, 312)
-  self.y = gs.clamp(self.y + dy * self.speed * dt, 24, 238)
+  self.x = gs.clamp(self.x + dx * self.speed * dt, 8, 248)
+  self.y = gs.clamp(self.y + dy * self.speed * dt, 24, 190)
   if dx ~= 0 or dy ~= 0 then self:play("walk") else self:play("idle") end
   if dx ~= 0 then self.flip = dx &lt; 0 end   -- face the way it walks
 end
@@ -203,15 +203,15 @@ so calling it every step is fine.</p>
 <figcaption>The <code>score</code> text selected: its words, size, font, shadow and colour are on the right.</figcaption></figure>
 <pre class="lua" data-path="scenes/main.layout.lua"><code>-- The scene's layout, built when it starts. Named things are fields of its code: self.&lt;name&gt;.
 return {
-  width = 320, height = 240, background = "#123b2a",
+  width = 256, height = 192, background = "#123b2a",
   entities = {
-    { "player", 160, 200, {}, name = "player" },
+    { "player", 128, 160, {}, name = "player" },
     { "coin", 40, 40, {} },
     { "coin", 120, 70, {} },
     { "coin", 200, 40, {} },
-    { "coin", 280, 90, {} },
-    { "coin", 70, 140, {} },
-    { "coin", 250, 160, {} },
+    { "coin", 224, 90, {} },
+    { "coin", 60, 130, {} },
+    { "coin", 200, 140, {} },
   },
   texts = {
     { "COINS 0", 8, 6, name = "score", color = "#ffffff", font = "round_small", shadow = true },
@@ -251,12 +251,12 @@ end</code></pre>
 tall font, named <code>title</code>, and <code>PRESS A</code> named <code>prompt</code>. The code blinks the prompt and starts the game:</p>
 <pre class="lua" data-path="scenes/title.layout.lua"><code>-- The scene's layout, built when it starts. Named things are fields of its code: self.&lt;name&gt;.
 return {
-  width = 320, height = 240, background = "#14234f",
+  width = 256, height = 192, background = "#14234f",
   entities = {
   },
   texts = {
-    { "COIN DASH", 160, 80, name = "title", color = "#ffd08a", size = 2, align = "center", font = "bold_tall", shadow = true },
-    { "PRESS A", 160, 170, name = "prompt", color = "#ffffff", align = "center", font = "round_tall", shadow = true },
+    { "COIN DASH", 128, 60, name = "title", color = "#ffd08a", size = 2, align = "center", font = "bold_tall", shadow = true },
+    { "PRESS A", 128, 136, name = "prompt", color = "#ffffff", align = "center", font = "round_tall", shadow = true },
   },
 }</code></pre>
 <pre class="lua" data-path="scenes/title.lua"><code>local Title = gs.scene{}

@@ -5,7 +5,7 @@
 --   gs.camera:set(x, y)  gs.camera:stop()
 --   gs.camera.zoom = 2                             -- the world twice as big (whole numbers keep pixel art crisp); the UI is not zoomed
 -- Calling gs.camera(x, y) still moves the raw drawing offset, as it always did.
-local M = { x = 0, y = 0, zoom = 1, target = nil, smooth = 0, bounds = nil, view_w = 320, view_h = 240, shake_amount = 0, shake_time = 0, shake_total = 0, dx = 0, dy = 0 }
+local M = { x = 0, y = 0, zoom = 1, target = nil, smooth = 0, bounds = nil, view_w = 256, view_h = 192, shake_amount = 0, shake_time = 0, shake_total = 0, dx = 0, dy = 0 }
 
 -- how much of the world the screen shows: the screen size divided by the zoom
 function M:view()

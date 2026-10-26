@@ -105,7 +105,7 @@ export function createHelp(dialog, hooks, opts = {}) {
       const b = document.createElement("button"); b.className = "primary"; b.textContent = "Make this game";
       b.title = "Creates a new game from the files on this page and opens it";
       const pick = document.createElement("select"); pick.className = "help-console";
-      pick.title = "The console the new game is made for. The tutorials are laid out for Glow43 (320×240); on a smaller screen some things may sit off the edge.";
+      pick.title = "The console the new game is made for. The tutorials are laid out for Glow43 (256×192); on a smaller screen some things may sit off the edge.";
       for (const c of hooks.getConsoles ? hooks.getConsoles() : []) pick.appendChild(new Option(`${c.name} ${c.screen.width}×${c.screen.height}`, c.id));
       b.onclick = async () => { b.disabled = true; try {
         // pictures go to the studio as PNG data (they cross to its window as text)

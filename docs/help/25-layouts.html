@@ -38,13 +38,13 @@ Typing <code>self.</code> in the scene's code lists the names, hovering one show
 <h2>A title screen</h2>
 <p>This layout has a big title and a blinking prompt. You would normally place them with the Text tool; this is what the editor writes:</p>
 <pre class="lua" data-path="scenes/title.layout.lua"><code>return {
-  width = 320, height = 240,
+  width = 256, height = 192,
   background = "#14234f",
   entities = {
   },
   texts = {
-    { "SKY HOP", 160, 70, name = "title", color = 15, size = 4, align = "center" },
-    { "PRESS A", 160, 180, name = "prompt", color = 3, align = "center" },
+    { "SKY HOP", 128, 56, name = "title", color = 15, size = 4, align = "center" },
+    { "PRESS A", 128, 144, name = "prompt", color = 3, align = "center" },
   },
 }</code></pre>
 <p>Panels and bars are made of tiles, like everything else on a pixel console: with the <strong>Panels</strong> tool, pick the top-left tile of a 3 × 3 block in a tileset and drag. The corners stay as drawn and the edges and middle repeat to fill the size; one tile high, a panel is a bar made of the block's top row. A text can use a built-in font in any palette colour: <strong>round</strong>, <strong>square</strong> or <strong>bold</strong> letters, each <em>small</em> (8 pixels high, for scores and labels) or <em>tall</em> (12 high, for talking and menus), with a <strong>shadow</strong> if you like, the way GBA games drew their words. Or it can use a <strong>font</strong> of your own: a sprite whose frames are the letters, from the space on in ASCII order.</p>
@@ -82,7 +82,7 @@ return Title</code></pre>
 <pre class="lua"><code>-- scenes/level1.layout.lua
 return {
   code = "level",
-  entities = { { "player", 32, 200, {}, name = "player" }, { "door", 300, 200, {}, name = "door" } },
+  entities = { { "player", 32, 160, {}, name = "player" }, { "door", 224, 160, {}, name = "door" } },
 }</code></pre>
 <div class="note"><strong>From code.</strong> <code>gs.load_layout("level2")</code> builds another scene's layout into the scene that is running, for a level picked from code
 (see <a href="help:rooms">Big levels</a>). Older games keep the same data in <code>rooms/</code>; those still load.</div>

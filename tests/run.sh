@@ -79,7 +79,7 @@ if [ -x build/retro-run ] && [ -n "$core" ]; then
   echo "$out" | grep -q 'shutdown=1' || { echo "$out"; echo "FAIL: the core did not pass gs.quit() on"; status=1; }
   node tests/same-frames.mjs "$tmp/core.bmp" "$tmp/gs.bmp" || { echo "FAIL: the core draws a different frame from the program"; status=1; }
   out="$(RETRO_SAVE_DIR="$tmp/saves" RETRO_HOLD="start@60-64,a@120-124,left@130-400" GS_SOUNDFONT=assets/soundfonts/TimGM6mb.sf2 ./build/retro-run "$core" carts/breakout 900 2>&1)"
-  echo "$out" | grep -q 'RETRO frames=900 size=320x240 base=320x240 fps=60 rate=44100 samples=661500 ' || { echo "$out"; echo "FAIL: the core's picture or sound timing"; status=1; }
+  echo "$out" | grep -q 'RETRO frames=900 size=256x192 base=256x192 fps=60 rate=44100 samples=661500 ' || { echo "$out"; echo "FAIL: the core's picture or sound timing"; status=1; }
   echo "$out" | grep -q 'peak=0 ' && { echo "$out"; echo "FAIL: the core made no sound"; status=1; }
   echo "$out" | grep -qi 'error' && { echo "$out"; echo "FAIL: Breakout in the core printed an error"; status=1; }
   [ -n "$(ls "$tmp/saves/breakout" 2>/dev/null)" ] || { echo "FAIL: the core saved nothing in the emulator's save folder"; status=1; }

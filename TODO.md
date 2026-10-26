@@ -3,10 +3,9 @@
 Open items, grouped by where they can be done. Cross things out (or delete them) when they are done and checked on the device.
 
 The target handheld is the **TrimUI Brick** on **NextUI** (1024x768, aarch64, PowerVR GPU; NextUI's platform name for it is `tg5040`), two of
-them. NextUI replaced muOS on 2026-10-24: `push.sh` still has its Knulli and muOS modes, but they are no longer worked on. Glow43 was
-256x192 from 2026-10-23 to fill the Brick at exactly 4x, and is **320x240** again since 2026-10-26: the user prefers the Anbernic RG35XX
-Pro's form factor (now on Knulli Scarab), whose 640x480 screen it fills at exactly 2x. On the Brick 320x240 is 3.2x (NextUI scales it);
-a custom console of 256x192 still fits the Brick exactly. Glow169 (320x180) shows with bars above and below. The Anbernic
+them. NextUI replaced muOS on 2026-10-24: `push.sh` still has its Knulli and muOS modes, but they are no longer worked on. Glow43 became
+**256x192** on 2026-10-23 (was 320x240) so it fills the Brick at exactly 4x; it was 320x240 again for one day (2026-10-26, for the
+Anbernic RG35XX Pro's 640x480) and is back to 256x192 for the Brick. Glow169 (320x180) shows with bars above and below. The Anbernic
 RG35XX Pro, Knulli, and the removed games (Void Swarm, Panel Pop, Then & Now, Kitchen Rush) are no longer worked on: their notes, the RG35XX
 Pro performance measurements and everything finished before this list was regrouped are in git history (`git log -- TODO.md`).
 

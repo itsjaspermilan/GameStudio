@@ -87,7 +87,7 @@ through the server (`help`, and the prompts `draw-art`, `design-level`, `compose
 
 ## Console limits
 
-A console (`engine/consoles/glow43.json`, `glow169.json`) says what a game made for it may use: screen size, palette, sprite and tile sizes, room size, limits and budgets. Built in: **Glow43** (4:3, 320x240) and **Glow169** (16:9, 320x180).
+A console (`engine/consoles/glow43.json`, `glow169.json`) says what a game made for it may use: screen size, palette, sprite and tile sizes, room size, limits and budgets. Built in: **Glow43** (4:3, 256x192) and **Glow169** (16:9, 320x180).
 Both have GBA-style **colour banks**: a game's `palette.json` holds up to 16 sprite banks and 16 tile banks of 15 colours (place 0 is see-through), each from 15-bit colour, so up to 512 colours show at once.
 A sprite names its bank (`"bank": "hero"` in its JSON), a tileset the banks its tiles use (`"banks": ["forest", "water"]`, each tile keeps to one), an entity can draw its sprite with another bank (`bank = "red_soldier"`, a palette swap) and code can name a bank colour as `"sky:3"`. A game without `palette.json` keeps the console's 32 classic colours (`palette.colors`).
 A game names its console in `game.lua`; one of your own consoles (made in the studio) travels with the game as `consoles/<id>.json`. At most 512 entities are alive at once on both (more are ignored with one warning). The studio's **Handheld** tab shows size, art and sound against the console, and while the game runs how many

@@ -590,7 +590,7 @@ export function createSpriteEditor(root, hooks = {}) {
   let screenHint = "";
   function drawScreen(idx) {
     if (isTS()) return;
-    const size = hooks.getScreen ? hooks.getScreen() : { width: 320, height: 240 };
+    const size = hooks.getScreen ? hooks.getScreen() : { width: 256, height: 192 };
     if (scr.width !== size.width || scr.height !== size.height) { scr.width = size.width; scr.height = size.height; }
     scrCtx.fillStyle = "#14141e"; scrCtx.fillRect(0, 0, scr.width, scr.height);
     const ground = scr.height - 24;

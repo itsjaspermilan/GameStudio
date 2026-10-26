@@ -39,7 +39,7 @@ function Main:update(dt)
 end
 
 function Main:draw()
-  gs.draw.rect(0, 0, 320, 240, "#14141e")
+  gs.draw.rect(0, 0, 256, 192, "#14141e")
   gs.draw.text("PAD SETUP", 12, 8, "#ffffff", 2)
   if self.step <= #STEPS then
     gs.draw.text("Press the button you want for:", 12, 32, "#b4b4c8")

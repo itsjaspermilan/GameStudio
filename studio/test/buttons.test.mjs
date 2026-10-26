@@ -40,7 +40,7 @@ test("the mono style takes the text's colour, the others keep their own", () => 
 });
 
 test("game.lua names the button style; the studio sets it under the console line", () => {
-  const game = `return gs.game{\n  title = "Coin Dash",\n  console = "glow43",            -- 320x240\n  start = "scenes.title",\n}\n`;
+  const game = `return gs.game{\n  title = "Coin Dash",\n  console = "glow43",            -- 256x192\n  start = "scenes.title",\n}\n`;
   assert.equal(buttonsOfGame(game), "gba");
   const snes = setButtonsInGame(game, "snes");
   assert.match(snes, /console = "glow43",[^\n]*\n {2}buttons = "snes", +-- the look/);

@@ -1274,7 +1274,7 @@ function askSpriteSize(name) {
     own.append(lab("W ", w), lab("H ", hh), ok);
     const cancel = document.createElement("button"); cancel.textContent = "Cancel"; cancel.onclick = () => done(null);
     const foot = document.createElement("div"); foot.className = "np-actions"; foot.appendChild(cancel);
-    const tip = document.createElement("p"); tip.className = "se-hint"; tip.textContent = "Sizes for a 320×240 screen (Help > Sprite and tile sizes). You can resize later.";
+    const tip = document.createElement("p"); tip.className = "se-hint"; tip.textContent = "Sizes for a 256×192 screen (Help > Sprite and tile sizes). You can resize later.";
     d.append(h, roles, own, tip, foot);
     d.addEventListener("cancel", () => done(null));
     document.body.appendChild(d); d.showModal();

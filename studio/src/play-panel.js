@@ -27,7 +27,7 @@ export function createPlayPanel(root, hooks) {
   const q = (s) => root.querySelector(s);
   const canvas = q("canvas"), ctx = canvas.getContext("2d"), stage = q(".pp-stage"), cover = q(".pp-cover"), scaleSel = q(".pp-scale");
   q(".pp-keys").innerHTML = "Arrows move · <kbd>Z</kbd> A · <kbd>X</kbd> B · <kbd>A</kbd> X · <kbd>S</kbd> Y · <kbd>Q</kbd> <kbd>W</kbd> L R · <kbd>Enter</kbd> Start · <kbd>Right Shift</kbd> Select. A gamepad works too.";
-  let screen = { width: 320, height: 240 }, image = null, running = false, mask = 0;
+  let screen = { width: 256, height: 192 }, image = null, running = false, mask = 0;
   try { scaleSel.value = localStorage.getItem("gs.playScale") || "fit"; } catch { /* the usual size */ }
 
   const layout = () => {
