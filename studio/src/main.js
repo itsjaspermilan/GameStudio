@@ -1549,8 +1549,26 @@ $("btn-push").onclick = () => run("push", async () => {
   await save();
   await syncConsoleCopy();
   state.pushing = true; render();
-  try { await invoke("push_cart", { cart: state.cart }); info("Sent to device."); } finally { state.pushing = false; }
+  try { await invoke("push_cart", { cart: state.cart }); info("Sent to device."); }
+  catch (e) {
+    // it reached the handheld but could not log in: offer to set up the key instead of only printing the command
+    const m = /^NEEDS_KEY (\S+)$/.exec(String(e));
+    if (!m) throw e;
+    showKeyDialog(m[1]);
+  } finally { state.pushing = false; render(); }
 });
+function showKeyDialog(target) {
+  $("key-target").textContent = target;
+  $("key-cmd").textContent = `scripts/setup-key.sh ${target}`;
+  $("key-dialog").showModal();
+}
+async function setupKey() {
+  await invoke("setup_device_key");
+  info("Terminal is open: type the handheld's password there once. When it says Done, press Send to device again.");
+}
+$("key-close").onclick = () => $("key-dialog").close();
+$("key-terminal").onclick = () => { $("key-dialog").close(); run("set up the key", setupKey); };
+
 // Output, Handheld and Inspector share the bottom strip.
 function showLogTab(which) {
   state.logTab = which;
@@ -2083,13 +2101,19 @@ $("btn-settings").onclick = async () => {
   $("set-user").value = s.device_user; $("set-dir").value = s.device_dir;
   $("settings").showModal();
 };
+const settingsFromForm = () => ({
+  workspace: $("set-workspace").value.trim(), device_host: $("set-host").value.trim(),
+  device_user: $("set-user").value.trim(), device_dir: $("set-dir").value.trim() });
+// Set up the key for the address typed here: it is saved first, since Terminal uses the saved one.
+$("set-key").onclick = () => run("set up the key", async () => {
+  await invoke("save_settings", { settings: settingsFromForm() });
+  await setupKey();
+});
 $("settings").addEventListener("close", async () => {
   if ($("settings").returnValue !== "save") return;
   try { localStorage.setItem("gs.runIn", $("set-run-in").value); } catch { /* stays in the studio */ }
   try {
-    await invoke("save_settings", { settings: {
-      workspace: $("set-workspace").value.trim(), device_host: $("set-host").value.trim(),
-      device_user: $("set-user").value.trim(), device_dir: $("set-dir").value.trim() } });
+    await invoke("save_settings", { settings: settingsFromForm() });
     info("Settings saved.");
     await refreshGames(); render();
   } catch (e) { fail(e); }

@@ -907,7 +907,8 @@ fn valid_remote_part(s: &str, extra: &str) -> bool {
 
 /// Like `run_logged`, but remembers the child's process id in `slot` while it runs (and starts it in its own process group, so cancelling
 /// reaches the ssh and scp that the script started).
-fn run_logged_tracked(app: &AppHandle, cmd: &mut Command, slot: &Mutex<Option<u32>>) -> Result<bool, String> {
+/// Returns the exit code (None when a signal stopped it).
+fn run_logged_code(app: &AppHandle, cmd: &mut Command, slot: &Mutex<Option<u32>>) -> Result<Option<i32>, String> {
     cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     #[cfg(unix)]
     {
@@ -922,7 +923,7 @@ fn run_logged_tracked(app: &AppHandle, cmd: &mut Command, slot: &Mutex<Option<u3
     *slot.lock().unwrap() = None;
     let _ = out.join();
     let _ = err.join();
-    Ok(status?.success())
+    Ok(status?.code())
 }
 
 /// Cancel a send that is running: stops `push.sh` and the ssh/scp under it. True if there was one.
@@ -981,16 +982,48 @@ async fn push_cart(app: AppHandle, state: State<'_, AppState>, cart: String) -> 
     if !std::env::split_paths(&path).any(|d| d.join("node").is_file()) {
         return Err("Sending needs Node.js (the 'node' program), which was not found. Install it from nodejs.org (or 'brew install node'), then send again.".into());
     }
-    let ok = run_logged_tracked(
+    let code = run_logged_code(
         &app,
         Command::new("sh").arg(&script).arg(&dir).current_dir(&ws).env("PATH", path).env("DEVICE_ENV", &env_file).env("GS_BUILD_DIR", scratch.join("push")),
         &state.push_pid,
     )?;
-    if ok {
-        Ok(())
-    } else {
-        Err("Sending stopped: the output above says why. Most often the connection to the device was closed (it drops when the handheld sleeps): open it again in a terminal as shown, then send again.".into())
+    match code {
+        Some(0) => Ok(()),
+        // push.sh could reach the handheld but not log in without a password: the studio offers to set the key up (setup_device_key)
+        Some(3) => Err(format!("NEEDS_KEY {}@{}", s.device_user, s.device_host)),
+        _ => Err("Sending stopped: the output above says why.".into()),
     }
+}
+
+/// Open Terminal on scripts/setup-key.sh for the handheld in Settings: it makes GameStudio's SSH key if needed and puts it on the
+/// handheld, asking for the handheld's password there (never in the studio). macOS only; elsewhere the error says what to run.
+#[tauri::command]
+fn setup_device_key(app: AppHandle) -> Result<(), String> {
+    let s = load_settings(&app);
+    if s.device_host.is_empty() || !valid_remote_part(&s.device_host, ".-_:") || !valid_remote_part(&s.device_user, "._-") {
+        return Err("set the handheld's address (its IP) and user in Settings first".into());
+    }
+    let script = workspace(&app).join("scripts").join("setup-key.sh");
+    if !script.is_file() {
+        return Err(format!("scripts/setup-key.sh not found in {}", workspace(&app).display()));
+    }
+    let target = format!("{}@{}", s.device_user, s.device_host);
+    if !cfg!(target_os = "macos") {
+        return Err(format!("open a terminal and run: sh \"{}\" {}", script.display(), target));
+    }
+    // a .command file opens in Terminal and runs; it holds no secret, only the script's path and the handheld's address
+    let scratch = scratch_dir(&app);
+    fs::create_dir_all(&scratch).map_err(|e| e.to_string())?;
+    let cmd_file = scratch.join("setup-key.command");
+    let quoted = script.display().to_string().replace('\'', "'\\''");
+    fs::write(&cmd_file, format!("#!/bin/sh\nclear\nsh '{quoted}' {target}\n")).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&cmd_file, fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
+    }
+    Command::new("open").arg("-a").arg("Terminal").arg(&cmd_file).status().map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -1010,6 +1043,7 @@ pub fn run() {
             lsp::lsp_send,
             lsp::lsp_stop,
             get_settings,
+            setup_device_key,
             save_settings,
             preview_buttons,
             preview_state,

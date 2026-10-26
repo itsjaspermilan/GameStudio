@@ -1,7 +1,8 @@
-// Writes the console logos: assets/console-logos/<id>.svg (for the Knulli theme) and <id>.png (muOS's folder picture, and to look at),
-// for Glow43 and Glow169, in the style of the GBA era (the Game Boy Advance logo, Metroid Fusion, Minish Cap): smooth bold letters
-// leaning forward, "GLOW" in chrome (a sky reflected above a hard horizon line, the ground below), the number in the console's own colour
-// (Glow43 amber, Glow169 cyan) with the same horizon, a thick dark outline, a solid drop shadow, and a swoosh of the colour underneath.
+// Writes the console logos: assets/console-logos/<id>.svg and <id>.png (muOS's and NextUI's folder picture, es-theme-knulli's logo, and
+// to look at), for Glow43 and Glow169, in the style of the GBA era (the Game Boy Advance logo, Metroid Fusion, Minish Cap): smooth bold
+// letters leaning forward, "GLOW" in chrome (a sky reflected above a hard horizon line, the ground below), the number in the console's own
+// colour (Glow43 amber, Glow169 cyan) with the same horizon, a thick dark outline and a solid drop shadow. <id>-white.svg / .png are the
+// same letters in flat white with nothing else, for themes that colour their system logos themselves (Knulli's Art Book Next).
 // The letters are strokes along a centre line (round ends), so the SVG is a few paths and the PNG is drawn from the same shapes here
 // (distance to the nearest stroke, with smooth edges).
 //   node scripts/make-console-logos.mjs [preview.png]      (the preview shows both logos on the menus' dark colour)
@@ -38,8 +39,8 @@ const GLYPHS = {
   9: { w: 56, strokes: [curve(SIX.map(([x, y]) => [55 - x, 100 - y]))] },
 };
 const CONSOLES = {
-  glow43: { number: "43", accent: [[0, "#fff4c8"], [0.45, "#ffc444"], [0.5, "#c24a1a"], [0.62, "#e8782c"], [1, "#ffd46e"]], swoosh: ["#ff9a2e", "#ffe08a"], dark: "#1e0f14" },
-  glow169: { number: "169", accent: [[0, "#e8fdff"], [0.45, "#72e2ff"], [0.5, "#1a52a8"], [0.62, "#2c8ee0"], [1, "#8ee8ff"]], swoosh: ["#1e86e0", "#a0f0ff"], dark: "#0a1020" },
+  glow43: { number: "43", accent: [[0, "#fff4c8"], [0.45, "#ffc444"], [0.5, "#c24a1a"], [0.62, "#e8782c"], [1, "#ffd46e"]], dark: "#1e0f14" },
+  glow169: { number: "169", accent: [[0, "#e8fdff"], [0.45, "#72e2ff"], [0.5, "#1a52a8"], [0.62, "#2c8ee0"], [1, "#8ee8ff"]], dark: "#0a1020" },
 };
 // chrome: a bright sky getting a little darker toward the horizon, a hard dark line, then the ground getting lighter again
 const CHROME = [[0, "#f8fbff"], [0.45, "#c2cee4"], [0.5, "#3a4872"], [0.6, "#7688b2"], [1, "#dce6f6"]];
@@ -55,7 +56,7 @@ function grad(stops, t) {
   return rgb(stops[stops.length - 1][1]);
 }
 
-// the whole logo: strokes (each { pts, chrome }) placed side by side, the swoosh, and the size
+// the whole logo: strokes (each { pts, chrome }) placed side by side, and the size
 function layout(id) {
   const c = CONSOLES[id], strokes = [];
   let x = MARGIN + 8;
@@ -65,10 +66,8 @@ function layout(id) {
     for (const s of g.strokes) strokes.push({ pts: s.map(([px, py]) => [x + px, py + MARGIN]), chrome: i < 4 });
     x += g.w + GAP;
   });
-  const w = x - GAP + MARGIN + 30, h = 100 + MARGIN * 2 + 22;
-  // a swoosh from under the G to past the number, thin at both ends and thickest under the middle
-  const sw = Array.from({ length: 61 }, (_, i) => { const t = i / 60; return { x: MARGIN - 4 + t * (w - MARGIN * 2 + 10), y: MARGIN + 104 + Math.sin(t * Math.PI) * 10 - t * 26, r: 1.5 + Math.sin(t * Math.PI) ** 1.5 * 6 }; });
-  return { w, h, strokes, sw, c };
+  const w = x - GAP + MARGIN + 30, h = 100 + MARGIN * 2 + SHADOW[1] + 4; // room below for the shadow
+  return { w, h, strokes, c };
 }
 const lean = (x, y, top) => x + (top + 100 - y) * SLANT; // the letters lean forward round their baseline
 
@@ -83,7 +82,8 @@ function dist(px, py, pts) {
   return Math.sqrt(best);
 }
 
-function raster(l, scale, bg) {
+// white: the letters alone in flat white (no outline, shadow, gradient or gleam), for themes that colour logos themselves
+function raster(l, scale, bg, white = false) {
   const W = Math.round(l.w * scale), H = Math.round(l.h * scale), d = new Uint8ClampedArray(W * H * 4);
   const put = (i, col, a) => { if (a <= 0) return; const o = i * 4, k = Math.min(1, a), ba = d[o + 3] / 255, na = k + ba * (1 - k);
     for (let j = 0; j < 3; j++) d[o + j] = na ? (col[j] * k + d[o + j] * ba * (1 - k)) / na : 0; d[o + 3] = na * 255; };
@@ -91,12 +91,6 @@ function raster(l, scale, bg) {
   const top = MARGIN, dark = rgb(l.c.dark);
   for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) {
     const X = (px + 0.5) / scale, Y = (py + 0.5) / scale, i = py * W + px;
-    // the swoosh (no lean), under everything but the shadow
-    let sd = Infinity, st = 0;
-    for (let k = 0; k < l.sw.length - 1; k++) {
-      const a = l.sw[k], b = l.sw[k + 1], q = dist(X, Y, [[a.x, a.y], [b.x, b.y]]) - (a.r + b.r) / 2;
-      if (q < sd) { sd = q; st = k / (l.sw.length - 1); }
-    }
     // undo the lean to find the point in letter space, for the shadow and for the letters
     const unl = (x, y) => x - (top + 100 - y) * SLANT;
     let ds = Infinity, dl = Infinity, chrome = true;
@@ -105,9 +99,8 @@ function raster(l, scale, bg) {
       const q = dist(unl(X, Y), Y, s.pts);
       if (q < dl) { dl = q; chrome = s.chrome; }
     }
+    if (white) { put(i, [255, 255, 255], (R - dl) * scale + 0.5); continue; }
     put(i, dark.map((v) => v * 0.6), (R + OUT - ds) * scale + 0.5);                     // drop shadow
-    put(i, dark, (2.5 - sd) * scale + 0.5);                                              // the swoosh's outline
-    put(i, grad([[0, l.c.swoosh[0]], [1, l.c.swoosh[1]]], st), (-sd) * scale + 0.5);     // the swoosh
     put(i, dark, (R + OUT - dl) * scale + 0.5);                                          // outline
     const t = (Y - top) / 100;
     put(i, grad(chrome ? CHROME : l.c.accent, t), (R - dl) * scale + 0.5);              // the letter
@@ -116,20 +109,16 @@ function raster(l, scale, bg) {
   return { W, H, d };
 }
 
-function svg(l) {
+function svg(l, white = false) {
   const stop = (stops) => stops.map(([o, c]) => `<stop offset="${o}" stop-color="${c}"/>`).join("");
   const top = MARGIN, path = (pts) => "M" + pts.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join("L");
   const skew = `matrix(1 0 ${-SLANT} 1 ${(top + 100) * SLANT} 0)`; // x + (top + 100 - y) * SLANT
   const letters = (stroke, width, extra = "") => l.strokes.map((s) => `<path d="${path(s.pts)}" fill="none" stroke="${typeof stroke === "function" ? stroke(s) : stroke}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"${extra}/>`).join("");
-  // the swoosh as a filled shape: its edge on each side
-  const side = (sgn) => l.sw.map((p, k) => { const q = l.sw[Math.min(k + 1, l.sw.length - 1)], o = l.sw[Math.max(k - 1, 0)], dx = q.x - o.x, dy = q.y - o.y, n = Math.hypot(dx, dy) || 1; return [p.x - dy / n * p.r * sgn, p.y + dx / n * p.r * sgn]; });
-  const swoosh = path([...side(1), ...side(-1).reverse()]) + "Z";
+  if (white) return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${l.w} ${l.h}" width="${l.w * 2}" height="${l.h * 2}"><g transform="${skew}">${letters("#ffffff", 2 * R)}</g></svg>\n`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${l.w} ${l.h}" width="${l.w * 2}" height="${l.h * 2}">` +
     `<defs><linearGradient id="chrome" gradientUnits="userSpaceOnUse" x1="0" y1="${top}" x2="0" y2="${top + 100}">${stop(CHROME)}</linearGradient>` +
-    `<linearGradient id="accent" gradientUnits="userSpaceOnUse" x1="0" y1="${top}" x2="0" y2="${top + 100}">${stop(l.c.accent)}</linearGradient>` +
-    `<linearGradient id="swoosh" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${l.w}" y2="0"><stop offset="0" stop-color="${l.c.swoosh[0]}"/><stop offset="1" stop-color="${l.c.swoosh[1]}"/></linearGradient></defs>` +
+    `<linearGradient id="accent" gradientUnits="userSpaceOnUse" x1="0" y1="${top}" x2="0" y2="${top + 100}">${stop(l.c.accent)}</linearGradient></defs>` +
     `<g transform="translate(${SHADOW[0]} ${SHADOW[1]}) ${skew}" opacity="0.85">${letters(l.c.dark, 2 * (R + OUT))}</g>` +
-    `<path d="${swoosh}" fill="url(#swoosh)" stroke="${l.c.dark}" stroke-width="2.5"/>` +
     `<g transform="${skew}">${letters(l.c.dark, 2 * (R + OUT))}${letters((s) => (s.chrome ? "url(#chrome)" : "url(#accent)"), 2 * R)}</g>` +
     `</svg>\n`;
 }
@@ -140,8 +129,11 @@ for (const id of Object.keys(CONSOLES)) {
   writeFileSync(`assets/console-logos/${id}.svg`, svg(l));
   const r = raster(l, 1);
   writeFileSync(`assets/console-logos/${id}.png`, png(r.W, r.H, r.d));
+  writeFileSync(`assets/console-logos/${id}-white.svg`, svg(l, true));
+  const rw = raster(l, 1, null, true);
+  writeFileSync(`assets/console-logos/${id}-white.png`, png(rw.W, rw.H, rw.d));
   made[id] = l;
-  console.log(`wrote assets/console-logos/${id}.svg and .png (${r.W} x ${r.H})`);
+  console.log(`wrote assets/console-logos/${id}.svg, .png and the white -white.svg, .png (${r.W} x ${r.H})`);
 }
 const out = process.argv[2];
 if (out) {

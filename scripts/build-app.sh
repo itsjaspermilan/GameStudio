@@ -16,7 +16,7 @@ cp build-aarch64/gs build-aarch64/gs_libretro.so "$R/build-aarch64/"
 cp assets/soundfonts/TimGM6mb.sf2 assets/soundfonts/TimGM6mb-LICENSE.txt "$R/assets/soundfonts/"
 cp assets/console-logos/*.png "$R/assets/console-logos/"
 cp -R engine/consoles engine/api "$R/engine/"
-cp scripts/push.sh scripts/gamelist.mjs "$R/scripts/"
+cp scripts/push.sh scripts/setup-key.sh scripts/gamelist.mjs "$R/scripts/"
 cp LICENSE "$R/"
 # the examples as they are in git: no notes the studio left in them (.gamestudio/), no stray files
 for c in breakout buttontest padsetup; do

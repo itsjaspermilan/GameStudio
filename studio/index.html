@@ -171,6 +171,14 @@
       <div class="actions"><button id="cc-cancel">Cancel</button><button id="cc-apply" class="primary">Apply</button></div>
     </dialog>
 
+    <dialog id="key-dialog">
+      <h2>Let the studio log in to your handheld</h2>
+      <p>The studio reached <strong id="key-target"></strong> but could not log in without a password. Set up GameStudio's key once: Terminal
+        opens, you type the handheld's password one time, and from then on Send to device just works (also after the handheld sleeps or restarts).</p>
+      <p class="hint">On NextUI the key stays until a firmware update resets the Brick; then set it up again. The same in a terminal: <code id="key-cmd"></code></p>
+      <div class="actions"><button id="key-close">Not now</button><button id="key-terminal" class="primary">Set up in Terminal</button></div>
+    </dialog>
+
     <dialog id="find-dialog" class="find-dialog">
       <div class="fd-head"><h2 id="fd-title">Find in game</h2><button id="fd-close" class="small">Close</button></div>
       <input id="fd-query" placeholder="Find" spellcheck="false" />
@@ -196,8 +204,8 @@
         <label>Host <input id="set-host" placeholder="192.168.1.50" spellcheck="false" /></label>
         <label>User <input id="set-user" placeholder="root" spellcheck="false" /></label>
         <label>Folder on device <input id="set-dir" placeholder="/mnt/sdcard/gs" spellcheck="false" /></label>
-        <p class="hint">Sending uses your system <code>ssh</code>/<code>scp</code> with key authentication
-          (no password prompts). Set up a key first: <code>ssh-copy-id user@host</code>.</p>
+        <p class="hint">Sending logs in with GameStudio's own SSH key, so it never asks for a password. Set it up once for each handheld
+          (it asks the handheld's password one time, in Terminal): <button type="button" id="set-key" class="small">Set up the key…</button></p>
         <div class="actions">
           <button value="cancel">Cancel</button>
           <button id="set-save" value="save" class="primary">Save</button>

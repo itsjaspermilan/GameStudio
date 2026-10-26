@@ -162,7 +162,9 @@ const handlers = {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) b.set([y * 5, 40, x * 4], 54 + (y * w + x) * 3);
     return btoa(String.fromCharCode(...b));
   },
-  push_cart: () => null,
+  // the mock's handheld cannot be logged in to yet, so sending shows the key dialog
+  push_cart: () => { throw "NEEDS_KEY root@192.168.2.78"; },
+  setup_device_key: () => null,
 };
 
 await seed();

@@ -47,6 +47,19 @@ console_has() {
 }
 
 # console_ext <cart-dir> <console id>: the end of the console's game files (cart_extension in its spec: g43, g169), or "cart"
+# RetroArch's picture shape for a console's screen: its aspect_ratio_index for 4:3 (0) or 16:9 (1), else "core provided" (22), which
+# follows the core's own geometry
+console_aspect_index() {
+  node -e '
+    const fs = require("fs"), path = require("path");
+    let idx = 22;
+    for (const f of [path.join(process.argv[1], "consoles", process.argv[2] + ".json"), path.join("engine/consoles", process.argv[2] + ".json")]) {
+      try { const s = JSON.parse(fs.readFileSync(f, "utf8")).screen; const r = s.width / s.height; idx = Math.abs(r - 4 / 3) < 0.01 ? 0 : Math.abs(r - 16 / 9) < 0.01 ? 1 : 22; break; } catch {}
+    }
+    process.stdout.write(String(idx));
+  ' "$1" "$2"
+}
+
 console_ext() {
   node -e '
     const fs = require("fs"), path = require("path");
@@ -64,18 +77,30 @@ console_ext() {
 ./scripts/build-aarch64.sh >/dev/null 2>&1 || { echo "the handheld build failed: run scripts/build-aarch64.sh to see why" >&2; exit 1; }
 ./build/gs pack "$SRC" "$HOSTCART"
 T="$DEVICE_USER@$DEVICE_HOST"
-# Never wait for a password (a studio window cannot answer one): without a working shared connection or key, stop at once and say how to fix it.
+# GameStudio's own key (scripts/setup-key.sh puts it on the handheld) logs in without a password; the first ssh then opens the shared
+# connection by itself and the copies after it reuse it. A shared connection someone opened by hand works too.
+KEY="$HOME/.ssh/gamestudio_ed25519"
+[ -f "$KEY" ] && SSH_OPTS="$SSH_OPTS -i $KEY"
+case "$SSH_OPTS" in *ControlPath=*) SSH_OPTS="$SSH_OPTS -o ControlMaster=auto -o ControlPersist=60" ;; esac
+# Never wait for a password (a studio window cannot answer one): when it cannot log in, stop at once with exit code 3 (the studio then offers
+# to set the key up in Terminal) and say how to fix it.
 SSH_OPTS="$SSH_OPTS -o BatchMode=yes -o ConnectTimeout=8"
 if ! ssh $SSH_OPTS "$T" true 2>/dev/null; then
-  CTL="$(printf '%s' "$SSH_OPTS" | sed -n 's/.*ControlPath=\([^ ]*\).*/\1/p')"
-  echo "Cannot reach $T without a password. Open the shared connection again in a terminal, then send again:" >&2
-  echo "  ssh -fN -o ControlMaster=yes -o ControlPath=${CTL:-\$HOME/.ssh/knulli-ctl} -o ServerAliveInterval=15 $T" >&2
-  exit 1
+  if ! ssh -o BatchMode=yes -o ConnectTimeout=8 -o ControlPath=none -o PreferredAuthentications=none "$T" true 2>&1 | grep -qi "permission denied"; then
+    echo "Cannot reach $T: is the handheld on, awake, on the same Wi-Fi, with SSH on (NextUI: Tools > Native SSH)?" >&2
+    exit 1
+  fi
+  echo "Cannot log in to $T without a password. Set it up once (it asks the handheld's password one time), then send again:" >&2
+  echo "  scripts/setup-key.sh $T" >&2
+  exit 3
 fi
 INFO="$(console_info "$SRC")"
 # NextUI: a game with a console is a "rom" in that console's folder, run by one launcher for the whole console, as NextUI's emulators are.
 # Everything else is the runtime's: the cart's path is the launcher's argument, not fixed in it.
 NEXTUI_ROM=""; [ "$DEVICE_OS" = nextui ] && [ -n "$INFO" ] && NEXTUI_ROM=1
+# Knulli: a game with a console runs in Knulli's RetroArch with gs as its libretro core (RetroArch's menu, save states and hotkeys, the
+# controls Knulli set up). GS_KNULLI_PROGRAM=1 sends the old launcher that runs the gs program itself.
+KNULLI_CORE=""; [ "$DEVICE_OS" = knulli ] && [ -n "$INFO" ] && [ -z "$GS_KNULLI_PROGRAM" ] && KNULLI_CORE=1
 ssh $SSH_OPTS "$T" "mkdir -p '$DEVICE_DIR/carts'"
 scp -q $SSH_OPTS build-aarch64/gs "$T:$DEVICE_DIR/gs"
 # the General MIDI SoundFont (about 6 MB) goes once, beside the runtime, not into every game
@@ -140,6 +165,15 @@ FLOOR
     fi
     # the shell stays alive (no exec) so that the trap can run when the game ends
     RUN="./gs $CART"
+    if [ -n "$KNULLI_CORE" ]; then
+      # Knulli's own RetroArch settings (controls, hotkeys, menu: written by Knulli whenever a libretro game starts) plus this console's
+      # (saves in a folder of its own, whole-number scaling); the log says why when a game does not start
+      echo 'CFG=/userdata/system/configs/retroarch/retroarchcustom.cfg'
+      echo 'set --'; echo '[ -f "$CFG" ] && set -- --config "$CFG"'
+      [ -n "$GS_PERF" ] && echo 'export GS_PERF=1'
+      [ -n "$GS_DEBUG" ] && echo 'export GS_DEBUG_INPUT=1'
+      RUN="retroarch -L \"$DEVICE_DIR/gs_libretro.so\" \"\$@\" --appendconfig \"$DEVICE_DIR/retroarch-$NAME.cfg\" --log-file \"$DEVICE_DIR/last-retroarch.log\" --verbose $CART"
+    fi
     [ -n "$GS_ENV" ] && RUN="$GS_ENV $RUN"
     if [ -n "$GS_LOG" ]; then
       if [ -n "$GS_GOVERNOR" ]; then RUN="$RUN >> \"$GS_LOG\" 2>&1"; else RUN="$RUN > \"$GS_LOG\" 2>&1"; fi
@@ -255,11 +289,13 @@ REMOTE
     # start-up, so a new console shows up after the frontend restarts.
     CID="${INFO%%|*}"; CNAME="${INFO#*|}"
     DEST="$DEVICE_ROMS_DIR/$CID/$NAME.sh"
-    # The console's logo for the theme (used when the theme's "System logos" setting is Custom; otherwise it shows the name as text).
-    if [ -f "assets/console-logos/$CID.svg" ]; then
+    # The console's logo for Art Book Next (used when the theme's "System logos" setting is Custom; otherwise it shows the name as text):
+    # the flat white one, since that theme colours its system logos itself (a custom console without one gets its full-colour logo).
+    LOGO="assets/console-logos/$CID-white.svg"; [ -f "$LOGO" ] || LOGO="assets/console-logos/$CID.svg"
+    if [ -f "$LOGO" ]; then
       LOGODIR="${DEVICE_THEME_CUSTOM_DIR:-/userdata/theme-customizations/art-book-next}/logos"
       ssh $SSH_OPTS "$T" "mkdir -p '$LOGODIR'"
-      scp -q $SSH_OPTS "assets/console-logos/$CID.svg" "$T:$LOGODIR/$CID.svg"
+      scp -q $SSH_OPTS "$LOGO" "$T:$LOGODIR/$CID.svg"
     fi
     # and its panel for the home carousel (used when the theme's "System view artwork" is Custom: scripts/knulli-theme.sh on)
     if [ -f "assets/console-art/$CID.png" ]; then
@@ -325,11 +361,28 @@ REMOTE
   fi
   scp -q $SSH_OPTS "$B/$NAME.sh" "$T:$DEST"
   ssh $SSH_OPTS "$T" "chmod +x '$DEST' '$DEVICE_DIR/gs'"
+  if [ -n "$KNULLI_CORE" ]; then
+    # the core beside the SoundFont (where it looks for it), and this game's RetroArch settings over Knulli's. Knulli writes its file for
+    # whichever libretro system ran last, so it can hold that system's bezel overlay, picture shape (a GBA game left a 3:2 custom viewport)
+    # and shader: the console's own shape, named outright (a custom shape left by Knulli wins over "use the core's"), at a sharp
+    # whole-number scale replaces them, saves go to the console's own folder, and Knulli's file is left as Knulli wrote it.
+    scp -q $SSH_OPTS build-aarch64/gs_libretro.so "$T:$DEVICE_DIR/gs_libretro.so"
+    {
+      printf 'savefile_directory = "/userdata/saves/%s"\nsavestate_directory = "/userdata/saves/%s"\n' "$CID" "$CID"
+      printf 'input_overlay_enable = "false"\ninput_overlay = ""\nvideo_shader_enable = "false"\n'
+      printf 'video_aspect_ratio_auto = "false"\naspect_ratio_index = "%s"\n' "$(console_aspect_index "$SRC" "$CID")"
+      printf 'video_scale_integer = "true"\nvideo_smooth = "false"\nconfig_save_on_exit = "false"\n'
+    } > "$B/retroarch-$NAME.cfg"
+    scp -q $SSH_OPTS "$B/retroarch-$NAME.cfg" "$T:$DEVICE_DIR/retroarch-$NAME.cfg"
+    ssh $SSH_OPTS "$T" "mkdir -p '/userdata/saves/$CID'; rm -f '$DEST.keys'"
+  fi
   # HOTKEY + START leaves the game the way it leaves every other app: Knulli/Batocera's launcher starts its button watcher (evmapy) with a
   # <launcher>.keys file found beside the launcher. Stopping gs with TERM lets it save and close like a normal quit. The runtime watches
   # for HOTKEY + START itself too, for when the watcher is not running.
+  if [ -z "$KNULLI_CORE" ]; then # RetroArch leaves on HOTKEY + START by itself
   printf '{\n  "actions_player1": [\n    { "trigger": ["hotkey", "start"], "type": "exec", "target": "killall -TERM gs" }\n  ]\n}\n' > "$B/$NAME.sh.keys"
   scp -q $SSH_OPTS "$B/$NAME.sh.keys" "$T:$DEST.keys"
+  fi
   echo "launcher: $DEST"
   # The game list entry: name, description, box art and details from the project's Game info (studio: "Game info..."), merged into the
   # gamelist.xml next to the launcher. An entry for the same launcher is replaced; what EmulationStation recorded itself (play count,
