@@ -622,6 +622,59 @@ int synth_load_soundfont(const void *data, int size) {
     return g_sf != NULL;
 }
 int synth_have_soundfont(void) { return g_sf != NULL; }
+int synth_replace_soundfont(const void *data, int size) {
+    tsf *sf = tsf_load_memory(data, size);
+    if (!sf) return 0;
+    for (int c = 0; c < NVOICES; c++) { /* each General MIDI voice plays through a copy of the old one */
+        if (g_v[c].sf) { tsf_close(g_v[c].sf); g_v[c].sf = NULL; }
+        if (g_v[c].active && g_v[c].inst >= 0 && g_v[c].inst < g_ninst && g_inst[g_v[c].inst].type == INST_GM) g_v[c].active = 0;
+    }
+    if (g_sf) tsf_close(g_sf);
+    g_sf = sf;
+    return 1;
+}
+
+static void gm_key(unsigned char *keys, int k) { if (k >= 0 && k < 128) keys[k >> 3] |= (unsigned char)(1 << (k & 7)); }
+/* A note played on a General MIDI instrument: a drum kit needs that key's sound only; a melodic instrument the recordings near it, an
+ * octave either way, since slides, vibrato and arpeggios move a note after it starts. */
+static void gm_played(unsigned char *keys, const SynthInstrument *in, int note) {
+    if (in->gm_drum) { gm_key(keys, note); return; }
+    for (int k = note - 12; k <= note + 12; k++) gm_key(keys, k);
+}
+int synth_gm_presets(int *presets, unsigned char (*keys)[16], int max) {
+    int at[SYNTH_MAX_INSTRUMENTS], n = 0; /* instrument -> its row in presets, or -1 */
+    for (int i = 0; i < g_ninst; i++) {
+        at[i] = -1;
+        const SynthInstrument *in = &g_inst[i];
+        if (in->type != INST_GM) continue;
+        const int p = (in->gm_drum ? 128 : 0) << 8 | in->gm_program;
+        int j = 0; while (j < n && presets[j] != p) j++;
+        if (j == n) { if (n == max) continue; presets[n] = p; memset(keys[n], 0, 16); n++; }
+        at[i] = j;
+        if (in->fixed_note >= 0) gm_played(keys[j], in, in->fixed_note); /* plays that note whatever the music asks for */
+    }
+    /* the keys are the notes the songs and sound effects play on each instrument */
+    #define GM_AT(inst) ((inst) >= 0 && (inst) < g_ninst && at[inst] >= 0 && g_inst[inst].fixed_note < 0)
+    for (int s = 0; s < g_nsongs; s++) {
+        const SynthSong *song = &g_songs[s];
+        for (int p = 0; p < song->npatterns && p < SONG_MAX_PATTERNS; p++)
+            for (int c = 0; c < SYNTH_MAX_CHANNELS; c++)
+                for (int r = 0; r < song->pat[p].rows && r < SONG_MAX_ROWS; r++) {
+                    const SynthCell *cell = &song->pat[p].cell[c][r];
+                    const int inst = cell->note >= 0 && cell->inst < SONG_SLOTS ? song->slots[cell->inst] : -1;
+                    if (!GM_AT(inst)) continue;
+                    gm_played(keys[at[inst]], &g_inst[inst], cell->note);
+                    for (int e = 0; e < 3; e++) if (cell->extra[e] >= 0) gm_played(keys[at[inst]], &g_inst[inst], cell->extra[e]);
+                }
+    }
+    for (int x = 0; x < g_nsfx; x++)
+        for (int i = 0; i < g_sfx[x].n && i < SYNTH_STEPS; i++) {
+            const SynthStep *st = &g_sfx[x].steps[i];
+            if (GM_AT(st->inst) && st->fx != FX_TIE) gm_played(keys[at[st->inst]], &g_inst[st->inst], st->pitch + 12);
+        }
+    #undef GM_AT
+    return n;
+}
 
 void synth_config(int music_tracks, int sfx_channels, int lofi) {
     g_mch = music_tracks < 1 ? 1 : music_tracks > SONG_TRACKS ? SONG_TRACKS : music_tracks;

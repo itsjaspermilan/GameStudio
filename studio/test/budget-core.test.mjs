@@ -81,3 +81,46 @@ test("the stats line and the console summary", () => {
   assert.equal(parseStatsLine('@@gs {"x":1}'), null);
   assert.deepEqual(consoleSummary(dot), ["Glow43 256×192", "colour banks: 16 sprite, 16 tile", "8 music tracks", "4 sound effect channels"]);
 });
+
+test("the sound tables are counted the way the engine loads a game", async () => {
+  const { soundTables } = await import("../src/budget-core.js");
+  const builtin = new Map([["gm_violin", { type: "gm" }], ["gm_cello", { type: "gm" }], ["lead", { type: "pulse" }]]);
+  const t = soundTables({
+    instruments: { mine: { type: "pulse" }, voice: { type: "sample", sample: "hey" } },
+    sfx: { jump: { steps: [[10, "square", 8, 0], [12, "lead", 8, 0]] }, boom: { tracks: [{ instrument: "gm_violin", layers: [[], []] }, { instrument: "mine" }] } },
+    music: { theme: { format: "tracker", track_instruments: ["gm_violin", "gm_cello", "", "mine"] }, old: { patterns: [] } },
+    samples: { hey: { seconds: 2, rate: 32000 }, unused: { seconds: 9, rate: 44100 } },
+  }, builtin);
+  // own: mine, voice; ready-made: lead, gm_violin, gm_cello (square is a basic wave, "" no instrument)
+  assert.deepEqual(t, { instruments: 5, sfxTracks: 1 + 3 + 1, songs: 1, oldMusic: 1, samples: 1, sampleBytes: 2 * 32000 * 4 });
+});
+
+test("the sound rows warn before a table is full", async () => {
+  const { SOUND_TABLES } = await import("../src/budget-core.js");
+  const rows = budgetRows(dot, { soundTables: { instruments: 57, sfxTracks: 10, songs: 17, oldMusic: 0, samples: 2, sampleBytes: 20 << 20 }, lua: { files: 0, lines: 0 } }, null);
+  assert.equal(find(rows, "Instruments").text, `57 of ${SOUND_TABLES.instruments - SOUND_TABLES.waves}`);
+  assert.equal(find(rows, "Instruments").level, "warn");
+  assert.equal(find(rows, "Songs").level, "over");
+  assert.match(find(rows, "Songs").text, /over the limit/);
+  assert.equal(find(rows, "Sound effect tracks").level, "ok");
+  assert.equal(find(rows, "Recorded sounds").level, "over");
+});
+
+test("the sound tables match the runtime's", async () => {
+  const { SOUND_TABLES } = await import("../src/budget-core.js");
+  const h = readFileSync(resolve(root, "runtime/synth.h"), "utf8"), c = readFileSync(resolve(root, "runtime/synth.c"), "utf8");
+  const def = (src, name) => Number((src.match(new RegExp(`#define ${name} \\(?(\\d+)`)) || [])[1]);
+  assert.equal(SOUND_TABLES.instruments, def(h, "SYNTH_MAX_INSTRUMENTS"));
+  assert.equal(SOUND_TABLES.waves, def(h, "SYNTH_BUILTIN_INSTRUMENTS"));
+  assert.equal(SOUND_TABLES.sample_bytes, def(h, "SYNTH_MAX_SAMPLE_BYTES") << 20);
+  assert.equal(SOUND_TABLES.sfx_tracks, def(c, "MAX_SFX"));
+  assert.equal(SOUND_TABLES.songs, def(c, "MAX_SONGS"));
+  assert.equal(SOUND_TABLES.old_music, def(c, "MAX_MUSIC"));
+  assert.equal(SOUND_TABLES.samples, def(c, "MAX_SAMPLES"));
+});
+
+test("the game size counts the General MIDI instruments a packed cart carries", () => {
+  const rows = budgetRows(dot, { cartBytes: 1024 * 1024, gmBankBytes: 15 * 1024 * 1024, lua: { files: 0, lines: 0 } }, null);
+  assert.equal(find(rows, "Game size").level, "warn"); // 16 of 16 MB
+  assert.match(find(rows, "Game size").tip, /General MIDI instruments/);
+});

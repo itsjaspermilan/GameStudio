@@ -6,7 +6,7 @@ status=0
 
 # The Lua framework (engine/gs): entities, inheritance, collisions, timers, tweens, animation clips, camera, saves, sound errors, limits,
 # live reload and scenes. The fixture checks itself and prints FRAMEWORK TEST PASS. GS_DEV=1 switches live reload on.
-out="$(GS_DEV=1 FRAMES=1500 run ./build/gs tests/framework)"; echo "$out"
+out="$(GS_DEV=1 GS_TEST_HOST=1 FRAMES=1500 run ./build/gs tests/framework)"; echo "$out"
 echo "$out" | grep -q 'FRAMEWORK TEST PASS' || { echo "FAIL: framework test"; status=1; }
 echo "$out" | grep -q '^FAIL' && { echo "FAIL: framework check failed"; status=1; }
 
@@ -78,10 +78,18 @@ if [ -x build/retro-run ] && [ -n "$core" ]; then
   GS_DUMP_FRAME="$tmp/gs.bmp" FRAMES=60 run ./build/gs tests/mosaic >/dev/null
   echo "$out" | grep -q 'shutdown=1' || { echo "$out"; echo "FAIL: the core did not pass gs.quit() on"; status=1; }
   node tests/same-frames.mjs "$tmp/core.bmp" "$tmp/gs.bmp" || { echo "FAIL: the core draws a different frame from the program"; status=1; }
-  out="$(RETRO_SAVE_DIR="$tmp/saves" RETRO_HOLD="start@60-64,a@120-124,left@130-400" GS_SOUNDFONT=assets/soundfonts/TimGM6mb.sf2 ./build/retro-run "$core" carts/breakout 900 2>&1)"
+  out="$(RETRO_SAVE_DIR="$tmp/saves" RETRO_HOLD="start@60-64,a@120-124,left@130-400" ./build/retro-run "$core" carts/breakout 900 2>&1)"
   echo "$out" | grep -q 'RETRO frames=900 size=256x192 base=256x192 fps=60 rate=44100 samples=661500 ' || { echo "$out"; echo "FAIL: the core's picture or sound timing"; status=1; }
   echo "$out" | grep -q 'peak=0 ' && { echo "$out"; echo "FAIL: the core made no sound"; status=1; }
   echo "$out" | grep -qi 'error' && { echo "$out"; echo "FAIL: Breakout in the core printed an error"; status=1; }
+  # A packed cart carries its own General MIDI instruments (gs pack cuts the SoundFont down): it plays them with no bank beside the
+  # runtime, the same as the game's folder does with the whole one.
+  pk="$(./build/gs pack carts/breakout "$tmp/breakout.g43")"
+  kb="$(echo "$pk" | sed -n 's/^General MIDI instruments: \([0-9]*\) KB$/\1/p')"
+  { [ -n "$kb" ] && [ "$kb" -gt 20 ] && [ "$kb" -lt 1024 ]; } || { echo "$pk"; echo "FAIL: Breakout's cart should carry a small General MIDI bank"; status=1; }
+  a="$(./build/retro-run "$core" carts/breakout 300 2>&1 | grep -o 'peak=[0-9]*')"
+  b="$(GS_SOUNDFONT=/nonexistent ./build/retro-run "$core" "$tmp/breakout.g43" 300 2>&1 | grep -o 'peak=[0-9]*')"
+  { [ -n "$a" ] && [ "$a" = "$b" ] && [ "$a" != "peak=0" ]; } || { echo "folder $a, cart $b"; echo "FAIL: the packed cart's General MIDI instruments do not sound like the folder's"; status=1; }
   [ -n "$(ls "$tmp/saves/breakout" 2>/dev/null)" ] || { echo "FAIL: the core saved nothing in the emulator's save folder"; status=1; }
   # Save states: a state saved at frame 200 and loaded later in the same run, and one loaded by a new run (NextUI's Resume: pictures, sounds
   # and instruments made again, pointers into the core moved), both replay the same buttons to the very frame the first pass drew.

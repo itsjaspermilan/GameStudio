@@ -8,6 +8,49 @@
 import { budgetStatus, formatKB, screenText, TYPICAL } from "./consoles.js";
 import { BRICK, brickSpeed, ramUse } from "./brick-core.js";
 
+// The runtime's sound tables have a fixed size (runtime/synth.h and synth.c; a test checks they agree). A game past one stops when it
+// starts ("too many instruments"), so the Handheld panel counts what the game will load. A song slot is large (every pattern of every
+// voice), which is why there are only 16.
+export const SOUND_TABLES = {
+  instruments: 64,      // SYNTH_MAX_INSTRUMENTS, of which the six basic waves take the first six
+  waves: 6,             // SYNTH_BUILTIN_INSTRUMENTS: tri, saw, square, pulse, sine, noise
+  sfx_tracks: 256,      // MAX_SFX: one per sound effect track (and per layer of a track)
+  songs: 16,            // MAX_SONGS: tracker songs
+  old_music: 64,        // MAX_MUSIC: the older music made of sound effect patterns
+  samples: 64,          // MAX_SAMPLES: recorded sounds an instrument plays
+  sample_bytes: 16 << 20, // SYNTH_MAX_SAMPLE_BYTES: recorded sound in memory, as 32-bit floats
+};
+const WAVE_NAMES = new Set(["tri", "saw", "square", "pulse", "sine", "noise"]);
+
+// How full the runtime's sound tables will be, counted the way engine/gs/sound.lua loads a game: every one of the game's own instruments,
+// each ready-made one (builtin: a Set of names) the first time a sound effect or song uses it, one table entry per sound effect track and
+// layer, each song, and each recorded sound an instrument plays (samples: {name: {seconds, rate}}, its memory at 4 bytes a frame).
+// sound: { instruments: {name: def}, sfx: {name: def}, music: {name: def}, samples: {name: {seconds, rate}} }
+export function soundTables(sound, builtin) {
+  const own = sound.instruments || {};
+  const used = new Set();
+  const use = (name) => { if (typeof name === "string" && !own[name] && !WAVE_NAMES.has(name) && builtin.has(name)) used.add(name); };
+  let sfxTracks = 0;
+  for (const d of Object.values(sound.sfx || {})) {
+    if (Array.isArray(d.tracks)) {
+      for (const tr of d.tracks) { use(tr.instrument || "square"); sfxTracks += 1 + (Array.isArray(tr.layers) ? tr.layers.length : 0); }
+    } else {
+      for (const st of d.steps || []) use(st[1]);
+      sfxTracks += 1;
+    }
+  }
+  let songs = 0, oldMusic = 0;
+  for (const d of Object.values(sound.music || {})) {
+    if (d.format === "tracker") { songs++; for (const n of d.track_instruments || d.instruments || []) use(n); }
+    else oldMusic++;
+  }
+  const played = new Set(Object.values(own).filter((d) => d && d.type === "sample" && d.sample).map((d) => d.sample));
+  for (const n of used) if (builtin.get && builtin.get(n)?.type === "sample") played.add(builtin.get(n).sample);
+  let sampleBytes = 0;
+  for (const n of played) { const s = (sound.samples || {})[n]; if (s && s.seconds > 0 && s.rate > 0) sampleBytes += Math.round(s.seconds * s.rate) * 4; }
+  return { instruments: Object.keys(own).length + used.size, sfxTracks, songs, oldMusic, samples: played.size, sampleBytes };
+}
+
 export function parseStatsLine(line) {
   if (typeof line !== "string" || !line.startsWith("@@gs ")) return null;
   try {
@@ -34,7 +77,9 @@ export function budgetRows(c, facts, live) {
   const num = (n) => String(Math.round(n));
 
   // ---- size
-  meter("Size", "Game size", (facts.cartBytes || 0) / 1024, bud.cart_kb, (kb) => formatKB(kb * 1024), "Everything in the game except the meta folder (box art for the game list). A GBA cartridge held 16 MB.");
+  const gm = facts.gmBankBytes || 0;
+  meter("Size", "Game size", ((facts.cartBytes || 0) + gm) / 1024, bud.cart_kb, (kb) => formatKB(kb * 1024),
+    `Everything in the game except the meta folder (box art for the game list)${gm ? `, plus ${formatKB(gm)} of General MIDI instruments: the recordings of the ones it plays, over the notes it plays them at` : ""}. A GBA cartridge held 16 MB.`);
 
   // ---- art
   const sprites = Object.entries(facts.sprites || {});
@@ -72,6 +117,20 @@ export function budgetRows(c, facts, live) {
   const most = songs.reduce((m, s) => (s[1].tracks > m[1].tracks ? s : m), songs[0] || ["", { tracks: 0 }]);
   row("Sound", "Songs and effects", `${songs.length} song${songs.length === 1 ? "" : "s"}, ${facts.sfx || 0} sound effect${facts.sfx === 1 ? "" : "s"}${facts.samples ? `, ${facts.samples} sample${facts.samples === 1 ? "" : "s"}` : ""}`, "info", null);
   if (songs.length) meter("Sound", "Most tracks in a song", most[1].tracks, mt, num, `${most[0]}. The console plays up to ${mt} music tracks at once; sound effects have their own ${audio.sfx_channels || 4} channels.`);
+  const tb = facts.soundTables, T = SOUND_TABLES;
+  if (tb) {
+    const stops = "Past it the game stops when it starts.";
+    meter("Sound", "Instruments", tb.instruments, T.instruments - T.waves, num,
+      `Your own instruments, plus each ready-made one a song or sound effect uses. The six basic waves are always there and do not count. How many you have does not slow the game: only the notes playing at once do. ${stops}`, true);
+    meter("Sound", "Songs", tb.songs, T.songs, num, `Songs made in the music editor. ${stops}`, true);
+    meter("Sound", "Sound effect tracks", tb.sfxTracks, T.sfx_tracks, num, `Each sound effect takes one for each track and each layer of a track. ${stops}`, true);
+    if (tb.samples) {
+      const used = Math.max(tb.samples / T.samples, tb.sampleBytes / T.sample_bytes);
+      const st = budgetStatus(used, 1);
+      row("Sound", "Recorded sounds", `${tb.samples} of ${T.samples}, ${formatKB(tb.sampleBytes)} of ${T.sample_bytes >> 20} MB in memory${st.level === "over" ? "  (over the limit)" : ""}`, st.level, used,
+        `Recordings an instrument plays. In memory each second takes 4 bytes for every sample of its rate (a second at 32 kHz is 125 KB), however small the file is. Shorter sounds, or a lower rate, fit more. ${stops}`);
+    }
+  }
 
   // ---- code
   const lua = facts.lua || { files: 0, lines: 0 };

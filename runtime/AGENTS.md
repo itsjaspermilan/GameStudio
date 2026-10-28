@@ -19,8 +19,9 @@ detection: `game.lua` boots the embedded `gs` framework (`require('gs.boot')`); 
   If you change one side, change the other and the tests in `studio/test/synth*.test.mjs`, `audio-tracker.test.mjs`.
 - **Environment:** `GS_MAX_FRAMES=N` exits after N frames (tests), `GS_SAVE_DIR` moves per-game saves (ALWAYS set it in tests), `GS_SOUNDFONT`
   overrides the SoundFont path, `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy` for headless runs. The framework's own switches (`GS_DEV`, `GS_STATS`, `GS_FF`, `GS_BOT_LUA`, ...) are read by `engine/gs/boot.lua`, see `engine/AGENTS.md`.
-- **SoundFont lookup** (`ensure_soundfont`): `$GS_SOUNDFONT`, `<exe dir>/TimGM6mb.sf2`, `<exe dir>/soundfonts/`, `<exe dir>/../assets/soundfonts/`. It is loaded lazily the first
-  time a General MIDI instrument is defined; a missing file is a clear error, not a crash.
+- **SoundFont** (`soundfont_commit`, `sfbank.c`): each game plays from its own bank, cut down to the presets it defines and the notes its songs and effects play (drum kits: the keys struck; melodic instruments: an octave around each note), samples at 32 kHz at most. The source is the game's own `soundfont.sf2` (a packed cart's, already cut down), else `$GS_SOUNDFONT`, `<exe dir>/FluidR3Mono_GM.sf3`, `<exe dir>/soundfonts/`, `<exe dir>/../assets/soundfonts/`. `engine/gs/sound.lua` defines every instrument, then calls `gs.soundfont_load()` once; loading more sounds later marks the bank dirty and the next play makes it again. `gs pack` loads the game's sounds the same way (`pack_soundfont`) and writes the bank into the cart; `gs soundfont <bank>` lists a bank's presets with their sizes. `render-audio` reads a `soundfont.sf2` in its working folder (the studio runs it in the game's), so previews play the game's own bank. A missing bank is a clear error, not a crash.
+- **Collision grids** (`l_grid_build` / `l_grid_query`, before `gs_lib`): the broad phase of `engine/gs/world.lua`. Lua passes each tag's boxes once a step; C buckets them by centre (counting sort, so slots stay in order inside a cell) and answers queries with the touching slots sorted. Keep the order: handlers run in the order things were made.
+- **Games are sandboxed** (`engine/gs/boot.lua`, checked in `tests/framework`): no `os.execute`/`io.open`/`loadfile`/`debug.*`, `load` takes text only, `os.getenv` sees only `GS_*`, and `require` finds only the cart's files (`game_start` keeps Lua's preload searcher and `cart_searcher`). Framework modules that need a host call take it before boot strips it (`inspect.lua`'s `io_open`). `GS_TEST_HOST=1` (tests only) hands the framework test `gs.test_host`.
 - Every cart has a `game.lua` (a plain `main.lua` is refused with a message); it takes its screen size from its console (`boot.lua` calls `gs.set_resolution`).
 
 ## Sound calls from the game: a queue, not the audio lock
@@ -75,7 +76,8 @@ no flipping. The fragment shader asks for high precision. Without EGL (a Mac, th
 software renderer into a 640x480 XRGB8888 surface. Measured on the Brick (`tests/heavy`): GPU 3.9/4.9/6.8 ms for 100/200/400 stars
 against 21/34/60 on the CPU; frames match the CPU's (Breakout, blend, banks, mosaic exactly; turning sprites differ only at edges). Any
 new SDL renderer call in `main.c` needs a stand-in in `gpu.c`, or it reaches SDL with a GPU texture. `mix_cb` is called once a frame for
-735 samples at 44.1 kHz. The emulator links SDL2 too (on
+735 samples at 44.1 kHz, on a thread of its own (`mix_thread_main`) while the game's frame runs, handed over at the end of `retro_run`
+(`GS_CORE_MIX_THREAD=0`: on the game's thread). While that thread exists `synth_lock` takes its mutex (`g_core_mix_lock`). The emulator links SDL2 too (on
 the handheld the same library): the core never initialises or quits SDL's video/audio/controller parts and never opens a controller.
 Saves go to the emulator's save folder, one folder per cart; the SoundFont is looked for beside the core (`dladdr`).
 

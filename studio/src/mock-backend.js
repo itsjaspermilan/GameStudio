@@ -154,6 +154,7 @@ const handlers = {
   lsp_start: () => { throw 'mock: no language server in the browser'; },
   lsp_stop: () => null,
   pack_cart: ({ cart, ext }) => `/mock/${cart}.${ext || "cart"}`,
+  gm_bank_size: () => 0, // the mock games have no General MIDI instruments
   inspect_send: ({ text }) => { inspectText = text; return null; },
   // a 64x48 BMP with a gradient, standing in for the game's frame
   take_screenshot: () => {

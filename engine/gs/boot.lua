@@ -19,6 +19,29 @@ local world = require("gs.world")
 local reload = require("gs.reload")
 local inspect = require("gs.inspect")
 
+local loadfile = loadfile -- for GS_BOT_LUA, kept before the sandbox below
+
+-- A game is code from anywhere (a friend's folder, a cart from the internet) that runs on the player's computer and handheld, so it gets
+-- the parts of Lua that compute, not the ones that reach the system: no running programs, no files outside its own folder (gs.load, the
+-- saves), no compiled chunks (Lua's bytecode is not checked and can break out of the interpreter), no debug library (it can reach the
+-- framework's own locals). The framework's modules took what they need above, before this.
+-- GS_TEST_HOST=1 (tests/run.sh only; a game cannot set it) keeps file writing for the framework test's live reload check, as gs.test_host.
+do
+  if os.getenv("GS_TEST_HOST") then gs.test_host = { open = io.open, remove = os.remove } end
+  local keep_os = { clock = true, time = true, date = true, difftime = true }
+  local getenv = os.getenv
+  for k in pairs(os) do if not keep_os[k] then os[k] = nil end end
+  os.getenv = function(name) if type(name) == "string" and name:sub(1, 3) == "GS_" then return getenv(name) end return nil end
+  local keep_io = { write = true, stdout = true, stderr = true }
+  for k in pairs(io) do if not keep_io[k] then io[k] = nil end end
+  _G.dofile, _G.loadfile = nil, nil
+  package.loadlib, package.searchpath, package.path, package.cpath = nil, nil, "", ""
+  _G.debug = { traceback = debug.traceback }
+  package.loaded.debug = _G.debug
+  local lua_load = load
+  _G.load = function(chunk, name, mode, env) return lua_load(chunk, name, "t", env) end
+end
+
 local DEV = os.getenv("GS_DEV") ~= nil
 local STATS = os.getenv("GS_STATS") ~= nil -- the studio's Handheld panel asks for a line of numbers every second
 local FF = math.max(1, tonumber(os.getenv("GS_FF") or "1") or 1)

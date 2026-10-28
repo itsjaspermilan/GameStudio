@@ -103,8 +103,7 @@ NEXTUI_ROM=""; [ "$DEVICE_OS" = nextui ] && [ -n "$INFO" ] && NEXTUI_ROM=1
 KNULLI_CORE=""; [ "$DEVICE_OS" = knulli ] && [ -n "$INFO" ] && [ -z "$GS_KNULLI_PROGRAM" ] && KNULLI_CORE=1
 ssh $SSH_OPTS "$T" "mkdir -p '$DEVICE_DIR/carts'"
 scp -q $SSH_OPTS build-aarch64/gs "$T:$DEVICE_DIR/gs"
-# the General MIDI SoundFont (about 6 MB) goes once, beside the runtime, not into every game
-ssh $SSH_OPTS "$T" "test -f '$DEVICE_DIR/TimGM6mb.sf2'" || scp -q $SSH_OPTS assets/soundfonts/TimGM6mb.sf2 "$T:$DEVICE_DIR/TimGM6mb.sf2"
+# no SoundFont goes beside the runtime: a packed cart carries its own General MIDI instruments (gs pack, runtime/sfbank.c)
 [ -n "$NEXTUI_ROM" ] || scp -q $SSH_OPTS "$HOSTCART" "$T:$DEVICE_DIR/carts/$NAME.cart"
 if [ -n "$DEVICE_PORTS_DIR" ] || [ "$DEVICE_OS" = muos ] || [ "$DEVICE_OS" = nextui ]; then
   # GS_DEBUG=1 scripts/push.sh ...  logs controller presses to <DEVICE_DIR>/last-run.log and leaves after 60 seconds (GS_DEBUG_SECONDS=N),

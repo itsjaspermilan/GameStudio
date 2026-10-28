@@ -20,13 +20,14 @@ import { createInstrumentEditor } from "./instrument-editor.js";
 import { newSfx, INSTRUMENT_PRESETS, newSong, serializeSong, renderSfxWith, renderSongDesc, instrumentPreviewDesc, namedNotePreviewDesc, setBuiltinInstruments, builtinDef, isBuiltinName, normalizeInstrument } from "./audio-core.js";
 import builtinInstrumentsDoc from "../../engine/instruments.json";
 setBuiltinInstruments(builtinInstrumentsDoc);
+const builtinByName = new Map(builtinInstrumentsDoc.instruments.map((d) => [d.name, d]));
 import { encodeSpritePng, decodeSpritePng, encodePng } from "./sprite-io.js";
 import { BUILTIN_CONSOLES, allConsoles, budgetStatus, formatKB, consoleFor, duplicateConsole, paletteOf, parseCustomConsoles, screenText, uniqueId, consoleFileOf, consoleFileText, resolveConsole, cartExtension } from "./consoles.js";
 import { createConsoleEditor } from "./console-editor.js";
 import { parseWav, sampleName, fitWav } from "./wav.js";
 import { renameReferences, countCodeMentions, renameInCode, renameSceneFields, roomCallsToLayout } from "./rename-core.js";
 import { checkProject } from "./console-check.js";
-import { budgetRows, consoleSummary, parseStatsLine } from "./budget-core.js";
+import { budgetRows, consoleSummary, parseStatsLine, soundTables } from "./budget-core.js";
 import { GENRES, BOX_ART_PATH, normalizeInfo, defaultTitle, charsLeft, isPng, pngSize, boxArtScale, PICTURES, decodeBmp } from "./info-core.js";
 import { createSprite, createTileset, normalizeAnimations, toJSON, tilesetToJSON, offPaletteCount, usedColors, SIZE_GUIDE } from "./sprite-core.js";
 import { FIRST_STEPS, parseSteps, stringifySteps, showSteps } from "./steps-core.js";
@@ -1490,6 +1491,20 @@ async function gatherFacts() {
     // a song file always has eight tracks now: count the ones that play (have an instrument)
     try { const d = await readJson(`music/${n}.json`); facts.songs[n] = { tracks: d.format === "tracker" ? (Array.isArray(d.track_instruments) ? d.track_instruments.filter(Boolean).length : d.tracks || 0) : (d.instruments ? d.instruments.length : 0) }; } catch { /* skip */ }
   }
+  // how full the runtime's sound tables will be (budget-core.js soundTables counts them the way the engine loads them)
+  const defs = async (key) => {
+    const out = {};
+    for (const n of state.scan.groups[key]) { try { out[n] = await readJson(`${key}/${n}.json`); } catch { /* a broken file shows in its editor */ } }
+    return out;
+  };
+  const sound = { instruments: await defs("instruments"), sfx: await defs("sfx"), music: await defs("music"), samples: {} };
+  const played = new Set(Object.values(sound.instruments).filter((d) => d && d.type === "sample").map((d) => d.sample));
+  for (const n of state.scan.groups.sounds) {
+    if (!played.has(n)) continue; // a recording no instrument plays is never loaded
+    try { const w = parseWav(Uint8Array.from(atob(await invoke("read_binary", { cart: state.cart, rel: `sounds/${n}.wav` })), (c) => c.charCodeAt(0))); if (!w.error) sound.samples[n] = w; } catch { /* skip */ }
+  }
+  facts.soundTables = soundTables(sound, builtinByName);
+  try { facts.gmBankBytes = await invoke("gm_bank_size", { cart: state.cart }); } catch { facts.gmBankBytes = 0; } // a song that does not load shows in its editor
   const lines = Object.values(luaTexts).reduce((n, t) => n + t.split("\n").length, 0);
   facts.lua = { files: Object.keys(luaTexts).length, lines };
   return facts;

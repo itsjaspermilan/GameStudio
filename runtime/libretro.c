@@ -30,6 +30,45 @@ static int g_core_w, g_core_h; /* the size last told to the emulator */
 static double g_audio_due;      /* samples owed to the emulator, with the fraction of a sample a frame leaves over */
 static float g_mix[2 * 2048];
 static int16_t g_mix16[2 * 2048];
+
+/* A frame's sound is mixed on a thread of its own while the game runs its update and drawing, and handed to the emulator at the end of
+ * the frame: in retro_run on the game's thread it cost 2.6 ms of every frame on the RG35XX Pro with an 8-track General MIDI song (1.7
+ * with chip instruments; 300 bats and that song went from 13.2 to 10.1 ms a frame). Sound calls the game makes during a frame are heard from the next one (16.7 ms; the program's own sound device
+ * runs about 11 ms behind). Loading calls take the thread's lock (synth_lock); save states happen between frames, when it is idle.
+ * GS_CORE_MIX_THREAD=0 mixes on the game's thread as before. */
+static SDL_Thread *g_mix_thread; static SDL_sem *g_mix_go, *g_mix_done; static int g_mix_n; static bool g_mix_quit;
+static void core_mix(int frames, bool send) { /* frames <= 2048 */
+    mix_cb(NULL, (Uint8 *)g_mix, frames * 2 * (int)sizeof(float));
+    for (int i = 0; i < frames * 2; i++) g_mix16[i] = (int16_t)lrintf(g_mix[i] * 32767.0f);
+    if (send) audio_batch_cb(g_mix16, (size_t)frames);
+}
+static int SDLCALL mix_thread_main(void *ud) {
+    (void)ud;
+    for (;;) {
+        SDL_SemWait(g_mix_go);
+        if (g_mix_quit) return 0;
+        SDL_LockMutex(g_core_mix_lock); core_mix(g_mix_n, false); SDL_UnlockMutex(g_core_mix_lock);
+        SDL_SemPost(g_mix_done);
+    }
+}
+static void mix_thread_start(void) {
+    const char *e = getenv("GS_CORE_MIX_THREAD");
+    if (e && !strcmp(e, "0")) return;
+    g_core_mix_lock = SDL_CreateMutex(); g_mix_go = SDL_CreateSemaphore(0); g_mix_done = SDL_CreateSemaphore(0); g_mix_quit = false;
+    if (g_core_mix_lock && g_mix_go && g_mix_done) g_mix_thread = SDL_CreateThread(mix_thread_main, "gs-mix", NULL);
+    if (!g_mix_thread) { /* no thread: mix on the game's thread */
+        if (g_core_mix_lock) SDL_DestroyMutex(g_core_mix_lock);
+        if (g_mix_go) SDL_DestroySemaphore(g_mix_go);
+        if (g_mix_done) SDL_DestroySemaphore(g_mix_done);
+        g_core_mix_lock = NULL; g_mix_go = g_mix_done = NULL;
+    }
+}
+static void mix_thread_stop(void) {
+    if (!g_mix_thread) return;
+    g_mix_quit = true; SDL_SemPost(g_mix_go); SDL_WaitThread(g_mix_thread, NULL); g_mix_thread = NULL;
+    SDL_DestroyMutex(g_core_mix_lock); SDL_DestroySemaphore(g_mix_go); SDL_DestroySemaphore(g_mix_done);
+    g_core_mix_lock = NULL; g_mix_go = g_mix_done = NULL;
+}
 static Uint32 g_frame[CORE_MAX_W * CORE_MAX_H]; /* the frame read back from the GPU */
 
 #include "ram.c" /* the console's RAM and save states */
@@ -145,10 +184,12 @@ bool retro_load_game(const struct retro_game_info *game) {
     gpu_end();
     if (!g_core_L) return false;
     g_core_w = g_screen_w; g_core_h = g_screen_h;
+    mix_thread_start(); /* after the game has loaded its sounds, so a failed load leaves no thread behind */
     return true;
 }
 
 void retro_unload_game(void) {
+    mix_thread_stop();
     gpu_begin();
     if (g_core_L) { lua_close(g_core_L); g_core_L = NULL; }
     ram_close();
@@ -172,6 +213,11 @@ void retro_run(void) {
     g_embed_buttons = held; /* poll_buttons reads them as it reads the studio's */
     poll_buttons();
 
+    /* this frame's sound: 735 samples at 44.1 kHz, with the leftover fraction carried so none drift; mixed while the game runs */
+    g_audio_due += MIX_FREQ / CORE_FPS;
+    int frames = (int)g_audio_due; g_audio_due -= frames;
+    if (g_mix_thread) { g_mix_n = SDL_min(frames, 2048); SDL_SemPost(g_mix_go); }
+
     gpu_begin();
     game_frame(g_core_L, 1.0 / CORE_FPS);
     if (g_quit) { env_cb(RETRO_ENVIRONMENT_SHUTDOWN, NULL); g_quit = false; } /* gs.quit(): back to the emulator's menu */
@@ -187,14 +233,10 @@ void retro_run(void) {
         video_cb(g_frame, (unsigned)g_core_w, (unsigned)g_core_h, (size_t)g_core_w * 4);
     } else video_cb(g_embed_surf->pixels, (unsigned)g_core_w, (unsigned)g_core_h, (size_t)g_embed_surf->pitch);
 
-    /* this frame's sound: 735 samples at 44.1 kHz, with the leftover fraction carried so none drift */
-    g_audio_due += MIX_FREQ / CORE_FPS;
-    int frames = (int)g_audio_due; g_audio_due -= frames;
+    if (g_mix_thread) { SDL_SemWait(g_mix_done); audio_batch_cb(g_mix16, (size_t)g_mix_n); return; }
     while (frames > 0) {
         const int n = SDL_min(frames, 2048);
-        mix_cb(NULL, (Uint8 *)g_mix, n * 2 * (int)sizeof(float));
-        for (int i = 0; i < n * 2; i++) g_mix16[i] = (int16_t)lrintf(g_mix[i] * 32767.0f);
-        audio_batch_cb(g_mix16, (size_t)n);
+        core_mix(n, true);
         frames -= n;
     }
 }

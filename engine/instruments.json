@@ -826,7 +826,7 @@
    "set": "gm",
    "type": "gm",
    "program": 35,
-   "volume": 100,
+   "volume": 73,
    "range": [
     24,
     47
@@ -878,7 +878,7 @@
    "set": "gm",
    "type": "gm",
    "program": 39,
-   "volume": 100,
+   "volume": 58,
    "range": [
     24,
     47
@@ -1021,7 +1021,7 @@
    "set": "gm",
    "type": "gm",
    "program": 50,
-   "volume": 100,
+   "volume": 87,
    "range": [
     36,
     71
@@ -1034,7 +1034,7 @@
    "set": "gm",
    "type": "gm",
    "program": 51,
-   "volume": 100,
+   "volume": 38,
    "range": [
     36,
     71
@@ -1333,7 +1333,7 @@
    "set": "gm",
    "type": "gm",
    "program": 74,
-   "volume": 100,
+   "volume": 89,
    "range": [
     60,
     95
@@ -1385,7 +1385,7 @@
    "set": "gm",
    "type": "gm",
    "program": 78,
-   "volume": 100,
+   "volume": 76,
    "range": [
     60,
     95
@@ -1398,7 +1398,7 @@
    "set": "gm",
    "type": "gm",
    "program": 79,
-   "volume": 100,
+   "volume": 97,
    "range": [
     72,
     95
@@ -1411,7 +1411,7 @@
    "set": "gm",
    "type": "gm",
    "program": 80,
-   "volume": 100,
+   "volume": 59,
    "range": [
     48,
     83
@@ -1463,7 +1463,7 @@
    "set": "gm",
    "type": "gm",
    "program": 84,
-   "volume": 100,
+   "volume": 86,
    "range": [
     48,
     83
@@ -1476,7 +1476,7 @@
    "set": "gm",
    "type": "gm",
    "program": 85,
-   "volume": 100,
+   "volume": 82,
    "range": [
     48,
     83
@@ -1515,7 +1515,7 @@
    "set": "gm",
    "type": "gm",
    "program": 88,
-   "volume": 100,
+   "volume": 97,
    "range": [
     36,
     71
@@ -1541,7 +1541,7 @@
    "set": "gm",
    "type": "gm",
    "program": 90,
-   "volume": 100,
+   "volume": 78,
    "range": [
     36,
     71
@@ -1580,7 +1580,7 @@
    "set": "gm",
    "type": "gm",
    "program": 93,
-   "volume": 100,
+   "volume": 83,
    "range": [
     36,
     71
@@ -1645,7 +1645,7 @@
    "set": "gm",
    "type": "gm",
    "program": 98,
-   "volume": 100,
+   "volume": 91,
    "range": [
     36,
     71
@@ -1905,7 +1905,7 @@
    "set": "gm",
    "type": "gm",
    "program": 118,
-   "volume": 100,
+   "volume": 94,
    "range": [
     48,
     83
@@ -2022,7 +2022,7 @@
    "set": "gm",
    "type": "gm",
    "program": 127,
-   "volume": 100,
+   "volume": 85,
    "range": [
     36,
     71

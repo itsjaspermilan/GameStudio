@@ -220,7 +220,7 @@ function Tests:enter()
 
     -- ---- live reload: a changed file fills the same class, instances keep their state
     local path = "tests/framework/entities/hot.lua"
-    local function write(n) local f = assert(io.open(path, "w")); f:write("local Hot = gs.entity{ n = 0 }\nfunction Hot:value() return " .. n .. " end\nreturn Hot\n"); f:close() end
+    local function write(n) local f = assert(gs.test_host.open(path, "w")); f:write("local Hot = gs.entity{ n = 0 }\nfunction Hot:value() return " .. n .. " end\nreturn Hot\n"); f:close() end
     write(1)
     local reload = require("gs.reload")
     local hot = gs.spawn("hot", 0, 0)
@@ -229,11 +229,19 @@ function Tests:enter()
     gs.wait(0.1)
     write(2)
     local msg = reload.poll()
-    os.remove(path)
+    gs.test_host.remove(path)
     check("reload noticed the file", msg and msg:find("reloaded"), msg)
     check("reload swapped the code", hot:value() == 2, hot:value())
     check("reload kept the state", hot.n == 42)
     hot:destroy()
+
+    -- ---- the sandbox: a game cannot reach the system
+    check("no programs or files", os.execute == nil and io.open == nil and io.popen == nil and os.remove == nil and loadfile == nil and dofile == nil)
+    check("no debug library", debug.getupvalue == nil and debug.sethook == nil and type(debug.traceback) == "function")
+    check("no compiled chunks", load(string.dump(function() return 1 end)) == nil)
+    check("text chunks still load", load("return 7")() == 7)
+    check("only GS_ settings", os.getenv("HOME") == nil and os.getenv("GS_DEV") ~= nil)
+    check("require stays in the game", not pcall(require, "string_that_is_no_module") and package.cpath == "")
 
     -- ---- pausing, and reading starting values
     local d = gs.defaults("dog")

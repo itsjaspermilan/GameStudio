@@ -8,6 +8,7 @@ local world = require("gs.world")
 
 local M = { paused = false, speed = 1, open = false, pending_steps = 0 }
 local path = os.getenv("GS_INSPECT")
+local io_open = io.open -- kept before boot takes files away from games
 M.enabled = path ~= nil
 local last_text, poll_t, send_t, frames = nil, 0, 0, 0
 local cmd = {}
@@ -114,7 +115,7 @@ function M.poll(dt)
   poll_t = poll_t + dt
   if poll_t >= 0.15 then
     poll_t = 0
-    local f = io.open(path, "r")
+    local f = io_open(path, "r")
     if f then
       local text = f:read("a"); f:close()
       if text and text ~= "" and text ~= last_text then

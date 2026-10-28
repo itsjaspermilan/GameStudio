@@ -55,7 +55,7 @@ run without a build proves less than it looks: build first.
   header comments of `engine/gs/sound.lua` and `studio/src/audio-core.js`. Old formats must keep loading (the sound code converts three
   older generations). Don't break reading; add converters.
 - **A game names its console** in `game.lua` (`console = "glow43"`); the spec comes from `engine/consoles/*.json` at build time.
-- **SoundFont licence.** `assets/soundfonts/TimGM6mb.sf2` is GPL-2.0 (documented in `README.md` → Licences). Keep that note when moving files.
+- **SoundFont licence.** `assets/soundfonts/FluidR3Mono_GM.sf3` is MIT (documented in `README.md` → Licences); every packed cart carries a cut-down copy with the notice inside (`runtime/main.c` `SOUNDFONT_NOTICE`). Keep both when moving files.
 
 ## Easy, but never slower or narrower
 

@@ -58,17 +58,48 @@ Measuring (`GS_PERF=1`)
   (`studio/src/brick-core.js`): the Handheld tab and the Play panel show "Time per frame on the Brick" instead of the 3 ms guide.
 - [ ] The Brick estimate's Lua ratio (10.6) is for the M4 the studio runs on; on another computer it is off by that computer's speed. If
   the studio goes to other machines, time a fixed Lua loop at start-up and scale by it. Worst frames: heavy Lua runs on the Brick had
-  single frames of 106-124 ms (garbage collection?); see whether a game hits them and whether a generational GC helps.
+  single frames of 106-124 ms (garbage collection?); see whether a game hits them. Not garbage collection in a survivors game: on the RG35XX
+  Pro, 300 bats and an 8-track General MIDI song in the core ran 3,480 frames with the worst at 17-18 ms, and Lua's generational
+  collector changed nothing (11.1 ms average either way; 2026-10-27).
+
+## Measured 2026-10-27 (Anbernic RG35XX Pro on Knulli: the Brick's CPU class, Cortex-A53 at 1.5 GHz against the Brick's 1.8)
+
+`tests/survivors` (hero, N bats chasing and pushing apart, bolts, gems, sparks), Lua ms a frame. The collision grid was rewritten (one cell
+per box, boxes in flat arrays, exact test in the query, only hits sorted): 300 bats moving 19.6 -> 11.3, 500 moving 42 -> 20.8, 500 in a
+still crowd 133 -> 29.5, tests/heavy's 300 movers 8.8 -> 6.0. A frame of 300 bats is now: entity code 1.4, movement + animation 0.65,
+collisions 8.5, drawing (CPU) 5.9. The core's GPU path works on Knulli's Mali too (heavy 0/100/400 stars: 4.5/6.8/12.1 ms GPU against
+9.3/25.7/74 CPU). 512x384 instead of 256x192 doubled the GPU frame (8.1 -> 15.6 ms with nothing drawn, 15.1 -> 26.8 with 400 stars) and
+quadrupled the CPU one, so Glow43 stays 256x192 (4x on the Brick). Music in the core runs on the game's thread: 8 General MIDI tracks
+with reverb 2.6 ms a frame, 8 chip tracks 1.7.
+- [x] Collision broad phase in C (`gs.raw.grid_build` / `grid_query`, 2026-10-27). RG35XX Pro, Lua update a frame: 300 bats moving
+  11.3 -> 8.4 ms, 500 moving 20.8 -> 11.4, 500 in a still crowd 29.5 -> 11.0, tests/heavy's 300 movers 6.0 -> 4.2; the collision pass of
+  300 bats 8.5 -> 4.8. Measuring each box once a step (a query reuses its grid's) took 3-4% more off on the RG35XX Pro (5.5 -> 5.3 ms
+  for 300 bats in a still crowd); what is left is mostly the calls into the game's own on_collide handlers, one per touching pair.
+- [x] The core mixes sound on a thread of its own while the frame runs (2026-10-27; runtime/AGENTS.md). RG35XX Pro, 300 bats and an
+  8-track General MIDI song: 13.2 -> 10.1 ms a frame (95%: 16.6 -> 12.4). A nearly empty game gains less (3.5 -> 2.75): its frame waits
+  for the mix.
+- [ ] The studio's Brick estimate (`brick-core.js`, 10.6 x update time) was fitted before the C grid: Lua that now runs in C makes the M4's
+  update shorter by about the same share as the Brick's, so it should still hold; refit with the Brick.
+- [ ] Re-run `tests/survivors` on the Brick when it is on the network (CPU at full speed, `GS_PERF=1`), and check the studio's estimate.
 
 ## Studio and engine (no device needed)
 
-- [ ] A permissively licensed General MIDI SoundFont instead of TimGM6mb (GPL-2; its licence text is beside it). Tried 2026-10-24:
-  FluidR3 Mono GM (MIT, Frank Wen / Michael Cowgill; `share/sound/FluidR3Mono_GM.sf3` on MuseScore's 2.1 branch, 14.6 MB) decodes to a
-  119 MB SF2, 71 MB with samples above 30 kHz halved; on the Brick that loads in 1.8 s cold / 0.85 s warm (TimGM6mb: 0.25 / 0.11) and
-  TinySoundFont keeps about twice that in memory as floats. The way that worked: TinySoundFont reads SF3 with stb_vorbis compiled in, and
-  a small converter (stb_vorbis + RIFF rewrite, shdr offsets made absolute, 46 zero samples after each) turned it into SF2 at build
-  time. Kept TimGM6mb for now (size and start-up time). JNS-GM 2.0 (CC0, 33 MB) has unclear sample provenance; GeneralUser GS's licence
-  warns about it too.
+- [x] FluidR3 Mono GM (MIT) replaced TimGM6mb (GPL-2), 2026-10-27, cut down per game (`runtime/sfbank.c`, `runtime/AGENTS.md`):
+  Breakout carries 230 KB of it; a test song with seven General MIDI instruments over 2.5 octaves and drums 6.1 MB (the grand piano alone
+  is 3.9 MB for the whole keyboard). The whole bank as plain samples would be 119 MB; decoding all of it took 13.4 s on the RG35XX Pro,
+  so carts carry plain 16-bit samples and the handheld never decodes. The 16 built-in instruments louder than the rest by over 4 dB were
+  turned down to match (`engine/instruments.json` volume).
+  The Handheld tab's game size counts the bank (`gs soundfont-size`). On the RG35XX Pro a cart with the 6.1 MB bank starts in 846 ms
+  cold / 549 warm, Breakout's (230 KB) in 701 / 283: the bank adds about 0.15-0.27 s.
+
+- [ ] Our own General MIDI bank, generated with ChucK (MIT/GPL, Stanford CCRMA; a tool on the Mac only, never on the handheld): ChucK
+  scripts in `tools/soundbank/` render each instrument at a few pitches (its Synthesis ToolKit has plucked strings, mallets, flutes,
+  reeds, electric pianos, organ, FM and Moog voices, shakers), find loop points after the attack, and build an SF2 (reuse sfbank.c's
+  writer). Synthesized notes loop cleanly, so an instrument needs well under a second of sound: a whole bank could be a few MB, where
+  FluidR3 cut down for one 7-instrument song is 6.1 MB, and it would be ours (FluidR3's INFO still says "do not redistribute", left from
+  before its MIT release). Pilot: about 12 instruments synthesis does well (chip and square leads, synth basses, pads, bells and mallets,
+  plucks, an 808/909-style kit), compared with FluidR3 by size, loudness (the 50 ms window measure) and by ear; keep FluidR3 for
+  acoustic instruments (piano, strings, choir, brass) unless the generated ones hold up.
 
 - [ ] Try in the real app (only the browser mock was clicked through): Open folder…, New game asking where, Examples opening a copy of
   Breakout, Make this game asking where, the recent list (× forgets one), Show folder, reopening a game coming back to its tabs, the Play

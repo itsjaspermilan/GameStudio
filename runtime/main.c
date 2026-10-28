@@ -13,6 +13,7 @@
 #include <SDL.h>
 #include <stdbool.h>
 #include "synth.h"
+#include "sfbank.h"
 #include "fonts.h"
 #include <lua.h>
 #include <lauxlib.h>
@@ -157,6 +158,7 @@ static void collect(const char *root, const char *rel, FILE *out, Uint32 *count,
         struct stat st; if (stat(full, &st)) continue;
         /* meta/ holds things for the studio and game lists (box art), never for the game itself: it stays out of the cartridge */
         if (S_ISDIR(st.st_mode)) { if (*rel || strcmp(e->d_name, "meta")) collect(root, r, out, count, countpos); continue; }
+        if (!*rel && !strcmp(e->d_name, "soundfont.sf2")) continue; /* pack writes the game's SoundFont itself, cut down (pack_soundfont) */
         size_t sz; unsigned char *data = read_all(full, &sz); if (!data) continue;
         Uint16 nl = strlen(r); Uint32 s32 = sz;
         fwrite(&nl, 2, 1, out); fwrite(r, 1, nl, out); fwrite(&s32, 4, 1, out); fwrite(data, 1, sz, out);
@@ -166,11 +168,20 @@ static void collect(const char *root, const char *rel, FILE *out, Uint32 *count,
     (void)countpos;
 }
 
+static int pack_soundfont(const char *dir, unsigned char **sf2, size_t *size);
 static int pack(const char *dir, const char *outpath) {
-    FILE *out = fopen(outpath, "wb"); if (!out) { perror(outpath); return 1; }
+    unsigned char *sf2 = NULL; size_t sf2_size = 0;
+    if (pack_soundfont(dir, &sf2, &sf2_size)) return 1;
+    FILE *out = fopen(outpath, "wb"); if (!out) { perror(outpath); free(sf2); return 1; }
     Uint32 count = 0, zero = 0;
     fwrite("GSC1", 1, 4, out); fwrite(&zero, 4, 1, out);
     collect(dir, "", out, &count, 4);
+    if (sf2) {
+        const char *name = "soundfont.sf2"; Uint16 nl = (Uint16)strlen(name); Uint32 s32 = (Uint32)sf2_size;
+        fwrite(&nl, 2, 1, out); fwrite(name, 1, nl, out); fwrite(&s32, 4, 1, out); fwrite(sf2, 1, sf2_size, out);
+        count++; free(sf2);
+        printf("General MIDI instruments: %zu KB\n", sf2_size / 1024);
+    }
     fseek(out, 4, SEEK_SET); fwrite(&count, 4, 1, out); fclose(out);
     printf("packed %u files -> %s\n", count, outpath); return 0;
 }
@@ -861,6 +872,10 @@ static int l_save(lua_State *L) { /* gs.save(key, string) -> ok */
     snprintf(path, sizeof path, "%s/%s", g_savedir, k); snprintf(tmp, sizeof tmp, "%s.tmp", path);
     FILE *f = fopen(tmp, "wb");
     bool ok = f && fwrite(data, 1, n, f) == n;
+#ifndef _WIN32
+    /* on the card before the rename: otherwise a power-off soon after can leave the renamed file empty */
+    if (ok) ok = fflush(f) == 0 && fsync(fileno(f)) == 0;
+#endif
     if (f) ok = (fclose(f) == 0) && ok;
     if (ok) ok = rename(tmp, path) == 0; /* atomic replace so a power-off can't leave a half-written save */
     lua_pushboolean(L, ok); return 1;
@@ -1047,14 +1062,16 @@ static int l_stop(lua_State *L) { /* gs.stop(voice) or gs.stop() for everything 
 }
 
 /* ---- chiptune: instruments, sound effects and music (see synth.h) ---- */
+static SDL_mutex *g_core_mix_lock; /* the libretro core's sound thread (libretro.c) holds it while it mixes; NULL in the program */
 static void synth_lock(void) {
+    if (g_core_mix_lock) { SDL_LockMutex(g_core_mix_lock); sound_run_commands(); return; }
     if (!g_audio_dev) return;
     if (!g_perf_on) { SDL_LockAudioDevice(g_audio_dev); sound_run_commands(); return; }
     const Uint64 t = ticks_ns();
     SDL_LockAudioDevice(g_audio_dev); sound_run_commands();
     const double ms = (ticks_ns() - t) * 1e-6; g_lock_wait_sum += ms; g_lock_count++; if (ms > g_lock_wait_max) g_lock_wait_max = ms;
 }
-static void synth_unlock(void) { if (g_audio_dev) SDL_UnlockAudioDevice(g_audio_dev); }
+static void synth_unlock(void) { if (g_core_mix_lock) SDL_UnlockMutex(g_core_mix_lock); else if (g_audio_dev) SDL_UnlockAudioDevice(g_audio_dev); }
 static int clampi(lua_Integer v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : (int)v; }
 static lua_Integer table_int(lua_State *L, int t, int i) { lua_rawgeti(L, t, i); lua_Integer v = lua_tointeger(L, -1); lua_pop(L, 1); return v; }
 static double field_num(lua_State *L, int t, const char *k, double def) {
@@ -1074,35 +1091,94 @@ static int sample_from_wav(const unsigned char *bytes, size_t n) {
     return h;
 }
 
-/* The General MIDI SoundFont lives next to the runtime, not in each game (it is about 6 MB): $GS_SOUNDFONT, else TimGM6mb.sf2 beside
- * the executable, in a soundfonts/ folder there, or in the repository's assets/soundfonts/ (found from build/ and build-aarch64/). */
-static int ensure_soundfont(char *err, size_t errlen) {
-    if (synth_have_soundfont()) return 1;
+/* General MIDI: each game plays from a SoundFont of its own, cut down to the instruments it defines (sfbank.c), so a packed cart carries
+ * only those and the handheld needs no bank beside the runtime. The source is the game's own soundfont.sf2 when it has one (a packed
+ * cart's is already cut down), otherwise the built-in FluidR3 Mono GM (MIT): $GS_SOUNDFONT, FluidR3Mono_GM.sf3 beside the executable,
+ * in a soundfonts/ folder there, or the repository's assets/soundfonts/ (from build/ and build-aarch64/). Instruments are defined
+ * first and the bank is made once they are all known (soundfont_commit: gs.soundfont_load, and again when a sound plays after more
+ * were defined), with only the drums the game's songs and effects strike. */
+#define SOUNDFONT_RATE 32000 /* General MIDI samples are kept at no more than the consoles' sample rate (audio.sample_rate) */
+#define SOUNDFONT_FILE "FluidR3Mono_GM.sf3"
+/* Every game's cut-down copy carries this (the MIT licence asks for it in copies of a portion); the whole text with the credits is
+ * assets/soundfonts/FluidR3Mono_GM-LICENSE.md */
+static const char *SOUNDFONT_NOTICE =
+    "General MIDI instruments from FluidR3 Mono GM, cut down to the ones this game plays.\n"
+    "Mono version: Copyright (c) 2014-16 Michael Cowgill. Copyright (c) 2000-2002, 2008 Frank Wen <getfrank@gmail.com>.\n"
+    "Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "
+    "\"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, "
+    "distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to "
+    "the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions "
+    "of the Software. THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE "
+    "WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE "
+    "LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN "
+    "CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.";
+static SfBank *g_bank; static char g_bank_err[300];
+static int g_gm_sig[SYNTH_MAX_INSTRUMENTS]; static unsigned char g_gm_sig_keys[SYNTH_MAX_INSTRUMENTS][16]; static int g_gm_sig_n = -1;
+static bool g_gm_dirty; /* instruments or sounds were loaded since the last commit */
+
+static unsigned char *builtin_soundfont(size_t *n) {
     const char *base = base_path(), *env = getenv("GS_SOUNDFONT");
-    char path[1024];
-    const char *tries[5]; int n = 0;
-    if (env && *env) tries[n++] = env;
-    static char t1[1024], t2[1024], t3[1024];
-    snprintf(t1, sizeof t1, "%sTimGM6mb.sf2", base ? base : "./"); tries[n++] = t1;
-    snprintf(t2, sizeof t2, "%ssoundfonts/TimGM6mb.sf2", base ? base : "./"); tries[n++] = t2;
-    snprintf(t3, sizeof t3, "%s../assets/soundfonts/TimGM6mb.sf2", base ? base : "./"); tries[n++] = t3;
-    for (int i = 0; i < n; i++) {
-        FILE *f = fopen(tries[i], "rb");
-        if (!f) continue;
-        fseek(f, 0, SEEK_END); long len = ftell(f); fseek(f, 0, SEEK_SET);
-        unsigned char *buf = len > 0 ? malloc((size_t)len) : NULL;
-        int ok = buf && fread(buf, 1, (size_t)len, f) == (size_t)len;
-        fclose(f);
-        if (ok) { synth_lock(); int r = synth_load_soundfont(buf, (int)len); synth_unlock(); free(buf); if (r) return 1; }
-        else free(buf);
-    }
-    (void)path;
-    snprintf(err, errlen, "General MIDI instruments need the SoundFont TimGM6mb.sf2 next to the runtime (or set GS_SOUNDFONT to a .sf2 file)");
-    return 0;
+    char tries[4][1024]; int k = 0;
+    if (env && *env) snprintf(tries[k++], sizeof tries[0], "%s", env);
+    snprintf(tries[k++], sizeof tries[0], "%s" SOUNDFONT_FILE, base ? base : "./");
+    snprintf(tries[k++], sizeof tries[0], "%ssoundfonts/" SOUNDFONT_FILE, base ? base : "./");
+    snprintf(tries[k++], sizeof tries[0], "%s../assets/soundfonts/" SOUNDFONT_FILE, base ? base : "./");
+    for (int i = 0; i < k; i++) { unsigned char *d = read_all(tries[i], n); if (d) return d; }
+    return NULL;
 }
-static int l_soundfont_load(lua_State *L) { /* gs.soundfont_load(): make the General MIDI sounds available (errors if the file is missing) */
+static SfBank *open_bank(void) {
+    if (g_bank || g_bank_err[0]) return g_bank;
+    size_t n; unsigned char *d = vfs_read("soundfont.sf2", &n);
+    const char *from = "the game's soundfont.sf2";
+    bool builtin = false;
+    if (!d) { d = builtin_soundfont(&n); from = SOUNDFONT_FILE; builtin = true; }
+    if (!d) { snprintf(g_bank_err, sizeof g_bank_err, "General MIDI instruments need the SoundFont " SOUNDFONT_FILE " next to the runtime (or GS_SOUNDFONT set to a .sf2 or .sf3 file)"); return NULL; }
+    char err[200]; g_bank = sfbank_open(d, n, SOUNDFONT_RATE, err, sizeof err); free(d);
+    if (!g_bank) snprintf(g_bank_err, sizeof g_bank_err, "%s: %s", from, err);
+    else if (builtin && !getenv("GS_SOUNDFONT")) sfbank_set_comment(g_bank, SOUNDFONT_NOTICE);
+    return g_bank;
+}
+/* The game's SoundFont as it is now wanted: presets and keys from the synth, a drum kit the bank lacks swapped for its program (the synth
+ * falls back the same way, synth.c gm_note). Returns how many; 0 when no General MIDI instrument is defined. */
+static int soundfont_wanted(SfBank *b, int *presets, unsigned char (*keys)[16]) {
+    synth_lock(); int n = synth_gm_presets(presets, keys, SYNTH_MAX_INSTRUMENTS); synth_unlock();
+    for (int i = 0; b && i < n; i++) if (presets[i] >> 8 == 128 && !sfbank_has(b, presets[i])) { presets[i] &= 0xff; memset(keys[i], 0xff, 16); }
+    /* an instrument nothing plays yet needs no sound in the bank (a bank with an empty preset would not load); playing it later
+     * makes the bank again (soundfont_settle) */
+    int k = 0;
+    for (int i = 0; i < n; i++) {
+        int any = 0; for (int j = 0; j < 16; j++) any |= keys[i][j];
+        if (any) { presets[k] = presets[i]; if (k != i) memcpy(keys[k], keys[i], 16); k++; }
+    }
+    return k;
+}
+static int soundfont_commit(char *err, size_t errlen) {
+    g_gm_dirty = false;
+    int presets[SYNTH_MAX_INSTRUMENTS]; unsigned char keys[SYNTH_MAX_INSTRUMENTS][16];
+    int n = soundfont_wanted(NULL, presets, keys);
+    if (n == 0) return 1;
+    if (n == g_gm_sig_n && !memcmp(presets, g_gm_sig, sizeof(int) * (size_t)n) && !memcmp(keys, g_gm_sig_keys, 16 * (size_t)n)) return 1;
+    SfBank *b = open_bank();
+    if (!b) { snprintf(err, errlen, "%s", g_bank_err); return 0; }
+    n = soundfont_wanted(b, presets, keys);
+    size_t sz = 0; unsigned char *sf2 = sfbank_subset(b, presets, keys, n, &sz);
+    if (!sf2) { snprintf(err, errlen, "none of the game's General MIDI instruments is in its SoundFont"); return 0; }
+    synth_lock(); const int ok = synth_replace_soundfont(sf2, (int)sz); synth_unlock();
+    free(sf2);
+    if (!ok) { snprintf(err, errlen, "the game's SoundFont could not be loaded"); return 0; }
+    g_gm_sig_n = soundfont_wanted(NULL, g_gm_sig, g_gm_sig_keys); /* what was asked for, before a missing drum kit was swapped */
+    return 1;
+}
+/* before a sound plays: instruments defined since the last commit are put into the bank (games that define sounds from code later) */
+static void soundfont_settle(void) {
+    if (!g_gm_dirty) return;
+    char err[300]; if (!soundfont_commit(err, sizeof err)) fprintf(stderr, "warning: %s\n", err);
+}
+static bool g_packing; /* gs pack is loading the game's sounds only to see which instruments it uses */
+static int l_soundfont_load(lua_State *L) { /* gs.soundfont_load(): make the General MIDI instruments defined so far playable (errors if there is no SoundFont) */
+    if (g_packing) return 0;
     char err[300];
-    if (!ensure_soundfont(err, sizeof err)) return luaL_error(L, "%s", err);
+    if (!soundfont_commit(err, sizeof err)) return luaL_error(L, "%s", err);
     return 0;
 }
 static int l_synth_config(lua_State *L) { /* gs.synth_config(music_tracks, sfx_channels, lofi) */
@@ -1155,6 +1231,7 @@ static int l_inst_load(lua_State *L) {
     lua_pop(L, 1);
     synth_lock(); int h = synth_add_instrument(&in); synth_unlock();
     if (h < 0) return luaL_error(L, "too many instruments");
+    if (in.type == INST_GM) g_gm_dirty = true;
     lua_pushinteger(L, h); return 1;
 }
 
@@ -1175,11 +1252,13 @@ static int l_sfx_load(lua_State *L) {
     }
     synth_lock(); int h = synth_add_sfx(&s); synth_unlock();
     if (h < 0) return luaL_error(L, "too many sound effects");
+    g_gm_dirty = true; /* its drum hits may need keys the bank does not have yet */
     lua_pushinteger(L, h); return 1;
 }
 static int l_sfx_play(lua_State *L) { /* gs.sfx_play(handle or {handles}[, volume 0..1]): a table plays a multi-track sound effect */
     float v = (float)luaL_optnumber(L, 2, 1);
     int hs[SYNTH_MAX_SFX_CHANNELS], n = 0;
+    soundfont_settle();
     if (lua_istable(L, 1)) {
         for (int i = 1; i <= SYNTH_MAX_SFX_CHANNELS; i++) { lua_rawgeti(L, 1, i); if (lua_isinteger(L, -1)) hs[n++] = (int)lua_tointeger(L, -1); lua_pop(L, 1); }
     } else hs[n++] = (int)luaL_checkinteger(L, 1);
@@ -1266,10 +1345,11 @@ static int l_song_load(lua_State *L) {
     lua_pop(L, 1);
     synth_lock(); int h = synth_add_song(sg); synth_unlock(); free(sg);
     if (h < 0) return luaL_error(L, "too many songs");
+    g_gm_dirty = true;
     lua_pushinteger(L, h); return 1;
 }
-static int l_music_play(lua_State *L) { int h = (int)luaL_checkinteger(L, 1); if (g_audio_ok) { SoundCmd c = { .op = SC_MUSIC_PLAY, .arg = h }; sound_post(&c); } return 0; }
-static int l_song_play(lua_State *L) { int h = (int)luaL_checkinteger(L, 1); if (g_audio_ok) { SoundCmd c = { .op = SC_SONG_PLAY, .arg = h }; sound_post(&c); } return 0; }
+static int l_music_play(lua_State *L) { int h = (int)luaL_checkinteger(L, 1); soundfont_settle(); if (g_audio_ok) { SoundCmd c = { .op = SC_MUSIC_PLAY, .arg = h }; sound_post(&c); } return 0; }
+static int l_song_play(lua_State *L) { int h = (int)luaL_checkinteger(L, 1); soundfont_settle(); if (g_audio_ok) { SoundCmd c = { .op = SC_SONG_PLAY, .arg = h }; sound_post(&c); } return 0; }
 static int l_music_stop(lua_State *L) { int ms = (int)luaL_optinteger(L, 1, 0); if (g_audio_ok) { SoundCmd c = { .op = SC_MUSIC_STOP, .arg = ms }; sound_post(&c); } return 0; }
 
 #ifdef __APPLE__
@@ -1315,6 +1395,119 @@ static int l_mtime(lua_State *L) {
     return 1;
 }
 
+/* ---------------------------------------------------------------- collision grids
+ * The broad phase of engine/gs/world.lua: one grid a step for each tag something collides with. Lua works out every entity's box (it
+ * owns the entities) and hands them over as one flat list; C sorts them into cells by their centre and answers "which boxes touch this
+ * one", in the order the boxes were given (the order things were made), so handlers run in the same order as before. Scanning cells is
+ * what Lua was slowest at: about a third of a crowded step's collisions on the RG35XX Pro. */
+#define GRID_MAX 64
+typedef struct {
+    double *box; int n, box_cap;                 /* x0, y0, x1, y1, r for each slot (r 0: a box) */
+    int *start, *items, cells_cap, items_cap;    /* cell c holds items[start[c] .. start[c+1]) */
+    int *big, nbig, big_cap;                      /* boxes bigger than a cell, which every query looks through */
+    double size, ox, oy, hw, hh; int gw, gh;     /* cell size, the grid's corner, half the biggest small box, cells across and down */
+} CollideGrid;
+static CollideGrid g_grids[GRID_MAX];
+static int *g_hits, g_hits_cap;
+
+static bool grow_ints(int **p, int *cap, int need) {
+    if (need <= *cap) return true;
+    int c = *cap ? *cap : 64; while (c < need) c *= 2;
+    int *q = realloc(*p, sizeof **p * (size_t)c); if (!q) return false;
+    *p = q; *cap = c; return true;
+}
+/* gs.raw.grid_build(id, boxes, n, size): boxes is {x0, y0, x1, y1, r, x0, ...} for n slots; size the cell size the world chose */
+static int l_grid_build(lua_State *L) {
+    const int id = (int)luaL_checkinteger(L, 1); luaL_checktype(L, 2, LUA_TTABLE);
+    const int n = (int)luaL_checkinteger(L, 3); double size = luaL_checknumber(L, 4);
+    if (id < 0 || id >= GRID_MAX || n < 0 || !(size >= 1)) return luaL_error(L, "grid_build: bad grid");
+    CollideGrid *g = &g_grids[id];
+    if (n * 5 > g->box_cap) {
+        double *b = realloc(g->box, sizeof *b * (size_t)n * 5); if (!b) return luaL_error(L, "grid_build: out of memory");
+        g->box = b; g->box_cap = n * 5;
+    }
+    double minx = 0, miny = 0, maxx = 0, maxy = 0, hw = 0, hh = 0; int small = 0;
+    g->nbig = 0;
+    if (!grow_ints(&g->big, &g->big_cap, n) || !grow_ints(&g->items, &g->items_cap, n)) return luaL_error(L, "grid_build: out of memory");
+    for (int i = 0; i < n; i++) {
+        double *b = g->box + i * 5;
+        for (int j = 0; j < 5; j++) { lua_rawgeti(L, 2, (lua_Integer)i * 5 + j + 1); b[j] = lua_tonumber(L, -1); lua_pop(L, 1); }
+        const double w = b[2] - b[0], h = b[3] - b[1];
+        if (w > size || h > size) { g->big[g->nbig++] = i; continue; }
+        const double cx = (b[0] + b[2]) * 0.5, cy = (b[1] + b[3]) * 0.5;
+        if (!small++) { minx = maxx = cx; miny = maxy = cy; }
+        else { if (cx < minx) minx = cx; if (cx > maxx) maxx = cx; if (cy < miny) miny = cy; if (cy > maxy) maxy = cy; }
+        if (w > hw) hw = w;
+        if (h > hh) hh = h;
+    }
+    /* a grid over where the boxes are; a few things far apart make cells bigger rather than the grid huge */
+    while (small && ((maxx - minx) / size + 1) * ((maxy - miny) / size + 1) > 65536) size *= 2;
+    g->size = size; g->ox = floor(minx / size) * size; g->oy = floor(miny / size) * size; g->hw = hw * 0.5; g->hh = hh * 0.5;
+    g->gw = small ? (int)floor((maxx - g->ox) / size) + 1 : 0; g->gh = small ? (int)floor((maxy - g->oy) / size) + 1 : 0;
+    const int cells = g->gw * g->gh;
+    if (!grow_ints(&g->start, &g->cells_cap, cells + 1)) return luaL_error(L, "grid_build: out of memory");
+    memset(g->start, 0, sizeof *g->start * (size_t)(cells + 1));
+    /* a counting sort by cell: slots stay in their order inside each cell */
+    int bi = 0;
+    for (int pass = 0; pass < 2; pass++) {
+        bi = 0;
+        for (int i = 0; i < n; i++) {
+            if (bi < g->nbig && g->big[bi] == i) { bi++; continue; }
+            const double *b = g->box + i * 5;
+            const int c = (int)floor(((b[1] + b[3]) * 0.5 - g->oy) / size) * g->gw + (int)floor(((b[0] + b[2]) * 0.5 - g->ox) / size);
+            if (pass == 0) g->start[c + 1]++; else g->items[g->start[c]++] = i;
+        }
+        if (pass == 0) for (int c = 0; c < cells; c++) g->start[c + 1] += g->start[c];
+    }
+    for (int c = cells; c > 0; c--) g->start[c] = g->start[c - 1]; /* the second pass moved every start to its cell's end */
+    if (cells) g->start[0] = 0;
+    g->n = n;
+    return 0;
+}
+static inline bool grid_touch(const double *b, double x0, double y0, double x1, double y1, double r) {
+    if (!(b[0] < x1 && x0 < b[2] && b[1] < y1 && y0 < b[3])) return false;
+    if (r > 0 && b[4] > 0) {
+        const double dx = (x0 + x1) - b[0] - b[2], dy = (y0 + y1) - b[1] - b[3], rr = r + b[4];
+        return dx * dx + dy * dy <= 4 * rr * rr;
+    }
+    return true;
+}
+/* gs.raw.grid_query(id, x0, y0, x1, y1, r, out) -> n, compared: the slots (from 1) whose boxes touch this one, in order, in out[1..n]
+ * (out is refilled, never trimmed); with r > 0 (a round hitbox) round boxes must touch as circles too */
+static int l_grid_query(lua_State *L) {
+    const int id = (int)luaL_checkinteger(L, 1);
+    const double x0 = luaL_checknumber(L, 2), y0 = luaL_checknumber(L, 3), x1 = luaL_checknumber(L, 4), y1 = luaL_checknumber(L, 5), r = luaL_optnumber(L, 6, 0);
+    luaL_checktype(L, 7, LUA_TTABLE);
+    if (id < 0 || id >= GRID_MAX) return luaL_error(L, "grid_query: bad grid");
+    const CollideGrid *g = &g_grids[id];
+    int n = 0, seen = 0;
+    if (!grow_ints(&g_hits, &g_hits_cap, g->n)) return luaL_error(L, "grid_query: out of memory");
+    if (g->gw) {
+        int ca = (int)floor((x0 - g->hw - g->ox) / g->size), cb = (int)floor((x1 + g->hw - g->ox) / g->size);
+        int ra = (int)floor((y0 - g->hh - g->oy) / g->size), rb = (int)floor((y1 + g->hh - g->oy) / g->size);
+        if (ca < 0) ca = 0;
+        if (ra < 0) ra = 0;
+        if (cb >= g->gw) cb = g->gw - 1;
+        if (rb >= g->gh) rb = g->gh - 1;
+        for (int cy = ra; cy <= rb; cy++)
+            for (int cx = ca; cx <= cb; cx++) {
+                const int c = cy * g->gw + cx, e = g->start[c + 1];
+                seen += e - g->start[c];
+                for (int k = g->start[c]; k < e; k++) {
+                    const int i = g->items[k];
+                    if (grid_touch(g->box + i * 5, x0, y0, x1, y1, r)) g_hits[n++] = i;
+                }
+            }
+    }
+    for (int k = 0; k < g->nbig; k++) if (grid_touch(g->box + g->big[k] * 5, x0, y0, x1, y1, r)) g_hits[n++] = g->big[k];
+    seen += g->nbig;
+    /* each cell's slots are in order already, so this only merges a few short runs */
+    for (int i = 1; i < n; i++) { const int v = g_hits[i]; int j = i - 1; while (j >= 0 && g_hits[j] > v) { g_hits[j + 1] = g_hits[j]; j--; } g_hits[j + 1] = v; }
+    for (int i = 0; i < n; i++) { lua_pushinteger(L, g_hits[i] + 1); lua_rawseti(L, 7, i + 1); }
+    lua_pushinteger(L, n); lua_pushinteger(L, seen);
+    return 2;
+}
+
 static const luaL_Reg gs_lib[] = {
     {"sfx_load", l_sfx_load}, {"sfx_play", l_sfx_play}, {"sfx_stop", l_sfx_stop},
     {"music_load", l_music_load}, {"music_play", l_music_play}, {"music_stop", l_music_stop},
@@ -1323,7 +1516,33 @@ static const luaL_Reg gs_lib[] = {
     {"clear", l_clear}, {"rect", l_rect}, {"line", l_line}, {"print", l_print}, {"text_width", l_text_width}, {"font", l_font},
     {"camera", l_camera}, {"compose", l_compose}, {"recolor", l_recolor}, {"pixels", l_pixels}, {"mosaic", l_mosaic}, {"blend", l_blend}, {"stats", l_stats}, {"ram", l_ram}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
     {"btn", l_btn}, {"btnp", l_btnp}, {"time", l_time}, {"clock", l_clock}, {"quit", l_quit}, {"zoom", l_zoom}, {"load", l_load}, {"list", l_list}, {"mtime", l_mtime},
+    {"grid_build", l_grid_build}, {"grid_query", l_grid_query},
     {"pad_last", l_pad_last}, {"pad_set", l_pad_set}, {"pad_reset", l_pad_reset}, {NULL, NULL}};
+
+/* The SoundFont a packed cart carries: the game's sounds are loaded the way gs.boot loads them (engine/gs/sound.lua, into the synth,
+ * without starting the game), then the bank is cut down to what they use, as the runtime would at start (soundfont_wanted). *sf2 stays
+ * NULL for a game with no General MIDI instrument. Returns 1, with the reason printed, when the sounds do not load. */
+static int pack_soundfont(const char *dir, unsigned char **sf2, size_t *size) {
+    g_dir = dir; synth_reset(44100); g_packing = true;
+    lua_State *L = luaL_newstate();
+    luaL_openlibs(L);
+    luaL_newlib(L, gs_lib); lua_pushvalue(L, -1); lua_setfield(L, -2, "raw"); lua_setglobal(L, "gs");
+    int rc = 0;
+    if (luaL_loadbuffer(L, (const char *)gs_framework_lua, gs_framework_lua_len, "=framework") || lua_pcall(L, 0, 0, 0)
+        || luaL_dostring(L, "require('gs.sound').load({})")) {
+        fprintf(stderr, "pack: the game's sounds: %s\n", lua_tostring(L, -1)); rc = 1;
+    }
+    lua_close(L); g_packing = false;
+    if (rc) return rc;
+    int presets[SYNTH_MAX_INSTRUMENTS]; unsigned char keys[SYNTH_MAX_INSTRUMENTS][16];
+    if (soundfont_wanted(NULL, presets, keys) == 0) return 0;
+    SfBank *b = open_bank();
+    if (!b) { fprintf(stderr, "pack: %s\n", g_bank_err); return 1; }
+    const int n = soundfont_wanted(b, presets, keys);
+    *sf2 = sfbank_subset(b, presets, keys, n, size);
+    if (!*sf2) { fprintf(stderr, "pack: none of the game's General MIDI instruments is in its SoundFont\n"); return 1; }
+    return 0;
+}
 
 /* require("foo.bar") loads foo/bar.lua from the cartridge */
 static int cart_searcher(lua_State *L) {
@@ -1363,7 +1582,7 @@ static int call_global(lua_State *L, const char *name, int nargs, double arg) {
  *   sample <id> <path under sounds/>
  *   inst <id> pulse <duty> <common>      inst <id> wave <32 hex digits> <common>      inst <id> noise <short> <common>
  *   inst <id> sample <sample id> <root> <loop_start> <loop_end> <common>
- *   inst <id> gm <program 0..127> <drum kit 0|1> <common>   (needs the SoundFont, see ensure_soundfont)
+ *   inst <id> gm <program 0..127> <drum kit 0|1> <common>   (needs the SoundFont, see soundfont_commit)
  *       common = volume% pan% attack_ms decay_ms sustain% release_ms vibrato_depth*100 vibrato_rate*10 vibrato_delay_ms
  *                [sweep_semitones*100 sweep_ms [fixed_note or -1]]  (the last three may be left off)
  *   sfx <id> <speed> <n> <loop_start> <loop_end> [<volume step> [<reverb 0..100>]], then n lines:  s <pitch> <instrument> <volume> <effect>
@@ -1392,6 +1611,8 @@ static const char *skip_words(const char *p, int n) { /* past n space-separated 
 static int render_audio(const char *descpath, const char *outpath) {
     FILE *f = fopen(descpath, "r");
     if (!f) { perror(descpath); return 1; }
+    /* the studio runs this inside the game's folder: a game with its own soundfont.sf2 is previewed with it (open_bank), as it plays */
+    if (!g_dir) g_dir = ".";
     synth_reset(44100);
     char line[1024]; SynthSfx sfx; SynthMusic *mus = calloc(1, sizeof *mus); SynthSong *song = calloc(1, sizeof *song);
     int sfx_left = 0, mus_left = 0, si = 0, mi = 0, ni = 0, ngi = 0, song_open = 0, stereo = 0, lofi = 0, channels = 6, sfx_channels = 3;
@@ -1436,7 +1657,6 @@ static int render_audio(const char *descpath, const char *outpath) {
             }
             else if (!strcmp(word, "gm")) { /* General MIDI: program, drum kit (0/1) */
                 in.type = INST_GM; int pr = 0, dr = 0; sscanf(rest, "%d %d", &pr, &dr); in.gm_program = SDL_clamp(pr, 0, 127); in.gm_drum = dr != 0;
-                char err[300]; if (!ensure_soundfont(err, sizeof err)) { fprintf(stderr, "%s\n", err); return 1; }
                 read_common(skip_words(rest, 2), &in);
             }
             else if (!strcmp(word, "noise")) { in.type = INST_NOISE; sscanf(rest, "%d", &b); in.noise_short = b != 0; read_common(skip_words(rest, 1), &in); }
@@ -1498,6 +1718,7 @@ static int render_audio(const char *descpath, const char *outpath) {
             }
         } else if (!strncmp(line, "render ", 7)) {
             FINISH_SONG();
+            char err[300]; if (!soundfont_commit(err, sizeof err)) { fprintf(stderr, "%s\n", err); return 1; } /* the General MIDI instruments, now all are defined and played */
             synth_config(channels, sfx_channels, lofi);
             if (!strncmp(line, "render sfx ", 11)) {
                 int ids[SYNTH_MAX_SFX_CHANNELS], nid = 0, used = 0; float vol = 1; double secs = -1, longest = 0;
@@ -1587,7 +1808,7 @@ static bool fb_open(void) {
 }
 static void fb_thread_start(void); static void fb_thread_stop(void);
 
-/* The software renderer is the slow part on a handheld, and it costs by pixels drawn. So the game is drawn at its own size (320x240, not the
+/* The software renderer is the slow part on a handheld, and it costs by pixels drawn. So the game is drawn at its own size (256x192 for Glow43, not the
  * 640x480 display) into the top-left corner of the surface, and this copies it to the framebuffer enlarged by a whole number, centred, with
  * black bars. Each output row is built once in a small buffer and then copied, which keeps reads out of the slow framebuffer memory. */
 static void fb_clear_pages(void) { g_fb.dirty_pages = g_fb.pages; }
@@ -2038,6 +2259,33 @@ static void boost_tick(double secs, long late, double frame_ms, double work_ms) 
     }
 }
 
+/* gs soundfont <bank.sf2|sf3>: lists its presets ("bank:program bytes name", bytes = an SF2 holding that preset alone).
+ * gs soundfont <bank> <out.sf2> <bank:program>...: writes an SF2 holding only those presets (sfbank.c). */
+static int soundfont_cli(int argc, char **argv) {
+    size_t n; unsigned char *data = read_all(argv[2], &n);
+    if (!data) { perror(argv[2]); return 1; }
+    char err[200]; SfBank *b = sfbank_open(data, n, SOUNDFONT_RATE, err, sizeof err); free(data);
+    if (!b) { fprintf(stderr, "%s: %s\n", argv[2], err); return 1; }
+    int rc = 0;
+    if (argc == 3) {
+        for (int i = 0; i < sfbank_count(b); i++) {
+            const int p = sfbank_preset_at(b, i); size_t sz = 0;
+            unsigned char *one = sfbank_subset(b, &p, NULL, 1, &sz); free(one);
+            printf("%d:%d %zu\n", p >> 8, p & 0xff, sz);
+        }
+    } else {
+        int *want = calloc((size_t)argc, sizeof *want), k = 0;
+        for (int i = 4; i < argc; i++) { int bk, pr; if (sscanf(argv[i], "%d:%d", &bk, &pr) == 2) want[k++] = SFBANK_PRESET(bk & 0xff, pr & 0xff); }
+        size_t sz = 0; unsigned char *out = sfbank_subset(b, want, NULL, k, &sz); free(want);
+        FILE *f = out ? fopen(argv[3], "wb") : NULL;
+        if (!f || fwrite(out, 1, sz, f) != sz) { fprintf(stderr, "%s: could not write the subset\n", argv[3]); rc = 1; }
+        if (f) fclose(f);
+        free(out);
+    }
+    sfbank_close(b);
+    return rc;
+}
+
 /* gs boost-selftest <dir>: the controller on made-up files (the test script makes them), no CPU involved. */
 static int boost_selftest(const char *dir) {
     char min_path[200], state[200]; snprintf(min_path, sizeof min_path, "%s/scaling_min_freq", dir); snprintf(state, sizeof state, "%s/state", dir);
@@ -2076,8 +2324,11 @@ static lua_State *game_start(void) {
     luaL_openlibs(L);
     luaL_newlib(L, gs_lib); if (g_perf_on) time_gs_api(L); lua_setglobal(L, "gs");
     if (getenv("GS_PROF")) lua_sethook(L, prof_hook, LUA_MASKCOUNT, 1000);
+    /* require finds modules in the cart and nowhere else: Lua's own searchers would look in the current folder and the system's Lua
+     * paths first (a stray file there would stand in for the game's own), and load C libraries */
     lua_getglobal(L, "package"); lua_getfield(L, -1, "searchers");
-    lua_pushcfunction(L, cart_searcher); lua_rawseti(L, -2, (lua_Integer)lua_rawlen(L, -2) + 1);
+    lua_pushcfunction(L, cart_searcher); lua_rawseti(L, -2, 2);
+    for (lua_Integer i = (lua_Integer)lua_rawlen(L, -1); i > 2; i--) { lua_pushnil(L); lua_rawseti(L, -2, i); }
     lua_pop(L, 2);
 
     size_t n; unsigned char *src = vfs_read("game.lua", &n);
@@ -2132,6 +2383,12 @@ static void embed_state(char what) {
 int main(int argc, char **argv) {
     if (argc == 3 && !strcmp(argv[1], "boost-selftest")) return boost_selftest(argv[2]);
     if (argc == 4 && !strcmp(argv[1], "render-audio")) return render_audio(argv[2], argv[3]);
+    if (argc >= 3 && !strcmp(argv[1], "soundfont")) return soundfont_cli(argc, argv);
+    if (argc == 3 && !strcmp(argv[1], "soundfont-size")) { /* the bytes of General MIDI bank gs pack would put in this game's cart (the studio's Handheld tab) */
+        unsigned char *sf2 = NULL; size_t n = 0;
+        if (pack_soundfont(argv[2], &sf2, &n)) return 1;
+        free(sf2); printf("%zu\n", n); return 0;
+    }
     if (argc == 4 && !strcmp(argv[1], "pack")) return pack(argv[2], argv[3]);
     if (argc != 2) { fprintf(stderr, "usage: gs <cart|dir>\n       gs pack <dir> <out.g43>\n"); return 2; }
 

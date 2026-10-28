@@ -549,48 +549,63 @@ local function step_path(e, dt)
 end
 
 -- ---------------------------------------------------------------- collisions
--- One grid for each tag that something asks about, rebuilt at most once a step. Its cells are about as big as the things in it (a power of
--- two from 16 to 64 pixels, from the average size of the step before): with cells much bigger than the boxes every query looks at many
--- far-off things, with much smaller ones every box spans many cells. Measured with tests/heavy: 8 pixel boxes check about 30% faster in
--- 16 pixel cells than in 32, 32 pixel boxes about 15% faster in 32 than in 64.
+-- One grid for each tag that something asks about, rebuilt at most once a step. Lua works out each living entity's box (slot k: the
+-- k-th living entity of the tag, so slots run in the order things were made) and the runtime does the rest (gs.raw.grid_build and
+-- grid_query in runtime/main.c): each box goes into the cell its centre is in, a query looks at the cells within half the biggest box of
+-- its own and gives back the slots that touch it, in order. Cells are about as big as the things in them (a power of two from 16 to 64
+-- pixels, from the average size of the step before).
+-- Measured with tests/survivors (bats chasing a hero and pushing each other apart). The first grid put every box into each cell it
+-- touched and sorted every candidate into id order: 300 / 500 bats in a still crowd took 37 / 133 ms a step on the RG35XX Pro (3.4 / 6.8 on
+-- an M4). One cell per box, boxes in flat arrays and only hits sorted, still in Lua: 11.8 / 29.5 (1.5 / 2.9). The same in C: 8.3 / 11.0
+-- (0.6 / 1.3 for the collision pass alone on the M4). Measuring each box once a step (a query reuses the box its grid took) saved
+-- 3-4% more there (8-13% on the M4); what is left is mostly the calls into the game's own on_collide handlers, one per touching pair.
 local CELL_MIN, CELL_MAX = 16, 64
-local grids = {}
-local function cell_key(cx, cy) return (cx + 32768) * 65536 + (cy + 32768) end
+local grids, ngrids = {}, 0
+local grid_build, grid_query = gs.grid_build, gs.grid_query
+
+-- a round hitbox's radius with the entity's scale, or 0 for a box
+local function scaled_r(e)
+  local r = e._hb.r
+  if not r then return 0 end
+  local sx, sy = e.sx, e.sy
+  if sx == 1 and sy == 1 then return r end
+  return r * (sx > sy and sx or sy)
+end
 
 local function grid_for(tag)
   local list = W.tags[tag]
   if not list then return nil end
   local g = grids[tag]
-  if not g then g = { cells = {}, used = {}, nused = 0, step = -1, size = 32 }; grids[tag] = g end
+  if not g then
+    g = { id = ngrids, step = -1, size = 32, n = 0, ents = {}, boxes = {} }
+    ngrids = ngrids + 1
+    grids[tag] = g
+  end
   if g.step ~= W.step_id then
     g.step = W.step_id
-    if g.want and g.want ~= g.size then g.size, g.cells, g.used, g.nused = g.want, {}, {}, 0 end
-    local cells, used, size = g.cells, g.used, g.size
-    for i = 1, g.nused do local c = cells[used[i]]; if c then c.n = 0 end end
-    g.nused = 0
-    local span, boxes = 0, 0
+    if g.want then g.size = g.want end
+    local ents, B, step = g.ents, g.boxes, W.step_id
+    local k, span = 0, 0
     for i = 1, #list do
       local e = list[i]
       if not e._dead then
         local x0, y0, x1, y1 = bounds(e)
         if x0 then
+          local o = k * 5
+          k = k + 1
+          ents[k] = e
+          B[o + 1], B[o + 2], B[o + 3], B[o + 4], B[o + 5] = x0, y0, x1, y1, scaled_r(e)
+          e._bstep, e._bbox, e._bat = step, B, o -- its box this step, for its own query (collide_pass)
           local w, h = x1 - x0, y1 - y0
-          span, boxes = span + (w > h and w or h), boxes + 1
-          for cx = floor(x0 / size), floor((x1 - 0.001) / size) do
-            for cy = floor(y0 / size), floor((y1 - 0.001) / size) do
-              local key = cell_key(cx, cy)
-              local c = cells[key]
-              if not c then c = { n = 0 }; cells[key] = c end
-              if c.n == 0 then g.nused = g.nused + 1; used[g.nused] = key end
-              c.n = c.n + 1
-              c[c.n] = e
-            end
-          end
+          span = span + (w > h and w or h)
         end
       end
     end
+    for i = k + 1, g.n do ents[i] = nil end -- the grid must not keep the dead alive
+    g.n = k
+    grid_build(g.id, B, k, g.size)
     -- grow when the things are bigger than a cell, shrink only when they fit well inside half of one (no flipping at the edge)
-    local avg = boxes > 0 and span / boxes or size
+    local size, avg = g.size, k > 0 and span / k or g.size
     if avg > size and size < CELL_MAX then g.want = size * 2
     elseif avg < size * 0.4 and size > CELL_MIN then g.want = size // 2
     else g.want = nil end
@@ -598,59 +613,7 @@ local function grid_for(tag)
   return g
 end
 
-local candidates, last_n, query = {}, 0, 0
--- The entities of the tag near `e`, in the order they were made, each once: returns the list, how many, and e's box (the caller needs it too). A box over one cell gives that
--- cell's own list (each cell lists its entities in that order already, so nothing is copied); a box over a few cells collects them, marking
--- each entity so one in two cells comes once, then puts the short list in order (it is nearly in order: a few sorted runs).
-local function near_candidates(g, e)
-  local x0, y0, x1, y1 = bounds(e)
-  if not x0 then return candidates, 0 end
-  local cells, size = g.cells, g.size
-  local cxa, cya = floor(x0 / size), floor(y0 / size)
-  local cx1, cy1 = floor((x1 - 0.001) / size), floor((y1 - 0.001) / size)
-  if cxa == cx1 and cya == cy1 then
-    local c = cells[cell_key(cxa, cya)]
-    if c then return c, c.n, x0, y0, x1, y1 end
-    return candidates, 0
-  end
-  query = query + 1
-  local q, n = query, 0
-  for cx = cxa, cx1 do
-    for cy = cya, cy1 do
-      local c = cells[cell_key(cx, cy)]
-      if c then
-        for i = 1, c.n do
-          local o = c[i]
-          if o._q ~= q then
-            o._q = q
-            -- insert in id order: the runs from each cell are sorted, so this walks back only over the other cells' entries
-            local id, j = o.id, n
-            while j > 0 and candidates[j].id > id do candidates[j + 1] = candidates[j]; j = j - 1 end
-            candidates[j + 1] = o
-            n = n + 1
-          end
-        end
-      end
-    end
-  end
-  for i = n + 1, last_n do candidates[i] = nil end
-  last_n = n
-  return candidates, n, x0, y0, x1, y1
-end
-
--- is `b` overlapping the box a0..a3 of an entity `a` (whose bounds the caller already has)?
-local function touches(a, ax0, ay0, ax1, ay1, b)
-  local bx0, by0, bx1, by1 = bounds(b)
-  if not bx0 then return false end
-  if ax0 >= bx1 or bx0 >= ax1 or ay0 >= by1 or by0 >= ay1 then return false end
-  local ra, rb = a._hb.r, b._hb.r
-  if ra and rb then
-    local dx, dy = (ax0 + ax1) - (bx0 + bx1), (ay0 + ay1) - (by0 + by1)
-    local rr = (ra * math.max(a.sx, a.sy) + rb * math.max(b.sx, b.sy))
-    return dx * dx + dy * dy <= 4 * rr * rr
-  end
-  return true
-end
+local hits = {}
 
 local function collide_pass()
   for ci = 1, #W.classes do
@@ -665,15 +628,26 @@ local function collide_pass()
           local fn = entry.cls[h.name]
           local every, step = h.every, W.step_id
           local t0 = W.profile and os.clock()
+          local ents = g.ents
           for i = 1, #list do
             local a = list[i]
             if not a._dead and (every == 1 or (step + a.id) % every == 0) then
-              local cand, n, ax0, ay0, ax1, ay1 = near_candidates(g, a)
-              if n > 0 then
-                W.checks = W.checks + n
+              -- a box is measured once a step: the one a grid took already (bats against bats), else measured now
+              local ax0, ay0, ax1, ay1, ar
+              if a._bstep == step then
+                local B, o = a._bbox, a._bat
+                ax0, ay0, ax1, ay1, ar = B[o + 1], B[o + 2], B[o + 3], B[o + 4], B[o + 5]
+              else
+                ax0, ay0, ax1, ay1 = bounds(a)
+                ar = ax0 and scaled_r(a)
+              end
+              if ax0 then
+                local n, seen = grid_query(g.id, ax0, ay0, ax1, ay1, ar, hits)
+                W.checks = W.checks + seen
                 for j = 1, n do
-                  local b = cand[j]
-                  if b ~= a and not b._dead and not a._dead and touches(a, ax0, ay0, ax1, ay1, b) then fn(a, b) end
+                  local b = ents[hits[j]]
+                  -- an earlier handler may have removed either of them
+                  if b ~= a and not b._dead and not a._dead then fn(a, b) end
                 end
               end
             end

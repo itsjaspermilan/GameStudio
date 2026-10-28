@@ -1,6 +1,6 @@
 ---
 name: pixel-art
-description: Drawing sprites and tiles for GameStudio games (heroes, enemies, bullets, pickups, effects, tilesets, icons), fitted to the kind of game being made and to the handheld's 320x240 screen and palette. Use when creating, redrawing, resizing or animating any sprite or tileset, or when art looks too small, muddy, blotchy or hard to read.
+description: Drawing sprites and tiles for GameStudio games (heroes, enemies, bullets, pickups, effects, tilesets, icons), fitted to the kind of game being made and to the handheld's screen (Glow43: 256x192) and palette. Use when creating, redrawing, resizing or animating any sprite or tileset, or when art looks too small, muddy, blotchy or hard to read.
 ---
 
 # Pixel art for GameStudio

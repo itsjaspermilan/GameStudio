@@ -88,6 +88,11 @@ typedef struct {
 } SynthSong;
 
 int synth_load_soundfont(const void *data, int size); /* a SoundFont (.sf2) for the General MIDI instruments; 1 on success */
+int synth_replace_soundfont(const void *data, int size); /* the same, in place of the one loaded (voices playing it stop); 1 on success */
+/* The General MIDI presets the instruments defined so far play (bank << 8 | program, bank 128 for drum kits), and for each the keys the
+ * game's songs and sound effects need (16 bytes, a bit a key): the notes struck on a drum kit, an octave around every note played on a
+ * melodic instrument. Returns how many, at most max. sfbank.c keeps only these in the game's SoundFont. */
+int synth_gm_presets(int *presets, unsigned char (*keys)[16], int max);
 int synth_have_soundfont(void);
 void synth_reset(int sample_rate);              /* forget everything and set the output sample rate */
 void synth_config(int music_tracks, int sfx_channels, int lofi); /* music tracks 1..8, sound effect channels 1..4; lofi = the GBA-style output stage */

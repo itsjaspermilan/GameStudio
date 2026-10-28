@@ -135,7 +135,7 @@ fn consoles_dir(app: &AppHandle) -> PathBuf {
 /// bundle's, not the runtime's own).
 fn runtime_command(ws: &Path, bin: &Path) -> Command {
     let mut cmd = Command::new(bin);
-    let font = ws.join("assets").join("soundfonts").join("TimGM6mb.sf2");
+    let font = ws.join("assets").join("soundfonts").join("FluidR3Mono_GM.sf3");
     if font.is_file() {
         cmd.env("GS_SOUNDFONT", font);
     }
@@ -790,6 +790,23 @@ fn stop_preview(app: AppHandle, state: State<'_, AppState>) {
 
 static RENDER_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+/// The bytes of General MIDI instruments `gs pack` would add to the game's cart (its SoundFont, cut down to what it plays), for the
+/// Handheld tab's game size.
+#[tauri::command]
+async fn gm_bank_size(app: AppHandle, cart: String) -> Result<u64, String> {
+    let ws = workspace(&app);
+    let bin = desktop_bin(&ws);
+    if !bin.is_file() {
+        return Err(format!("runtime not found at {}. Run scripts/build.sh in the workspace.", bin.display()));
+    }
+    let dir = cart_dir(&app, &cart)?;
+    let out = runtime_command(&ws, &bin).arg("soundfont-size").arg(&dir).output().map_err(|e| format!("could not start the runtime: {e}"))?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    String::from_utf8_lossy(&out.stdout).trim().parse::<u64>().map_err(|e| e.to_string())
+}
+
 /// Render a sound effect or music description (see runtime/main.c, render_audio) to a WAV file with the runtime's own
 /// synth, so a preview sounds exactly like the game. Returns the WAV as base64.
 #[tauri::command]
@@ -1048,6 +1065,7 @@ pub fn run() {
             preview_buttons,
             preview_state,
             runtime_status,
+            gm_bank_size,
             list_carts,
             list_games,
             list_projects,

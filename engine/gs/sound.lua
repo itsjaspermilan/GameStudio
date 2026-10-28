@@ -32,6 +32,7 @@ function M.load(audio)
   -- are loaded the first time something uses them, then any of the project's own.
   local inst_handles = { tri = 0, saw = 1, square = 2, pulse = 3, sine = 4, noise = 5 }
   local sample_handles = {}
+  local gm = false -- a General MIDI instrument was defined: the game's SoundFont is made once everything is loaded (see the end)
   local function define_instrument(d, where)
     local vib = d.vibrato or {}
     local t = {
@@ -42,7 +43,7 @@ function M.load(audio)
       fixed_note = d.fixed_note, sweep = d.sweep and d.sweep.semitones, sweep_ms = d.sweep and d.sweep.ms,
       program = d.program, drum = d.drum and 1 or 0,
     }
-    if t.type == "gm" then gs.soundfont_load() end -- the General MIDI sounds come from the SoundFont beside the runtime
+    if t.type == "gm" then gm = true end
     if t.type == "sample" then
       if not d.sample then error(where .. " is a sample instrument with no sample", 0) end
       sample_handles[d.sample] = sample_handles[d.sample] or gs.sample_load("sounds/" .. d.sample .. ".wav")
@@ -181,6 +182,9 @@ function M.load(audio)
       music_handles[n] = { handle = gs.music_load(#d.patterns, flat, lp and lp.from or -1, lp and lp.to or -1) }
     end
   end
+  -- The runtime cuts the SoundFont down to the instruments defined above and the drums the songs and effects strike (runtime/sfbank.c),
+  -- so it is made now that they are all known
+  if gm then gs.soundfont_load() end
 end
 
 function M.sfx(name, volume)

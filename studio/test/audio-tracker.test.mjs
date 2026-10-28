@@ -213,7 +213,7 @@ test("drums keep their pitch whatever note is played, and a kick sweeps down", {
   assert.ok(cross(lo, seg(0.002), seg(0.04)) > cross(lo, seg(0.12), seg(0.16)) * 1.5, "higher at the start than later");
 });
 
-test("General MIDI instruments play through the SoundFont", { skip: skip || !existsSync(path.join(root, "assets/soundfonts/TimGM6mb.sf2")) }, () => {
+test("General MIDI instruments play through the SoundFont", { skip: skip || !existsSync(path.join(root, "assets/soundfonts/FluidR3Mono_GM.sf3")) }, () => {
   for (const name of ["gm_acoustic_grand_piano", "gm_violin", "gm_trumpet", "gm_steel_guitar", "gm_drum_kit"]) {
     const r = runRender(A.namedNotePreviewDesc(name, 48, {}, { style: "clean" }).text);
     assert.equal(r.status, 0, `${name}: ${r.stderr}`);
@@ -224,6 +224,14 @@ test("General MIDI instruments play through the SoundFont", { skip: skip || !exi
   const piano = (n) => runRender(A.namedNotePreviewDesc("gm_acoustic_grand_piano", n, {}, { style: "clean" }).text).samples;
   let diff = 0; const a = piano(48), b = piano(60); for (let i = 0; i < seg(0.2); i++) diff = Math.max(diff, Math.abs(a[i] - b[i]));
   assert.ok(diff > 0.01, "a different note is a different sound");
+});
+
+test("a game's own soundfont.sf2 is what its previews play", { skip }, () => {
+  // previews run inside the game's folder (render_audio in the studio): a bank there is used instead of the built-in one
+  const desc = A.namedNotePreviewDesc("gm_violin", 48, {}, { style: "clean" }).text;
+  const r = runRender(desc, { "soundfont.sf2": Buffer.from("not a SoundFont") });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /the game's soundfont\.sf2/);
 });
 
 const cellsOf = (n = 16) => Array.from({ length: n }, () => null);
@@ -324,7 +332,7 @@ test("drum kit hits: several pieces on one step", () => {
   assert.match(A.renderSongDesc(s, {}, {}).text, /^cell 0 0 0 36 0 -1 0 0 42$/m);
 });
 
-test("a drum kit plays its pieces together, and a held sound effect note does not retrigger", { skip: skip || !existsSync(path.join(root, "assets/soundfonts/TimGM6mb.sf2")) }, () => {
+test("a drum kit plays its pieces together, and a held sound effect note does not retrigger", { skip: skip || !existsSync(path.join(root, "assets/soundfonts/FluidR3Mono_GM.sf3")) }, () => {
   const song = (extra) => { const s = A.newSong({ tracks: 1 }); s.track_inst = ["gm_drum_kit"]; s.tempo = 60; A.setCell(s, 0, 0, 0, A.cellOf(36, -1, 0, 0, extra)); return A.renderSongDesc(s, {}, { style: "clean", channels: 1, seconds: 1 }).text; };
   const one = runRender(song([])), two = runRender(song([42, 38]));
   assert.equal(two.status, 0, two.stderr);

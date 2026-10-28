@@ -116,6 +116,7 @@ The framework is built on these calls. A game with `game.lua` normally uses the 
 | `gs.recolor(img,from,to[,old])` | a copy of a picture with colour `from[i]` replaced by `to[i]` (lists of `0xRRGGBB`), for palette swaps; the framework uses it for an entity's `bank`. Pass the picture it returned as `old` to reuse its slot |
 | `gs.pixels(w,h,rgba)` | a picture made from `w*h*4` bytes of RGBA (the framework makes the button icons with it); it can be recoloured like a loaded one |
 | `gs.compose(sheet,tw,th,sheet_cols,count,cw,ch,grid_cols,grid_rows,rows[,old])` | one picture of a whole tile grid (cell `c,r` shows tile `rows[r][c]` of `sheet`), so a layer that does not change is one `gs.tile` call a frame instead of hundreds. The framework uses it for tile layers; tiles must be the size of the cells. Pass the picture it returned as `old` to reuse its slot |
+| `gs.raw.grid_build(id,boxes,n,size)`, `gs.raw.grid_query(id,x0,y0,x1,y1,r,out)` | the collision broad phase the framework uses: boxes `{x0,y0,x1,y1,r, ...}` sorted into cells of `size` pixels, then the slots (from 1) whose boxes touch a box, in order, into `out`; returns how many and how many boxes were compared. `r > 0` on both sides tests circles |
 | `gs.tile(img,sx,sy,sw,sh,x,y[,scale,flipx,angle,yscale,alpha,pivotx,pivoty])` | draw a sub-rectangle of a sheet; `angle` (degrees, clockwise), the scales and `alpha` (0-255) act around the pivot, a point in the sprite (default top-left) that stays where it is |
 | `gs.btn(name)` / `gs.btnp(name)` | held / pressed this frame: `up down left right a b x y l r start select l2 r2 l3 r3` (L2/R2 are the triggers, L3/R3 the stick clicks, on devices that have them) |
 | `gs.sound(name)` | load a WAV, returns a handle (cached) |
@@ -173,11 +174,13 @@ Sound is built like a small band, and like the GBA it mixes a handful of voices 
   samples) and may be up to `sample_max_seconds` long (8).
 - **One instrument per channel.** Every track of a song, and every channel of a sound effect, plays one instrument. In the studio
   you drag an instrument from the palette onto the channel. Change the instrument and every note on it changes.
-- **General MIDI.** Besides the chip sounds there are real instruments: all 128 General MIDI sounds and a drum kit, played from a
-  SoundFont by [TinySoundFont](https://github.com/schellingb/TinySoundFont) (`third_party/tsf/tsf.h`, MIT licence). The SoundFont
-  is `assets/soundfonts/TimGM6mb.sf2` (about 6 MB). It stays beside the runtime and is not packed into your games, so a cart keeps
-  well inside the 16 MB budget. `scripts/push.sh` copies it to the device once; `GS_SOUNDFONT=/path/to/file.sf2` points the
-  runtime at a different one. A game that uses General MIDI instruments needs that file next to the runtime.
+- **General MIDI.** Besides the chip sounds there are real instruments: all 128 General MIDI sounds and the drum kits, played by
+  [TinySoundFont](https://github.com/schellingb/TinySoundFont) (`third_party/tsf/tsf.h`, MIT) from FluidR3 Mono GM
+  (`assets/soundfonts/FluidR3Mono_GM.sf3`, MIT). A game carries only what it plays: `gs pack` cuts the bank down to its instruments,
+  the notes its songs and sound effects use and the drums they strike, at 32 kHz, and puts that in the cart as `soundfont.sf2` (Breakout's
+  is 230 KB; a song with seven instruments and drums about 6 MB, inside the 16 MB budget). The studio cuts it the same way when a game
+  runs, so it sounds the same. A game may bring its own `soundfont.sf2`; `GS_SOUNDFONT=/path/to/file.sf2` (or `.sf3`) points the runtime
+  at another bank.
 - **Instruments.** There are 17 ready-made chip ones (`engine/instruments.json`: piano, electric piano, organ, bell, strings, flute,
   brass, chip lead, pluck, bass, pad, kick, snare, hi-hat, open hi-hat, tom, clap) plus the six basic waves, and the game's
   own (`instruments/<name>.json`): a pulse wave (12.5 to 75% duty), a drawn 32-step 4-bit wavetable, noise (hiss or metallic) or a
@@ -242,12 +245,11 @@ top of `render_audio` in `runtime/main.c`; samples resolve relative to the curre
 - GameStudio's own code and art (the runtime, the libretro core, the framework, the studio, the tools, the built-in fonts, the console
   logos and artwork) are under the **zlib licence** (`LICENSE`): use it for anything, commercial products included, change it and share
   it; a game or player built with it does not have to mention it. Keep the notice in copies of the source.
-- **Your games are yours.** A cart (`.g43`, `.g169`, `.cart`) holds only the game's own files: its code, art, sound and data. The engine
-  lives in the runtime, not in the cart, so these licences put no conditions on the games you make; choose your own licence for them.
+- **Your games are yours.** A cart (`.g43`, `.g169`, `.cart`) holds the game's own files (its code, art, sound and data) and, when it
+  uses General MIDI instruments, the cut-down FluidR3 bank, whose MIT notice travels inside it. The engine lives in the runtime, not in the
+  cart, so these licences put no conditions on the games you make; choose your own licence for them.
 - Lua is MIT, SDL2 is zlib, TLSF (`third_party/tlsf`, Matthew Conte) is BSD-3-Clause, `third_party/libretro/libretro.h` is MIT, the built-in fonts (`engine/fonts/`, drawn for GameStudio) are the project's own, and TinySoundFont (`third_party/tsf/tsf.h`) is MIT. The studio's optional Lua language server (LuaLS, downloaded by `scripts/fetch-luals.sh`, never part of a game) is MIT.
-- **`assets/soundfonts/TimGM6mb.sf2` is licensed GPL-2.0** (Tim Brechbill and David Bolton, as shipped with MuseScore and packaged by
-  Debian as `timgm6mb-soundfont`; the licence text is `assets/soundfonts/TimGM6mb-LICENSE.txt`). It is a separate data file that is
-  distributed beside the runtime, not linked into it, so it puts no conditions on GameStudio's code or on games (commercial use is fine).
-  If you distribute the SoundFont (for example inside a release), the GPL-2 applies to that file: keep its licence with it, and note that
-  games using only the chip instruments do not need it. To avoid GPL material entirely, point `GS_SOUNDFONT` at a SoundFont with a
-  licence you prefer.
+- **`assets/soundfonts/FluidR3Mono_GM.sf3` is MIT** (Frank Wen 2000-2002, 2008; mono version Michael Cowgill 2014-16; the licence and
+  credits are `assets/soundfonts/FluidR3Mono_GM-LICENSE.md`). A packed game that uses General MIDI instruments carries a cut-down copy,
+  with the copyright and the MIT notice inside it, so sharing the game meets the licence. `third_party/stb/stb_vorbis.c` (reading the
+  bank's compressed samples) is public domain / MIT.
