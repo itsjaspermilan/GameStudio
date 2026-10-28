@@ -170,6 +170,14 @@ The games themselves
   turned down to match (`engine/instruments.json` volume).
   The Handheld tab's game size counts the bank (`gs soundfont-size`). On the RG35XX Pro a cart with the 6.1 MB bank starts in 846 ms
   cold / 549 warm, Breakout's (230 KB) in 701 / 283: the bank adds about 0.15-0.27 s.
+- [x] The 16 MB breach (2026-10-28): Lantern Leap was 25.1 MB, Lantern Isles 23.6, Lampwick 19.8, all but 0.5 MB of it General MIDI
+  samples (15-30 instruments a game; strings, brass and the drum kit 2.5-4.7 MB each), and nothing outside the studio's Handheld tab
+  compared a game with its budget. Cutting inaudible tails or notes held past their length saved under 10% (the samples are short
+  loops after a real attack), so the cart now packs the samples without loss (`sfbank_pack`): 14.5 / 11.6 / 10.6 MB, Pocket Chess 10.1 to
+  4.4, the sound identical to the bit (tests/run.sh compares the WAV). The MCP `check` prints the game size against the budget and
+  `push.sh` warns when a game is over.
+- [x] Unpacking on the Brick Pro (2026-10-28): Lantern Leap (13 MB of packed samples) starts in 2.0 s instead of 1.65 s (0.21 s
+  instead of 0.17 s on the Mac). If that 0.35 s ever matters, unpack on a thread while the title screen runs.
 
 - [x] On the Anbernic (Knulli's RetroArch), 2026-10-28: Glow43 showed in the top-left corner (RetroArch's integer scaling used Knulli's
   custom viewport at 0,0; `push.sh` now writes a centred viewport at the largest whole scale, 512x384 on 640x480) and quiet music

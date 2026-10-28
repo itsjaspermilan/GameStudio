@@ -59,7 +59,8 @@ cursors bounce, windows slide or grow open over 4 to 8 frames, numbers count up.
 - Banks of 16, one bank per object or material family; enemies of one family share a bank and differ by palette swap (red, blue and
   gold versions of one sprite are the GBA's oldest trick).
 - Ramps shift in hue: shadows lean towards blue or purple, highlights towards yellow. A ramp that only darkens looks NES-flat.
-- The HUD and windows have their own bank: one dark frame colour, one light inner edge, a two-tone or gradient fill.
+- The HUD and windows have their own bank: one dark frame colour, one light inner edge, a two-tone or gradient fill, in colours that
+  belong to this game (see "Every game has its own interface" below).
 - Blending is part of the palette: a window at 70% over the scene, additive glows on fire, shots and pickups, a darken layer for
   shade under trees.
 
@@ -72,6 +73,12 @@ This is where our games looked most NES and SNES.
   `round_small` for labels and numbers, `bold_*` for headings.
 - **Windows are rounded or bevelled frames** with a light inner edge and a soft or two-tone fill, often see-through. Thin one-pixel
   rectangles are NES; heavy black boxes with white borders are early SNES.
+- **Every game has its own interface, made of its own world.** That bevel is a starting point, not the look of every game: GBA games
+  framed their menus in parchment and wood (Golden Sun), bright plastic (Advance Wars), notebook paper and stamps (Mother 3), metal
+  plates (Metroid Fusion). Pick a material from the game's world (case files, seed packets, stained glass, riveted iron, folded paper,
+  neon tubes), draw the frame as a sprite or tile panel when gs.draw.panel cannot make it, and give the cursor, the fonts and the HUD's
+  layout the same idea. A dark navy see-through box is gs.draw.panel's default and the look of the first example games; a new game
+  should be told apart from them by a single screenshot.
 - **The HUD sits in the corners and stays small**: a portrait or icon, a bar, a number. Each piece has its own small framed plate (or
   is drawn with a shadow straight on the scene). No full-width bars over the playfield unless the game is a board game with a fixed
   frame, and then the frame is part of the art.

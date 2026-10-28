@@ -177,9 +177,10 @@ Sound is built like a small band, and like the GBA it mixes a handful of voices 
 - **General MIDI.** Besides the chip sounds there are real instruments: all 128 General MIDI sounds and the drum kits, played by
   [TinySoundFont](https://github.com/schellingb/TinySoundFont) (`third_party/tsf/tsf.h`, MIT) from FluidR3 Mono GM
   (`assets/soundfonts/FluidR3Mono_GM.sf3`, MIT). A game carries only what it plays: `gs pack` cuts the bank down to its instruments,
-  the notes its songs and sound effects use and the drums they strike, at 32 kHz, and puts that in the cart as `soundfont.sf2` (Breakout's
-  is 230 KB; a song with seven instruments and drums about 6 MB, inside the 16 MB budget). The studio cuts it the same way when a game
-  runs, so it sounds the same. A game may bring its own `soundfont.sf2`; `GS_SOUNDFONT=/path/to/file.sf2` (or `.sf3`) points the runtime
+  the notes its songs and sound effects use and the drums they strike, at 32 kHz, and puts that in the cart as `soundfont.sf2` with its
+  samples packed without loss (about 55% of their size: Breakout's is 98 KB, a game with 25 instruments and drums about 13 MB, inside the
+  16 MB budget). The studio cuts it the same way when a game runs, so it sounds the same, to the last bit. The MCP `check` and
+  `scripts/push.sh` say when a game is over its console's size budget. A game may bring its own `soundfont.sf2`; `GS_SOUNDFONT=/path/to/file.sf2` (or `.sf3`) points the runtime
   at another bank.
 - **Instruments.** There are 17 ready-made chip ones (`engine/instruments.json`: piano, electric piano, organ, bell, strings, flute,
   brass, chip lead, pluck, bass, pad, kick, snare, hi-hat, open hi-hat, tom, clap) plus the six basic waves, and the game's

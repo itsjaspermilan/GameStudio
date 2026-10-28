@@ -276,6 +276,7 @@ export function check({ game, seconds = 4 }) {
   const untidy = Object.entries(texts).filter(([, t]) => reindent(t) !== t).map(([f]) => f);
   const r = runGame(dir, { seconds });
   const probs = problemsOf(r.lines), st = statsOf(r.lines);
+  const size = gameSize(dir);
   const L = [lint.length ? `editor warnings (${lint.length}):\n${lint.slice(0, 40).join("\n")}` : "editor warnings: none"];
   if (untidy.length) L.push(`indentation is off in: ${untidy.join(", ")} (the studio's Tidy would fix it)`);
   L.push(probs.length ? `running ${seconds} s printed:\n${probs.slice(0, 30).map((l) => "  " + l).join("\n")}` : `ran ${seconds} s with no errors or warnings`);
@@ -285,7 +286,23 @@ export function check({ game, seconds = 4 }) {
     if (speed) L.push(`on the Brick a frame would take ${speed.text}: ${speed.words}`);
     if (ram) L.push(`RAM (the Brick's, as on the device): ${ram.text}`);
   }
+  if (size) L.push(size);
   return { text: L.join("\n") };
+}
+
+// The packed game's size against its console's budget (budgets.cart_kb): gs pack into a temporary file, as Send to device does. General
+// MIDI instruments are usually most of it, so it says how much they take.
+function gameSize(dir) {
+  const kb = (consoleOf(dir).budgets || {}).cart_kb;
+  const tmp = mkdtempSync(join(tmpdir(), "gs-size-"));
+  try {
+    const r = spawnSync(GS, ["pack", dir, join(tmp, "game.cart")], { encoding: "utf8", timeout: 60000 });
+    if (r.status !== 0) return `game size: could not pack the game (${String(r.stderr || r.error || "").trim().split("\n").pop()})`;
+    const out = r.stdout, bytes = statSync(join(tmp, "game.cart")).size, gm = (out.match(/General MIDI instruments: (\d+) KB/) || [])[1];
+    const mb = (b) => `${(b / 1048576).toFixed(1)} MB`;
+    const what = `game size: ${mb(bytes)}${kb ? ` of ${mb(kb * 1024)}` : ""}${gm ? ` (General MIDI instruments ${mb(+gm * 1024)})` : ""}`;
+    return kb && bytes > kb * 1024 ? `${what}: OVER the console's budget. Use fewer General MIDI instruments (built-in synth instruments cost almost nothing), or fewer notes far apart on them` : what;
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
 }
 
 export function run({ game, seconds = 3, keys, bot = false, bot_lua, scene, shots = 1, scale, env = {} }) {

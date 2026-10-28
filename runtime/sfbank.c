@@ -2,7 +2,8 @@
  * (names, copyright), "sdta" (the samples, 16-bit; in an SF3 each sample is an Ogg Vorbis stream) and "pdta", nine tables that point into
  * each other by index: presets -> preset zones (bags) -> generators and modulators, one generator naming an instrument -> instrument
  * zones -> generators, one naming a sample -> sample headers. A subset copies the chosen presets' rows of every table, renumbering the
- * indices, and puts each sample it needs into a new sample chunk, decoded. Each table ends with a terminal row the format requires. */
+ * indices, and puts each sample it needs into a new sample chunk, decoded. Each table ends with a terminal row the format requires.
+ * A cart's bank keeps its samples packed without loss in an "smpz" chunk in place of "smpl" (sfbank_pack, at the end of this file). */
 #include "sfbank.h"
 #include <stdint.h>
 #include <stdlib.h>
@@ -23,7 +24,8 @@ typedef struct { short *pcm; int frames, rate; int tried; } Decoded;
 
 struct SfBank {
     unsigned char *data; size_t size; int max_rate; char *comment;
-    Span info, smpl;
+    Span info, smpl, smpz;
+    short *unpacked;                                          /* smpz unpacked: what smpl points into then */
     Span phdr, pbag, pmod, pgen, inst, ibag, imod, igen, shdr; /* the pdta tables, terminal rows included */
     uint32_t nphdr, npbag, npmod, npgen, ninst, nibag, nimod, nigen, nshdr;
     Decoded *dec;                                             /* by sample, decoded on first use */
@@ -63,7 +65,12 @@ static void pdta_chunk(SfBank *b, const char *id, Span s, int *ok) {
             *(uint32_t *)((char *)b + T[i].count) = s.n / T[i].size;
         }
 }
-static void sdta_chunk(SfBank *b, const char *id, Span s, int *ok) { (void)ok; if (!strcmp(id, "smpl")) b->smpl = s; }
+static void sdta_chunk(SfBank *b, const char *id, Span s, int *ok) {
+    (void)ok;
+    if (!strcmp(id, "smpl")) b->smpl = s;
+    else if (!strcmp(id, "smpz")) b->smpz = s;
+}
+static short *unpack_samples(Span z, uint32_t *frames);
 static void top_chunk(SfBank *b, const char *id, Span s, int *ok) {
     if (strcmp(id, "LIST") || s.n < 4) return;
     if (!memcmp(s.p, "INFO", 4)) b->info = (Span){ s.p + 4, s.n - 4 };
@@ -78,6 +85,11 @@ SfBank *sfbank_open(const void *data, size_t size, int max_rate, char *err, size
     memcpy(b->data, data, size); b->size = size; b->max_rate = max_rate;
     const uint32_t body = rd32(b->data + 4);
     if (!walk_chunks(b, b->data + 12, (uint32_t)(body - 4 < size - 12 ? body - 4 : size - 12), top_chunk)) { sfbank_close(b); fail(err, errlen, "a chunk is broken"); return NULL; }
+    if (!b->smpl.p && b->smpz.p) {
+        uint32_t frames = 0;
+        if (!(b->unpacked = unpack_samples(b->smpz, &frames))) { sfbank_close(b); fail(err, errlen, "its packed samples are broken"); return NULL; }
+        b->smpl = (Span){ (const unsigned char *)b->unpacked, frames * 2 };
+    }
     /* every table needs its terminal row, and the zone tables one more than the rows pointing into them */
     if (b->nphdr < 2 || b->npbag < 1 || b->npmod < 1 || b->npgen < 1 || b->ninst < 2 || b->nibag < 1 || b->nimod < 1 || b->nigen < 1 || b->nshdr < 2 || !b->smpl.p) {
         sfbank_close(b); fail(err, errlen, "a table is missing"); return NULL;
@@ -89,7 +101,7 @@ SfBank *sfbank_open(const void *data, size_t size, int max_rate, char *err, size
 void sfbank_close(SfBank *b) {
     if (!b) return;
     if (b->dec) for (uint32_t i = 0; i < b->nshdr; i++) free(b->dec[i].pcm);
-    free(b->dec); free(b->data); free(b->comment); free(b);
+    free(b->dec); free(b->data); free(b->unpacked); free(b->comment); free(b);
 }
 void sfbank_set_comment(SfBank *b, const char *text) { free(b->comment); b->comment = text ? strdup(text) : NULL; }
 
@@ -329,4 +341,161 @@ unsigned char *sfbank_subset(SfBank *b, const int *presets, const unsigned char 
     for (size_t i = 0; i < sizeof all / sizeof all[0]; i++) free(all[i]->p);
     free(insts.to); free(insts.order); free(samples.to); free(samples.order); free(inst_keys);
     return result;
+}
+
+/* ---------------------------------------------------------------- packed samples
+ * A game's instruments are most of its cart (plain 16-bit samples, so the handheld never has to decode Ogg Vorbis), so a cart keeps them
+ * packed without loss, the way FLAC does it: blocks of 4096 frames, each predicted from the frames before it (order 0 to 3: the value,
+ * its step, the change of step...) and the small differences that are left written as Rice codes. That is about 60% of the plain size,
+ * and unpacking is one pass of additions when the bank opens. Stored little-endian in place of smpl, as smpz:
+ *   u32 frames; then per block a byte (order << 5 | k), `order` frames as 16 bits each, and each other frame's difference from the
+ *   prediction, zigzagged to unsigned and Rice coded with k: (u >> k) ones, a zero, then u's low k bits; 24 ones mean u follows in 32
+ *   bits instead (a rare large jump). Blocks start on a byte. */
+enum { PACK_BLOCK = 4096, PACK_ESCAPE = 24 };
+
+static int32_t predict(const int32_t *x, int i, int order) {
+    switch (order) {
+    case 1: return x[i - 1];
+    case 2: return 2 * x[i - 1] - x[i - 2];
+    case 3: return 3 * x[i - 1] - 3 * x[i - 2] + x[i - 3];
+    default: return 0;
+    }
+}
+static uint32_t zigzag(int32_t v) { return v >= 0 ? (uint32_t)v << 1 : ((uint32_t)(-(int64_t)v) << 1) - 1; }
+static int32_t unzigzag(uint32_t u) { return u & 1 ? -(int32_t)(u >> 1) - 1 : (int32_t)(u >> 1); }
+
+typedef struct { Buf *o; uint32_t acc; int n; } BitW;
+static void bits_put(BitW *w, uint32_t v, int n) { /* n <= 24 at a time */
+    w->acc = (w->acc << n) | (v & ((1u << n) - 1)); w->n += n;
+    while (w->n >= 8) { const unsigned char c = (unsigned char)(w->acc >> (w->n - 8)); put(w->o, &c, 1); w->n -= 8; }
+}
+static void bits_flush(BitW *w) { if (w->n) bits_put(w, 0, 8 - w->n); w->acc = 0; }
+static void rice_put(BitW *w, uint32_t u, int k) {
+    const uint32_t q = u >> k;
+    if (q >= PACK_ESCAPE) { for (int i = 0; i < PACK_ESCAPE; i++) bits_put(w, 1, 1); bits_put(w, u >> 16, 16); bits_put(w, u & 0xffff, 16); return; }
+    for (uint32_t i = 0; i < q; i++) bits_put(w, 1, 1);
+    bits_put(w, 0, 1);
+    if (k) bits_put(w, u, k);
+}
+static uint64_t rice_cost(const int32_t *x, int n, int order, int k) {
+    uint64_t bits = 8 + 16 * (uint64_t)order;
+    for (int i = order; i < n; i++) {
+        const uint32_t q = zigzag(x[i] - predict(x, i, order)) >> k;
+        bits += q >= PACK_ESCAPE ? PACK_ESCAPE + 32 : q + 1 + (uint64_t)k;
+    }
+    return bits;
+}
+static void pack_samples(const unsigned char *smpl, uint32_t frames, Buf *o) {
+    put32(o, frames);
+    int32_t x[PACK_BLOCK];
+    for (uint32_t at = 0; at < frames; at += PACK_BLOCK) {
+        const int n = (int)(frames - at < PACK_BLOCK ? frames - at : PACK_BLOCK);
+        for (int i = 0; i < n; i++) x[i] = (int16_t)rd16(smpl + ((size_t)at + (size_t)i) * 2);
+        /* the order and k that write this block in the fewest bits: k near log2 of the mean difference, tried either side */
+        int best_order = 0, best_k = 0; uint64_t best = UINT64_MAX;
+        for (int order = 0; order <= 3 && order < n; order++) {
+            uint64_t sum = 0; for (int i = order; i < n; i++) sum += zigzag(x[i] - predict(x, i, order));
+            const uint64_t mean = sum / (uint64_t)(n - order > 0 ? n - order : 1);
+            int k = 0; while (k < 20 && (2ull << k) <= mean) k++;
+            for (int kk = k > 0 ? k - 1 : 0; kk <= k + 1 && kk <= 20; kk++) {
+                const uint64_t c = rice_cost(x, n, order, kk);
+                if (c < best) { best = c; best_order = order; best_k = kk; }
+            }
+        }
+        BitW w = { o, 0, 0 };
+        bits_put(&w, (uint32_t)(best_order << 5 | best_k), 8);
+        for (int i = 0; i < best_order; i++) bits_put(&w, (uint16_t)x[i], 16);
+        for (int i = best_order; i < n; i++) rice_put(&w, zigzag(x[i] - predict(x, i, best_order)), best_k);
+        bits_flush(&w);
+    }
+}
+
+/* reading bits a word at a time: `cache` holds the next `have` bits at its top; past the end of the data it reads zeros and marks the
+ * read bad once those zeros are used */
+typedef struct { const unsigned char *p; size_t n, at; uint64_t cache; int have; size_t used, total; int bad; } BitR;
+static void bits_fill(BitR *r) {
+    while (r->have <= 56) { r->cache |= (uint64_t)(r->at < r->n ? r->p[r->at] : 0) << (56 - r->have); r->at++; r->have += 8; }
+}
+static uint32_t bits_get(BitR *r, int n) { /* n <= 32 */
+    if (!n) return 0;
+    bits_fill(r);
+    const uint32_t v = (uint32_t)(r->cache >> (64 - n));
+    r->cache <<= n; r->have -= n; r->used += (size_t)n;
+    if (r->used > r->total) r->bad = 1;
+    return v;
+}
+/* ones before the next zero, at most `max` (the zero is used up only when it comes before max) */
+static uint32_t ones_get(BitR *r, uint32_t max) {
+    uint32_t q = 0;
+    for (;;) {
+        bits_fill(r);
+        const uint64_t inv = ~r->cache;
+        const int run = inv ? __builtin_clzll(inv) : 64;
+        const int take = run < r->have ? run : r->have;
+        if (q + (uint32_t)take >= max) { const int t = (int)(max - q); r->cache <<= t; r->have -= t; r->used += (size_t)t; q = max; break; }
+        q += (uint32_t)take; r->cache <<= take; r->have -= take; r->used += (size_t)take;
+        if (take == run) { r->cache <<= 1; r->have -= 1; r->used += 1; break; } /* the zero */
+    }
+    if (r->used > r->total) r->bad = 1;
+    return q;
+}
+static void bits_align(BitR *r) { const int drop = (int)(r->used % 8 ? 8 - r->used % 8 : 0); if (drop) bits_get(r, drop); }
+
+/* smpz back to 16-bit samples (malloc'd), or NULL when it is broken: a cart can come from anywhere, so every read is checked and a
+ * value that leaves 16 bits fails it */
+static short *unpack_samples(Span z, uint32_t *frames) {
+    if (z.n < 4) return NULL;
+    const uint32_t total = rd32(z.p);
+    if (total > z.n * 8u) return NULL; /* every frame takes at least a bit */
+    short *out = malloc(sizeof(short) * (total ? total : 1));
+    if (!out) return NULL;
+    BitR r = { z.p, z.n, 4, 0, 0, 0, (z.n - 4) * 8, 0 };
+    int32_t x[PACK_BLOCK];
+    for (uint32_t at = 0; at < total && !r.bad; at += PACK_BLOCK) {
+        const int n = (int)(total - at < PACK_BLOCK ? total - at : PACK_BLOCK);
+        bits_align(&r);
+        const uint32_t head = bits_get(&r, 8);
+        const int order = (int)(head >> 5), k = (int)(head & 31);
+        if (order > 3 || k > 20) { r.bad = 1; break; }
+        for (int i = 0; i < order && i < n; i++) x[i] = (int16_t)bits_get(&r, 16);
+        for (int i = order; i < n && !r.bad; i++) {
+            const uint32_t q = ones_get(&r, PACK_ESCAPE);
+            const uint32_t u = q == PACK_ESCAPE ? bits_get(&r, 32) : (q << k) | bits_get(&r, k);
+            const int64_t v = (int64_t)predict(x, i, order) + unzigzag(u);
+            if (v < -32768 || v > 32767) { r.bad = 1; break; }
+            x[i] = (int32_t)v;
+        }
+        for (int i = 0; i < n; i++) out[at + (uint32_t)i] = (short)x[i];
+    }
+    if (r.bad) { free(out); return NULL; }
+    *frames = total;
+    return out;
+}
+
+unsigned char *sfbank_pack(const unsigned char *sf2, size_t size, size_t *out_size) {
+    if (size < 12 || memcmp(sf2, "RIFF", 4) || memcmp(sf2 + 8, "sfbk", 4)) return NULL;
+    Buf riff = {0}, out = {0};
+    put(&riff, "sfbk", 4);
+    int packed = 0;
+    for (size_t p = 12; p + 8 <= size;) {
+        const uint32_t len = rd32(sf2 + p + 4);
+        if (len > size - p - 8) break;
+        const unsigned char *body = sf2 + p + 8;
+        if (!memcmp(sf2 + p, "LIST", 4) && len >= 4 && !memcmp(body, "sdta", 4)) {
+            Buf sdta = {0}; put(&sdta, "sdta", 4);
+            for (uint32_t q = 4; q + 8 <= len;) {
+                const uint32_t l = rd32(body + q + 4);
+                if (l > len - q - 8) break;
+                if (!memcmp(body + q, "smpl", 4)) { Buf z = {0}; pack_samples(body + q + 8, l / 2, &z); put_chunk(&sdta, "smpz", &z); free(z.p); packed = 1; }
+                else { Buf c = { (unsigned char *)(body + q + 8), l, l, 0 }; char id[5]; memcpy(id, body + q, 4); id[4] = 0; put_chunk(&sdta, id, &c); }
+                q += 8 + l + (l & 1);
+            }
+            put_chunk(&riff, "LIST", &sdta); free(sdta.p);
+        } else { put(&riff, sf2 + p, 8 + len); if (len & 1) put(&riff, NULL, 1); }
+        p += 8 + len + (len & 1);
+    }
+    put_chunk(&out, "RIFF", &riff); free(riff.p);
+    if (!packed || out.bad || riff.bad) { free(out.p); return NULL; }
+    *out_size = out.n;
+    return out.p;
 }

@@ -178,10 +178,14 @@ static int pack(const char *dir, const char *outpath) {
     fwrite("GSC1", 1, 4, out); fwrite(&zero, 4, 1, out);
     collect(dir, "", out, &count, 4);
     if (sf2) {
-        const char *name = "soundfont.sf2"; Uint16 nl = (Uint16)strlen(name); Uint32 s32 = (Uint32)sf2_size;
-        fwrite(&nl, 2, 1, out); fwrite(name, 1, nl, out); fwrite(&s32, 4, 1, out); fwrite(sf2, 1, sf2_size, out);
-        count++; free(sf2);
-        printf("General MIDI instruments: %zu KB\n", sf2_size / 1024);
+        /* its samples packed without loss: they are most of a game's size (sfbank_pack; the bank unpacks them when it opens) */
+        size_t packed_size = 0; unsigned char *packed = sfbank_pack(sf2, sf2_size, &packed_size);
+        const unsigned char *keep = packed ? packed : sf2; const size_t keep_size = packed ? packed_size : sf2_size;
+        const char *name = "soundfont.sf2"; Uint16 nl = (Uint16)strlen(name); Uint32 s32 = (Uint32)keep_size;
+        fwrite(&nl, 2, 1, out); fwrite(name, 1, nl, out); fwrite(&s32, 4, 1, out); fwrite(keep, 1, keep_size, out);
+        count++;
+        printf("General MIDI instruments: %zu KB\n", keep_size / 1024);
+        free(sf2); free(packed);
     }
     fseek(out, 4, SEEK_SET); fwrite(&count, 4, 1, out); fclose(out);
     printf("packed %u files -> %s\n", count, outpath); return 0;
@@ -2477,10 +2481,11 @@ int main(int argc, char **argv) {
     if (argc == 3 && !strcmp(argv[1], "boost-selftest")) return boost_selftest(argv[2]);
     if (argc == 4 && !strcmp(argv[1], "render-audio")) return render_audio(argv[2], argv[3]);
     if (argc >= 3 && !strcmp(argv[1], "soundfont")) return soundfont_cli(argc, argv);
-    if (argc == 3 && !strcmp(argv[1], "soundfont-size")) { /* the bytes of General MIDI bank gs pack would put in this game's cart (the studio's Handheld tab) */
+    if (argc == 3 && !strcmp(argv[1], "soundfont-size")) { /* the bytes of General MIDI bank gs pack would put in this game's cart, packed (the studio's Handheld tab) */
         unsigned char *sf2 = NULL; size_t n = 0;
         if (pack_soundfont(argv[2], &sf2, &n)) return 1;
-        free(sf2); printf("%zu\n", n); return 0;
+        size_t packed_n = 0; unsigned char *packed = sf2 ? sfbank_pack(sf2, n, &packed_n) : NULL;
+        free(sf2); free(packed); printf("%zu\n", packed ? packed_n : n); return 0;
     }
     if (argc == 4 && !strcmp(argv[1], "pack")) return pack(argv[2], argv[3]);
     if (argc != 2) { fprintf(stderr, "usage: gs <cart|dir>\n       gs pack <dir> <out.g43>\n"); return 2; }

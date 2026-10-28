@@ -85,6 +85,22 @@ console_ext() {
 ./scripts/build.sh >/dev/null 2>&1 || { echo "the desktop build failed: run scripts/build.sh to see why" >&2; exit 1; }
 ./scripts/build-aarch64.sh >/dev/null 2>&1 || { echo "the handheld build failed: run scripts/build-aarch64.sh to see why" >&2; exit 1; }
 ./build/gs pack "$SRC" "$HOSTCART"
+# A game over its console's size budget (budgets.cart_kb, 16 MB for Glow43) still goes over, since the handheld has the room, but says so:
+# the budget is what the console promises, and the studio's Handheld tab shows the same number.
+CON_ID="$(console_info "$SRC" | cut -d'|' -f1)"
+if [ -n "$CON_ID" ]; then
+  node -e '
+    const fs = require("fs"), path = require("path");
+    const [dir, id, bytes] = process.argv.slice(1);
+    for (const f of [path.join(dir, "consoles", id + ".json"), path.join("engine/consoles", id + ".json")]) {
+      try {
+        const kb = (JSON.parse(fs.readFileSync(f, "utf8")).budgets || {}).cart_kb;
+        if (kb && +bytes > kb * 1024) console.error(`warning: the game is ${(bytes / 1048576).toFixed(1)} MB, over the ${(kb / 1024).toFixed(1)} MB budget of its console (most of it is usually General MIDI instruments)`);
+        break;
+      } catch {}
+    }
+  ' "$SRC" "$CON_ID" "$(wc -c < "$HOSTCART" | tr -d ' ')"
+fi
 T="$DEVICE_USER@$DEVICE_HOST"
 # GameStudio's own key (scripts/setup-key.sh puts it on the handheld) logs in without a password; the first ssh then opens the shared
 # connection by itself and the copies after it reuse it. A shared connection someone opened by hand works too.

@@ -97,9 +97,14 @@ if [ -x build/retro-run ] && [ -n "$core" ]; then
   pk="$(./build/gs pack carts/breakout "$tmp/breakout.g43")"
   kb="$(echo "$pk" | sed -n 's/^General MIDI instruments: \([0-9]*\) KB$/\1/p')"
   { [ -n "$kb" ] && [ "$kb" -gt 20 ] && [ "$kb" -lt 1024 ]; } || { echo "$pk"; echo "FAIL: Breakout's cart should carry a small General MIDI bank"; status=1; }
-  a="$(./build/retro-run "$core" carts/breakout 300 2>&1 | grep -o 'peak=[0-9]*')"
-  b="$(GS_SOUNDFONT=/nonexistent ./build/retro-run "$core" "$tmp/breakout.g43" 300 2>&1 | grep -o 'peak=[0-9]*')"
-  { [ -n "$a" ] && [ "$a" = "$b" ] && [ "$a" != "peak=0" ]; } || { echo "folder $a, cart $b"; echo "FAIL: the packed cart's General MIDI instruments do not sound like the folder's"; status=1; }
+  # The cart keeps the samples packed without loss (sfbank_pack), so its sound is the folder's to the last bit.
+  a="$(RETRO_WAV="$tmp/folder.wav" ./build/retro-run "$core" carts/breakout 300 2>&1 | grep -o 'peak=[0-9]*')"
+  b="$(GS_SOUNDFONT=/nonexistent RETRO_WAV="$tmp/cart.wav" ./build/retro-run "$core" "$tmp/breakout.g43" 300 2>&1 | grep -o 'peak=[0-9]*')"
+  { [ -n "$a" ] && [ "$a" != "peak=0" ] && cmp -s "$tmp/folder.wav" "$tmp/cart.wav"; } || { echo "folder $a, cart $b"; echo "FAIL: the packed cart's General MIDI instruments do not sound exactly like the folder's"; status=1; }
+  # A cart whose packed samples are damaged says so instead of crashing or playing noise.
+  node -e 'const fs = require("fs"); const b = fs.readFileSync(process.argv[1]); const i = b.indexOf("smpz"); for (let k = i + 20; k < i + 400; k++) b[k] ^= 0x5a; fs.writeFileSync(process.argv[2], b)' "$tmp/breakout.g43" "$tmp/broken.g43"
+  out="$(GS_SOUNDFONT=/nonexistent ./build/retro-run "$core" "$tmp/broken.g43" 60 2>&1)"
+  { echo "$out" | grep -q 'packed samples are broken' && echo "$out" | grep -q 'RETRO frames=60 '; } || { echo "$out" | tail -5; echo "FAIL: a cart with damaged packed samples should say so and keep running"; status=1; }
   [ -n "$(ls "$tmp/saves/breakout" 2>/dev/null)" ] || { echo "FAIL: the core saved nothing in the emulator's save folder"; status=1; }
   # Save states: a state saved at frame 200 and loaded later in the same run, and one loaded by a new run (NextUI's Resume: pictures, sounds
   # and instruments made again, pointers into the core moved), both replay the same buttons to the very frame the first pass drew.

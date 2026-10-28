@@ -28,6 +28,9 @@ int sfbank_has(const SfBank *b, int preset);
 unsigned char *sfbank_subset(SfBank *b, const int *presets, const unsigned char (*keys)[16], int n, size_t *out_size);
 /* The comment (ICMT) every subset carries in place of the source's own: the licence its samples come under, for one. NULL: the source's. */
 void sfbank_set_comment(SfBank *b, const char *text);
+/* The same SoundFont with its samples packed without loss (an "smpz" chunk in place of "smpl", about 60% of the size), for a cart;
+ * sfbank_open reads it back exactly. malloc'd; NULL when sf2 is not a SoundFont with samples. */
+unsigned char *sfbank_pack(const unsigned char *sf2, size_t size, size_t *out_size);
 /* How many presets the bank has, and the i-th one's SFBANK_PRESET number (for tools that list them). */
 int sfbank_count(const SfBank *b);
 int sfbank_preset_at(const SfBank *b, int i);
