@@ -82,6 +82,76 @@ with reverb 2.6 ms a frame, 8 chip tracks 1.7.
   update shorter by about the same share as the Brick's, so it should still hold; refit with the Brick.
 - [ ] Re-run `tests/survivors` on the Brick when it is on the network (CPU at full speed, `GS_PERF=1`), and check the studio's estimate.
 
+## Found by the four GlowGames (2026-10-28)
+
+Four games were built in `~/Developer/GlowGames` to test the engine: `chess` (Pocket Chess), `quest` (Lampwick, a text RPG), `party`
+(Lantern Isles, a party board game) and `platformer` (Lantern Leap). Each agent reported what it ran into; this is the whole list.
+Items several games hit (and solved for themselves, each its own way) are marked (xN).
+
+Done (2026-10-28, not yet committed)
+- [x] `gs.volume(music, sfx)` for settings menus (x4: every game could only turn music on and off).
+- [x] `gs.now()`: game time that follows steps, `gs.time_scale`, fast-forward and the studio's Pause; `gs.time()` (the computer's clock)
+  documented as such (x4: menus timed with it dropped bot presses under fast-forward).
+- [x] Saves are written at the end of the frame, not mid-step (0.4 ms on the Mac, about 4 ms estimated on the Brick); `gs.save.delete`
+  (x2); `gs.quit()` writes pending saves and flushes printed output (a bot's prints were lost).
+- [x] `gs.background(color)` from code (x2).
+- [x] A Lua error stops the game on the error screen even without `GS_DEV` (it went on stepping half-finished, 6000+ errors).
+- [x] `GS_FIXED_STEP=1`: one step a frame, no waiting, so headless runs repeat exactly and `GS_MAX_FRAMES` is step N (x3); the MCP `run`
+  tool uses it and passes a game's own `GS_*` switches (`env`); the false "runs at 51-52 frames a second" warning on light headless runs
+  is gone (x4).
+- [x] `GS_DUMP_FRAME` writes a plain 24-bit BMP that macOS can open (x3).
+- [x] Curly quotes, dashes and Latin-1 accents draw as their ASCII look-alikes, in the runtime and the studio's text measure.
+- [x] Camera `smooth` documented the right way round (bigger is quicker); scene hook names (`enter`, `leave`, ...) documented as reserved.
+- [x] The Mac runtime runs at interactive QoS (the same Lua timed up to 3x apart, which made the Brick estimate noisy).
+- [x] MCP: `song_write` fills in defaults for everything but the key (x3); `sprite_write` no longer cycles the frames of a sheet unless
+  asked (`fps`).
+- [x] Checker: no "no file called" for names joined with `..` (x2), no "new table every step" inside `if <button press> then`.
+- [x] The GBA output stage: 10-bit steps with dither instead of 8-bit (quiet music crackled; heard in chess).
+
+Done the same day, after the four games (not yet committed)
+- [x] Tile collisions: a layer's `solid` now means something. `self:slide(dx, dy)` moves a hitbox through the solid layers and stops at
+  their tiles (every cell on the way is checked, so nothing tunnels); a tileset's `kinds` name tiles `oneway` (landed on from above,
+  `self.drop_through` falls through) or anything else the game asks about (`self:touching_tile("spike", inset)`, `gs.tile_kind`). The
+  tileset editor has a Kind tool and the layout editor a Solid switch. No slopes (a game that wants them reads the tiles).
+- [x] `gs.ui.menu`: disabled rows (skipped, dim), left/right values with `on_change`, `hint`s, held up/down repeats, B returns
+  `"back"`, Start no longer picks (`opts.start = true` for the old way), `opts.width` right-aligns values.
+- [x] `gs.say` / `gs.ask`: holding A or B types four times as fast, `gs.ui.style.text_speed` and `on_letter` (a blip), `{ auto = s }`
+  goes on by itself (CPU turns), answers can be `{ "SELL", enabled = false }`, `{ back = n }` lets B answer.
+- [x] `gs.draw.panel` is a GBA window: rounded light border, an inner line, a dark blue fill (`inner = false` for none).
+- [x] `gs.draw.bake(name, w, h, fn)` draws once into a picture (a render target read back into an ordinary picture, so save states
+  rebuild it from its pixels) and `gs.draw.picture` shows it. The same on the program, in the core and after a resume (tests/bake).
+  Also found: circles were drawn with thin lines that the window and software renderers rasterised differently (a one-pixel nub at
+  top and bottom on one only); now whole-pixel rows, the same everywhere.
+- [x] Drawing without garbage: `gs.draw.text`'s options can be just a font's name; the engine's own menu and layout text no longer make
+  an options table per call; the checker's hint says to make options once at the top of the file.
+- [x] Rooms up to 4096x1024 on Glow43 and Glow169 (a 4096x1024 room with four full layers: 5.6 ms a frame, 345 ms to build, 29 MB more
+  memory on the RG35XX Pro's GPU path).
+- [x] `gs.scene_name()`; scenes have `self:after` / `every` / `go` / `tween`; `gs.remove_layer`, `gs.set_tileset`; an entity's own
+  hitbox (`self:set_hitbox`, or `hitbox` given to `gs.spawn`); the update order documented (Entity:update, the platformer help).
+- [x] Tracebacks name a shared method after the class that defines it ("Entity:play", not "entities.stagectl.play"); an error inside a
+  `gs.go` script shows where in the script.
+- [x] Layout preview and `room_view`: a layer's x/y and wrap; kinds made with `gs.entity(Base, { ... })` show their (or their parent's)
+  sprite; `room_view` found no sprite for kinds in folders (`enemies.beetle`).
+- [x] Test bots: `bot_load("other.lua")` beside the bot, `GS_START_SCENE`, `GS_DUMP_EVERY=n` (every nth frame, not only the last),
+  keys-bot holds several buttons (`right+a*20`) and has `quit`; the MCP `run` tool takes `scene`, `bot_lua` and `shots`. Also fixed:
+  the run tool's `env` schema broke the whole MCP tool list under zod 4.
+- [x] `song_write` says why when `inst` is not 4 or 8; a mode is saved as the major key with the same notes (D phrygian as Bb major).
+- [x] Checker: Tidy put `end },` and a `for ... do` split over lines at the wrong indent (the "indentation is off" the games saw); no
+  "new table every step" for tables handed to one-off calls (burst, goto_scene, spawn, tween, save, ...); a hint for letters the fonts
+  cannot draw (an ellipsis).
+- [x] Docs: sound effect pitch numbers (0 = C1, 48 = C5), what a pause and gs.say stop, the camera following any table with x and y.
+
+Still open
+- [ ] Check `gs.draw.bake` on the handheld's GPU (EGL): the build is ready, the Anbernic went to sleep before the run. Compare
+  tests/bake with and without GS_BAKE_PLAIN in retro-run on the device.
+- [ ] The Brick estimate leaves out the Lua of drawing (a text-and-rectangle UI spends its Lua time there): refit with the Brick.
+- [ ] Slopes, if a game wants them in the engine rather than its own code.
+
+The games themselves
+- [ ] Lantern Leap's final boss (the Gloom Regent) was never beaten by the autopilot, even made easier: play it by hand.
+- [ ] The four games still carry their own menus, physics and window frames from before the engine had them: moving them to
+  `gs.ui.menu`, `Entity:slide` and `gs.draw.panel` where it fits would test the new parts in real games.
+
 ## Studio and engine (no device needed)
 
 - [x] FluidR3 Mono GM (MIT) replaced TimGM6mb (GPL-2), 2026-10-27, cut down per game (`runtime/sfbank.c`, `runtime/AGENTS.md`):
@@ -91,6 +161,15 @@ with reverb 2.6 ms a frame, 8 chip tracks 1.7.
   turned down to match (`engine/instruments.json` volume).
   The Handheld tab's game size counts the bank (`gs soundfont-size`). On the RG35XX Pro a cart with the 6.1 MB bank starts in 846 ms
   cold / 549 warm, Breakout's (230 KB) in 701 / 283: the bank adds about 0.15-0.27 s.
+
+- [x] On the Anbernic (Knulli's RetroArch), 2026-10-28: Glow43 showed in the top-left corner (RetroArch's integer scaling used Knulli's
+  custom viewport at 0,0; `push.sh` now writes a centred viewport at the largest whole scale, 512x384 on 640x480) and quiet music
+  crackled (the GBA output stage rounded to 8 bits without dither: 15 levels under an eighth of full scale; now 10-bit steps with
+  dither, 63 levels; the core's own sound had no clicks, checked with `RETRO_WAV` in tests/retro-run). The crackle stayed: the panel
+  runs at 59.033 Hz (fbset) and RetroArch, not told, ran the game 1.6% slow against a speaker it took for 60 Hz, past its 0.5%
+  correction; `push.sh` now writes the measured video_refresh_rate. Both confirmed on the device.
+- [ ] Chess (`~/Developer/GlowGames/chess`) two-device mode once `gs.net` exists (docs/netplay-design.md, still unbuilt): decided
+  2026-10-27 to ship single player, learn mode and settings first.
 
 - [ ] Our own General MIDI bank, generated with ChucK (MIT/GPL, Stanford CCRMA; a tool on the Mac only, never on the handheld): ChucK
   scripts in `tools/soundbank/` render each instrument at a few pitches (its Synthesis ToolKit has plucked strings, mallets, flutes,

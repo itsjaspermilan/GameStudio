@@ -74,7 +74,9 @@ return Main</code></pre>
 <h2>Tips</h2>
 <ul>
 <li>Use <code>dt</code> in <code>update</code> for steady movement; use timers for events. Both are measured in real seconds, however fast the machine is.</li>
-<li>A timer made by an entity is cleaned up when it is destroyed. A <code>gs.after</code> made in a scene lasts until the scene changes.</li>
+<li>A timer made by an entity is cleaned up when it is destroyed. A <code>gs.after</code> (or <code>self:after</code> in a scene) lasts until the scene changes.</li>
+<li>Timers and scripts run in game time: <code>gs.pause()</code> stops them, and so does a <code>gs.say</code> box (only the script that is talking goes on). A
+countdown that must keep going under a pause menu belongs in the scene's <code>update</code>, which still runs.</li>
 <li>Tweening <code>x</code> or <code>y</code> while the entity also has a <code>vx</code> makes them fight. Pick one.</li>
 <li>For a repeating enemy pattern a coroutine in a loop (<code>while true do ... gs.wait(1) end</code>) is often clearer than a state machine.</li>
 </ul>

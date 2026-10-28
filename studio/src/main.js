@@ -31,7 +31,7 @@ import { budgetRows, consoleSummary, parseStatsLine, soundTables } from "./budge
 import { GENRES, BOX_ART_PATH, normalizeInfo, defaultTitle, charsLeft, isPng, pngSize, boxArtScale, PICTURES, decodeBmp } from "./info-core.js";
 import { createSprite, createTileset, normalizeAnimations, toJSON, tilesetToJSON, offPaletteCount, usedColors, SIZE_GUIDE } from "./sprite-core.js";
 import { FIRST_STEPS, parseSteps, stringifySteps, showSteps } from "./steps-core.js";
-import { parseRoom, serializeRoom, lookDefaults, buttonPixels } from "./room-core.js";
+import { parseRoom, serializeRoom, lookDefaults, buttonPixels, entityFile, spriteOfEntity } from "./room-core.js";
 import { findInFiles, replaceInText, outline, tidyLua, applyEdits } from "./search-core.js";
 import { SPEEDS, parseInspectLine, commandText, classRows, fmtMs } from "./inspector-core.js";
 import { createRoomEditor, PLACE } from "./room-editor.js";
@@ -938,10 +938,15 @@ async function loadRoomTileset(name) {
   const tw = meta.tile_w || 16, th = meta.tile_h || 16, cols = Math.max(1, Math.floor(img.width / tw));
   return { img, tw, th, cols, count: cols * Math.max(1, Math.floor(img.height / th)) };
 }
-// What an entity looks like in the room: the first frame of the sprite its file names (sprite = "..."), or nothing.
+// What an entity looks like in the room: the first frame of the sprite its file names (sprite = "..."), or the kind it builds on names
+// (gs.entity(Base, { ... })), or nothing.
 async function entityLook(name) {
-  const text = await invoke("read_file", { cart: state.cart, rel: `entities/${name.replace(/\./g, "/")}.lua` });
-  const m = text.match(/\bsprite\s*=\s*["']([\w\/-]+)["']/), look = m ? await spriteLook(m[1]) : null;
+  const text = await invoke("read_file", { cart: state.cart, rel: entityFile(name) });
+  let r = spriteOfEntity(text);
+  for (let depth = 0; depth < 5 && !r.sprite && r.parent && /^entities\./.test(r.parent); depth++) {
+    try { r = spriteOfEntity(await invoke("read_file", { cart: state.cart, rel: entityFile(r.parent) })); } catch { r = {}; }
+  }
+  const look = r.sprite ? await spriteLook(r.sprite) : null;
   return look && { ...look, defaults: lookDefaults(text) };
 }
 // A sprite's frames as the layout editor draws them (a picture in a layout, or what an entity looks like).
@@ -1314,7 +1319,8 @@ async function openTileset(name) {
     const meta = await readJson(`tilesets/${name}.json`);
     const b64 = await invoke("read_binary", { cart: state.cart, rel: meta.image || `tilesets/${name}.png` });
     const img = await decodeSpritePng(b64, 1);
-    tilesetEditor.load({ name, w: img.w, h: img.h, frames: img.frames, origin: [0, 0], mask: null, fps: 0, tile: [meta.tile_w || 16, meta.tile_h || 16], ...(Array.isArray(meta.banks) ? { banks: meta.banks } : {}) });
+    tilesetEditor.load({ name, w: img.w, h: img.h, frames: img.frames, origin: [0, 0], mask: null, fps: 0, tile: [meta.tile_w || 16, meta.tile_h || 16], ...(Array.isArray(meta.banks) ? { banks: meta.banks } : {}),
+      ...(meta.kinds && typeof meta.kinds === "object" ? { kinds: meta.kinds } : {}) });
     state.name = name;
     showView("tileset");
   } catch (e) { fail(e); }

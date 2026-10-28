@@ -115,6 +115,7 @@ export function createRoomEditor(root, hooks = {}) {
           <label>Look <select class="re-blend"><option value="">normal</option><option value="add">glow (add)</option><option value="darken">shadow (darken)</option></select></label>
           <label>Strength <input type="range" class="re-alpha" min="0" max="100" step="5"> <span class="re-alpha-val"></span></label>
         </div>
+        <label class="re-solid-row" title="Ground and walls: entities that move with self:slide stop against this layer's tiles. Which tiles are platforms you jump up through (oneway) or spikes is set in the tileset, with its Kind tool."><input type="checkbox" class="re-solid"> Solid (ground and walls)</label>
         <div class="re-tilepal"><canvas class="re-tilecanvas"></canvas></div>
         <p class="se-hint re-tilehint"></p>
       </div>
@@ -305,12 +306,14 @@ export function createRoomEditor(root, hooks = {}) {
       const l = room.layers[i], t = ts(l);
       if (!t || l.visible === false) continue;
       looks_(l, tool === "tiles" && i !== layerIx ? 0.45 : 1);
-      // a repeating layer is drawn as often as it takes to fill the layout, as the game shows it
-      const pw = (l.data[0] || []).length * t.tw, ph = l.data.length * t.th;
-      const nx = l.wrap_x && pw ? Math.ceil(room.width / pw) : 1, ny = l.wrap_y && ph ? Math.ceil(room.height / ph) : 1;
-      for (let ky = 0; ky < ny; ky++) for (let kx = 0; kx < nx; kx++) l.data.forEach((row, r) => row.forEach((v, c) => {
+      // a repeating layer is drawn as often as it takes to fill the layout, as the game shows it, from where its x, y put it (as the
+      // camera at the top-left sees it: a layer that scrolls slower, a sky, then moves less than the rest as the camera goes right)
+      const pw = (l.data[0] || []).length * t.tw, ph = l.data.length * t.th, lx = Number(l.x) || 0, ly = Number(l.y) || 0;
+      const kx0 = l.wrap_x && pw ? Math.floor(-lx / pw) : 0, kx1 = l.wrap_x && pw ? Math.ceil((room.width - lx) / pw) : 1;
+      const ky0 = l.wrap_y && ph ? Math.floor(-ly / ph) : 0, ky1 = l.wrap_y && ph ? Math.ceil((room.height - ly) / ph) : 1;
+      for (let ky = ky0; ky < ky1; ky++) for (let kx = kx0; kx < kx1; kx++) l.data.forEach((row, r) => row.forEach((v, c) => {
         if (v < 0 || v >= t.count) return;
-        ctx.drawImage(t.img, (v % t.cols) * t.tw, Math.floor(v / t.cols) * t.th, t.tw, t.th, (kx * pw + c * t.tw) * zoom, (ky * ph + r * t.th) * zoom, t.tw * zoom, t.th * zoom);
+        ctx.drawImage(t.img, (v % t.cols) * t.tw, Math.floor(v / t.cols) * t.th, t.tw, t.th, (lx + kx * pw + c * t.tw) * zoom, (ly + ky * ph + r * t.th) * zoom, t.tw * zoom, t.th * zoom);
       }));
     }
     plain();
@@ -430,7 +433,8 @@ export function createRoomEditor(root, hooks = {}) {
     if (tool === "panels") drawBlockPicker();
     renderOutline();
     $(".re-look-layer").hidden = !layer();
-    if (layer()) showLook($(".re-look-layer"), layer());
+    $(".re-solid-row").hidden = !layer();
+    if (layer()) { showLook($(".re-look-layer"), layer()); $(".re-solid").checked = !!layer().solid; }
     $(".re-layerhint").textContent = room.layers.length ? `Painting on ${layer() ? layer().name || "layer " + (layerIx + 1) : "no layer"} (pick another in the list above).` : "No tile layers yet: pick a tileset and add one.";
     const tsSel = $(".re-newlayer-ts"), names = hooks.getTilesets ? hooks.getTilesets() : [];
     if (tsSel.options.length !== names.length) tsSel.replaceChildren(...names.map((n) => new Option(n, n)));
@@ -600,6 +604,8 @@ export function createRoomEditor(root, hooks = {}) {
     if (blend) item.blend = blend; else delete item.blend;
     if (alpha < 1) item.alpha = alpha; else delete item.alpha;
   }
+  // written only when on, so layouts stay short
+  $(".re-solid").onchange = (e) => { const l = layer(); if (l) commit(() => { if (e.target.checked) l.solid = true; else delete l.solid; }); };
   for (const [row, target] of [[".re-look-item", () => selected()], [".re-look-layer", () => layer()]]) {
     const el = $(row), get = () => [el.querySelector(".re-blend").value, Number(el.querySelector(".re-alpha").value) / 100];
     el.querySelector(".re-blend").onchange = () => { const t = target(); if (t) commit(() => setLook(t, ...get())); };
@@ -741,7 +747,7 @@ export function createRoomEditor(root, hooks = {}) {
   function paintAt(x, y, erase, fill) {
     const l = layer(), t = ts(l);
     if (!l || !t) return;
-    const c = Math.floor(x / t.tw), r = Math.floor(y / t.th);
+    const c = Math.floor((x - (Number(l.x) || 0)) / t.tw), r = Math.floor((y - (Number(l.y) || 0)) / t.th);
     if (!l.data[r] || l.data[r][c] === undefined) return;
     const v = erase ? -1 : tile;
     if (fill) R.fillLayer(l, c, r, v);

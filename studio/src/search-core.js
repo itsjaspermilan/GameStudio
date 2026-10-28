@@ -132,19 +132,23 @@ export function reindent(text, unit = "  ") {
     else if (!line) out.push("");
     else {
       // closers (and else / elseif) at the start of a line come back before the line itself
-      // a line that starts by closing blocks goes back to where the line that opened the last of them was
+      // a line that starts by closing blocks goes back to where the line that opened the first of them was: `end },` lines up with
+      // the `desc = function()` it ends, not with the table the function sat in
       let rest = r.code.trim(), m, back = null, k = stack.length;
-      while (k > 0 && (m = rest.match(/^(?:(?:end|until|else|elseif)\b|[}\)\]])\s*/))) { back = stack[--k]; rest = rest.slice(m[0].length); }
+      while (k > 0 && (m = rest.match(/^(?:(?:end|until|else|elseif)\b|[}\)\]])\s*/))) { const e = stack[--k]; back ||= e; rest = rest.slice(m[0].length); }
       // a statement that goes on from the line before (it ended with an operator, a comma or `=`) keeps one extra level
       indent = back ? back.at : levels(stack) + (continued ? 1 : 0);
       out.push(unit.repeat(indent) + line);
     }
     let skipThen = false;
+    // A block opened on a line that finishes brackets from earlier lines (`  "y" }) do` after `for _, f in ipairs({ "x",`) belongs to
+    // the statement those brackets started: its `end` goes back to that statement's indent, not to this continuation line's.
+    let at = indent;
     for (const t of toks) {
       if (t === "elseif" || t === "else") { const e = stack.pop(); stack.push(e || { level: true, line: ln, at: indent }); skipThen = t === "elseif"; continue; }
       if (t === "then" && skipThen) { skipThen = false; continue; }
-      if (OPENS.has(t)) stack.push({ level: !stack.some((e) => e.line === ln && e.level), line: ln, bracket: "{([".includes(t), at: indent });
-      else if (CLOSES.has(t)) stack.pop();
+      if (OPENS.has(t)) stack.push({ level: !stack.some((e) => e.line === ln && e.level), line: ln, bracket: "{([".includes(t), at });
+      else if (CLOSES.has(t)) { const e = stack.pop(); if (e && e.line < ln && e.at < at) at = e.at; }
     }
     const code = r.code.trim();
     const top = stack[stack.length - 1];

@@ -199,6 +199,13 @@ function M.music(name)
   if m.song then gs.song_play(m.handle) else gs.music_play(m.handle) end
 end
 function M.music_stop(fade_seconds) gs.music_stop(math.floor((fade_seconds or 0) * 1000)) end
+-- the player's volume settings, 0 to 1 each (nil keeps one as it is)
+local music_vol, sfx_vol = 1, 1
+function M.volume(music, sfx)
+  music_vol, sfx_vol = music or music_vol, sfx or sfx_vol
+  gs.volume(music_vol, sfx_vol)
+  return music_vol, sfx_vol
+end
 function M.has_sfx(name) return sfx_handles[name] ~= nil end
 function M.has_music(name) return music_handles[name] ~= nil end
 

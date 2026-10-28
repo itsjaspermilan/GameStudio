@@ -300,6 +300,109 @@ function Tests:enter()
     check("menu:close() rolls it away", m.closed and m:update() == nil)
     check("wrapping by width", #gs.draw.wrap("one two three four five six", 40) >= 3)
 
+    -- ---- richer menus: disabled rows are skipped, values change with left / right, B goes back, Start does not pick
+    gs.ui.style.open_time = 0
+    local changed
+    local rich = gs.ui.menu({ "PLAY", { "CONTINUE", enabled = false, hint = "no save" }, { "MUSIC", values = { "OFF", "ON" }, value = 2,
+      on_change = function(_, v) changed = v end } })
+    local function press(name) gs.input.sim_press(name); local r = rich:update(); gs.input.end_step(); return r end
+    check("down skips a disabled row", press("down") == nil and rich.cur == 3, rich.cur)
+    check("left changes a value", press("left") == nil and rich:value() == "OFF" and changed == "OFF", rich:value())
+    check("values go round", press("left") == nil and rich:value() == "ON")
+    check("Start does not pick", press("start") == nil)
+    check("A picks", press("a") == 3)
+    check("B goes back", press("b") == "back")
+    check("up skips back over a disabled row", press("up") == nil and rich.cur == 1 and rich:hint() == nil)
+    rich:draw(0, 0)
+    check("a menu whose first row is disabled starts on the next", gs.ui.menu({ { "X", enabled = false }, "Y" }).cur == 2)
+    gs.input.end_step()
+    gs.ui.style.open_time = 0.12
+
+    -- ---- tile collisions: a solid layer stops a body; oneway platforms only from above; kinds can be asked about
+    -- 0 and 3 are solid, 1 oneway, 2 spike (tilesets/ts_ground.json). Columns and rows are 16 pixels.
+    local ground = gs.add_layer({ name = "ground", tileset = "ts_ground", solid = true, data = {
+      {  0, -1, -1, -1, -1, -1 },
+      { -1, -1,  1, -1, -1,  0 },
+      { -1, -1, -1, -1, -1,  0 },
+      {  0,  0,  0,  2,  0,  0 },
+    } })
+    local body = gs.spawn("body", 8, 40)
+    local hx, hy = body:slide(0, 100)
+    check("falling stops on the ground", hy == 1 and body.y == 48 and hx == 0, body.y)
+    hx, hy = body:slide(0, 5)
+    check("standing still on the ground", hy == 1 and body.y == 48)
+    hx = body:slide(200, 0)
+    check("a wall stops a body going right", hx == 1 and body.x == 76, body.x)
+    hx = body:slide(-300, 0)
+    check("going left stops at nothing on an open side", hx == 0 and body.x == -224, body.x)
+    body.x, body.y = 40, 15
+    hx, hy = body:slide(0, 30)
+    check("a oneway platform stops a body from above", hy == 1 and body.y == 16, body.y)
+    body.drop_through = true
+    hx, hy = body:slide(0, 4)
+    check("drop_through falls through a oneway platform", hy == 0 and body.y == 20, body.y)
+    body.drop_through = nil
+    body.x, body.y = 40, 40
+    hx, hy = body:slide(0, -30)
+    check("a oneway platform does not stop a body from below", hy == 0 and body.y == 10, body.y)
+    body.x, body.y = 8, 40
+    hx, hy = body:slide(0, -40)
+    check("a ceiling stops a body going up", hy == -1 and body.y == 24, body.y)
+    body.x, body.y = 40, 47
+    hx = body:slide(40, 0)
+    check("a body moved a long way in one step does not pass through a wall", hx == 1 and body.x == 76, body.x)
+    body.x, body.y = 56, 48
+    check("touching_tile finds a spike under the hitbox", body:touching_tile("spike") == nil)
+    body.y = 52
+    local sx, sy = body:touching_tile("spike")
+    check("touching_tile gives the tile's corner", sx == 48 and sy == 48, tostring(sx) .. "," .. tostring(sy))
+    check("an inset forgives grazing", body:touching_tile("spike", 5) == nil)
+    check("tile kinds", gs.tile_kind(nil, 40, 20) == "oneway" and gs.tile_kind("ground", 52, 52) == "spike" and gs.tile_kind(nil, 4, 52) == "solid"
+      and gs.tile_kind(nil, 20, 4) == nil)
+    body.x, body.y = 8, 30
+    ground.solid = false
+    hx, hy = body:slide(0, 100)
+    check("a layer that is not solid stops nothing", hy == 0 and body.y == 130)
+    body:destroy()
+    gs.set_tileset("ground", "ts_bg")
+    check("set_tileset changes the kinds", gs.tile_kind("ground", 40, 20) == "solid")
+    check("remove_layer", gs.remove_layer("ground") and gs.layer("ground") == nil and not gs.remove_layer(ground))
+
+    -- ---- one entity's own hitbox
+    local hb = gs.spawn("dummy", 100, 100, { hitbox = { 0, 0, 2, 2 } })
+    local x0, y0, x1 = hb:bounds()
+    check("a hitbox given to spawn", x0 == 100 and x1 == 102, x0)
+    hb:set_hitbox(-10, -10, 20, 20)
+    x0 = hb:bounds()
+    check("set_hitbox", x0 == 90, x0)
+    hb:set_hitbox(nil)
+    x0 = hb:bounds()
+    check("set_hitbox(nil) goes back to the kind's", x0 == 96, x0)
+    hb:destroy()
+
+    -- ---- scene timers and the scene's name
+    local fired = false
+    self:after(0.02, function() fired = true end)
+    gs.wait(0.05)
+    check("a scene has after()", fired)
+    check("scene_name", gs.scene_name() == "tests", gs.scene_name())
+
+    -- ---- baked pictures: drawn once, read back, drawn as one picture
+    local pic = gs.draw.bake("check", 8, 4, function()
+      gs.draw.rect(0, 0, 8, 4, "#102030")
+      gs.draw.rect(2, 1, 2, 2, "#ff0000")
+    end)
+    check("bake makes a picture of the size asked for", pic.w == 8 and pic.h == 4)
+    local again = gs.draw.bake("check", 8, 4, function() gs.draw.rect(0, 0, 8, 4, "#000000") end)
+    check("baking the same name again reuses its picture", again.id == pic.id)
+    gs.draw.picture(again, 0, 0, 0.5)
+    check("a bake that fails says why", raises(function() gs.draw.bake("bad", 4, 4, function() error("no paint") end) end, "no paint"))
+    check("a bake needs a name first", raises(function() gs.draw.bake(4, 4, function() end) end, "name comes first"))
+    gs.draw.panel(0, 0, 40, 20)
+    gs.draw.panel(0, 0, 3, 3, { fill = "#ffffff", inner = false })
+    gs.draw.text("plain", 0, 0, "#ffffff", 1, "bold_small")
+    check("a font's name instead of options", raises(function() gs.draw.text("x", 0, 0, "#fff", 1, "nope") end, "no built-in font"))
+
     -- ---- scenes
     -- the scene changes at the end of the step and this script belongs to this scene, so scenes.second reports the rest
     _G.FINISH = function()

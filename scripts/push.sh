@@ -46,6 +46,15 @@ console_has() {
   ' "$1" "$2" "$3"
 }
 
+# console_screen <cart-dir> <console id>: the console's screen as "width height" (the game's own copy of the spec first), or nothing
+console_screen() {
+  node -e '
+    const fs = require("fs"), path = require("path");
+    for (const f of [path.join(process.argv[1], "consoles", process.argv[2] + ".json"), path.join("engine/consoles", process.argv[2] + ".json")]) {
+      try { const s = JSON.parse(fs.readFileSync(f, "utf8")).screen; if (s && s.width && s.height) { process.stdout.write(s.width + " " + s.height); break; } } catch {}
+    }
+  ' "$1" "$2"
+}
 # console_ext <cart-dir> <console id>: the end of the console's game files (cart_extension in its spec: g43, g169), or "cart"
 # RetroArch's picture shape for a console's screen: its aspect_ratio_index for 4:3 (0) or 16:9 (1), else "core provided" (22), which
 # follows the core's own geometry
@@ -366,11 +375,25 @@ REMOTE
     # and shader: the console's own shape, named outright (a custom shape left by Knulli wins over "use the core's"), at a sharp
     # whole-number scale replaces them, saves go to the console's own folder, and Knulli's file is left as Knulli wrote it.
     scp -q $SSH_OPTS build-aarch64/gs_libretro.so "$T:$DEVICE_DIR/gs_libretro.so"
+    # The picture goes in the middle of the handheld's screen at the largest whole-number scale (Glow43's 256x192 at 2x on 640x480). RetroArch's
+    # own integer scaling put it in the top-left corner on Knulli, whose file keeps a custom viewport at 0,0 that it then used; so the
+    # viewport is given outright. The screen size is Knulli's own setting (640x480 when it has none).
+    SCREEN="$(ssh $SSH_OPTS "$T" "sed -n 's/^video_fullscreen_\([xy]\) *= *\"*\([0-9]*\).*/\2/p' /userdata/system/configs/retroarch/retroarchcustom.cfg 2>/dev/null | tr '\n' ' '")"
+    set -- $SCREEN; SW="${1:-640}"; SH="${2:-480}"; set --
+    # The screen's real refresh rate: the Anbernic RG35XX Pro's panel runs at 59.033 Hz. RetroArch on Knulli is not told and takes 60,
+    # so the game, held to the screen, made 1.6% less sound than the speaker played; its own correction covers about 0.5%, the sound ran
+    # dry and crackled. Told the true rate, RetroArch resamples the sound to fit.
+    HZ="$(ssh $SSH_OPTS "$T" "fbset 2>/dev/null | sed -n 's/.*V: *\([0-9.]*\) *Hz.*/\1/p'")"
+    set -- $(console_screen "$SRC" "$CID"); GW="${1:-256}"; GH="${2:-192}"; set --
+    K=$(( SW / GW < SH / GH ? SW / GW : SH / GH )); [ "$K" -ge 1 ] || K=1
     {
       printf 'savefile_directory = "/userdata/saves/%s"\nsavestate_directory = "/userdata/saves/%s"\n' "$CID" "$CID"
       printf 'input_overlay_enable = "false"\ninput_overlay = ""\nvideo_shader_enable = "false"\n'
-      printf 'video_aspect_ratio_auto = "false"\naspect_ratio_index = "%s"\n' "$(console_aspect_index "$SRC" "$CID")"
-      printf 'video_scale_integer = "true"\nvideo_smooth = "false"\nconfig_save_on_exit = "false"\n'
+      printf 'video_aspect_ratio_auto = "false"\naspect_ratio_index = "23"\nvideo_scale_integer = "false"\n'
+      printf 'custom_viewport_width = "%s"\ncustom_viewport_height = "%s"\ncustom_viewport_x = "%s"\ncustom_viewport_y = "%s"\n' \
+        $((GW * K)) $((GH * K)) $(((SW - GW * K) / 2)) $(((SH - GH * K) / 2))
+      [ -n "$HZ" ] && printf 'video_refresh_rate = "%s"\naudio_rate_control = "true"\n' "$HZ"
+      printf 'video_smooth = "false"\nconfig_save_on_exit = "false"\n'
     } > "$B/retroarch-$NAME.cfg"
     scp -q $SSH_OPTS "$B/retroarch-$NAME.cfg" "$T:$DEVICE_DIR/retroarch-$NAME.cfg"
     ssh $SSH_OPTS "$T" "mkdir -p '/userdata/saves/$CID'; rm -f '$DEST.keys'"

@@ -57,9 +57,14 @@ gs.path = world.path
 gs.pause, gs.defaults = world.pause, world.defaults
 gs.goto_scene, gs.load_layout, gs.load_room, gs.add_layer, gs.layer, gs.tile_at, gs.set_tile = world.goto_scene, world.load_layout, world.load_layout, world.add_layer, world.layer, world.tile_at, world.set_tile
 gs.flash = world.flash
+gs.remove_layer, gs.set_tileset, gs.tile_kind, gs.scene_name = world.remove_layer, world.set_tileset, world.tile_kind, world.current_scene
 gs.world, gs.assets = world, assets
 gs.camera = setmetatable(camera, { __call = function(_, x, y) raw.camera(x, y) end }) -- gs.camera(x, y) is still the raw offset
 gs.input, gs.draw, gs.ui, gs.save = input, dr, ui, save
+gs.volume = sound.volume
+gs.background = function(color) dr.color(color); world.bg = color end -- the scene's background colour from code, as a layout's background sets it (checked here, not every frame)
+gs.now = function() return world.time end -- game time: counts steps, so it follows gs.time_scale, fast-forward and the studio's Pause
+gs.quit = function() save.flush(); raw.quit() end
 gs.sfx, gs.music, gs.music_stop, gs.sfx_stop = sound.sfx, sound.music, sound.music_stop, sound.sfx_stop
 gs.after = function(seconds, fn) return timers.after(nil, seconds, fn) end
 gs.every = function(seconds, fn) return timers.every(nil, seconds, fn) end
@@ -118,14 +123,29 @@ local function load_console(c)
   return c or json.decode(SPECS.glow43)
 end
 
+-- Lua names a function in a traceback after the first loaded module it finds it in. Inherited methods are copied into every class
+-- (entity.lua), so a method of the base or of a shared parent came out under an unrelated kind ("entities.stagectl.play"): name it after
+-- the class that defines it instead ("entities.enemy.hurt", or "Entity:play" for the engine's own).
+local function name_methods(tb)
+  return (tb:gsub("function '([%w_%.]+)%.([%w_]+)'", function(mod, field)
+    local cls = package.loaded[mod]
+    if type(cls) ~= "table" or not rawget(cls, "__kind") then return nil end
+    while rawget(cls, "__inh") and cls.__inh[field] and cls.__parent do cls = cls.__parent end
+    local name = rawget(cls, "__name")
+    if not name or not package.loaded[name] then return "method '" .. (cls == entity.base.scene and "Scene:" or "Entity:") .. field .. "'" end
+    return "function '" .. name .. "." .. field .. "'"
+  end))
+end
+
 local function fail_message(text) return tostring(text) end
 
 local fatal -- the message of the error that stopped the game (development only)
 local note, note_t = nil, 0
 
+-- An error stops the game on the error screen (with GS_DEV, until the file is fixed and reloads). Without this a game whose step failed
+-- half way went on stepping from that half-finished state, printing an error every frame.
 local function guard(fn, ...)
-  if not DEV then return fn(...) end
-  local ok, err = xpcall(fn, function(m) return debug.traceback(tostring(m), 2) end, ...)
+  local ok, err = xpcall(fn, function(m) return name_methods(debug.traceback(tostring(m), 2)) end, ...)
   if not ok then
     fatal = err
     io.stderr:write("error: " .. tostring(err) .. "\n")
@@ -156,19 +176,30 @@ local function boot()
   sound.load(console.audio)
   if spec.preload ~= false then assets.preload() end
   if DEV then reload.start() end
+  -- A test bot (GS_BOT_LUA, never set by a game) is a plain Lua file run here; it defines bot_step() to press buttons every step and
+  -- reads the game through gs (gs.scene_name(), gs.world.scene, gs.first("hero")). bot_load("other.lua") runs another file of the
+  -- bot's, next to it (the game's sandbox has no loadfile). gs.quit() ends the run when the bot is done.
   local bot_path = os.getenv("GS_BOT_LUA")
   if bot_path and bot_path ~= "" then
-    local fn, e = loadfile(bot_path)
+    local dir = bot_path:match("^(.*)/[^/]*$") or "."
+    _G.bot_load = function(name)
+      local fn, e = loadfile(name:sub(1, 1) == "/" and name or dir .. "/" .. name, "t")
+      if not fn then error("bot_load: " .. tostring(e), 2) end
+      return fn()
+    end
+    local fn, e = loadfile(bot_path, "t")
     if not fn then error("GS_BOT_LUA: " .. tostring(e), 0) end
     input.sim_begin()
     fn()
   end
   booted = true
-  world.goto_scene(spec.start or "scenes.main")
+  -- GS_START_SCENE=level3 starts there instead of the game's first scene (tests, a bot or the MCP run tool going straight to a level)
+  local start = os.getenv("GS_START_SCENE")
+  world.goto_scene(start and start ~= "" and start or spec.start or "scenes.main")
 end
 
 function init()
-  local ok, err = xpcall(boot, function(m) return debug.traceback(tostring(m), 2) end) -- a traceback for anything that goes wrong while starting
+  local ok, err = xpcall(boot, function(m) return name_methods(debug.traceback(tostring(m), 2)) end) -- a traceback for anything that goes wrong while starting
   if not ok then error(err, 0) end
 end
 
@@ -246,6 +277,7 @@ function update(dt)
     if fatal then break end
   end
   if steps >= 4 * FF then acc = 0 end
+  save.flush()
   if STATS then stat.update = stat.update + (clock() - t0) end
 end
 

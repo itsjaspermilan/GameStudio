@@ -79,7 +79,7 @@ function M.update(dt, only_talk)
           M.current = t -- the script that is running, so gs.say can mark it as talking
           local ok, res = coroutine.resume(t.co)
           M.current = nil
-          if not ok then t.dead = true; error(res, 0) end
+          if not ok then t.dead = true; error(debug.traceback(t.co, tostring(res)), 0) end -- where in the script it went wrong
           if coroutine.status(t.co) == "dead" then t.dead = true
           elseif type(res) == "function" then t.cond = res
           else t.left = res or 0 end

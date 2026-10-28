@@ -70,6 +70,8 @@ press play to hear it. It is rendered by the same synthesizer the game uses, so 
 <pre class="lua"><code>gs.sfx("jump")          -- plays sfx/jump.json
 gs.sfx("jump", 0.5)     -- at half volume
 gs.sfx_stop()           -- stop all sound effects</code></pre>
+<p>In the file (<code>sfx/jump.json</code>) a step is <code>[pitch, volume, effect]</code>. Pitch counts semitones up from C1: 0 is C1, 12 is C2,
+36 is C4 (middle C), 48 is C5 and 60 is C6, where short bright effects (a coin, a jump) usually sit. Volume runs from 0 to 7.</p>
 
 <h2>Music</h2>
 <p>A song has eight tracks, each with an instrument (Glow43 and Glow169 play all eight, like a GBA game's music). <em>Reverb</em> at the top makes it

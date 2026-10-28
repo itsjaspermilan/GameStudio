@@ -11,7 +11,7 @@ Design and rationale: `docs/lua-engine-design.md`. Every cart has a `game.lua` a
 | --- | --- |
 | `boot.lua` | `gs.game{}`, the public API table, init/update/draw, the fixed 60 Hz step, the error overlay (GS_DEV) |
 | `entity.lua` | `gs.entity` / `gs.scene` classes, inheritance + flattening, `on_collide_<tag>` discovery, the `require` wrapper that names classes |
-| `world.lua` | spawn/destroy, tag lists, spatial grids, collisions, depth buckets, scenes and fades, scene layouts (`scenes/<name>.layout.lua`: built before `enter`, named things become scene fields, `code = "other"` runs another scene's code; texts and pictures are the built-in kinds `gs.world.Text` / `gs.world.Picture`), `gs.load_layout` (another scene's layout built into the running one; falls back to the older `rooms/`, and `gs.load_room` is its older name), tile layers. Live reload restarts the scene when its layout changes |
+| `world.lua` | spawn/destroy, tag lists, spatial grids, collisions, depth buckets, scenes and fades, scene layouts (`scenes/<name>.layout.lua`: built before `enter`, named things become scene fields, `code = "other"` runs another scene's code; texts and pictures are the built-in kinds `gs.world.Text` / `gs.world.Picture`), `gs.load_layout` (another scene's layout built into the running one; falls back to the older `rooms/`, and `gs.load_room` is its older name), tile layers, and moving against them (`Entity:slide`, `touching_tile`, `gs.tile_kind`: a layer with `solid = true`, its tileset's `kinds`). Live reload restarts the scene when its layout changes |
 | `timers.lua` | after / every / tween / coroutines (`gs.go`, `gs.wait`), owned by an entity or scene so they die with it |
 | `camera.lua`, `input.lua`, `draw.lua`, `ui.lua`, `save.lua`, `sound.lua`, `assets.lua`, `json.lua` | what the names say |
 | `reload.lua` | live reload (GS_DEV=1): polls file mtimes, re-requires changed files into the same class tables, rolls back on error |
@@ -47,4 +47,6 @@ Public names are documented at the top of each module. The runtime's own low-lev
 ## Testing
 
 `tests/framework` is a cart that checks the framework from inside (prints `FRAMEWORK TEST PASS`); `tests/run.sh` runs it. New framework features get
-a check there. Test hooks: `GS_DEV=1` (live reload, error overlay), `GS_STATS=1` (one `@@gs {json}` line a second on stderr for the studio's Handheld tab), `GS_FF=n` (fast-forward), `GS_BOT_LUA=file` (script run at boot), `GS_KEYS`.
+a check there. Test hooks: `GS_DEV=1` (live reload, error overlay), `GS_STATS=1` (one `@@gs {json}` line a second on stderr for the studio's Handheld tab), `GS_FF=n` (fast-forward), `GS_BOT_LUA=file` (script run at boot; `bot_load` runs another file beside it), `GS_KEYS`, `GS_START_SCENE=name`,
+`GS_DUMP_FRAME=file.bmp` (the last frame; with `GS_DUMP_EVERY=n` every nth, numbered). `gs.draw.bake` draws into a render target (`gs.raw.bake` in
+`runtime/main.c`) and keeps the pixels read back, so a baked picture is an ordinary one to save states.

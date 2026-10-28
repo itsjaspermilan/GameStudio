@@ -36,12 +36,13 @@ entity.base.entity = Entity
 -- the bases are finished classes already: they have nothing to flatten and start the family trees
 for _, base in ipairs({ Entity }) do base.__subs, base.__flat, base.__defaults, base.__tags, base.__collide, base.__depth = {}, true, {}, {}, {}, 0 end
 
--- the box an entity collides with, relative to its position: from its hitbox, or the sprite's mask
+-- the box an entity collides with, relative to its position: its own hitbox (set_hitbox, or `hitbox` given to gs.spawn), its kind's,
+-- or the sprite's mask. Measured once and kept until the sprite or the hitbox changes.
 local function box_of(e)
   local name = e.sprite
   local hb = e._hb
   if hb and e._hbn == name then return hb end
-  local spec = getmetatable(e).__hitbox
+  local spec = rawget(e, "hitbox") or getmetatable(e).__hitbox
   if spec then
     if spec.r then hb = { (spec.x or 0) - spec.r, (spec.y or 0) - spec.r, spec.r * 2, spec.r * 2, r = spec.r }
     else hb = { spec[1] or spec.x or 0, spec[2] or spec.y or 0, spec[3] or spec.w or 0, spec[4] or spec.h or 0 } end
@@ -109,6 +110,12 @@ function Entity.hit_radius(self)
   return hb.r * (sx > sy and sx or sy)
 end
 function Entity.move(self, dx, dy) self.x, self.y = self.x + dx, self.y + dy end
+-- This one entity's hitbox, unlike its kind's: self:set_hitbox(-6, -14, 12, 14) (x, y, w, h from its position), self:set_hitbox({ r = 6 })
+-- for a round one, self:set_hitbox(nil) for its kind's again. (Writing self.hitbox by hand is only read the next time the sprite changes.)
+function Entity.set_hitbox(self, x, y, w, h)
+  if type(x) == "table" then self.hitbox = x elseif x == nil then self.hitbox = nil else self.hitbox = { x, y, w, h } end
+  self._hb, self._hbn = nil, nil
+end
 
 -- A target is another entity or a pair of numbers.
 local function target_xy(a, b)
@@ -210,10 +217,11 @@ end
 Entity.draw_sprite = Entity.draw
 local default_draw = Entity.draw
 
--- the base of scenes
+-- the base of scenes: timers that belong to the scene, so they stop when it is left (self:after(2, fn) in enter)
 local Scene = {}
 entity.base.scene = Scene
 Scene.__subs, Scene.__flat, Scene.__defaults, Scene.__tags, Scene.__collide, Scene.__depth = {}, true, {}, {}, {}, 0
+Scene.after, Scene.every, Scene.go, Scene.tween = Entity.after, Entity.every, Entity.go, Entity.tween
 
 -- ---------------------------------------------------------------- making and finding entities
 local function entry_for(cls)
@@ -357,6 +365,153 @@ end
 function W.set_tile(layer, x, y, v)
   local l = type(layer) == "string" and W.layer(layer) or layer
   if l then assets.set_tile(l, x, y, v) end
+end
+-- take a layer out of the world (by name or the layer itself); true if it was there
+function W.remove_layer(layer)
+  local l = type(layer) == "string" and W.layer(layer) or layer
+  for i, v in ipairs(W.layers) do if v == l then table.remove(W.layers, i); return true end end
+  return false
+end
+-- draw a layer with another tileset (a night version of the same tiles); its tile kinds come from the new one
+function W.set_tileset(layer, name)
+  local l = type(layer) == "string" and W.layer(layer) or layer
+  if not l then error("gs.set_tileset: there is no layer " .. tostring(layer), 2) end
+  local ts = assets.tileset(name, 2)
+  if l.cell[1] == l.ts.tw and l.cell[2] == l.ts.th then l.cell = { ts.tw, ts.th } end
+  l.ts, l.tileset, l.dirty = ts, name, true
+end
+
+-- ---------------------------------------------------------------- moving against tiles
+-- A layer with solid = true is ground and walls: Entity:slide moves an entity's hitbox through it and stops at its tiles. Every tile of
+-- such a layer is "solid" unless its tileset gives it another kind (tilesets/<name>.json: "kinds": { "oneway": [8, 9], "spike": [20] }):
+-- "oneway" is a thin platform that only stops what comes down onto it from above, and any other name stops nothing but can be asked
+-- about (self:touching_tile("spike"), gs.tile_kind). Nothing here runs unless a game calls it; games with physics of their own read
+-- gs.tile_at as before. Slopes are not handled: a game that wants them reads the tiles itself.
+local EPS = 1e-6
+local ceil = math.ceil
+
+local function kind_of(l, v)
+  if v == nil or v < 0 or v >= l.ts.count then return nil end
+  local k = l.ts.kinds
+  return k and k[v] or "solid"
+end
+W.kind_of = kind_of
+
+-- does a row (or column) of cells hold a tile that stops movement? oneway counts only for something coming down onto it
+local function stops(l, k, down)
+  return k == "solid" or (down and k == "oneway")
+end
+
+-- how far a box (x0, y0)-(x1, y1) may go along one axis before a solid layer's tile stops it, and which way it was stopped (-1, 0, 1).
+-- Only cells the box moves into are looked at, so a box that starts inside a wall is not held there, and a fast mover cannot pass
+-- through a tile (every cell on the way is checked, however far it goes in one step).
+local function sweep(x0, y0, x1, y1, d, across, drop)
+  local hit = 0
+  local layers = W.layers
+  for li = 1, #layers do
+    local l = layers[li]
+    if l.solid then
+      local data, cw, ch, lx, ly = l.data, l.cell[1], l.cell[2], l.x, l.y
+      local rows = #data
+      if across then -- moving sideways: the rows the box covers, the columns ahead of it
+        local r0, r1 = floor((y0 - ly) / ch + EPS), ceil((y1 - ly) / ch - EPS) - 1
+        if r0 < 0 then r0 = 0 end
+        if r1 > rows - 1 then r1 = rows - 1 end
+        if d > 0 then
+          for c = ceil((x1 - lx) / cw - EPS), ceil((x1 + d - lx) / cw - EPS) - 1 do
+            local found = false
+            for r = r0, r1 do if stops(l, kind_of(l, data[r + 1][c + 1]), false) then found = true; break end end
+            if found then d, hit = lx + c * cw - x1, 1; break end
+          end
+        elseif d < 0 then
+          for c = floor((x0 - lx) / cw + EPS) - 1, floor((x0 + d - lx) / cw + EPS), -1 do
+            local found = false
+            for r = r0, r1 do if stops(l, kind_of(l, data[r + 1][c + 1]), false) then found = true; break end end
+            if found then d, hit = lx + (c + 1) * cw - x0, -1; break end
+          end
+        end
+      else -- moving up or down: the columns the box covers, the rows ahead of it
+        local c0, c1 = floor((x0 - lx) / cw + EPS), ceil((x1 - lx) / cw - EPS) - 1
+        if d > 0 then
+          for r = ceil((y1 - ly) / ch - EPS), ceil((y1 + d - ly) / ch - EPS) - 1 do
+            local row = data[r + 1]
+            local found = false
+            if row then for c = c0, c1 do if stops(l, kind_of(l, row[c + 1]), not drop) then found = true; break end end end
+            if found then d, hit = ly + r * ch - y1, 1; break end
+          end
+        elseif d < 0 then
+          for r = floor((y0 - ly) / ch + EPS) - 1, floor((y0 + d - ly) / ch + EPS), -1 do
+            local row = data[r + 1]
+            local found = false
+            if row then for c = c0, c1 do if stops(l, kind_of(l, row[c + 1]), false) then found = true; break end end end
+            if found then d, hit = ly + (r + 1) * ch - y0, -1; break end
+          end
+        end
+      end
+    end
+  end
+  return d, hit
+end
+
+-- Move by dx, dy pixels (sideways first, then up or down), stopping against the tiles of the solid layers. Returns which way each
+-- move was stopped: hit_x is -1 (a wall on the left), 1 (on the right) or 0; hit_y is 1 (landed on something), -1 (bumped a ceiling)
+-- or 0. self.drop_through = true lets it fall through oneway platforms. An entity without a hitbox just moves.
+--   local hx, hy = self:slide(self.dx * dt, self.dy * dt)
+--   if hy ~= 0 then self.dy = 0 end
+--   self.on_ground = hy == 1
+function Entity.slide(self, dx, dy)
+  local hx, hy = 0, 0
+  if dx ~= 0 then
+    local x0, y0, x1, y1 = bounds(self)
+    if x0 then dx, hx = sweep(x0, y0, x1, y1, dx, true, false) end
+    self.x = self.x + dx
+  end
+  if dy ~= 0 then
+    local x0, y0, x1, y1 = bounds(self)
+    if x0 then dy, hy = sweep(x0, y0, x1, y1, dy, false, self.drop_through) end
+    self.y = self.y + dy
+  end
+  return hx, hy
+end
+
+-- The first tile of a kind ("spike", "oneway", "solid", ...) in a solid layer under this entity's hitbox: its top-left corner in the
+-- world (x, y), or nil. inset (pixels, default 0) shrinks the hitbox first, so grazing a spike's edge is forgiven.
+function Entity.touching_tile(self, kind, inset)
+  local x0, y0, x1, y1 = bounds(self)
+  if not x0 then return nil end
+  inset = inset or 0
+  x0, y0, x1, y1 = x0 + inset, y0 + inset, x1 - inset, y1 - inset
+  local layers = W.layers
+  for li = 1, #layers do
+    local l = layers[li]
+    if l.solid then
+      local data, cw, ch, lx, ly = l.data, l.cell[1], l.cell[2], l.x, l.y
+      for r = floor((y0 - ly) / ch + EPS), ceil((y1 - ly) / ch - EPS) - 1 do
+        local row = data[r + 1]
+        if row then
+          for c = floor((x0 - lx) / cw + EPS), ceil((x1 - lx) / cw - EPS) - 1 do
+            if kind_of(l, row[c + 1]) == kind then return lx + c * cw, ly + r * ch end
+          end
+        end
+      end
+    end
+  end
+  return nil
+end
+
+-- The kind of the tile at a point of the world: of that layer, or with layer nil of the first solid layer with a tile there. nil for none.
+function W.tile_kind(layer, x, y)
+  if layer ~= nil then
+    local l = type(layer) == "string" and W.layer(layer) or layer
+    return l and kind_of(l, assets.tile_at(l, x, y))
+  end
+  for _, l in ipairs(W.layers) do
+    if l.solid then
+      local k = kind_of(l, assets.tile_at(l, x, y))
+      if k then return k end
+    end
+  end
+  return nil
 end
 
 -- ---------------------------------------------------------------- scene layouts (and the older rooms)
@@ -751,6 +906,10 @@ local function enter_scene(name, args)
   local enter = s.enter
   if enter then enter(s, table.unpack(args or {})) end
 end
+
+-- the name of the scene that is running, as gs.goto_scene was given it without "scenes." ("level3"): with ten layouts sharing one
+-- scene's code (`code = "level"` in each), the layout's own name, so the code can tell which level it is
+function W.current_scene() return W.scene_name and (W.scene_name:gsub("^scenes%.", "")) end
 
 -- the layout file of the scene that is running (whether it has one yet or not)
 function W.layout_file() return W.scene_name and file_of(scene_module(W.scene_name)) .. ".layout.lua" end

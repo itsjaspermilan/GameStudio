@@ -222,7 +222,7 @@ export function spriteFromText(name, spec, colors) {
 export function snapshot(s) {
   return {
     w: s.w, h: s.h, origin: [...s.origin], mask: s.mask ? [...s.mask] : null, fps: s.fps, tile: s.tile ? [...s.tile] : null,
-    bank: s.bank, banks: s.banks ? [...s.banks] : undefined,
+    bank: s.bank, banks: s.banks ? [...s.banks] : undefined, kinds: s.kinds ? JSON.parse(JSON.stringify(s.kinds)) : undefined,
     animations: JSON.parse(JSON.stringify(s.animations || {})),
     frames: s.frames.map((f) => new Uint8ClampedArray(f)),
   };
@@ -234,6 +234,7 @@ export function restore(s, snap) {
   if (snap.tile) s.tile = [...snap.tile]; else delete s.tile;
   if (snap.bank) s.bank = snap.bank; else delete s.bank;
   if (snap.banks) s.banks = [...snap.banks]; else delete s.banks;
+  if (snap.kinds) s.kinds = JSON.parse(JSON.stringify(snap.kinds)); else delete s.kinds;
 }
 
 export class History {
@@ -457,7 +458,29 @@ export function resizeSheet(s, tw, th, cols, rows) {
 export function tilesetToJSON(s) {
   const out = { image: `tilesets/${s.name}.png`, tile_w: s.tile[0], tile_h: s.tile[1] };
   if (s.banks && s.banks.length) out.banks = [...s.banks]; // the tile banks it uses; each tile keeps to one
+  if (s.kinds && Object.keys(s.kinds).length) out.kinds = JSON.parse(JSON.stringify(s.kinds));
   return out;
+}
+
+// ---- tile kinds ----
+// What a tile is on a layer marked solid (engine/gs/world.lua, Entity:slide): every tile is "solid" unless the tileset's kinds give it
+// another one: "oneway" (a platform stood on from above), or any name the game asks about ("spike", "ice"). Kept as the engine reads it,
+// { oneway: [8, 9], spike: [20] }, tile numbers in order, no empty lists, and nothing for "solid".
+export const TILE_KINDS = ["solid", "oneway", "spike", "ice", "water", "ladder"];
+export function tileKind(s, index) {
+  for (const [kind, list] of Object.entries(s.kinds || {})) if (list.includes(index)) return kind;
+  return "solid";
+}
+export function setTileKind(s, index, kind) {
+  kind = String(kind || "solid").trim().toLowerCase().replace(/[^a-z0-9_]/g, "_") || "solid";
+  const kinds = s.kinds || {};
+  for (const k of Object.keys(kinds)) {
+    kinds[k] = kinds[k].filter((i) => i !== index);
+    if (!kinds[k].length) delete kinds[k];
+  }
+  if (kind !== "solid") kinds[kind] = [...(kinds[kind] || []), index].sort((a, b) => a - b);
+  if (Object.keys(kinds).length) s.kinds = kinds; else delete s.kinds;
+  return kind;
 }
 
 // Replace the sheet with imported pixels (RGBA, width x height). The tile size is kept.

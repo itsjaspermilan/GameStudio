@@ -4,7 +4,11 @@
 --     gs.say("OLD MAN", "It's dangerous to go alone.")      -- the name may be left out: gs.say("A door. It's locked.")
 --     if gs.ask("Take this?", { "YES", "NO" }) == 1 then state.sword = true end
 --   end)
--- A presses on (and shows the whole page at once while it is still typing); up and down move between answers.
+-- A presses on (and shows the whole page at once while it is still typing); holding A or B types four times as fast; up and down move
+-- between answers. gs.say(name, text, { auto = 1.5 }) goes on by itself 1.5 seconds after a page is typed (a CPU player's turn), and
+-- gs.ask(question, answers, name, { back = 2 }) lets B pick answer 2. An answer can be a table: { "SELL", enabled = false } is drawn
+-- dim and cannot be chosen. gs.ui.style.text_speed is how fast letters type (letters a second, 40) and gs.ui.style.on_letter a function
+-- called as letters appear (a blip; at most once a step).
 --
 -- The look comes from the scene's layout, from things with these names (they are only the pattern, so the game never shows them
 -- itself): dialogue_box (a panel: where the box is and its tiles), dialogue_text (a text: where the words start, their font, colour and
@@ -16,7 +20,7 @@ local draw = require("gs.draw")
 local input = require("gs.input")
 local timers = require("gs.timers")
 
-local M = { speed = 40, active = nil, leaving = nil } -- speed: letters a second
+local M = { active = nil, leaving = nil }
 local function now() return require("gs.world").time end
 local function open_time() return require("gs.ui").style.open_time or 0 end
 -- how far open a box is, 0 to 1, eased so it slows as it settles
@@ -52,7 +56,7 @@ local function text_at(s, str, x, y, color)
   draw.any_text(s.font, str, x, y, color or s.color, s.size, nil, s.shadow)
 end
 
-local function open(name, text, answers)
+local function open(name, text, answers, opts)
   local W = require("gs.world")
   if not coroutine.isyieldable() or not timers.current then
     error("gs.say and gs.ask wait for the player, so they go inside a script that can wait: gs.go(function() ... end)", 3)
@@ -70,7 +74,14 @@ local function open(name, text, answers)
   end
   -- the answers go under the last page's words, or on a page of their own when they do not fit
   if answers and #pages[#pages] + #answers > rows then pages[#pages + 1] = {} end
-  local t = { name = name, pages = pages, page = 1, shown = 0, answers = answers, pick = 1, style = s, was_paused = W.paused, job = timers.current }
+  local t = { name = name, pages = pages, page = 1, shown = 0, answers = answers, pick = 1, style = s, was_paused = W.paused, job = timers.current,
+    auto = opts and opts.auto, back = opts and opts.back }
+  if answers then
+    local ui = require("gs.ui")
+    t.pick = 0
+    for i = 1, #answers do if ui.enabled(answers[i]) then t.pick = i; break end end
+    if t.pick == 0 then error("gs.ask: every answer is disabled, so none can be chosen", 3) end
+  end
   -- a box still folding shut from the last conversation opens again from where it is: gs.say after gs.say stays open
   local back = M.leaving and M.leaving.style.x == s.x and M.leaving.style.y == s.y and opened(M.leaving.t0, true) or 0
   t.t0 = now() - (1 - math.sqrt(1 - back)) * open_time() -- (the inverse of the easing, so it carries on from that size)
@@ -86,10 +97,19 @@ local function open(name, text, answers)
   return t.pick
 end
 
-function M.say(a, b) if b == nil then return (open(nil, a)) end open(a, b) end
-function M.ask(question, answers, name)
+function M.say(a, b, opts) if b == nil then open(nil, a) else open(a, b, nil, opts) end end
+function M.ask(question, answers, name, opts)
   if type(answers) ~= "table" or #answers == 0 then error("gs.ask(question, { \"YES\", \"NO\" }): give it a list of answers", 2) end
-  return open(name, question, answers)
+  return open(name, question, answers, opts)
+end
+
+-- the next answer that can be chosen, going by -1 or 1
+local function step_pick(t, by)
+  local ui, n, i = require("gs.ui"), #t.answers, t.pick
+  for _ = 1, n do
+    i = (i - 1 + by) % n + 1
+    if ui.enabled(t.answers[i]) then t.pick = i; return end
+  end
 end
 
 -- a button icon ({a}) types out as one letter
@@ -103,16 +123,25 @@ function M.update(dt)
   local page = t.pages[t.page]
   local total = letters(page)
   local last = t.page == #t.pages
+  local style = require("gs.ui").style
   if t.shown < total then
-    t.shown = math.min(total, t.shown + M.speed * dt)
+    local was = math.floor(t.shown)
+    local speed = (style.text_speed or 40) * ((input.held("a") or input.held("b")) and 4 or 1)
+    t.shown = math.min(total, t.shown + speed * dt)
     if input.pressed("a") then t.shown = total end
+    if math.floor(t.shown) > was and style.on_letter then style.on_letter() end
+    t.typed_at = now()
     return
   end
   if last and t.answers then
-    if input.pressed("up") then t.pick = (t.pick - 2) % #t.answers + 1 end
-    if input.pressed("down") then t.pick = t.pick % #t.answers + 1 end
+    local was = t.pick
+    if input.pressed("up") then step_pick(t, -1) end
+    if input.pressed("down") then step_pick(t, 1) end
+    if t.pick ~= was and style.on_move then style.on_move() end
+    if t.back and input.pressed("b") then t.pick, t.done = t.back, true; return end
   end
-  if input.pressed("a") then
+  local go_on = input.pressed("a") or (t.auto and not t.answers and now() - (t.typed_at or 0) >= t.auto)
+  if go_on then
     if last then t.done = true else t.page, t.shown = t.page + 1, 0 end
   end
 end
@@ -169,8 +198,9 @@ function M.draw()
   if not typed then return end
   if t.page == #t.pages and t.answers then
     y = s.ty + #page * s.lh
+    local ui = require("gs.ui")
     for i, a in ipairs(t.answers) do
-      text_at(s, a, s.tx + s.cw * 2, y)
+      text_at(s, ui.label(a), s.tx + s.cw * 2, y, not ui.enabled(a) and ui.style.disabled or nil)
       if i == t.pick then cursor(s, s.tx + s.cw / 2, y) end
       y = y + s.lh
     end

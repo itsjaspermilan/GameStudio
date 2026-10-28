@@ -18,6 +18,15 @@ export function sfx(speed, a, b) {
 const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const midiOf = (name) => { const m = /^([A-G]#?)(\d)$/.exec(name || ""); return m ? NAMES.indexOf(m[1]) + 12 * +m[2] : null; };
 export const nm = (n) => { while (n > 83) n -= 12; while (n < 12) n += 12; return `${NAMES[n % 12]}${Math.floor(n / 12)}`; };
+// The key saved with a song, for the editor's key lock, which knows major and minor: a mode is saved as the major key with the same
+// notes (D phrygian as Bb major, D dorian as C major, F lydian as C major), so the lock offers exactly the song's notes and the song
+// check's reading agrees; harmonic minor is saved as its minor (the lock leaves out the raised 7th).
+const MODE_TO_MAJOR = { dorian: 10, phrygian: 8, lydian: 7 };
+export function lockKey(root, scale) {
+  root = ((root % 12) + 12) % 12;
+  if (scale in MODE_TO_MAJOR) return { root: (root + MODE_TO_MAJOR[scale]) % 12, scale: "major" };
+  return { root, scale: scale === "harm" ? "minor" : scale };
+}
 export const SCALES = { minor: [0, 2, 3, 5, 7, 8, 10], major: [0, 2, 4, 5, 7, 9, 11], dorian: [0, 2, 3, 5, 7, 9, 10], phrygian: [0, 1, 3, 5, 7, 8, 10], lydian: [0, 2, 4, 6, 7, 9, 11], harm: [0, 2, 3, 5, 7, 8, 11] };
 export const RHY = [
   [[0, 2], [2, 2], [4, 2], [6, 2], [8, 2], [10, 2], [12, 4]],
@@ -42,7 +51,16 @@ function nearest(chord, prev, rank) {
 }
 
 export class Song {
-  constructor(o) { this.o = o; this.sc = SCALES[o.scale]; this.r = rng(o.seed); }
+  // Everything but the key may be left out (the MCP tool says so): a four-piece band, every melody rhythm, and a verse and chorus.
+  constructor(o) {
+    this.o = o = {
+      ...o, scale: SCALES[o.scale] ? o.scale : "major", root: o.root ?? 0, seed: o.seed ?? 1, tempo: o.tempo ?? 120,
+      inst: o.inst && o.inst.length ? o.inst : ["lead", "pad", "bass", "gm_drum_kit"], rhythms: o.rhythms && o.rhythms.length ? o.rhythms : [0, 1, 2, 3],
+      sections: o.sections && o.sections.length ? o.sections : [{ prog: [0, 5, 3, 4] }, { prog: [3, 4, 0, 0] }],
+    };
+    if (!o.order) o.order = o.sections.map((_, i) => i);
+    this.sc = SCALES[o.scale]; this.r = rng(o.seed);
+  }
   note(deg, oct) { return this.o.root + oct * 12 + 12 * Math.floor(deg / 7) + this.sc[((deg % 7) + 7) % 7]; }
   chordDegs(root) { return [root, root + 2, root + 4]; }
   melody(prog, { oct, rhythms, reg = 6, calm = false }) {
@@ -192,7 +210,7 @@ export class Song {
     return {
       format: "tracker", tempo: o.tempo, rows_per_beat: 4, tracks: this.n, track_instruments: o.inst, reverb: o.reverb ?? 12, ...(o.reverb_type ? { reverb_type: o.reverb_type } : {}),
       track_vol: leveled(o.vol ?? (this.n === 8 ? [0, -2, -1, -2, -3, -3, -3, -4] : [0, -2, -1, -2]), o.level),
-      patterns, order: o.order, loop_to: o.loop === false ? -1 : 0, key: { root: o.root % 12, scale: o.scale === "lydian" ? "major" : o.scale === "harm" || o.scale === "dorian" || o.scale === "phrygian" ? "minor" : o.scale }, // the editor's key lock knows major and minor; lydian is a major mode
+      patterns, order: o.order, loop_to: o.loop === false ? -1 : 0, key: lockKey(o.root, o.scale),
     };
   }
 }
@@ -206,6 +224,6 @@ export function jingle(name, spec) { // short one-shot songs, written by hand as
   (spec.drums || []).forEach(([r, n]) => { dr[r] = n; });
   const layers = Array.from({ length: 12 }, () => empty(spec.rows).join(" ")); layers[1] = pad2.join(" ");
   return { format: "tracker", tempo: spec.tempo, rows_per_beat: 4, tracks: 4, track_instruments: spec.inst, reverb: 25,
-    patterns: [{ rows: spec.rows, tracks: [lead.join(" "), pad.join(" "), bass.join(" "), dr.join(" ")], layers }], order: [0], loop_to: -1, key: { root: spec.root % 12, scale: spec.scale }, track_vol: leveled([0, -1, -1, -2], spec.level) };
+    patterns: [{ rows: spec.rows, tracks: [lead.join(" "), pad.join(" "), bass.join(" "), dr.join(" ")], layers }], order: [0], loop_to: -1, key: lockKey(spec.root, spec.scale), track_vol: leveled([0, -1, -1, -2], spec.level) };
 }
 

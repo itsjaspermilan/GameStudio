@@ -54,9 +54,9 @@ test("fitScale picks the largest whole-number scale", () => {
 test("clampRoomSize respects the console and the 16 px floor", () => {
   const c = K.BUILTIN_CONSOLES[0];
   assert.deepEqual(K.clampRoomSize(c, 256, 192), [256, 192]);
-  assert.deepEqual(K.clampRoomSize(c, 5000, 5000), [1024, 1024]);
+  assert.deepEqual(K.clampRoomSize(c, 5000, 5000), [4096, 1024]);
   assert.deepEqual(K.clampRoomSize(c, 1, 1), [16, 16]);
-  assert.deepEqual(K.clampRoomSize(c, "abc", 100), [1024, 100]); // not a number: the maximum
+  assert.deepEqual(K.clampRoomSize(c, "abc", 100), [4096, 100]); // not a number: the maximum
   assert.equal(K.instanceLimit(c), 512);
 });
 

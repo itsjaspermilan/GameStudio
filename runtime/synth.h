@@ -88,6 +88,7 @@ typedef struct {
 } SynthSong;
 
 int synth_load_soundfont(const void *data, int size); /* a SoundFont (.sf2) for the General MIDI instruments; 1 on success */
+void synth_set_volume(float music, float sfx); /* 0..1 each: the music and the sound effects, as the player set them */
 int synth_replace_soundfont(const void *data, int size); /* the same, in place of the one loaded (voices playing it stop); 1 on success */
 /* The General MIDI presets the instruments defined so far play (bank << 8 | program, bank 128 for drum kits), and for each the keys the
  * game's songs and sound effects need (16 bytes, a bit a key): the notes struck on a drum kit, an octave around every note played on a

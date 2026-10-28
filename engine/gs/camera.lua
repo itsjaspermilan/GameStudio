@@ -1,6 +1,6 @@
 -- The camera: where the screen looks into the world. x, y is the world position of the screen's top-left corner.
 --   gs.camera:follow(player)                       -- keep an entity in the middle
---   gs.camera:follow(player, { smooth = 0.1, bounds = { 0, 0, 1024, 1024 } })
+--   gs.camera:follow(player, { smooth = 0.1, bounds = { 0, 0, 1024, 1024 } })   -- smooth: 0 snaps; else the share of the way moved each step (0.1 lazy, 0.5 quick)
 --   gs.camera:shake(4, 0.3)                        -- 4 pixels, for 0.3 seconds
 --   gs.camera:set(x, y)  gs.camera:stop()
 --   gs.camera.zoom = 2                             -- the world twice as big (whole numbers keep pixel art crisp); the UI is not zoomed

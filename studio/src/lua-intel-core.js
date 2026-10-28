@@ -2,7 +2,7 @@
 // own files (entities, scenes, sprites, sounds, tags) and a few lint rules that only make sense for a handheld game. Pure: text in, answers out.
 // The Lua language server (see lsp-*) adds general Lua intelligence on top; this layer keeps working when it is not running.
 import { refName, moduleName, group, sceneOfLayout } from "./project-core.js";
-import { parseRoom, layoutNames } from "./room-core.js";
+import { parseRoom, layoutNames, asciiLike } from "./room-core.js";
 
 // ---------------------------------------------------------------- the API file
 // Reads the annotation file: "---" lines above a declaration are its help text, ---@param / ---@return / ---@field add detail.
@@ -313,6 +313,9 @@ function wordAt(line, col) {
   return { text: chainText, from: a, to: e };
 }
 
+// calls that happen now and then rather than every step, so a table made for them is no worry (the last open call before the `{`)
+const ONE_OFF_CALL = /(?:gs\.(?:burst|goto_scene|spawn|tween|flash|say|ask|save\.set|save\.slot\(\d*\)\.set|load_layout|add_layer|music|sfx)|:(?:tween|after|every|go|follow|shake|follow_path|set_hitbox))\s*\((?:[^()]|\([^()]*\))*$/;
+
 // what every scene has, so self.<it> is never a typo
 const SCENE_MEMBERS = new Set(["enter", "leave", "update", "draw", "draw_ui", "after", "every", "go", "tween"]);
 
@@ -323,6 +326,7 @@ export function diagnose(text, file, index) {
   const lines = text.split("\n");
   let offset = 0;
   let inHot = null; // inside update or draw: name and the line where it started
+  let rareIndent = -1; // inside `if <a button press> then`: code there runs on a press, not every step (its indent, or -1)
   let ownFields = null; // what this scene's own code sets on self (made when first needed)
   const isEntity = /^entities\//.test(file), isScene = /^scenes\//.test(file);
   const isGameCode = /^(entities|scenes|lib|rooms)\//.test(file) || file === "game.lua";
@@ -344,8 +348,21 @@ export function diagnose(text, file, index) {
     const code = stripComment(line);
     const hot = /^function\s+[\w.]+:(update|draw|draw_ui)\s*\(/.exec(line);
     if (hot) inHot = hot[1]; else if (/^end\b/.test(line)) inHot = null;
+    const indent = line.search(/\S/);
+    if (rareIndent >= 0 && indent >= 0 && indent <= rareIndent && /^\s*(end|else|elseif)\b/.test(line)) rareIndent = -1;
+    if (rareIndent < 0 && inHot && /^\s*(if|elseif)\b.*\b(pressed|btnp|released|just_pressed)\b.*\bthen\s*$/.test(code)) rareIndent = indent;
+    // letters the built-in fonts cannot draw (they show as a box): an ellipsis, an emoji, Greek; curly quotes, dashes and accented
+    // letters are fine (they draw as their plain look-alikes)
+    if (isGameCode) for (const m of code.matchAll(/(["'])((?:\\.|(?!\1).)*)\1/g)) {
+      const bad = [...m[2]].find((ch) => { const c = ch.codePointAt(0); return c >= 0x80 && asciiLike(c) === c; });
+      if (bad) {
+        const from = offset + m.index + 1 + m[2].indexOf(bad);
+        out.push({ from, to: from + bad.length, severity: "info", message: `The built-in fonts have no '${bad}'${bad === "\u2026" ? " (write three dots: ...)" : ""}: if this text is drawn, it shows as a box.` });
+      }
+    }
     // strings in calls that name things
     for (const m of code.matchAll(/(["'])((?:\\.|(?!\1).)*)\1/g)) {
+      if (/^\s*\.\./.test(code.slice(m.index + m[0].length))) continue; // "scenes.mg." .. id: only the start of a name
       const head = code.slice(0, m.index);
       for (const call of ASSET_CALLS) {
         if (!call.re.test(head)) continue;
@@ -375,10 +392,16 @@ export function diagnose(text, file, index) {
         }
       }
     }
-    // a new table every step
-    if (inHot && /(?:=|\(|,|return)\s*\{/.test(code) && !/^\s*function/.test(code)) {
-      const from = offset + code.search(/\{/);
-      out.push({ from, to: from + 1, severity: "info", message: `A new table every step in ${inHot}() gives the garbage collector work, which can cause small hitches on the handheld. Make it once (in create or enter) and reuse it.` });
+    // a new table every step (not one handed to a call that only happens now and then: a burst, a scene change, a spawn, a tween, a save)
+    if (inHot && rareIndent < 0 && /(?:=|\(|,|return)\s*\{/.test(code) && !/^\s*function/.test(code)) {
+      const at = code.search(/(?:=|\(|,|return)\s*\{/), before = code.slice(0, at + 1);
+      if (!ONE_OFF_CALL.test(before)) {
+        const from = offset + code.indexOf("{", at);
+        const drawing = /gs\.draw\.\w+\s*\([^)]*$/.test(before);
+        out.push({ from, to: from + 1, severity: "info", message: drawing
+          ? `A new options table every frame in ${inHot}() gives the garbage collector work. Make it once at the top of the file (local BIG = { font = "round_tall", shadow = true }) and pass that; a font alone can be given by name.`
+          : `A new table every step in ${inHot}() gives the garbage collector work, which can cause small hitches on the handheld. Make it once (in create or enter) and reuse it.` });
+      }
     }
     offset += line.length + 1;
   }

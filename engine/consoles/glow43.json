@@ -68,7 +68,7 @@
     }
   },
   "rooms": {
-    "max_width": 1024,
+    "max_width": 4096,
     "max_height": 1024,
     "views": 1,
     "tile_layers": 4,

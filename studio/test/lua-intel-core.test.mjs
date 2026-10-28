@@ -174,3 +174,40 @@ test("what a scene's layout names is known in that scene's code (and in the code
   assert.match(warn[0].message, /'lgoo'.*'logo'/);
   assert.equal(code.slice(warn[0].from, warn[0].to), "lgoo");
 });
+
+test("a name joined from parts and a table made on a button press are not flagged", () => {
+  const idx = buildIndex({ scenes: ["main"], lib: ["story/ch1"] }, {});
+  const text = `local Main = gs.scene{}\nfunction Main:update(dt)\n  local part = require("lib.story." .. "ch1")\n  if gs.input.pressed("a") then\n    self.menu = { 1, 2 }\n  end\n  self.t = { dt }\nend\nreturn Main\n`;
+  const d = diagnose(text, "scenes/main.lua", idx);
+  assert.ok(!d.some((x) => /no file called/.test(x.message)), JSON.stringify(d));
+  const tables = d.filter((x) => /new table every step/.test(x.message));
+  assert.equal(tables.length, 1, JSON.stringify(tables)); // the one outside the press
+});
+
+test("tables handed to calls that happen now and then are not 'a new table every step'", () => {
+  const idx = buildIndex({ scenes: ["main"] }, {});
+  const src = [
+    "local Main = gs.scene{}",
+    "function Main:update(dt)",
+    "  gs.burst(self.x, self.y, { count = 8, color = \"#ffffff\" })",
+    "  gs.goto_scene(\"main\", { fade = 0.3 })",
+    "  self:tween({ alpha = 0 }, 0.2)",
+    "  local list = { 1, 2 }",
+    "end",
+    "function Main:draw()",
+    "  gs.draw.text(\"HI\", 0, 0, \"#fff\", 1, { font = \"round_tall\" })",
+    "end",
+    "return Main",
+  ].join("\n");
+  const notes = diagnose(src, "scenes/main.lua", idx).filter((d) => /new (options )?table/.test(d.message));
+  assert.equal(notes.length, 2, notes.map((d) => d.message).join("\n"));
+  assert.match(notes[1].message, /options table every frame.*top of the file/);
+});
+
+test("letters the fonts cannot draw are pointed out; look-alikes are not", () => {
+  const idx = buildIndex({ scenes: ["main"] }, {});
+  const src = "local Main = gs.scene{}\nfunction Main:enter()\n  self.a = \"Wait…\"\n  self.b = \"“OK” — café\"\nend\nreturn Main";
+  const notes = diagnose(src, "scenes/main.lua", idx).filter((d) => /fonts have no/.test(d.message));
+  assert.equal(notes.length, 1);
+  assert.match(notes[0].message, /three dots/);
+});

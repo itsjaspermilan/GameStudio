@@ -14,8 +14,9 @@ const TOOLS = [
   ["pencil", "Pencil: draw single pixels (B)", "Pencil"], ["eraser", "Eraser: make pixels see-through (E)", "Eraser"], ["fill", "Fill an area of one colour (G)", "Fill"],
   ["line", "Line (L)", "Line"], ["rect", "Rectangle (R, Shift = filled)", "Box"], ["picker", "Pick a colour from the picture (I)", "Pick"],
   ["origin", "Set origin: the point that sits on the entity's position, usually between the feet (O)", "Origin"], ["mask", "Collision box: the part that touches things (M)", "Hitbox"],
+  ["kind", "Tile kinds: click a tile to give it the kind chosen on the right (K). Only matters on a layer marked Solid", "Kind"],
 ];
-const KEY_TOOL = { s: "select", b: "pencil", e: "eraser", g: "fill", l: "line", r: "rect", i: "picker", o: "origin", m: "mask" };
+const KEY_TOOL = { s: "select", b: "pencil", e: "eraser", g: "fill", l: "line", r: "rect", i: "picker", o: "origin", m: "mask", k: "kind" };
 
 export function createSpriteEditor(root, hooks = {}) {
   root.innerHTML = `
@@ -49,6 +50,12 @@ export function createSpriteEditor(root, hooks = {}) {
         <h3>Import</h3>
         <div class="se-row"><button data-act="import">Import PNG&hellip;</button></div>
         <p class="se-hint">Replaces the sheet with a PNG tile sheet (up to 1024&times;1024). Set the tile size first, then import.</p>
+        <h3>Tile kinds</h3>
+        <div class="se-row se-fields">
+          <label title="What the Kind tool gives a tile. solid stops things; oneway is a platform you land on from above and jump up through; any other word (spike, ice) stops nothing, and the game asks about it with self:touching_tile(&quot;spike&quot;)">Kind <input class="p-kind" list="se-kinds" value="oneway" size="9"></label>
+          <datalist id="se-kinds"></datalist>
+        </div>
+        <p class="se-hint">On a layer marked Solid every tile stops the hero, unless it has another kind. Pick the Kind tool and click tiles.</p>
         <input type="file" class="se-file" accept="image/png" hidden>
       </div>
       <div class="se-sprite-only">
@@ -110,12 +117,15 @@ export function createSpriteEditor(root, hooks = {}) {
 
   // ---------- tools and palette ----------
   const toolBox = $(".se-toolbtns");
-  for (const [id, title, label] of TOOLS.filter(([id]) => !(isTS() && (id === "origin" || id === "mask")))) {
+  for (const [id, title, label] of TOOLS.filter(([id]) => !(isTS() ? id === "origin" || id === "mask" : id === "kind"))) {
     const b = document.createElement("button");
     b.textContent = label; b.title = title; b.dataset.tool = id;
     b.onclick = () => setTool(id);
     toolBox.appendChild(b);
   }
+  // the kind the Kind tool gives (clicking a tile that has it already makes it solid again)
+  function kindChosen() { return String($(".p-kind").value || "solid").trim().toLowerCase().replace(/[^a-z0-9_]/g, "_") || "solid"; }
+  $("#se-kinds").innerHTML = C.TILE_KINDS.map((k) => `<option value="${k}">`).join("");
   function setTool(id) {
     if (id !== "select") settle(true);
     tool = id;
@@ -365,6 +375,16 @@ export function createSpriteEditor(root, hooks = {}) {
       for (let x = 1; x < s.w; x++) { ctx.moveTo(x * z + 0.5, 0); ctx.lineTo(x * z + 0.5, s.h * z); }
       for (let y = 1; y < s.h; y++) { ctx.moveTo(0, y * z + 0.5); ctx.lineTo(s.w * z, y * z + 0.5); }
       ctx.stroke();
+    }
+    if (isTS() && s.tile && tool === "kind") { // each tile's kind, while marking them: solid ones plain, the others shaded and named
+      const [tw, th] = s.tile, cols = C.tilesetCols(s), rows = C.tilesetRows(s);
+      ctx.font = `bold ${Math.max(9, Math.min(14, (tw * z) / 5))}px system-ui, sans-serif`; ctx.textBaseline = "top";
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        const k = C.tileKind(s, r * cols + c);
+        if (k === "solid") continue;
+        ctx.fillStyle = "rgba(0, 0, 0, 0.45)"; ctx.fillRect(c * tw * z, r * th * z, tw * z, th * z);
+        ctx.fillStyle = "#ffffff"; ctx.fillText(k, c * tw * z + 3, r * th * z + 3, tw * z - 6);
+      }
     }
     if (isTS() && s.tile) { // tile boundaries
       ctx.strokeStyle = tint("accent", 0.7); ctx.lineWidth = 1; ctx.beginPath();
@@ -650,6 +670,9 @@ export function createSpriteEditor(root, hooks = {}) {
       drag = { kind: tool, start: p, cur: p, filled: e.shiftKey };
     } else if (tool === "mask") {
       drag = { kind: "mask", start: p, cur: p };
+    } else if (tool === "kind" && isTS()) {
+      const ti = C.tileIndexAt(s, p[0], p[1]);
+      if (ti >= 0) commit(() => C.setTileKind(s, ti, C.tileKind(s, ti) === kindChosen() ? "solid" : kindChosen()));
     }
     renderCanvas();
   });
@@ -789,7 +812,7 @@ export function createSpriteEditor(root, hooks = {}) {
       if (k === "escape" || k === "enter") { e.preventDefault(); settle(true); renderAll(); return; }
       if (k === "f") { flipSel(); return; }
     }
-    if (KEY_TOOL[k] && !(isTS() && (k === "o" || k === "m"))) { setTool(KEY_TOOL[k]); return; }
+    if (KEY_TOOL[k] && !(isTS() ? k === "o" || k === "m" : k === "k")) { setTool(KEY_TOOL[k]); return; }
     if (isTS()) return;
     if (k === ",") { settle(true); f = Math.max(0, f - 1); renderAll(); }
     if (k === ".") { settle(true); f = Math.min(s.frames.length - 1, f + 1); renderAll(); }

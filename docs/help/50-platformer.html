@@ -94,7 +94,7 @@ end
 return Hero</code></pre>
 
 <h2>The scene</h2>
-<p>The scene reads the level and makes a block for every <code>#</code>, then tells the camera to follow the hero. <code>bounds</code> keeps the camera inside the level. <code>smooth</code> makes it lag a little, which feels good.</p>
+<p>The scene reads the level and makes a block for every <code>#</code>, then tells the camera to follow the hero. <code>bounds</code> keeps the camera inside the level. <code>smooth</code> makes it lag a little, which feels good. The camera follows anything with an <code>x</code> and a <code>y</code>, so it can also follow a point of your own (a table halfway between two players).</p>
 <pre class="lua" data-path="scenes/main.lua"><code>local level = require "lib.level"
 
 local Main = gs.scene{}
@@ -124,5 +124,22 @@ return Main</code></pre>
 <li><strong>Coyote time.</strong> Let the hero jump for 0.1 seconds after walking off a ledge: remember when it was last grounded and compare.</li>
 <li><strong>Enemies.</strong> Give them the <code>enemy</code> tag and a <code>Hero:on_collide_enemy</code> handler. Tell stomping from being hit by checking <code>self.dy &gt; 0 and self.y &lt; enemy.y</code>.</li>
 <li><strong>Fast things.</strong> If something moves more than its own size in one step it can pass through a block. Move it in a few smaller steps.</li>
+<li><strong>Moving platforms.</strong> Kinds of entity update in the order they were first spawned, so spawn the platforms before the hero: then a platform has
+already moved when the hero looks at what it stands on, and can carry it in the same step.</li>
 </ul>
+
+<h2>Tiles instead of blocks</h2>
+<p>A level made of blocks is easy to start with. A bigger one is a tile layer drawn in the layout editor: tick <strong>Solid</strong> on the ground layer,
+and the hero moves with <code>self:slide</code>, which stops at its tiles. In the tileset, the <strong>Kind</strong> tool marks tiles that are not plain ground:
+<code>oneway</code> platforms you jump up through and land on, and names of your own (<code>spike</code>) that stop nothing but can be asked about.</p>
+<pre class="lua"><code>function Hero:update(dt)
+  self.dy = self.dy + self.gravity * dt
+  local hx, hy = self:slide(gs.input.dir() * self.speed * dt, self.dy * dt)
+  if hy ~= 0 then self.dy = 0 end               -- landed, or bumped a ceiling
+  self.grounded = hy == 1
+  if self.grounded and gs.input.pressed("a") then self.dy = -self.jump end
+  if self:touching_tile("spike", 3) then self:hurt() end
+end</code></pre>
+<p><code>slide</code> checks every tile on the way, so a fast fall cannot pass through the floor. Setting <code>self.drop_through = true</code> for a moment lets the hero
+drop through a oneway platform (down and A, in many games).</p>
 <p>Next: <a href="help:survivors">Lots of enemies</a>.</p>

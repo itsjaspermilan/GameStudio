@@ -4,7 +4,8 @@
  * RETRO_HOLD=start@60-70,a@100 holds buttons by name on those frames (from-to, or one frame), as a player would press them.
  * Save states: RETRO_SAVE=N:file writes one after game frame N; RETRO_LOAD=C:file loads one before call C (0: right after loading the game,
  * as NextUI's Resume does), and the game's frame count goes back to the state's, so held buttons replay; RETRO_DUMP=N:file.bmp saves the
- * picture of game frame N (and of its replay, to <file>.again.bmp). A frame replayed after a load must come out the same as the first time. */
+ * picture of game frame N (and of its replay, to <file>.again.bmp). A frame replayed after a load must come out the same as the first time.
+ * RETRO_WAV=file.wav writes all the sound the core handed over (16-bit stereo, the core's rate), to listen to or look for clicks. */
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,9 +36,16 @@ static void video(const void *data, unsigned w, unsigned h, size_t pitch) {
     free(v_copy); v_copy = malloc(pitch * h); memcpy(v_copy, data, pitch * h);
 }
 static void audio1(int16_t l, int16_t r) { (void)l; (void)r; }
+static FILE *wav_out; /* RETRO_WAV */
 static size_t audio(const int16_t *d, size_t frames) {
     for (size_t i = 0; i < frames * 2; i++) { int v = abs(d[i]); if (v > a_peak) a_peak = v; }
+    if (wav_out) fwrite(d, sizeof *d * 2, frames, wav_out);
     a_samples += (long)frames; return frames;
+}
+static void wav_header(FILE *f, long frames, unsigned rate) { /* 44-byte RIFF header for 16-bit stereo */
+    const unsigned data = (unsigned)frames * 4, riff = 36 + data, byterate = rate * 4, fmtlen = 16; const unsigned short pcm = 1, ch = 2, align = 4, bits = 16;
+    fwrite("RIFF", 1, 4, f); fwrite(&riff, 4, 1, f); fwrite("WAVEfmt ", 1, 8, f); fwrite(&fmtlen, 4, 1, f); fwrite(&pcm, 2, 1, f); fwrite(&ch, 2, 1, f);
+    fwrite(&rate, 4, 1, f); fwrite(&byterate, 4, 1, f); fwrite(&align, 2, 1, f); fwrite(&bits, 2, 1, f); fwrite("data", 1, 4, f); fwrite(&data, 4, 1, f);
 }
 static void poll(void) {}
 static const char *names[] = { "b", "y", "select", "start", "up", "down", "left", "right", "a", "x", "l", "r", "l2", "r2", "l3", "r3" };
@@ -70,6 +78,7 @@ static void save_bmp(const char *path) {
 
 int main(int argc, char **argv) {
     if (argc < 4) { fprintf(stderr, "usage: retro-run <core> <cart> <frames> [frame.bmp]\n"); return 2; }
+    if (getenv("RETRO_WAV")) { wav_out = fopen(getenv("RETRO_WAV"), "wb"); if (wav_out) wav_header(wav_out, 0, 44100); }
     void *core = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
     if (!core) { fprintf(stderr, "%s\n", dlerror()); return 1; }
     /* the header declares the core's functions; each is looked up under its own name and called through a pointer of the same type */
@@ -120,6 +129,7 @@ int main(int argc, char **argv) {
         }
     }
     if (argc > 4 && v_copy) save_bmp(argv[4]);
+    if (wav_out) { fseek(wav_out, 0, SEEK_SET); wav_header(wav_out, a_samples, (unsigned)av.timing.sample_rate); fclose(wav_out); wav_out = NULL; }
     printf("RETRO frames=%ld size=%ux%u base=%ux%u fps=%.0f rate=%.0f samples=%ld peak=%d xrgb=%u shutdown=%d\n", v_frames, v_w, v_h,
            av.geometry.base_width, av.geometry.base_height, av.timing.fps, av.timing.sample_rate, a_samples, a_peak, fmt_ok, shut_down);
     if (run_n) {

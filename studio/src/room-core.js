@@ -286,6 +286,37 @@ export function nameProblem(name, room, own) {
 // How an entity is drawn in a layout: its class's own frame, scale (sx, sy), flip and alpha, read from the top of its gs.entity{ ... } table
 // (plain numbers and true/false only; code that sets them later is not run), then what the layout gives that one thing.
 const POSE_KEYS = ["frame", "sx", "sy", "flip", "alpha"];
+// An entity kind's file from its name in a layout: "enemies.beetle" (or "entities.enemies.beetle") is entities/enemies/beetle.lua.
+export function entityFile(name) { return `entities/${String(name).replace(/^entities\./, "").replace(/\./g, "/")}.lua`; }
+// The sprite an entity's file names (sprite = "beetle"), and when it names none the kind it builds on, to look there:
+// gs.entity(Base, { ... }) with local Base = require "entities.enemies.base", or gs.entity(require("entities.enemy"), { ... }).
+export function spriteOfEntity(src) {
+  src = String(src || "");
+  const m = /\bsprite\s*=\s*["']([\w/-]+)["']/.exec(src);
+  if (m) return { sprite: m[1] };
+  const inline = /gs\.entity\s*\(\s*require\s*\(?\s*["']([\w.]+)["']/.exec(src);
+  if (inline) return { parent: inline[1] };
+  const named = /gs\.entity\s*\(\s*([A-Za-z_]\w*)\s*,/.exec(src);
+  if (named) {
+    const req = new RegExp(`local\\s+${named[1]}\\s*=\\s*require\\s*\\(?\\s*["']([\\w.]+)["']`).exec(src);
+    if (req) return { parent: req[1] };
+  }
+  return {};
+}
+// Follow spriteOfEntity up the family (at most a few kinds): read(file) gives a file's text or throws. The sprite's name, or null.
+export function findEntitySprite(name, read) {
+  let file = entityFile(name);
+  for (let depth = 0; depth < 6; depth++) {
+    let src;
+    try { src = read(file); } catch { return null; }
+    const r = spriteOfEntity(src);
+    if (r.sprite) return r.sprite;
+    if (!r.parent || !/^entities\./.test(r.parent)) return null;
+    file = entityFile(r.parent);
+  }
+  return null;
+}
+
 export function lookDefaults(src) {
   const out = {}, body = /gs\.entity\s*\{([\s\S]*?)\n\}/.exec(String(src || ""));
   for (const line of (body ? body[1] : "").split("\n")) {
@@ -304,7 +335,20 @@ export function entityPose(look, props) {
 // The built-in fonts (the runtime's, see fonts.js): their names, a letter's glyph ([width, row, ...]) and how wide text is at size 1.
 export const BUILTIN_FONTS = Object.keys(FONTS);
 export const isBuiltinFont = (name) => !name || name in FONTS;
+// Text pasted from a word processor: curly quotes, dashes and accented letters are drawn as their ASCII look-alikes (runtime/main.c
+// ascii_like); anything else outside ASCII is the unknown box.
+const LATIN1_BASE = "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYTsaaaaaaaceeeeiiiidnooooo/ouuuuyty";
+export function asciiLike(code) {
+  if (code === 0x2018 || code === 0x2019 || code === 0x201a || code === 0x2032) return 39;
+  if (code === 0x201c || code === 0x201d || code === 0x201e || code === 0x2033) return 34;
+  if ((code >= 0x2010 && code <= 0x2014) || code === 0x2212) return 45;
+  if (code === 0xa0 || code === 0x2009 || code === 0x202f) return 32;
+  if (code === 0xd7) return 120;
+  if (code >= 0xc0 && code <= 0xff) return LATIN1_BASE.charCodeAt(code - 0xc0);
+  return code;
+}
 export function glyphOf(name, code) {
+  if (code >= 0x80) code = asciiLike(code);
   const glyphs = FONTS[name || "round_small"].glyphs, i = code - FONT_FIRST;
   return glyphs[i >= 0 && i < glyphs.length - 1 ? i : code === 9 ? 0 : glyphs.length - 1];
 }

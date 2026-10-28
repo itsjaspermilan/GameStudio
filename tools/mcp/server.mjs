@@ -41,9 +41,13 @@ tool("check", "Check a game", "After editing: the editor's own warnings for ever
 tool("run", "Run a game and look", "Runs the game without a window for some seconds (optionally pressing buttons, or with a random bot) and returns what it printed, its stats and a screenshot of the last frame.",
   {
     game, seconds: z.number().min(0.1).max(120).default(3),
-    keys: z.string().optional().describe("Button script, comma separated: 'a' (press), 'right*30' (hold 30 steps), 'wait*60'. Buttons: up down left right a b x y l r l2 r2 start select"),
+    keys: z.string().optional().describe("Button script, comma separated: 'a' (press), 'right*30' (hold 30 steps), 'right+a*20' (several at once), 'wait*60', 'quit' (stop the run). Buttons: up down left right a b x y l r l2 r2 start select"),
     bot: z.boolean().default(false).describe("Play with the random bot instead"),
+    bot_lua: z.string().optional().describe("A bot of your own instead: Lua that defines bot_step() (called every step) and presses with gs.input.sim_press(name) / gs.input.sim_hold(name, true|false); it reads the game through gs (gs.scene_name(), gs.first('hero')) and can end the run with gs.quit()"),
+    scene: z.string().optional().describe("Start at this scene instead of the game's first (e.g. 'level3')"),
+    shots: z.number().int().min(1).max(6).default(1).describe("Screenshots to return, evenly spaced over the run (1: only the last frame)"),
     scale: z.number().int().min(1).max(4).optional().describe("Enlarge the screenshot"),
+    env: z.record(z.string(), z.string()).optional().describe("The game's own GS_* switches, e.g. { GS_SEED: '3' } (read with os.getenv). Steps are exact: seconds x 60 steps"),
   }, T.run);
 tool("inspect", "Look inside a running game", "Runs the game for some seconds and reports every kind of entity with its count and cost (update/draw/collision ms a step); a kind's entities with positions; one entity's values; and Lua watch expressions (e is the chosen entity).",
   { game, seconds: z.number().min(1).max(120).default(3), kind: z.string().optional().describe("e.g. 'entities.enemy'"), entity: z.number().int().optional(), watch: z.array(z.string()).default([]) }, T.inspect);
@@ -59,7 +63,7 @@ tool("sprite_write", "Draw a sprite", "Writes sprites/<name>.png and .json and r
     frames: z.array(z.object({ rows: z.array(z.string()).optional(), ops: z.array(z.array(z.any())).optional(), bank: z.string().optional().describe("A tileset with banks: this tile's bank (default the first of banks)") })),
     bank: z.string().optional().describe("A game with colour banks: the sprite bank this sprite draws with (default the first)"),
     banks: z.array(z.string()).optional().describe("A game with colour banks, writing a tileset: the tile banks it uses (default the first tile bank)"),
-    origin: z.array(z.number()).length(2).optional(), fps: z.number().optional(),
+    origin: z.array(z.number()).length(2).optional(), fps: z.number().optional().describe("Frames a second to cycle through every frame when there are no animations (default 0: no cycling, for sheets of icons or variants)"),
     animations: z.record(z.string(), z.object({ from: z.number().int(), to: z.number().int(), fps: z.number(), loop: z.boolean() })).optional().describe("Named clips, frames counted from 0, one after another and covering every frame (as the studio keeps them): { idle: { from: 0, to: 1, fps: 4, loop: true }, walk: { from: 2, to: 7, fps: 12, loop: true } }. The first is what an entity shows until it plays another."),
     outline: z.union([z.number(), z.string()]).optional().describe("Outline every frame in this colour"),
     tileset: z.object({ cols: z.number().int().min(1).max(32).optional() }).optional().describe("Write a tileset instead: each frame is one tile, laid out in rows of cols (tilesets/<name>.png, at most the console's tileset size: 512x512 on Glow43 and Glow169)"),

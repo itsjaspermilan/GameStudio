@@ -111,35 +111,37 @@ local function mixed_width(parts, letter_h, scale, width)
   return w
 end
 
--- opts: font (a built-in font's name), shadow (true or a colour), alpha (0 to 1, on top of the colour's own)
-function M.text(str, x, y, color, scale, opts)
-  str = tostring(str)
+-- opts: font (a built-in font's name), shadow (true or a colour), alpha (0 to 1, on top of the colour's own). opts can also be just a
+-- font's name (gs.draw.text("HP", 4, 4, "#fff", 1, "bold_small")); a table of options is best made once, outside update and draw:
+--   local LABEL = { font = "round_tall", shadow = true }        -- at the top of the file
+--   gs.draw.text("SCORE", 8, 8, "#ffffff", 1, LABEL)            -- no new table every frame
+local NOFONT = "there is no built-in font called '%s' (round_small, round_tall, square_small, square_tall, bold_small, bold_tall); for a sprite font use gs.draw.font_text"
+local function print_text(str, x, y, color, scale, fname, alpha, shadow)
   local parts = buttons.split(str)
-  if parts then
-    local font = opts and opts.font
-    if font and not font_of(font) then error("there is no built-in font called '" .. tostring(font) .. "' (round_small, round_tall, square_small, square_tall, bold_small, bold_tall); for a sprite font use gs.draw.font_text", 2) end
-    local _, h = font_of(font)
-    local r, g, b, a = parse(color)
-    if opts and opts.alpha then a = a * opts.alpha // 1 end
-    local shadow = opts and opts.shadow and { shadow_color(opts.shadow, r, g, b, a) }
-    mixed(parts, h, x, y, scale, function(p, px, py) M.text(p, px, py, color, scale, opts) end, function(p) return M.text_width(p, scale, font) end, r, g, b, a, shadow)
-    return
+  local font, h = 0, 8
+  if fname then
+    local n, fh = font_of(fname)
+    if not n then error(NOFONT:format(tostring(fname)), 3) end
+    font, h = n, fh
   end
   local r, g, b, a = parse(color)
-  local font, shadow = 0, nil
-  if opts then
-    if opts.font then
-      font = font_of(opts.font)
-      if not font then error("there is no built-in font called '" .. tostring(opts.font) .. "' (round_small, round_tall, square_small, square_tall, bold_small, bold_tall); for a sprite font use gs.draw.font_text", 2) end
-    end
-    if opts.alpha then a = a * opts.alpha // 1 end
-    shadow = opts.shadow
+  if alpha then a = a * alpha // 1 end
+  if parts then
+    local sh = shadow and { shadow_color(shadow, r, g, b, a) }
+    mixed(parts, h, x, y, scale, function(p, px, py) print_text(p, px, py, color, scale, fname, alpha, shadow) end, function(p) return M.text_width(p, scale, fname) end, r, g, b, a, sh)
+    return
   end
   if shadow then
     local sr, sg, sb, sa = shadow_color(shadow, r, g, b, a)
-    raw.print(tostring(str), math.floor(x), math.floor(y), r, g, b, a, scale or 1, font, sr, sg, sb, sa)
-  else raw.print(tostring(str), math.floor(x), math.floor(y), r, g, b, a, scale or 1, font) end
+    raw.print(str, math.floor(x), math.floor(y), r, g, b, a, scale or 1, font, sr, sg, sb, sa)
+  else raw.print(str, math.floor(x), math.floor(y), r, g, b, a, scale or 1, font) end
 end
+function M.text(str, x, y, color, scale, opts)
+  if opts == nil then return print_text(tostring(str), x, y, color, scale) end
+  if type(opts) == "string" then return print_text(tostring(str), x, y, color, scale, opts) end
+  print_text(tostring(str), x, y, color, scale, opts.font, opts.alpha, opts.shadow)
+end
+local function font_name(opts) if type(opts) == "string" then return opts end return opts and opts.font end
 function M.text_width(str, scale, font)
   str = tostring(str)
   local parts = buttons.split(str)
@@ -175,14 +177,14 @@ function M.first_letters(str, n)
 end
 function M.text_centered(str, y, color, scale, opts)
   local w = gs.screen()
-  M.text(str, (w - M.text_width(str, scale, opts and opts.font)) // 2, y, color, scale, opts)
+  M.text(str, (w - M.text_width(str, scale, font_name(opts))) // 2, y, color, scale, opts)
 end
-function M.text_right(str, x, y, color, scale, opts) M.text(str, x - M.text_width(str, scale, opts and opts.font), y, color, scale, opts) end
+function M.text_right(str, x, y, color, scale, opts) M.text(str, x - M.text_width(str, scale, font_name(opts)), y, color, scale, opts) end
 
 -- Text in any font, built-in or a sprite: what layouts, menus and talk boxes draw with. `font` nil is round_small.
 function M.any_text(font, str, x, y, color, scale, alpha, shadow)
   if font and not font_of(font) then M.font_text(font, str, x, y, scale, alpha)
-  else M.text(str, x, y, color, scale, { font = font, alpha = alpha, shadow = shadow }) end
+  else print_text(tostring(str), x, y, color, scale, font, alpha, shadow) end
 end
 function M.any_width(font, str, scale)
   if font and not font_of(font) then return M.font_width(font, str, scale) end
@@ -231,10 +233,25 @@ function M.sprite(name, x, y, opts)
   if opts.blend then M.blend(was) end
 end
 
+-- A window the way GBA games drew them: a light border with its corners rounded off, a darker line inside it, and the fill.
+-- opts: fill, border, inner (the line inside the border; false for none). gs.draw.panel(x, y, w, h, { fill = "#f8f8f0", border = "#38486a",
+-- inner = "#a8c4e0" }) is the pale look of gs.say's box. Make the table once (at the top of the file) when a window is drawn every frame.
+local PANEL = {}
 function M.panel(x, y, w, h, opts)
-  opts = opts or {}
-  M.rect(x, y, w, h, opts.fill or "#101424")
-  M.frame(x, y, w, h, opts.border or "#ffffff")
+  opts = opts or PANEL
+  local border, inner = opts.border or "#e8ecf8", opts.inner
+  if inner == nil then inner = "#5868a0" end
+  x, y, w, h = math.floor(x), math.floor(y), math.floor(w), math.floor(h)
+  if w < 4 or h < 4 then return M.rect(x, y, w, h, opts.fill or "#203058") end
+  local r, g, b, a = parse(border)
+  raw.rect(x + 1, y, w - 2, 1, r, g, b, a); raw.rect(x + 1, y + h - 1, w - 2, 1, r, g, b, a)
+  raw.rect(x, y + 1, 1, h - 2, r, g, b, a); raw.rect(x + w - 1, y + 1, 1, h - 2, r, g, b, a)
+  if inner then
+    r, g, b, a = parse(inner)
+    raw.rect(x + 1, y + 1, w - 2, 1, r, g, b, a); raw.rect(x + 1, y + h - 2, w - 2, 1, r, g, b, a)
+    raw.rect(x + 1, y + 2, 1, h - 4, r, g, b, a); raw.rect(x + w - 2, y + 2, 1, h - 4, r, g, b, a)
+  end
+  M.rect(x + 2, y + 2, w - 4, h - 4, opts.fill or "#203058")
 end
 function M.bar(x, y, w, h, value, max, opts)
   opts = opts or {}
@@ -242,6 +259,29 @@ function M.bar(x, y, w, h, value, max, opts)
   local fill = math.floor((w - 2) * math.max(0, math.min(1, value / math.max(max, 1e-9))))
   if fill > 0 then M.rect(x + 1, y + 1, fill, h - 2, opts.color or "#4ade80") end
   if opts.border then M.frame(x, y, w, h, opts.border) end
+end
+
+-- ---------------------------------------------------------------- baked pictures
+-- Draw something once into a picture of its own and show that picture afterwards: a backdrop painted from hundreds of rectangles, a
+-- map, a long text, are then one draw a frame. fn draws with gs.draw.* as usual, with (0, 0) the picture's top-left. Baking the same
+-- name again (entering the scene again, a changed map) redraws it into the same picture; bake once (in enter), not every frame.
+--   self.sky = gs.draw.bake("sky", 256, 192, function() ... end)   then in draw:   gs.draw.picture(self.sky, 0, 0)
+-- A picture starts see-through; what is drawn half see-through onto that comes out darker, so paint a backdrop's background first.
+local baked = {}
+function M.bake(name, w, h, fn)
+  if type(name) ~= "string" then error("gs.draw.bake(name, w, h, function() ... end): the name comes first", 2) end
+  local was = M.mode
+  M.mode = "normal"
+  local ok, pic = pcall(raw.bake, w, h, fn, baked[name])
+  M.mode = was
+  if not ok then error(pic, 2) end
+  baked[name] = pic
+  return pic
+end
+-- a baked picture (or any picture) at x, y: alpha 0 to 1, scale (whole numbers stay sharp)
+function M.picture(pic, x, y, alpha, scale)
+  local sc = scale or 1
+  raw.tile(pic, 0, 0, pic.w, pic.h, math.floor(x), math.floor(y), sc, false, 0, sc, (alpha or 1) * 255)
 end
 
 -- Split text into lines of at most `width` pixels (at the given scale, in a font: nil is round_small), breaking at spaces. A word

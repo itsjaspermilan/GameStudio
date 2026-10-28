@@ -78,6 +78,16 @@ if [ -x build/retro-run ] && [ -n "$core" ]; then
   GS_DUMP_FRAME="$tmp/gs.bmp" FRAMES=60 run ./build/gs tests/mosaic >/dev/null
   echo "$out" | grep -q 'shutdown=1' || { echo "$out"; echo "FAIL: the core did not pass gs.quit() on"; status=1; }
   node tests/same-frames.mjs "$tmp/core.bmp" "$tmp/gs.bmp" || { echo "FAIL: the core draws a different frame from the program"; status=1; }
+  # A baked picture (gs.draw.bake) looks exactly like drawing the same things every frame, on the program and in the core, and a game
+  # resumed from a save state gets it back from its pixels without baking again.
+  GS_DUMP_FRAME="$tmp/bake.bmp" FRAMES=10 run ./build/gs tests/bake >/dev/null
+  GS_BAKE_PLAIN=1 GS_DUMP_FRAME="$tmp/bake-plain.bmp" FRAMES=10 run ./build/gs tests/bake >/dev/null
+  node tests/same-frames.mjs "$tmp/bake.bmp" "$tmp/bake-plain.bmp" || { echo "FAIL: a baked picture looks different from drawing it directly"; status=1; }
+  ./build/retro-run "$core" tests/bake 10 "$tmp/bake-core.bmp" >/dev/null 2>&1
+  node tests/same-frames.mjs "$tmp/bake-core.bmp" "$tmp/bake-plain.bmp" || { echo "FAIL: the core bakes a different picture"; status=1; }
+  RETRO_SAVE=5:"$tmp/bake-state" ./build/retro-run "$core" tests/bake 10 >/dev/null 2>&1
+  RETRO_LOAD=0:"$tmp/bake-state" RETRO_DUMP=8:"$tmp/bake-resumed.bmp" ./build/retro-run "$core" tests/bake 10 >/dev/null 2>&1
+  node tests/same-frames.mjs "$tmp/bake-resumed.bmp" "$tmp/bake-plain.bmp" || { echo "FAIL: a resumed game lost its baked picture"; status=1; }
   out="$(RETRO_SAVE_DIR="$tmp/saves" RETRO_HOLD="start@60-64,a@120-124,left@130-400" ./build/retro-run "$core" carts/breakout 900 2>&1)"
   echo "$out" | grep -q 'RETRO frames=900 size=256x192 base=256x192 fps=60 rate=44100 samples=661500 ' || { echo "$out"; echo "FAIL: the core's picture or sound timing"; status=1; }
   echo "$out" | grep -q 'peak=0 ' && { echo "$out"; echo "FAIL: the core made no sound"; status=1; }

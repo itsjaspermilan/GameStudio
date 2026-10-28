@@ -1,6 +1,7 @@
 -- Assets: sprites and tilesets (and the tile layers of a level). Everything is looked up by file name, without the extension:
 --   sprites/<name>.json + .png   {image, frames, origin = {x, y}, mask = {x, y, w, h}, fps, animations = {name = {from, to, fps, loop}}}
---   tilesets/<name>.json + .png  {image, tile_w, tile_h}
+--   tilesets/<name>.json + .png  {image, tile_w, tile_h, kinds = {oneway = {8, 9}, spike = {20}}}: kinds name tiles for a solid layer
+--                                (see Entity:slide in world.lua); a tile not listed is "solid"
 --   palette.json                 {sprites = {{name, colors = {"#rrggbb" x 15}}, ...}, tiles = {...}}: the game's colour banks (GBA style). Place 0 of a
 --                                bank is see-through, so `colors` holds places 1 to 15. A sprite names its bank ({bank = "hero"}), a tileset its banks.
 -- The folder IS the list: there is no index file. Sprites and tilesets load the first time they are asked for (or all at once with preload()).
@@ -44,7 +45,15 @@ function M.tileset(name, level)
   local img = gs.image(d.image or ("tilesets/" .. name .. ".png"), M.fresh)
   local tw, th = d.tile_w or 16, d.tile_h or 16
   local cols, rows = img.w // tw, img.h // th
-  t = { name = name, img = img, tw = tw, th = th, cols = cols, rows = rows, count = cols * rows, banks = d.banks }
+  local kinds
+  if type(d.kinds) == "table" then
+    kinds = {}
+    for kind, list in pairs(d.kinds) do
+      if type(list) ~= "table" then error("tilesets/" .. name .. ".json: kinds." .. tostring(kind) .. " must be a list of tile numbers", 0) end
+      for _, i in ipairs(list) do kinds[i] = kind end
+    end
+  end
+  t = { name = name, img = img, tw = tw, th = th, cols = cols, rows = rows, count = cols * rows, banks = d.banks, kinds = kinds }
   M.tilesets[name] = t
   return t
 end

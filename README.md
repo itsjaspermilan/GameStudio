@@ -217,15 +217,15 @@ The grid lines show bars and beats. Pattern length is counted in bars.
   instruments.
 - **Long notes.** A music note lasts until the next note or note-off. A sound effect note is a step followed by "Hold" steps
   (effect 7), which keep the note going instead of starting a new one.
-- **Sound effects** (`sfx/<name>.json`): `{speed, loop, tracks: [{instrument, steps: [[pitch, volume, effect], ...]}]}`, up to 32
-  steps, all tracks the same length, played together. The older single-row form is converted when the studio opens it, and
+- **Sound effects** (`sfx/<name>.json`): `{speed, loop, tracks: [{instrument, steps: [[pitch, volume, effect], ...]}]}` (pitch 0 is
+  C1, 36 middle C, 48 C5; volume 0 to 7), up to 32 steps, all tracks the same length, played together. The older single-row form is converted when the studio opens it, and
   the game still plays it.
 - **Music** (`music/<name>.json`) is a tracker song: patterns of rows by tracks, played in an order, with tempo, a loop point and an
   echo amount. `track_instruments` names each track's instrument. Each cell is `NOTE[,VOL[,FX[,FXP]]]` (for example `C4,12`);
   `OFF` stops a note and `--` is empty. Effects: slide up, slide down, vibrato, arpeggio, volume slide, pan and note cut. Songs in
   the previous form (an instrument per cell) and the oldest "patterns of sound effects" form still play, and the studio converts them
   when you open them.
-- A console's `audio.style` is `"clean"` or `"gba"`; `gba` adds the lo-fi output stage (low-pass filter, 32 kHz hold, 8-bit steps).
+- A console's `audio.style` is `"clean"` or `"gba"`; `gba` adds the lo-fi output stage (low-pass filter, 32 kHz hold, 10-bit steps with a little dither, so quiet tails fade into a faint hiss instead of crackling).
   `audio.music_tracks` and `audio.sfx_channels` set the channel counts. A console's `budgets.cart_kb` is a warning level for a cart's size
   (the built-in consoles use 16 MB, a typical GBA cartridge).
 

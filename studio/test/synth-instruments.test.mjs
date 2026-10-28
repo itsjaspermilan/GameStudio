@@ -97,16 +97,28 @@ test("pan places an instrument in the stereo field", { skip }, () => {
   void side;
 });
 
-test("the GBA output stage is 8-bit and holds samples at about 32 kHz", { skip }, () => {
+test("the GBA output stage is 10-bit and holds samples at about 32 kHz", { skip }, () => {
   const body = sfx(60, [[40, 4, 7, 0]]);
   const clean = runRender(body).samples, lofi = runRender(`style gba\n${body}`).samples;
   const distinct = (x) => new Set(Array.from(x.slice(seg(0.1), seg(0.9)), (v) => Math.round(v * 32768))).size;
   assert.ok(distinct(clean) > 500, `clean has ${distinct(clean)} levels`);
-  assert.ok(distinct(lofi) <= 256, `lo-fi has ${distinct(lofi)} levels`);
+  assert.ok(distinct(lofi) <= 1024, `lo-fi has ${distinct(lofi)} levels`);
   let repeats = 0;
   for (let i = seg(0.1) + 1; i < seg(0.9); i++) if (lofi[i] === lofi[i - 1]) repeats++;
   assert.ok(repeats / (seg(0.8)) > 0.2, "held samples repeat");
   assert.ok(rms(lofi, seg(0.1), seg(0.9)) > 0.05, "and it still sounds");
+});
+
+test("a quiet GBA-style sound fades smoothly and silence stays silent", { skip }, () => {
+  // 8-bit steps without dither left quiet notes a dozen levels, heard as crackle on the handheld
+  const body = sfx(60, [[40, 1, 7, 0]]);
+  const lofi = runRender(`style gba\n${body}`).samples;
+  const levels = new Set(Array.from(lofi.slice(seg(0.1), seg(0.9)), (v) => Math.round(v * 32768))).size;
+  assert.ok(levels > 40, `a quiet note has ${levels} levels`);
+  const clean = runRender(body).samples; // where the clean output is silent (before the note, after its release), so is this one
+  let loud = 0;
+  for (let i = 4; i < Math.min(clean.length, lofi.length); i++) if (clean.slice(i - 4, i + 1).every((v) => v === 0) && lofi[i] !== 0) loud++;
+  assert.equal(loud, 0, "silence stays silent (no hiss)");
 });
 
 // ---------------- tracker songs ----------------

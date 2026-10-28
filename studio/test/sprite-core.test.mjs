@@ -330,3 +330,19 @@ test("animations: a frame dragged onto another animation moves to its end", () =
   assert.deepEqual(Object.keys(s.animations), ["walk"]);
   assert.ok(C.animationsTidy(s.animations, s.frames.length));
 });
+
+test("tile kinds are kept as the engine reads them, and saved with the tileset", () => {
+  const s = C.createTileset("ground", 16, 16, 4, 2);
+  assert.equal(C.tileKind(s, 3), "solid");
+  C.setTileKind(s, 3, "oneway"); C.setTileKind(s, 1, "oneway"); C.setTileKind(s, 5, "Spike!");
+  assert.deepEqual(s.kinds, { oneway: [1, 3], spike_: [5] });
+  C.setTileKind(s, 3, "spike_");
+  assert.deepEqual(s.kinds, { oneway: [1], spike_: [3, 5] });
+  assert.deepEqual(C.tilesetToJSON(s).kinds, { oneway: [1], spike_: [3, 5] });
+  const snap = C.snapshot(s);
+  C.setTileKind(s, 1, "solid"); C.setTileKind(s, 3, "solid"); C.setTileKind(s, 5, "solid");
+  assert.equal(s.kinds, undefined);
+  assert.equal(C.tilesetToJSON(s).kinds, undefined);
+  C.restore(s, snap);
+  assert.equal(C.tileKind(s, 5), "spike_");
+});

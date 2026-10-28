@@ -16,10 +16,10 @@ test("a project that fits reports nothing, and a screen change is only a note", 
 });
 
 test("levels, entities and layers over the limits are problems", () => {
-  const facts = { rooms: { big: { width: 2000, height: 100, instances: 600, layers: 5 } } };
+  const facts = { rooms: { big: { width: 5000, height: 100, instances: 600, layers: 5 } } };
   const t = texts(checkProject(dot, dot, facts));
   assert.equal(t.length, 3);
-  assert.ok(t[0].includes("2000×100") && t[0].includes("1024×1024"));
+  assert.ok(t[0].includes("5000×100") && t[0].includes("4096×1024"));
   assert.ok(t[1].includes("600 entities") && t[1].includes("512"));
   assert.ok(t[2].includes("5 tile layers") && t[2].includes("4"));
 });

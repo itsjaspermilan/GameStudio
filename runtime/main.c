@@ -68,6 +68,7 @@ static int g_screen_w = DEFAULT_SCREEN_W, g_screen_h = DEFAULT_SCREEN_H;
 static SDL_Window *g_win;
 
 /* Time in nanoseconds, and a wait as fine as the system allows: SDL2 counts milliseconds, and a frame paced to whole milliseconds drifts. */
+static bool g_fixed_step; /* GS_FIXED_STEP: one step a frame, no waiting (see the frame loop) */
 static Uint64 ticks_ns(void) {
     static Uint64 freq;
     if (!freq) freq = SDL_GetPerformanceFrequency();
@@ -484,7 +485,26 @@ static Uint32 utf8_next(const char **s) {
     for (int i = 1; i <= n; i++) { if ((p[i] & 0xc0) != 0x80) { *s += i; return 0xfffd; } c = c << 6 | (p[i] & 0x3f); }
     *s += n + 1; return c;
 }
-static int glyph_of(Uint32 c) { return c >= GS_FONT_FIRST && c < GS_FONT_FIRST + GS_FONT_GLYPHS - 1 ? (int)(c - GS_FONT_FIRST) : c == '\t' ? 0 : GS_FONT_GLYPHS - 1; }
+/* The fonts have ASCII only; text pasted from a word processor brings curly quotes, dashes and accents, shown as their ASCII look-alikes
+ * rather than as unknown boxes (an unknown character still shows as the box, so it is noticed). */
+static Uint32 ascii_like(Uint32 c) {
+    switch (c) {
+    case 0x2018: case 0x2019: case 0x201a: case 0x2032: return '\'';
+    case 0x201c: case 0x201d: case 0x201e: case 0x2033: return '"';
+    case 0x2010: case 0x2011: case 0x2012: case 0x2013: case 0x2014: case 0x2212: return '-';
+    case 0x00a0: case 0x2009: case 0x202f: return ' ';
+    case 0x00d7: return 'x';
+    }
+    if (c >= 0xc0 && c <= 0xff) { /* Latin-1 letters without their accents */
+        static const char base[] = "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYTsaaaaaaaceeeeiiiidnooooo/ouuuuyty";
+        return (Uint32)(unsigned char)base[c - 0xc0];
+    }
+    return c;
+}
+static int glyph_of(Uint32 c) {
+    if (c >= 0x80) c = ascii_like(c);
+    return c >= GS_FONT_FIRST && c < GS_FONT_FIRST + GS_FONT_GLYPHS - 1 ? (int)(c - GS_FONT_FIRST) : c == '\t' ? 0 : GS_FONT_GLYPHS - 1;
+}
 static int font_arg(lua_State *L, int i) {
     const int f = (int)luaL_optinteger(L, i, 0);
     if (f < 0 || f >= GS_FONTS) luaL_error(L, "there is no built-in font %d", f);
@@ -534,9 +554,14 @@ static int l_font(lua_State *L) { /* name -> number, height, line height (or nil
 static int l_circle(lua_State *L) { /* cx,cy,radius,r,g,b[,a] filled */
     float cx = ZX(luaL_checknumber(L,1)), cy = ZY(luaL_checknumber(L,2)), r = (float)luaL_checknumber(L,3) * g_zoom;
     set_color(L, 4);
-    for (float dy = -r; dy <= r; dy += 1) {
-        float dx = sqrtf(fmaxf(r * r - dy * dy, 0));
-        SDL_RenderDrawLineF(g_ren, cx - dx, cy + dy, cx + dx, cy + dy);
+    /* whole-pixel rows, each pixel in when its middle is: every renderer agrees on filled rectangles, while thin lines came out differently
+     * (the window's renderer drew a one-pixel nub at the top and bottom that the handheld's software one left out) */
+    for (int y = (int)floorf(cy - r); y <= (int)ceilf(cy + r); y++) {
+        const float dy = (float)y + 0.5f - cy;
+        if (dy * dy > r * r) continue;
+        const float dx = sqrtf(r * r - dy * dy);
+        const int x0 = (int)floorf(cx - dx + 0.5f), x1 = (int)floorf(cx + dx + 0.5f);
+        if (x1 > x0) SDL_RenderFillRectF(g_ren, &(SDL_FRect){ (float)x0, (float)y, (float)(x1 - x0), 1 });
     }
     g_px_frame += 3.14159 * r * r; g_calls_frame++;
     return 0;
@@ -759,6 +784,46 @@ static int l_pixels(lua_State *L) {
     if (err) return luaL_error(L, "%s", err);
     push_image(L, g_nimages++); return 1;
 }
+/* gs.raw.bake(w, h, fn[, old]) -> picture: calls fn with drawing sent to a w x h picture of its own instead of the screen (the camera at
+ * 0, 0, no zoom, normal blending, the "screen" that size while it runs), then keeps what it drew as an ordinary picture with its pixels
+ * (gs.draw.bake in draw.lua). Reading the pixels back once makes the picture's recipe a 'P', so a resumed game gets it back without running fn,
+ * and it can be composed or recoloured like a loaded one. `old` is a picture this call made before, whose slot is reused. */
+static int l_bake(lua_State *L) {
+    const int w = (int)luaL_checkinteger(L, 1), h = (int)luaL_checkinteger(L, 2);
+    luaL_checktype(L, 3, LUA_TFUNCTION);
+    if (w < 1 || h < 1 || w > 4096 || h > 4096) return luaL_error(L, "bake: the picture must be 1 to 4096 pixels on each side, not %d x %d", w, h);
+    int id = -1;
+    if (lua_istable(L, 4)) {
+        lua_getfield(L, 4, "id"); const int oid = (int)luaL_optinteger(L, -1, -1); lua_pop(L, 1);
+        if (oid >= 0 && oid < g_nimages && g_images[oid].name && !strcmp(g_images[oid].name, "(baked)")) id = oid;
+    }
+    if (id < 0 && g_nimages >= MAX_IMAGES) return luaL_error(L, "too many images");
+    unsigned char *px = malloc((size_t)w * h * 4);
+    if (!px) return luaL_error(L, "bake: out of memory");
+    SDL_Texture *t = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_TARGET, w, h);
+    if (!t) { free(px); return luaL_error(L, "bake: no picture to draw into (%s)", SDL_GetError()); }
+    SDL_Texture *was = SDL_GetRenderTarget(g_ren);
+    const float cx = g_cam_x, cy = g_cam_y, zoom = g_zoom; const SDL_BlendMode blend = g_blend; const int sw = g_screen_w, sh = g_screen_h;
+    g_cam_x = g_cam_y = 0; g_zoom = 1; g_screen_w = w; g_screen_h = h;
+    SDL_SetRenderTarget(g_ren, t);
+    SDL_SetRenderDrawBlendMode(g_ren, SDL_BLENDMODE_NONE); SDL_SetRenderDrawColor(g_ren, 0, 0, 0, 0); SDL_RenderClear(g_ren);
+    g_blend = SDL_BLENDMODE_BLEND; SDL_SetRenderDrawBlendMode(g_ren, g_blend);
+    lua_pushvalue(L, 3);
+    const int status = lua_pcall(L, 0, 0, 0);
+    const int read = SDL_RenderReadPixels(g_ren, NULL, SDL_PIXELFORMAT_RGBA32, px, w * 4);
+    SDL_SetRenderTarget(g_ren, was);
+    SDL_DestroyTexture(t);
+    g_cam_x = cx; g_cam_y = cy; g_zoom = zoom; g_screen_w = sw; g_screen_h = sh;
+    g_blend = blend; SDL_SetRenderDrawBlendMode(g_ren, g_blend);
+    if (status != LUA_OK) { free(px); return lua_error(L); }
+    if (read != 0) { free(px); return luaL_error(L, "bake: could not read the picture back (%s)", SDL_GetError()); }
+    const char *err = pixels_into(id >= 0 ? id : g_nimages, w, h, px);
+    free(px);
+    if (err) return luaL_error(L, "%s", err);
+    if (id < 0) id = g_nimages++;
+    free(g_images[id].name); g_images[id].name = strdup("(baked)");
+    push_image(L, id); return 1;
+}
 static SDL_Texture *check_image(lua_State *L, int i) {
     luaL_checktype(L, i, LUA_TTABLE);
     lua_getfield(L, i, "id"); int id = (int)luaL_checkinteger(L, -1); lua_pop(L, 1);
@@ -834,7 +899,10 @@ static int l_btn(lua_State *L)  { lua_pushboolean(L, btn_now[btn_index(L)]); ret
 static int l_btnp(lua_State *L) { int i = btn_index(L); lua_pushboolean(L, btn_now[i] && !btn_prev[i]); return 1; }
 static int l_clock(lua_State *L) { lua_pushnumber(L, ticks_ns() / 1e9); return 1; } /* gs.clock(): seconds since start, fine-grained (for timing) */
 static int l_time(lua_State *L) { lua_pushnumber(L, SDL_GetTicks() / 1000.0); return 1; }
-static int l_quit(lua_State *L) { (void)L; g_quit = true; return 0; }
+static int l_quit(lua_State *L) { (void)L; g_quit = true; fflush(stdout); fflush(stderr); return 0; } /* a test bot's prints must not be lost */
+static int l_volume(lua_State *L) { /* gs.raw.volume(music, sfx): 0..1 each, the player's settings */
+    synth_set_volume((float)luaL_checknumber(L, 1), (float)luaL_checknumber(L, 2)); return 0;
+}
 /* gs.pad_last(): the number of the raw joystick button pressed most recently (then forgotten), or nil. For the pad setup cart. */
 static int l_pad_last(lua_State *L) { if (g_raw_last < 0) lua_pushnil(L); else lua_pushinteger(L, g_raw_last); g_raw_last = -1; return 1; }
 /* gs.pad_set(name, n): use raw joystick button n for the button called name, and remember it for next time. Returns false if it could not be saved. */
@@ -865,10 +933,12 @@ static bool valid_key(const char *k) {
         if (!(isalnum((unsigned char)*k) || *k == '_' || *k == '-' || *k == '.')) return false;
     return true;
 }
-static int l_save(lua_State *L) { /* gs.save(key, string) -> ok */
-    const char *k = luaL_checkstring(L, 1); size_t n; const char *data = luaL_checklstring(L, 2, &n);
+static int l_save(lua_State *L) { /* gs.save(key, string) -> ok; gs.save(key, nil) removes the save */
+    const char *k = luaL_checkstring(L, 1);
     if (!valid_key(k) || !g_savedir[0]) { lua_pushboolean(L, 0); return 1; }
     char path[1200], tmp[1210];
+    if (lua_isnoneornil(L, 2)) { snprintf(path, sizeof path, "%s/%s", g_savedir, k); lua_pushboolean(L, remove(path) == 0); return 1; }
+    size_t n; const char *data = luaL_checklstring(L, 2, &n);
     snprintf(path, sizeof path, "%s/%s", g_savedir, k); snprintf(tmp, sizeof tmp, "%s.tmp", path);
     FILE *f = fopen(tmp, "wb");
     bool ok = f && fwrite(data, 1, n, f) == n;
@@ -1514,9 +1584,9 @@ static const luaL_Reg gs_lib[] = {
     {"synth_config", l_synth_config}, {"soundfont_load", l_soundfont_load}, {"sample_load", l_sample_load}, {"inst_load", l_inst_load}, {"song_load", l_song_load}, {"song_play", l_song_play},
     {"save", l_save}, {"loadsave", l_loadsave}, {"sound", l_sound}, {"play", l_play}, {"stop", l_stop},
     {"clear", l_clear}, {"rect", l_rect}, {"line", l_line}, {"print", l_print}, {"text_width", l_text_width}, {"font", l_font},
-    {"camera", l_camera}, {"compose", l_compose}, {"recolor", l_recolor}, {"pixels", l_pixels}, {"mosaic", l_mosaic}, {"blend", l_blend}, {"stats", l_stats}, {"ram", l_ram}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
+    {"camera", l_camera}, {"compose", l_compose}, {"recolor", l_recolor}, {"pixels", l_pixels}, {"bake", l_bake}, {"mosaic", l_mosaic}, {"blend", l_blend}, {"stats", l_stats}, {"ram", l_ram}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
     {"btn", l_btn}, {"btnp", l_btnp}, {"time", l_time}, {"clock", l_clock}, {"quit", l_quit}, {"zoom", l_zoom}, {"load", l_load}, {"list", l_list}, {"mtime", l_mtime},
-    {"grid_build", l_grid_build}, {"grid_query", l_grid_query},
+    {"grid_build", l_grid_build}, {"grid_query", l_grid_query}, {"volume", l_volume},
     {"pad_last", l_pad_last}, {"pad_set", l_pad_set}, {"pad_reset", l_pad_reset}, {NULL, NULL}};
 
 /* The SoundFont a packed cart carries: the game's sounds are loaded the way gs.boot loads them (engine/gs/sound.lua, into the synth,
@@ -2380,7 +2450,30 @@ static void embed_state(char what) {
 #endif
 
 #ifndef GS_LIBRETRO
+#ifdef __APPLE__
+#include <pthread.h>
+#endif
+/* Saves the frame that was just drawn (the logical screen) as a plain 24-bit BMP: SDL writes 32-bit ones with a V4 header that macOS's
+ * own tools cannot open. */
+static void dump_frame(const char *path) {
+    if (!g_ren) return;
+    /* the viewport: the game's corner of a surface, or the whole of the window's texture */
+    SDL_Rect vp; SDL_RenderGetViewport(g_ren, &vp);
+    SDL_Surface *shot = SDL_CreateRGBSurfaceWithFormat(0, vp.w, vp.h, 32, SDL_PIXELFORMAT_ARGB8888);
+    if (shot && SDL_RenderReadPixels(g_ren, NULL, SDL_PIXELFORMAT_ARGB8888, shot->pixels, shot->pitch) == 0) {
+        SDL_Surface *rgb = SDL_ConvertSurfaceFormat(shot, SDL_PIXELFORMAT_BGR24, 0);
+        if (!rgb || SDL_SaveBMP(rgb, path)) fprintf(stderr, "frame dump: %s\n", SDL_GetError());
+        SDL_FreeSurface(rgb);
+    } else fprintf(stderr, "frame dump: %s\n", SDL_GetError());
+    SDL_FreeSurface(shot);
+}
+
 int main(int argc, char **argv) {
+#ifdef __APPLE__
+    /* the studio's Brick estimate is this computer's update time x 10.6: at the default QoS macOS moved a light game between slow and fast
+     * cores and clocks, and the same Lua timed up to three times apart (the chess game's search) */
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+#endif
     if (argc == 3 && !strcmp(argv[1], "boost-selftest")) return boost_selftest(argv[2]);
     if (argc == 4 && !strcmp(argv[1], "render-audio")) return render_audio(argv[2], argv[3]);
     if (argc >= 3 && !strcmp(argv[1], "soundfont")) return soundfont_cli(argc, argv);
@@ -2398,6 +2491,7 @@ int main(int argc, char **argv) {
     else if (!load_cart(argv[1])) { fprintf(stderr, "%s: not a valid cartridge\n", argv[1]); return 1; }
 
     bool use_fb = false;
+    g_fixed_step = getenv("GS_FIXED_STEP") && strcmp(getenv("GS_FIXED_STEP"), "0");
     bool win_vsync = false; /* the window's renderer waits for the screen; without it (the dummy driver of the tests) the game is held to 60 a second */
     SDL_SetMainReady();
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
@@ -2484,8 +2578,12 @@ int main(int argc, char **argv) {
     Uint64 bw_t0 = ticks_ns(); long bw_n = 0, bw_late = 0; double bw_dt = 0, bw_work = 0; /* a one-second window for the CPU floor controller */
     double prev_upd = 0, prev_draw = 0, prev_pres = 0, prev_fb = 0, prev_wait = 0; /* the previous frame's phases: a frame's time (now minus the last now) is that frame's work */
     Uint32 *readback = getenv("GS_READBACK") ? malloc((size_t)2048 * 2048 * 4) : NULL;
+    /* GS_DUMP_EVERY=N with GS_DUMP_FRAME=shot.bmp saves every Nth frame as shot-000060.bmp, shot-000120.bmp, ... (what a test bot saw on its
+     * way, not only where it ended) */
+    const long dump_every = getenv("GS_DUMP_EVERY") ? atol(getenv("GS_DUMP_EVERY")) : 0;
+    const char *dump_path = getenv("GS_DUMP_FRAME");
     while (!g_quit) {
-        if (max_frames && ++frame > max_frames) break;
+        if (++frame > max_frames && max_frames) break;
         if (max_seconds > 0 && SDL_GetTicks() / 1000.0 > max_seconds) break;
 #ifdef __linux__
         if (g_debug_input) evdev_debug_poll();
@@ -2529,6 +2627,10 @@ int main(int argc, char **argv) {
         double dt = (now - last) / 1e9; last = now;
         if (dt > 0.1) dt = 0.1;
         const double raw_dt = dt;
+        /* GS_FIXED_STEP=1 (tests, the MCP server's run): every frame is exactly one step and nothing waits, so GS_MAX_FRAMES=N is step N on any
+         * computer and a run takes as long as the work. Without it a headless run held to 60 a second by sleeping came out at 51-52 frames
+         * a second with catch-up steps, and two runs stopped on different steps. */
+        if (g_fixed_step) dt = 1.0 / 60;
         /* The engine runs whole steps from the elapsed time. A frame that lands a hair early or late (16.4 ms, 17.0 ms) would then be a frame
          * with no step followed by one with two, which looks like stutter on a 60 Hz screen. Near 1/60 s the frame time is taken as exactly 1/60. */
         if (dt > 1.0 / 60 - 0.003 && dt < 1.0 / 60 + 0.003) { dt = 1.0 / 60; ps.snapped++; }
@@ -2539,12 +2641,18 @@ int main(int argc, char **argv) {
         /* GS_READBACK=1 copies every finished frame from the GPU into memory, as a libretro core drawing on a GPU of its own would have to
          * (a measure of that cost on a device: it shows in GS_PERF's drawing time) */
         if (readback && g_target) SDL_RenderReadPixels(g_ren, NULL, SDL_PIXELFORMAT_ARGB8888, readback, g_screen_w * 4);
+        if (dump_every > 0 && dump_path && frame % dump_every == 0) {
+            char name[1024]; const char *dot = strrchr(dump_path, '.');
+            const int stem = dot ? (int)(dot - dump_path) : (int)strlen(dump_path);
+            snprintf(name, sizeof name, "%.*s-%06ld%s", stem, dump_path, frame, dot ? dot : ".bmp");
+            dump_frame(name);
+        }
         const Uint64 t_upd = g_t_updated, t_draw = ticks_ns();
         g_px_last = g_px_frame; g_calls_last = g_calls_frame; g_px_frame = 0; g_calls_frame = 0;
         if (g_win) present_window(); else SDL_RenderPresent(g_ren);
         const Uint64 t_pres = ticks_ns();
         Uint64 t_fb = t_pres;
-        if (g_win && !win_vsync) {
+        if (g_win && !win_vsync && !g_fixed_step) {
             t_fb = ticks_ns();
             Uint64 want = now + 16666667ULL;
             if (t_fb < want) delay_ns(want - t_fb);
@@ -2553,7 +2661,7 @@ int main(int argc, char **argv) {
             embed_present();
             t_fb = ticks_ns();
             Uint64 want = now + 16666667ULL;
-            if (t_fb < want) delay_ns(want - t_fb);
+            if (t_fb < want && !g_fixed_step) delay_ns(want - t_fb);
         }
 #ifdef __linux__
         if (use_fb) { /* the screen's refresh paces the game when frames are flipped on their own thread; otherwise hold it to 60 a second */
@@ -2608,7 +2716,8 @@ int main(int argc, char **argv) {
         wd_frames++; wd_n++; wd_dt += raw_dt; wd_upd += (t_upd - now) * 1e-6; wd_draw += (t_draw - t_upd) * 1e-6; wd_pres += (t_pres - t_draw) * 1e-6; wd_fb += (t_fb - t_pres) * 1e-6;
         if (wd_n >= 120) {
             const double avg = wd_dt / wd_n;
-            if (!wd_warned && wd_frames > 240 && avg > 0.019) {
+            /* slow because of its own work, not because a sleep woke late (a headless run's 51-52 frames a second with 1.5 ms of work) */
+            if (!wd_warned && wd_frames > 240 && avg > 0.019 && (wd_upd + wd_draw + wd_pres) / wd_n > 12.0) {
                 wd_warned = true;
                 fprintf(stderr, "warning: this game runs at %.0f frames a second here, not 60 (a frame takes %.1f ms: update %.1f, drawing %.1f, render %.1f, copy to the screen %.1f; 60 needs under 16.7). "
                         "Usual causes: many objects, many collision checks, or a lot of the screen covered by drawing (see the console's limits and budgets).\n",
@@ -2619,14 +2728,7 @@ int main(int argc, char **argv) {
     }
     { /* GS_DUMP_FRAME=file.bmp saves the last frame (the logical screen) so a test can compare two ways of drawing */
         const char *dump = getenv("GS_DUMP_FRAME");
-        if (dump && g_ren) {
-            /* the viewport: the game's corner of a surface, or the whole of the window's texture */
-            SDL_Rect vp; SDL_RenderGetViewport(g_ren, &vp);
-            SDL_Surface *shot = SDL_CreateRGBSurfaceWithFormat(0, vp.w, vp.h, 32, SDL_PIXELFORMAT_ARGB8888);
-            if (shot && SDL_RenderReadPixels(g_ren, NULL, SDL_PIXELFORMAT_ARGB8888, shot->pixels, shot->pitch) == 0) SDL_SaveBMP(shot, dump);
-            else fprintf(stderr, "frame dump: %s\n", SDL_GetError());
-            SDL_FreeSurface(shot);
-        }
+        if (dump && !dump_every) dump_frame(dump);
     }
     embed_close();
 #ifdef __linux__

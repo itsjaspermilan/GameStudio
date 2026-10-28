@@ -34,7 +34,7 @@ The numbers for Glow43 and Glow169 come from stress tests on an RG35XX Pro (norm
 
 - **Hard limits** are the screen, the palette (and, in the studio, sprite sizes) and entities alive at once.
   Everything else is a soft budget. Say if anything should move between the two.
-- **GBA-style rooms** means: rooms up to 1024x1024, one scrolling view, up to four tile layers with parallax,
+- **GBA-style rooms** means: rooms up to 4096x1024 (a 4096x1024 room with four full layers measured 5.6 ms a frame and 29 MB more memory on the RG35XX Pro), one scrolling view, up to four tile layers with parallax,
   and a soft cap of 128 sprites visible at once (like the GBA's 128 hardware sprites).
 - **Palette**: GBA-exact colour banks (decided 2026-10-23): 16 sprite banks and 16 tile banks of 16 places, 15-bit colour, one bank per sprite and
   one per tile, so up to 512 colours on screen. New games start with ready-made banks (`studio/src/palette-core.js`, `starterPalette`): three

@@ -2,6 +2,7 @@
 #define TSF_IMPLEMENTATION
 #include "tsf.h"   /* TinySoundFont (MIT): plays the General MIDI instruments from a SoundFont */
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -112,6 +113,7 @@ typedef struct {
 static Voice g_v[NVOICES];
 static unsigned long g_age;
 static float g_music_gain = 1.0f;
+static float g_music_vol = 1.0f, g_sfx_vol = 1.0f; /* the player's settings (gs.volume): not game state, so save states leave them alone */
 static int g_rev_kind = REVERB_ROOM;
 static long g_reverb_tail = 0; /* samples left to run the reverb after the last sound fed it, so its tail can ring out */
 static void reverb_kind(int kind);
@@ -585,15 +587,26 @@ static void reverb_process(float in_l, float in_r, float *l, float *r) {
     *l += out[0]; *r += out[1];
 }
 
-static double lo_hold = 0; static float lo_l, lo_r, lp_l, lp_r;
-/* The GBA mixed at about 32 kHz with 8-bit output: soften the top end (so the held samples don't alias), then hold samples
- * at that rate and round them to 8 bits. The result is grainy in just the way the old hardware was. */
+static double lo_hold = 0; static float lo_l, lo_r, lp_l, lp_r; static uint32_t lo_rng = 0x2545f491u;
+/* The GBA mixed at about 32 kHz and its output stage had about 9 bits at that rate: soften the top end (so the held samples don't alias),
+ * hold samples at that rate and round them to 10-bit steps, with a little dither first. Rounding to 8 bits without dither (as this did
+ * until 2026-10-28) left quiet music, fades and reverb tails with a dozen or so levels, and they crackled on the handheld (chess's calm
+ * songs: 15 levels under an eighth of full scale). With the dither those tails fade into a faint even hiss; silence stays silent. */
+static float lo_dither(void) { /* triangular noise of one step either way (two uniform ones added), from a fixed sequence */
+    lo_rng ^= lo_rng << 13; lo_rng ^= lo_rng >> 17; lo_rng ^= lo_rng << 5; const float a = (float)(lo_rng & 0xffff) / 65536.0f;
+    lo_rng ^= lo_rng << 13; lo_rng ^= lo_rng >> 17; lo_rng ^= lo_rng << 5; const float b = (float)(lo_rng & 0xffff) / 65536.0f;
+    return a - b;
+}
+static float lo_round(float v) {
+    if (fabsf(v) < 0.5f / 511.0f) return 0; /* nothing playing: no hiss */
+    return roundf(v * 511.0f + lo_dither()) / 511.0f;
+}
 static void lofi_process(float *l, float *r) {
     lp_l += (*l - lp_l) * 0.7f; lp_r += (*r - lp_r) * 0.7f;
     lo_hold += 32768.0 / g_sr;
     if (lo_hold >= 1.0) {
         lo_hold -= 1.0;
-        lo_l = roundf(lp_l * 127.0f) / 127.0f; lo_r = roundf(lp_r * 127.0f) / 127.0f;
+        lo_l = lo_round(lp_l); lo_r = lo_round(lp_r);
     }
     *l = lo_l; *r = lo_r;
 }
@@ -611,7 +624,7 @@ void synth_reset(int sample_rate) {
     for (int c = 0; c < NVOICES; c++) g_v[c].seq = -1;
     memset(&g_m, 0, sizeof g_m); memset(&g_s, 0, sizeof g_s);
     g_age = 0; g_music_gain = 1.0f; g_rev_kind = REVERB_ROOM; g_reverb_tail = 0; g_mch = 6; g_sch = 3; g_lofi = 0; g_group = 0;
-    lo_hold = 0; lo_l = lo_r = lp_l = lp_r = 0;
+    lo_hold = 0; lo_l = lo_r = lp_l = lp_r = 0; lo_rng = 0x2545f491u;
     builtin_instruments();
     reverb_reset();
 }
@@ -622,6 +635,10 @@ int synth_load_soundfont(const void *data, int size) {
     return g_sf != NULL;
 }
 int synth_have_soundfont(void) { return g_sf != NULL; }
+void synth_set_volume(float music, float sfx) {
+    g_music_vol = music < 0 ? 0 : music > 1 ? 1 : music;
+    g_sfx_vol = sfx < 0 ? 0 : sfx > 1 ? 1 : sfx;
+}
 int synth_replace_soundfont(const void *data, int size) {
     tsf *sf = tsf_load_memory(data, size);
     if (!sf) return 0;
@@ -701,7 +718,7 @@ void synth_mix(float *out, int frames) {
                 Voice *v = &g_v[c];
                 if (!v->active) continue;
                 float s = voice_sample(v);
-                if (v->owner == 1) s *= g_music_gain;
+                s *= v->owner == 1 ? g_music_gain * g_music_vol : g_sfx_vol;
                 float pan = v->pan;
                 const float vl = s * (pan > 0 ? 1.0f - pan : 1.0f), vr = s * (pan < 0 ? 1.0f + pan : 1.0f);
                 l += vl; r += vr;

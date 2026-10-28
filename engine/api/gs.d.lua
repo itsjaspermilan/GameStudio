@@ -126,7 +126,9 @@ function Entity:draw() end
 -- Methods you can write on an entity. Each is optional.
 ---Called once when the entity is made, after its starting values are set.
 function Entity:create() end
----Called every step (60 times a second) with the time since the last step in seconds.
+---Called every step (60 times a second) with the time since the last step in seconds. Kinds of entity update in the order they were
+---first spawned (all of one kind, then all of the next), then everything moves by vx, vy, then collisions, then the scene's update:
+---spawn a moving platform before the hero so it has moved when the hero stands on it.
 ---@param dt number
 function Entity:update(dt) end
 ---Called when the entity is removed.
@@ -144,14 +146,61 @@ function Entity:follow_path(path, speed, opts) end
 function Entity:stop_path() end
 ---Called when the entity reaches the end of a path that does not loop.
 function Entity:on_path_end() end
+---This one entity's hitbox, instead of its kind's: x, y, w, h from its position, or { r = 6 } for a round one; nil goes back to its
+---kind's. (A `hitbox` given to gs.spawn does the same.)
+---@param x number|table|nil
+---@param y? number
+---@param w? number
+---@param h? number
+function Entity:set_hitbox(x, y, w, h) end
+---Move by dx, dy pixels (sideways first, then up or down), stopping against the tiles of the layers marked solid. Returns which way each
+---move was stopped: hit_x -1 (a wall on the left), 1 (on the right) or 0; hit_y 1 (landed), -1 (bumped a ceiling) or 0. A tileset's
+---"kinds" say what its tiles are: "oneway" platforms only stop things coming down onto them (self.drop_through = true falls through);
+---any other kind ("spike", "ice") stops nothing but can be asked about. Every tile not listed is "solid". No slopes.
+---  local hx, hy = self:slide(self.dx * dt, self.dy * dt)
+---  if hy ~= 0 then self.dy = 0 end
+---  self.on_ground = hy == 1
+---@param dx number
+---@param dy number
+---@return integer hit_x
+---@return integer hit_y
+function Entity:slide(dx, dy) end
+---The first tile of a kind ("spike", "solid", ...) of a solid layer under the hitbox: its top-left corner in the world, or nil.
+---inset shrinks the hitbox first (grazing a spike's edge is forgiven).
+---@param kind string
+---@param inset? number
+---@return number|nil x
+---@return number|nil y
+function Entity:touching_tile(kind, inset) end
 
 ---@class Scene
 ---@field enter fun(self: Scene, ...) Called when the scene starts; gets the extra arguments of gs.goto_scene.
 ---@field update fun(self: Scene, dt: number) Called every step.
 ---@field draw fun(self: Scene) Draws after the world (layers and entities), in world space.
 ---@field draw_ui fun(self: Scene) Draws on top of everything, in screen space (score, menus).
----@field leave fun(self: Scene) Called when another scene takes over.
+---@field leave fun(self: Scene) Called when another scene takes over. enter, update, draw, draw_ui and leave are the engine's: a method of your own with one of these names (a leave() that goes back to the board) runs at those times.
 Scene = {}
+---Call fn once, after a delay in seconds. It belongs to the scene: leaving the scene cancels it.
+---@param seconds number
+---@param fn fun(self: Scene)
+---@return Timer
+function Scene:after(seconds, fn) end
+---Call fn every so many seconds until the scene ends or the timer is cancelled.
+---@param seconds number
+---@param fn fun(self: Scene)
+---@return Timer
+function Scene:every(seconds, fn) end
+---Run a little script that can wait (gs.wait), belonging to the scene.
+---@param fn function
+---@return Timer
+function Scene:go(fn) end
+---Glide fields of the scene to new values over time.
+---@param props table
+---@param seconds number
+---@param easing? Easing
+---@param on_done? function
+---@return Timer
+function Scene:tween(props, seconds, easing, on_done) end
 
 -- ------------------------------------------------------------------ the game
 ---@class GameSpec
@@ -245,7 +294,8 @@ function gs.particle_count() end
 ---@param message string
 function gs.send(target, message, ...) end
 
----Freeze the world: no entity moves or thinks and no timer runs. The scene's update and draw_ui keep running, so a pause menu or a level-up choice can read buttons.
+---Freeze the world: no entity moves or thinks and no timer, tween or gs.go script runs (gs.say's box and the script it belongs to do).
+---The scene's update and draw_ui keep running, so a pause menu or a level-up choice can read buttons.
 ---A new scene starts unfrozen. Call gs.pause(false) to carry on.
 ---@param on? boolean true (the default) to freeze, false to carry on
 function gs.pause(on) end
@@ -301,6 +351,25 @@ function gs.tile_at(layer, x, y) end
 ---@param y number
 ---@param tile integer
 function gs.set_tile(layer, x, y, tile) end
+---Take a tile layer out of the world. Returns true if it was there.
+---@param layer table|string The layer or its name
+---@return boolean
+function gs.remove_layer(layer) end
+---Draw a layer with another tileset (a night version of the same tiles). Its tile kinds come from the new tileset.
+---@param layer table|string
+---@param tileset string A file in tilesets/
+function gs.set_tileset(layer, tileset) end
+---The kind of the tile at a world position ("solid", "oneway", or a name from the tileset's kinds), nil for none. With layer nil, the
+---first layer marked solid that has a tile there.
+---@param layer table|string|nil
+---@param x number
+---@param y number
+---@return string|nil
+function gs.tile_kind(layer, x, y) end
+---The name of the scene that is running, without "scenes." ("level3"). Ten layouts that share one scene's code (code = "level") can
+---tell which they are by it.
+---@return string
+function gs.scene_name() end
 
 -- ------------------------------------------------------------------ sound
 ---Play a sound effect from sfx/.
@@ -315,8 +384,25 @@ function gs.music(name) end
 ---Stop the music, fading out over some seconds.
 ---@param fade_seconds? number
 function gs.music_stop(fade_seconds) end
+---The player's volume for the music and for the sound effects, 0 to 1 each (leave one out to keep it). Returns both. For a settings menu.
+---@param music? number
+---@param sfx? number
+---@return number music, number sfx
+function gs.volume(music, sfx) end
+
+---The colour behind everything in this scene (a layout's background sets it too). A new scene starts black.
+---@param color string|integer[] "#rrggbb", a palette colour or "bank:place"
+function gs.background(color) end
 
 -- ------------------------------------------------------------------ time
+---Game time in seconds: it counts steps, so it follows gs.time_scale and stands still while the studio pauses the game. Use it for
+---anything in the game (cooldowns, blinking, "ignore buttons for a moment").
+---@return number
+function gs.now() end
+---Real time in seconds since the game started (the computer's clock): the same for every step of one frame, and it runs on while
+---the game is paused or slowed. For measuring, not for game logic: use gs.now.
+---@return number
+function gs.time() end
 ---Run a function once after some seconds (when no entity owns it; use entity:after to tie it to one).
 ---@param seconds number
 ---@param fn fun()
@@ -344,18 +430,22 @@ function gs.wait(seconds) end
 ---Pause a coroutine until a function returns true.
 ---@param fn fun(): boolean
 function gs.wait_until(fn) end
----Show a text box and wait until the player has read it (A goes on). The world stands still meanwhile. Use it inside gs.go or self:go.
+---Show a text box and wait until the player has read it (A goes on; holding A or B types faster). The world stands still meanwhile,
+---and so do timers and scripts other than this one: a gs.after started before it waits too. Use it inside gs.go or self:go.
 ---The box's look comes from the scene's layout: a panel named dialogue_box, texts named dialogue_text and dialogue_name, a picture
----named dialogue_cursor. Without them it is a plain box at the bottom.
+---named dialogue_cursor. Without them it is a plain box at the bottom. gs.ui.style.text_speed (letters a second) and
+---gs.ui.style.on_letter (a function for a blip) set how it types.
 ---@param name string Who speaks (leave out for no name: gs.say("A locked door."))
 ---@param text? string What they say; long text wraps and runs onto more pages
-function gs.say(name, text) end
+---@param opts? { auto: number } auto: go on by itself this many seconds after a page is typed (a CPU player's turn)
+function gs.say(name, text, opts) end
 ---Ask a question in the text box and wait for an answer (up and down choose, A picks). Use it inside gs.go or self:go.
 ---@param question string
----@param answers string[] e.g. { "YES", "NO" }
+---@param answers (string|{ [1]: string, enabled: boolean })[] e.g. { "YES", "NO" }; { "SELL", enabled = false } is dim and cannot be picked
 ---@param name? string Who asks
+---@param opts? { back: integer } back: the answer B picks (none when left out)
 ---@return integer The number of the answer picked
-function gs.ask(question, answers, name) end
+function gs.ask(question, answers, name, opts) end
 
 -- ------------------------------------------------------------------ maths and helpers
 ---Keep a number between a low and a high value.
@@ -409,7 +499,7 @@ gs.camera = {}
 function gs.camera:set(x, y) end
 ---Keep an entity in the middle of the screen.
 ---@param target Entity
----@param opts? { smooth: number, bounds: number[], offset_x: number, offset_y: number } smooth: 0 snaps, larger is lazier. bounds: { x, y, w, h }.
+---@param opts? { smooth: number, bounds: number[], offset_x: number, offset_y: number } smooth: 0 snaps; otherwise the share of the way the camera moves each step, so larger is quicker (0.1 lazy, 0.5 quick). The target can be any table with x and y. bounds: { x, y, w, h }.
 function gs.camera:follow(target, opts) end
 ---Stop following.
 function gs.camera:stop() end
@@ -483,12 +573,14 @@ function gs.draw.circle(x, y, radius, color) end
 ---braces shows its icon: {a} {b} {x} {y} {l} {r} {start} {select} {up} {down} {left} {right} {dpad}.
 ---  gs.draw.text("Hello!", 8, 8, "#404040", 1, { font = "round_tall", shadow = true })
 ---  gs.draw.text("Press {a} to jump", 8, 20, "#ffffff")
+---opts can be just a font's name ("bold_small"). Drawn every frame, make the options table once at the top of the file
+---(local BIG = { font = "round_tall", shadow = true }) rather than a new one in each call.
 ---@param str any
 ---@param x number
 ---@param y number
 ---@param color? Color
 ---@param scale? number
----@param opts? TextOptions
+---@param opts? TextOptions|BuiltinFont
 function gs.draw.text(str, x, y, color, scale, opts) end
 ---Text centered on the screen.
 ---@param str any
@@ -557,25 +649,54 @@ function gs.draw.wrap(text, width, scale, font) end
 ---@param y number
 ---@param opts? { frame: number, angle: number, scale: number, sx: number, sy: number, alpha: number, flip: boolean, bank: string, blend: BlendMode } bank: draw it with another colour bank's colours (a palette swap); blend: "add" glows, "darken" shades
 function gs.draw.sprite(name, x, y, opts) end
----A box with a border, for menus and dialogs.
----@param opts? { fill: Color, border: Color }
+---A window the way GBA games drew them: a light border with rounded corners, a darker line inside it, and the fill (dark blue unless
+---given). { fill = "#f8f8f0", border = "#38486a", inner = "#a8c4e0" } is the pale look of gs.say's box; inner = false leaves out the line.
+---@param opts? { fill: Color, border: Color, inner: Color|false }
 function gs.draw.panel(x, y, w, h, opts) end
+---Draw something once into a picture and show the picture afterwards: a backdrop of hundreds of rectangles becomes one draw a frame.
+---fn draws with gs.draw.* as usual, (0, 0) being the picture's top-left. Baking the same name again redraws into the same picture, so
+---bake in enter (or when something changes), never every frame. A picture starts see-through: paint a backdrop's background first.
+---  self.sky = gs.draw.bake("sky", 256, 192, function() gs.draw.rect(0, 0, 256, 192, "#203058") ... end)
+---@param name string
+---@param w integer
+---@param h integer
+---@param fn function
+---@return table picture
+function gs.draw.bake(name, w, h, fn) end
+---Draw a picture made by gs.draw.bake at x, y (in the world inside draw, on the screen inside draw_ui).
+---@param picture table
+---@param x number
+---@param y number
+---@param alpha? number 0 to 1
+---@param scale? number
+function gs.draw.picture(picture, x, y, alpha, scale) end
 ---A bar that shows value out of max (health, progress).
 ---@param opts? { color: Color, back: Color, border: Color }
 function gs.draw.bar(x, y, w, h, value, max, opts) end
 
 -- ------------------------------------------------------------------ interface
 gs.ui = {}
----How menus look: color, selected, cursor, line, on_move, on_pick, and open_time (seconds a menu or gs.say's box takes to open or
----close, 0.12; 0 for none).
+---How menus look and sound, and how gs.say types: color, selected, disabled, cursor, line, on_move, on_pick, on_back (functions for
+---sounds), repeat_delay and repeat_every (a held direction), open_time (seconds a menu or gs.say's box takes to open or close, 0.12;
+---0 for none), text_speed (letters a second, 40) and on_letter (called as letters type).
 gs.ui.style = {}
 ---@class Menu
 ---@field cur integer The selected item.
----@field items string[]
+---@field items (string|MenuItem)[]
 ---@field closed boolean True once menu:close() has rolled it away.
 local Menu = {}
----Handle up / down / A. Returns the number of the item when A is pressed, otherwise nil (also while it rolls open or shut).
----@return integer|nil
+---@class MenuItem
+---@field [1] string The label
+---@field enabled? boolean false: drawn dim and skipped
+---@field hint? string A line about the item (menu:hint() gives the chosen one's)
+---@field values? string[] Left and right choose one ("OFF", "ON")
+---@field value? integer Which of the values is chosen (1 when left out)
+---@field wrap? boolean false: the values stop at the ends instead of going round
+---@field on_change? fun(item: MenuItem, value: string) Called when left or right changed the value
+---Handle the buttons: up / down move (held, they repeat), left / right change a value, A picks, B goes back. Returns the number of the
+---item picked, "back" for B (unless opts.back = false), otherwise nil (also while it rolls open or shut). Start does not pick
+---(it is the pause button) unless opts.start = true.
+---@return integer|"back"|nil
 function Menu:update() end
 ---Draw the items with a cursor. The first time it is drawn it rolls open, line by line.
 ---@param x number
@@ -588,9 +709,24 @@ function Menu:open() end
 ---How far it has rolled open, 0 to 1.
 ---@return number
 function Menu:unfolded() end
+---The chosen item (a string or its table).
+---@return string|MenuItem
+function Menu:item() end
+---The chosen item's hint, or nil.
+---@return string|nil
+function Menu:hint() end
+---An item's value as shown ("ON"); the chosen item when i is left out.
+---@param i? integer
+---@return string|nil
+function Menu:value(i) end
+---Move the cursor to the next item that can be chosen (by -1 or 1). Returns false when none can.
+---@param by integer
+---@return boolean
+function Menu:move(by) end
 ---A list of choices to pick with the D-pad.
----@param items string[]
----@param opts? { scale: number, line: number }
+---  gs.ui.menu({ "PLAY", { "CONTINUE", enabled = false }, { "MUSIC", values = { "OFF", "ON" }, value = 2 } }, { width = 120 })
+---@param items (string|MenuItem)[]
+---@param opts? { scale: number, line: number, width: number, back: boolean, start: boolean, at: table, cursor: table } width: values are right-aligned this far from x
 ---@return Menu
 function gs.ui.menu(items, opts) end
 
@@ -610,6 +746,9 @@ function SaveSlot.set(key, value) end
 ---@param key string
 ---@return boolean
 function SaveSlot.has(key) end
+---Remove a saved value (an empty save slot, a forgotten setting).
+---@param key string
+function SaveSlot.delete(key) end
 gs.save = SaveSlot
 ---A separate set of saved values (slot 1, 2, 3...).
 ---@param n integer

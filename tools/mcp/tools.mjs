@@ -12,7 +12,7 @@ import { scanProject, consoleIdOf, buttonsOfGame, LAYOUT_COMMENT } from "../../s
 import { normalizePalette } from "../../studio/src/palette-core.js";
 import { parseSong, serializeSong, normalizeSfx, renderSongDesc, renderSfxWith, setBuiltinInstruments, builtinInstruments, songSeconds } from "../../studio/src/audio-core.js";
 import { analyzeSong, describeAnalysis } from "../../studio/src/music-core.js";
-import { parseRoom, normalizeRoom, serializeRoom, fitLayer, glyphOf, builtinWidth, isBuiltinFont, shadowOf, lookDefaults, entityPose, splitButtons, buttonSize, buttonPixels } from "../../studio/src/room-core.js";
+import { parseRoom, normalizeRoom, serializeRoom, fitLayer, glyphOf, builtinWidth, isBuiltinFont, shadowOf, lookDefaults, entityPose, splitButtons, buttonSize, buttonPixels, entityFile, findEntitySprite } from "../../studio/src/room-core.js";
 import { FONTS } from "../../studio/src/fonts.js";
 import { parsePage } from "../../studio/src/help-core.js";
 import { reindent } from "../../studio/src/search-core.js";
@@ -132,19 +132,25 @@ const fit = (w, h, max = 640) => Math.max(1, Math.min(12, Math.floor(max / Math.
 // ---------- the runtime ----------
 function needRuntime() { if (!existsSync(GS)) throw new Error("build/gs is missing: run scripts/build.sh in the workspace first"); }
 // Runs a game without a window; returns stderr lines, the stats line, and the last frame.
-function runGame(dir, { seconds = 3, keys, bot = false, env = {} } = {}) {
+// botLua: a bot of the caller's own (Lua defining bot_step(), see tests/keys-bot.lua). shots > 1 also saves frames evenly along the way.
+function runGame(dir, { seconds = 3, keys, bot = false, botLua, scene, shots = 1, env = {} } = {}) {
   needRuntime();
   const work = mkdtempSync(join(tmpdir(), "gs-mcp-"));
-  const bmp = join(work, "frame.bmp");
-  const e = { ...process.env, SDL_VIDEODRIVER: "dummy", SDL_AUDIODRIVER: "dummy", GS_SAVE_DIR: join(work, "saves"), GS_MAX_FRAMES: String(Math.round(Math.min(120, Math.max(0.1, seconds)) * 60)), GS_DUMP_FRAME: bmp, GS_STATS: "1", GS_DEV: "1", GS_RAM: "1", ...env };
-  if (keys) { e.GS_BOT_LUA = join(ROOT, "tests/keys-bot.lua"); e.GS_KEYS = keys; }
+  const bmp = join(work, "frame.bmp"), frames = Math.round(Math.min(120, Math.max(0.1, seconds)) * 60);
+  const e = { ...process.env, SDL_VIDEODRIVER: "dummy", SDL_AUDIODRIVER: "dummy", GS_SAVE_DIR: join(work, "saves"), GS_MAX_FRAMES: String(frames), GS_DUMP_FRAME: bmp, GS_STATS: "1", GS_DEV: "1", GS_RAM: "1", GS_FIXED_STEP: "1", ...env };
+  if (scene) e.GS_START_SCENE = String(scene);
+  if (shots > 1) e.GS_DUMP_EVERY = String(Math.max(1, Math.floor(frames / shots)));
+  if (botLua) { const f = join(work, "bot.lua"); writeFileSync(f, botLua); e.GS_BOT_LUA = f; }
+  else if (keys) { e.GS_BOT_LUA = join(ROOT, "tests/keys-bot.lua"); e.GS_KEYS = keys; }
   else if (bot) e.GS_BOT_LUA = join(ROOT, "tests/random-bot.lua");
   const r = spawnSync(GS, [dir], { encoding: "utf8", env: e, timeout: 180000 });
   const lines = `${r.stdout || ""}${r.stderr || ""}`.split("\n").filter(Boolean);
   let frame = null;
-  try { frame = decodeBmp(readFileSync(bmp)); } catch { /* the game stopped before a frame */ }
+  const along = [];
+  if (shots > 1) for (const f of readdirSync(work).filter((n) => /^frame-\d+\.bmp$/.test(n)).sort()) { try { along.push(decodeBmp(readFileSync(join(work, f)))); } catch { /* skip */ } }
+  try { frame = shots > 1 ? along[along.length - 1] || null : decodeBmp(readFileSync(bmp)); } catch { /* the game stopped before a frame */ }
   rmSync(work, { recursive: true, force: true });
-  return { lines, frame, status: r.status };
+  return { lines, frame, frames: along, status: r.status };
 }
 const statsOf = (lines) => { const s = lines.filter((l) => l.startsWith("@@gs ")).pop(); try { return s ? JSON.parse(s.slice(5)) : null; } catch { return null; } };
 const problemsOf = (lines) => lines.filter((l) => /error|warning|traceback|stack/i.test(l) && !l.startsWith("@@"));
@@ -282,15 +288,20 @@ export function check({ game, seconds = 4 }) {
   return { text: L.join("\n") };
 }
 
-export function run({ game, seconds = 3, keys, bot = false, scale }) {
+export function run({ game, seconds = 3, keys, bot = false, bot_lua, scene, shots = 1, scale, env = {} }) {
   const dir = gameDir(game);
-  const r = runGame(dir, { seconds, keys, bot });
+  // a game's own switches (seeds, test modes) only: GS_ names, never the ones that point the runtime at files or saves
+  const own = Object.fromEntries(Object.entries(env).filter(([k]) => /^GS_[A-Z0-9_]+$/.test(k) && !/^GS_(SAVE_DIR|BOT_LUA|INSPECT|SOUNDFONT|DUMP_FRAME|DUMP_EVERY|EMBED.*|FBDEV)$/.test(k)).map(([k, v]) => [k, String(v)]));
+  const n = Math.max(1, Math.min(6, Math.round(shots) || 1));
+  const r = runGame(dir, { seconds, keys, bot, botLua: bot_lua, scene, shots: n, env: own });
   const probs = problemsOf(r.lines), st = statsOf(r.lines), printed = r.lines.filter((l) => !l.startsWith("@@") && !probs.includes(l));
-  const L = [`ran ${game} for ${seconds} s${keys ? ` pressing ${keys}` : bot ? " with the random bot" : ""}`];
+  const L = [`ran ${game}${scene ? ` from scene ${scene}` : ""} for ${seconds} s${bot_lua ? " with your bot" : keys ? ` pressing ${keys}` : bot ? " with the random bot" : ""}`];
   if (probs.length) L.push("problems:\n" + probs.slice(0, 30).map((l) => "  " + l).join("\n"));
   if (printed.length) L.push("printed:\n" + printed.slice(-15).map((l) => "  " + l).join("\n"));
   if (st) L.push(`stats: ${JSON.stringify(st)}`);
-  const images = r.frame ? [picture(r.frame.width, r.frame.height, r.frame.data, scale || 1)] : [];
+  const shown = n > 1 && r.frames.length ? r.frames : r.frame ? [r.frame] : [];
+  if (n > 1 && shown.length) L.push(`${shown.length} screenshots, evenly spaced over the run`);
+  const images = shown.map((f) => picture(f.width, f.height, f.data, scale || 1));
   if (!images.length) L.push("no frame was drawn (the game stopped first)");
   return { text: L.join("\n"), images };
 }
@@ -409,7 +420,7 @@ export function sprite_write({ game, name, w, h, frames, origin, fps, animations
   const s = strip(canvases), rgba = s.rgba(pal);
   mkdirSync(join(dir, "sprites", dirname(n)), { recursive: true });
   writeFileSync(join(dir, "sprites", `${n}.png`), png(s.w, s.h, rgba));
-  const meta = { image: `sprites/${n}.png`, frames: frames.length, origin: origin || [w >> 1, h >> 1], mask: null, fps: fps ?? (frames.length > 1 ? 8 : 0), ...(own ? { bank: own.name } : {}) };
+  const meta = { image: `sprites/${n}.png`, frames: frames.length, origin: origin || [w >> 1, h >> 1], mask: null, fps: fps ?? 0, ...(own ? { bank: own.name } : {}) };
   if (animations) meta.animations = animations;
   writeFileSync(join(dir, "sprites", `${n}.json`), JSON.stringify(meta, null, 1) + "\n");
   return { text: `wrote sprites/${n}.png and .json: ${w}x${h}, ${frames.length} frame${frames.length === 1 ? "" : "s"}, origin ${JSON.stringify(meta.origin)}${own ? `, bank ${own.name}` : ""}`, images: [picture(s.w, s.h, rgba, fit(s.w, s.h))] };
@@ -441,6 +452,8 @@ function bandOfEight(spec) {
 }
 export function song_write({ game, name, spec }) {
   const dir = gameDir(game), n = resName(name);
+  if (spec && spec.format !== "tracker" && Array.isArray(spec.inst) && spec.inst.length !== 4 && spec.inst.length !== 8)
+    throw new Error(`inst lists ${spec.inst.length} instruments; a song has 4 (lead, harmony, bass, drums) or 8 (those, then counter-melody, second harmony, percussion, echo). Give 4 and the other 4 are filled in.`);
   const song = spec && spec.format === "tracker" ? serializeSong(parseSong(spec)) : new Song({ seed: 1, ...bandOfEight(spec) }).build();
   mkdirSync(join(dir, "music", dirname(n)), { recursive: true });
   writeFileSync(join(dir, "music", `${n}.json`), JSON.stringify(song, null, 1) + "\n");
@@ -477,11 +490,11 @@ function spriteOf(dir, name) {
     return { img, frames: f, fw: Math.floor(img.width / f), fh: img.height, ox: o[0], oy: o[1] };
   } catch { return null; }
 }
-// what an entity looks like: the sprite its file names, or null
+// what an entity looks like: the sprite its file names (or the kind it builds on names), or null
 function lookOf(dir, name) {
   try {
-    const src = read(join(dir, `entities/${name}.lua`)), m = src.match(/\bsprite\s*=\s*["']([\w/-]+)["']/), look = m ? spriteOf(dir, m[1]) : null;
-    return look && { ...look, defaults: lookDefaults(src) };
+    const sp = findEntitySprite(name, (f) => read(join(dir, f))), look = sp ? spriteOf(dir, sp) : null;
+    return look && { ...look, defaults: lookDefaults(read(join(dir, entityFile(name)))) };
   } catch { return null; }
 }
 // A level is a scene's layout: "level1" and "scenes/level1" are scenes/level1.layout.lua. An older game's rooms/level1.lua is used when it
@@ -523,7 +536,12 @@ function drawRoom(dir, room, con) {
     let t = tiles[l.tileset];
     if (t === undefined) { try { t = tilesetOf(dir, l.tileset); } catch { t = null; } tiles[l.tileset] = t; }
     if (!t) continue;
-    l.data.forEach((row, r) => row.forEach((v, c) => { if (v >= 0 && v < t.count) blit(t.img, (v % t.cols) * t.tw, Math.floor(v / t.cols) * t.th, t.tw, t.th, c * t.tw, r * t.th); }));
+    // where its x, y put it, and repeated to fill the room when it wraps, as the game shows it with the camera at the top-left
+    const pw = (l.data[0] || []).length * t.tw, ph = l.data.length * t.th, lx = Number(l.x) || 0, ly = Number(l.y) || 0;
+    const kx0 = l.wrap_x && pw ? Math.floor(-lx / pw) : 0, kx1 = l.wrap_x && pw ? Math.ceil((W - lx) / pw) : 1;
+    const ky0 = l.wrap_y && ph ? Math.floor(-ly / ph) : 0, ky1 = l.wrap_y && ph ? Math.ceil((H - ly) / ph) : 1;
+    for (let ky = ky0; ky < ky1; ky++) for (let kx = kx0; kx < kx1; kx++)
+      l.data.forEach((row, r) => row.forEach((v, c) => { if (v >= 0 && v < t.count) blit(t.img, (v % t.cols) * t.tw, Math.floor(v / t.cols) * t.th, t.tw, t.th, lx + kx * pw + c * t.tw, ly + ky * ph + r * t.th); }));
   }
   const tileset = (n) => { if (tiles[n] === undefined) { try { tiles[n] = tilesetOf(dir, n); } catch { tiles[n] = null; } } return tiles[n]; };
   const sprites = {}, sprite = (n) => (n in sprites ? sprites[n] : (sprites[n] = spriteOf(dir, n)));
