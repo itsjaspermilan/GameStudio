@@ -1320,7 +1320,8 @@ async function openTileset(name) {
     const b64 = await invoke("read_binary", { cart: state.cart, rel: meta.image || `tilesets/${name}.png` });
     const img = await decodeSpritePng(b64, 1);
     tilesetEditor.load({ name, w: img.w, h: img.h, frames: img.frames, origin: [0, 0], mask: null, fps: 0, tile: [meta.tile_w || 16, meta.tile_h || 16], ...(Array.isArray(meta.banks) ? { banks: meta.banks } : {}),
-      ...(meta.kinds && typeof meta.kinds === "object" ? { kinds: meta.kinds } : {}) });
+      ...(meta.kinds && typeof meta.kinds === "object" ? { kinds: meta.kinds } : {}),
+      ...(Array.isArray(meta.solid_kinds) ? { solid_kinds: meta.solid_kinds } : {}) });
     state.name = name;
     showView("tileset");
   } catch (e) { fail(e); }

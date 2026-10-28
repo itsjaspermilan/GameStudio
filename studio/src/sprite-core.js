@@ -223,6 +223,7 @@ export function snapshot(s) {
   return {
     w: s.w, h: s.h, origin: [...s.origin], mask: s.mask ? [...s.mask] : null, fps: s.fps, tile: s.tile ? [...s.tile] : null,
     bank: s.bank, banks: s.banks ? [...s.banks] : undefined, kinds: s.kinds ? JSON.parse(JSON.stringify(s.kinds)) : undefined,
+    solid_kinds: s.solid_kinds ? [...s.solid_kinds] : undefined,
     animations: JSON.parse(JSON.stringify(s.animations || {})),
     frames: s.frames.map((f) => new Uint8ClampedArray(f)),
   };
@@ -235,6 +236,7 @@ export function restore(s, snap) {
   if (snap.bank) s.bank = snap.bank; else delete s.bank;
   if (snap.banks) s.banks = [...snap.banks]; else delete s.banks;
   if (snap.kinds) s.kinds = JSON.parse(JSON.stringify(snap.kinds)); else delete s.kinds;
+  if (snap.solid_kinds) s.solid_kinds = [...snap.solid_kinds]; else delete s.solid_kinds;
 }
 
 export class History {
@@ -459,6 +461,9 @@ export function tilesetToJSON(s) {
   const out = { image: `tilesets/${s.name}.png`, tile_w: s.tile[0], tile_h: s.tile[1] };
   if (s.banks && s.banks.length) out.banks = [...s.banks]; // the tile banks it uses; each tile keeps to one
   if (s.kinds && Object.keys(s.kinds).length) out.kinds = JSON.parse(JSON.stringify(s.kinds));
+  // only the wall kinds some tile still has: the list stays as short as what the tileset uses
+  const walls = (s.solid_kinds || []).filter((k) => s.kinds && s.kinds[k]);
+  if (walls.length) out.solid_kinds = walls;
   return out;
 }
 
@@ -470,6 +475,14 @@ export const TILE_KINDS = ["solid", "oneway", "spike", "ice", "water", "ladder"]
 export function tileKind(s, index) {
   for (const [kind, list] of Object.entries(s.kinds || {})) if (list.includes(index)) return kind;
   return "solid";
+}
+// A named kind can still stop things like "solid" (ice, crates: walls the game wants to tell apart), listed in solid_kinds.
+export function isWallKind(s, kind) { return kind === "solid" || (s.solid_kinds || []).includes(kind); }
+export function setWallKind(s, kind, on) {
+  if (kind === "solid" || kind === "oneway") return;
+  const now = (s.solid_kinds || []).filter((k) => k !== kind);
+  if (on) now.push(kind);
+  if (now.length) s.solid_kinds = now.sort(); else delete s.solid_kinds;
 }
 export function setTileKind(s, index, kind) {
   kind = String(kind || "solid").trim().toLowerCase().replace(/[^a-z0-9_]/g, "_") || "solid";

@@ -1,6 +1,7 @@
 -- Assets: sprites and tilesets (and the tile layers of a level). Everything is looked up by file name, without the extension:
 --   sprites/<name>.json + .png   {image, frames, origin = {x, y}, mask = {x, y, w, h}, fps, animations = {name = {from, to, fps, loop}}}
---   tilesets/<name>.json + .png  {image, tile_w, tile_h, kinds = {oneway = {8, 9}, spike = {20}}}: kinds name tiles for a solid layer
+--   tilesets/<name>.json + .png  {image, tile_w, tile_h, kinds = {oneway = {8, 9}, spike = {20}}, solid_kinds = {"ice"}}: kinds name tiles
+--                                for a solid layer; solid_kinds are named kinds that still stop things like "solid" (ice, crates)
 --                                (see Entity:slide in world.lua); a tile not listed is "solid"
 --   palette.json                 {sprites = {{name, colors = {"#rrggbb" x 15}}, ...}, tiles = {...}}: the game's colour banks (GBA style). Place 0 of a
 --                                bank is see-through, so `colors` holds places 1 to 15. A sprite names its bank ({bank = "hero"}), a tileset its banks.
@@ -53,7 +54,13 @@ function M.tileset(name, level)
       for _, i in ipairs(list) do kinds[i] = kind end
     end
   end
-  t = { name = name, img = img, tw = tw, th = th, cols = cols, rows = rows, count = cols * rows, banks = d.banks, kinds = kinds }
+  -- the kinds that stop movement, looked up by Entity:slide for every cell it passes
+  local solid = { solid = true }
+  if d.solid_kinds ~= nil then
+    if type(d.solid_kinds) ~= "table" then error("tilesets/" .. name .. ".json: solid_kinds must be a list of kind names, like [\"ice\"]", 0) end
+    for _, k in ipairs(d.solid_kinds) do solid[k] = true end
+  end
+  t = { name = name, img = img, tw = tw, th = th, cols = cols, rows = rows, count = cols * rows, banks = d.banks, kinds = kinds, solid = solid }
   M.tilesets[name] = t
   return t
 end

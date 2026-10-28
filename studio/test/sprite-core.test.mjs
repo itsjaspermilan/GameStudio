@@ -346,3 +346,19 @@ test("tile kinds are kept as the engine reads them, and saved with the tileset",
   C.restore(s, snap);
   assert.equal(C.tileKind(s, 5), "spike_");
 });
+
+test("a named kind can stop things like a wall, saved only while a tile has it", () => {
+  const s = C.createTileset("ground", 16, 16, 4, 2);
+  C.setTileKind(s, 2, "ice");
+  assert.equal(C.isWallKind(s, "ice"), false);
+  C.setWallKind(s, "ice", true); C.setWallKind(s, "oneway", true);
+  assert.ok(C.isWallKind(s, "ice") && C.isWallKind(s, "solid") && !C.isWallKind(s, "oneway"));
+  assert.deepEqual(C.tilesetToJSON(s).solid_kinds, ["ice"]);
+  const snap = C.snapshot(s);
+  C.setTileKind(s, 2, "solid");
+  assert.equal(C.tilesetToJSON(s).solid_kinds, undefined);
+  C.setWallKind(s, "ice", false);
+  assert.equal(s.solid_kinds, undefined);
+  C.restore(s, snap);
+  assert.deepEqual(s.solid_kinds, ["ice"]);
+});

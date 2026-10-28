@@ -54,6 +54,7 @@ export function createSpriteEditor(root, hooks = {}) {
         <div class="se-row se-fields">
           <label title="What the Kind tool gives a tile. solid stops things; oneway is a platform you land on from above and jump up through; any other word (spike, ice) stops nothing, and the game asks about it with self:touching_tile(&quot;spike&quot;)">Kind <input class="p-kind" list="se-kinds" value="oneway" size="9"></label>
           <datalist id="se-kinds"></datalist>
+          <label title="Tiles of this kind stop the hero like a wall or floor, and the game can still tell them apart (ice you slide on, crates you bump)"><input type="checkbox" class="p-wallkind"> Stops like a wall</label>
         </div>
         <p class="se-hint">On a layer marked Solid every tile stops the hero, unless it has another kind. Pick the Kind tool and click tiles.</p>
         <input type="file" class="se-file" accept="image/png" hidden>
@@ -126,6 +127,13 @@ export function createSpriteEditor(root, hooks = {}) {
   // the kind the Kind tool gives (clicking a tile that has it already makes it solid again)
   function kindChosen() { return String($(".p-kind").value || "solid").trim().toLowerCase().replace(/[^a-z0-9_]/g, "_") || "solid"; }
   $("#se-kinds").innerHTML = C.TILE_KINDS.map((k) => `<option value="${k}">`).join("");
+  // solid is always a wall and oneway never is, so the switch only means something for the other kinds
+  function syncWallKind() {
+    const k = kindChosen(), box = $(".p-wallkind");
+    box.checked = C.isWallKind(s, k); box.disabled = k === "solid" || k === "oneway";
+  }
+  $(".p-kind").addEventListener("input", syncWallKind);
+  $(".p-wallkind").addEventListener("change", (e) => commit(() => C.setWallKind(s, kindChosen(), e.target.checked)));
   function setTool(id) {
     if (id !== "select") settle(true);
     tool = id;
@@ -383,7 +391,7 @@ export function createSpriteEditor(root, hooks = {}) {
         const k = C.tileKind(s, r * cols + c);
         if (k === "solid") continue;
         ctx.fillStyle = "rgba(0, 0, 0, 0.45)"; ctx.fillRect(c * tw * z, r * th * z, tw * z, th * z);
-        ctx.fillStyle = "#ffffff"; ctx.fillText(k, c * tw * z + 3, r * th * z + 3, tw * z - 6);
+        ctx.fillStyle = "#ffffff"; ctx.fillText(C.isWallKind(s, k) ? k + " ■" : k, c * tw * z + 3, r * th * z + 3, tw * z - 6);
       }
     }
     if (isTS() && s.tile) { // tile boundaries
@@ -573,6 +581,7 @@ export function createSpriteEditor(root, hooks = {}) {
   }
   function syncProps() {
     if (isTS()) {
+      syncWallKind();
       $(".p-tw").value = s.tile[0]; $(".p-th").value = s.tile[1];
       $(".p-cols").value = C.tilesetCols(s); $(".p-rows").value = C.tilesetRows(s);
       return;

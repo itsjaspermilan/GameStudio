@@ -149,8 +149,17 @@ Still open
 
 The games themselves
 - [ ] Lantern Leap's final boss (the Gloom Regent) was never beaten by the autopilot, even made easier: play it by hand.
-- [ ] The four games still carry their own menus, physics and window frames from before the engine had them: moving them to
-  `gs.ui.menu`, `Entity:slide` and `gs.draw.panel` where it fits would test the new parts in real games.
+- [x] The four games moved onto `gs.ui.menu`, `Entity:slide` and `gs.draw.panel` (2026-10-28). What they needed went into the engine:
+  `solid_kinds` in a tileset (ice and crates still stop things; studio: "Stops like a wall"); menu options `font`, `shadow`, `indent`,
+  `cursor` as a function, `skip = false` (the cursor stops on greyed rows to read why, A is refused with `style.on_refuse`), `cycle`
+  (A steps a setting), `roll = false` (for a menu the game draws itself, as Lampwick's lists shared with its text box); `style.value`;
+  no arrows on a value that cannot change; and the panel's bevel (`light`, `shade`, `fill2`, `round = 2`), the window all four games had
+  drawn by hand. Found on the way: a menu row given as a plain string drew "false" after its label. On the new physics Lantern Leap's autopilot
+  plays 13 of 15 stages and bosses exactly as on the game's own (times, deaths, pickups; the final boss was left out); in w3_3 and w4_2 it now loses no lives,
+  because the old code shrank the box by half a pixel when looking for floors and slide uses the exact box, so a jump that grazes a
+  ledge's corner lands on it.
+- [ ] Lampwick's text box and Lantern Party's messages are still their own (speaker tabs and colours, a font setting, CPU messages
+  that hold): gs.say cannot do those yet. Worth a look when gs.say gets a speaker style.
 
 ## Studio and engine (no device needed)
 

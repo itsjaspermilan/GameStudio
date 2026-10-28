@@ -40,6 +40,11 @@ function Title:draw_ui()
 end
 
 return Title</code></pre>
+<p>An item can be a table for more. <code>{ "MUSIC", values = { "OFF", "ON" }, value = 2, on_change = function(item) ... end }</code> is a setting that
+left and right change (with <code>{ cycle = true }</code> A steps it on too), and <code>{ "SWORD", enabled = false, hint = "Too dear" }</code> is greyed out.
+The menu's options give it your game's look: <code>font</code>, <code>width</code> (values line up on the right), <code>indent</code>, and a
+<code>cursor</code> function that draws your own arrow. <code>gs.draw.panel(x, y, w, h)</code> draws the window around it; give it
+<code>light</code>, <code>shade</code> and <code>fill2</code> for the bevelled two-colour windows many GBA games had.</p>
 
 <h2>The game</h2>
 <p>Scenes are tables, so a scene can keep its own values in <code>self</code>. <code>gs.draw.bar</code> draws a bar that shows a value out of a maximum.</p>

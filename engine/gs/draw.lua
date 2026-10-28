@@ -235,23 +235,53 @@ end
 
 -- A window the way GBA games drew them: a light border with its corners rounded off, a darker line inside it, and the fill.
 -- opts: fill, border, inner (the line inside the border; false for none). gs.draw.panel(x, y, w, h, { fill = "#f8f8f0", border = "#38486a",
--- inner = "#a8c4e0" }) is the pale look of gs.say's box. Make the table once (at the top of the file) when a window is drawn every frame.
+-- inner = "#a8c4e0" }) is the pale look of gs.say's box. The other GBA look is a bevel: light (a line along the inside's top and left)
+-- and shade (its bottom and right) in place of inner, often with fill2, a second colour for the lower half; round = 2 cuts the corners
+-- deeper. Make the table once (at the top of the file) when a window is drawn every frame.
 local PANEL = {}
 function M.panel(x, y, w, h, opts)
   opts = opts or PANEL
-  local border, inner = opts.border or "#e8ecf8", opts.inner
-  if inner == nil then inner = "#5868a0" end
+  local border, inner, light, shade = opts.border or "#e8ecf8", opts.inner, opts.light, opts.shade
+  if inner == nil and not (light or shade) then inner = "#5868a0" end
+  local fill, fill2 = opts.fill or "#203058", opts.fill2
   x, y, w, h = math.floor(x), math.floor(y), math.floor(w), math.floor(h)
-  if w < 4 or h < 4 then return M.rect(x, y, w, h, opts.fill or "#203058") end
+  if w < 4 or h < 4 then return M.rect(x, y, w, h, fill) end
+  local c = opts.round == 2 and h >= 6 and w >= 6 and 2 or 1
   local r, g, b, a = parse(border)
-  raw.rect(x + 1, y, w - 2, 1, r, g, b, a); raw.rect(x + 1, y + h - 1, w - 2, 1, r, g, b, a)
-  raw.rect(x, y + 1, 1, h - 2, r, g, b, a); raw.rect(x + w - 1, y + 1, 1, h - 2, r, g, b, a)
+  raw.rect(x + c, y, w - 2 * c, 1, r, g, b, a); raw.rect(x + c, y + h - 1, w - 2 * c, 1, r, g, b, a)
+  raw.rect(x, y + c, 1, h - 2 * c, r, g, b, a); raw.rect(x + w - 1, y + c, 1, h - 2 * c, r, g, b, a)
+  if c == 2 then
+    raw.rect(x + 1, y + 1, 1, 1, r, g, b, a); raw.rect(x + w - 2, y + 1, 1, 1, r, g, b, a)
+    raw.rect(x + 1, y + h - 2, 1, 1, r, g, b, a); raw.rect(x + w - 2, y + h - 2, 1, 1, r, g, b, a)
+  end
+  -- the fill, in rows that never overlap (a see-through fill drawn twice would come out darker); deep corners make the first and last
+  -- rows of the inside shorter
+  local i = inner and 2 or 1
+  local first, last = y + i, y + h - i - 1
+  local function rows(y0, y1, color)
+    if c == 2 and i == 1 then
+      if y0 == first then M.rect(x + 2, y0, w - 4, 1, color); y0 = y0 + 1 end
+      if y1 == last then M.rect(x + 2, y1, w - 4, 1, color); y1 = y1 - 1 end
+      if y1 >= y0 then M.rect(x + 1, y0, w - 2, y1 - y0 + 1, color) end
+    elseif y1 >= y0 then M.rect(x + i, y0, w - 2 * i, y1 - y0 + 1, color) end
+  end
+  if fill2 then
+    local mid = y + h // 2
+    rows(first, mid - 1, fill); rows(mid, last, fill2)
+  else rows(first, last, fill) end
   if inner then
     r, g, b, a = parse(inner)
     raw.rect(x + 1, y + 1, w - 2, 1, r, g, b, a); raw.rect(x + 1, y + h - 2, w - 2, 1, r, g, b, a)
     raw.rect(x + 1, y + 2, 1, h - 4, r, g, b, a); raw.rect(x + w - 2, y + 2, 1, h - 4, r, g, b, a)
   end
-  M.rect(x + 2, y + 2, w - 4, h - 4, opts.fill or "#203058")
+  if light then
+    r, g, b, a = parse(light)
+    raw.rect(x + 2, y + 1, w - 4, 1, r, g, b, a); raw.rect(x + 1, y + 2, 1, h - 4, r, g, b, a)
+  end
+  if shade then
+    r, g, b, a = parse(shade)
+    raw.rect(x + 2, y + h - 2, w - 4, 1, r, g, b, a); raw.rect(x + w - 2, y + 2, 1, h - 4, r, g, b, a)
+  end
 end
 function M.bar(x, y, w, h, value, max, opts)
   opts = opts or {}

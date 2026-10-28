@@ -156,7 +156,8 @@ function Entity:set_hitbox(x, y, w, h) end
 ---Move by dx, dy pixels (sideways first, then up or down), stopping against the tiles of the layers marked solid. Returns which way each
 ---move was stopped: hit_x -1 (a wall on the left), 1 (on the right) or 0; hit_y 1 (landed), -1 (bumped a ceiling) or 0. A tileset's
 ---"kinds" say what its tiles are: "oneway" platforms only stop things coming down onto them (self.drop_through = true falls through);
----any other kind ("spike", "ice") stops nothing but can be asked about. Every tile not listed is "solid". No slopes.
+---any other kind ("spike", "ice") stops nothing but can be asked about, unless the tileset's "solid_kinds" names it (["ice"]: a wall or
+---floor you can still tell apart). Every tile not listed is "solid". No slopes.
 ---  local hx, hy = self:slide(self.dx * dt, self.dy * dt)
 ---  if hy ~= 0 then self.dy = 0 end
 ---  self.on_ground = hy == 1
@@ -651,7 +652,10 @@ function gs.draw.wrap(text, width, scale, font) end
 function gs.draw.sprite(name, x, y, opts) end
 ---A window the way GBA games drew them: a light border with rounded corners, a darker line inside it, and the fill (dark blue unless
 ---given). { fill = "#f8f8f0", border = "#38486a", inner = "#a8c4e0" } is the pale look of gs.say's box; inner = false leaves out the line.
----@param opts? { fill: Color, border: Color, inner: Color|false }
+---The other GBA look is a bevel: light (a line along the inside's top and left) and shade (bottom and right) in place of inner, with fill2
+---for a lower half in another colour, and round = 2 for deeper cut corners. Make the table once when a window is drawn every frame.
+---  gs.draw.panel(x, y, w, h, { border = "#0e1230", light = "#8aa8e0", fill = "#2e3c6ee6", fill2 = "#24305ae6" })
+---@param opts? { fill: Color, fill2: Color, border: Color, inner: Color|false, light: Color, shade: Color, round: 1|2 }
 function gs.draw.panel(x, y, w, h, opts) end
 ---Draw something once into a picture and show the picture afterwards: a backdrop of hundreds of rectangles becomes one draw a frame.
 ---fn draws with gs.draw.* as usual, (0, 0) being the picture's top-left. Baking the same name again redraws into the same picture, so
@@ -676,8 +680,8 @@ function gs.draw.bar(x, y, w, h, value, max, opts) end
 
 -- ------------------------------------------------------------------ interface
 gs.ui = {}
----How menus look and sound, and how gs.say types: color, selected, disabled, cursor, line, on_move, on_pick, on_back (functions for
----sounds), repeat_delay and repeat_every (a held direction), open_time (seconds a menu or gs.say's box takes to open or close, 0.12;
+---How menus look and sound, and how gs.say types: color, selected, disabled, value (a value not chosen; the item's colour when nil),
+---cursor, line, on_move, on_pick, on_back, on_refuse (A on a dim item) (functions for sounds), repeat_delay and repeat_every (a held direction), open_time (seconds a menu or gs.say's box takes to open or close, 0.12;
 ---0 for none), text_speed (letters a second, 40) and on_letter (called as letters type).
 gs.ui.style = {}
 ---@class Menu
@@ -726,7 +730,7 @@ function Menu:move(by) end
 ---A list of choices to pick with the D-pad.
 ---  gs.ui.menu({ "PLAY", { "CONTINUE", enabled = false }, { "MUSIC", values = { "OFF", "ON" }, value = 2 } }, { width = 120 })
 ---@param items (string|MenuItem)[]
----@param opts? { scale: number, line: number, width: number, back: boolean, start: boolean, at: table, cursor: table } width: values are right-aligned this far from x
+---@param opts? { scale: number, line: number, width: number, back: boolean, start: boolean, at: table, cursor: table|fun(x: number, y: number, menu: Menu), font: string, shadow: boolean|string, indent: number, skip: boolean, cycle: boolean, roll: boolean } roll = false: no rolling open or shut, buttons work at once (also for a menu the game draws itself); cycle: A steps an item with values on instead of picking it; skip = false: the cursor stops on dim items (A on one is refused); indent: pixels from x to the labels (the cursor's room); width: values are right-aligned this far from x; cursor: a layout picture, or a function that draws it at the chosen line's x, y
 ---@return Menu
 function gs.ui.menu(items, opts) end
 

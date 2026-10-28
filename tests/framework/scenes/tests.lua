@@ -313,17 +313,40 @@ function Tests:enter()
     check("A picks", press("a") == 3)
     check("B goes back", press("b") == "back")
     check("up skips back over a disabled row", press("up") == nil and rich.cur == 1 and rich:hint() == nil)
-    rich:draw(0, 0)
+    local cursor_at
+    rich.opts.cursor, rich.opts.font = function(x, y, mm) cursor_at = { x, y, mm.cur } end, "round_tall"
+    rich:draw(10, 20)
+    check("a cursor function draws the cursor at the chosen line", cursor_at and cursor_at[1] == 10 and cursor_at[2] == 20 and cursor_at[3] == 1)
+    local refused = 0
+    gs.ui.style.on_refuse = function() refused = refused + 1 end
+    rich.items[1] = { "PLAY", enabled = false }
+    check("A on a dim row is refused with a sound", press("a") == nil and refused == 1)
+    local shop = gs.ui.menu({ "APPLE", { "SWORD", enabled = false, hint = "Too dear" } }, { skip = false })
+    gs.ui.style.on_refuse = function() refused = refused + 1 end
+    gs.input.sim_press("down"); shop:update(); gs.input.end_step()
+    gs.input.sim_press("a"); local bought = shop:update(); gs.input.end_step()
+    check("skip = false stops on a dim item and refuses it", shop.cur == 2 and shop:hint() == "Too dear" and bought == nil and refused == 2)
+    gs.ui.style.on_refuse = nil
+    local opts_menu = gs.ui.menu({ { "SOUND", values = { "0", "1", "2" }, value = 3 }, "DONE" }, { cycle = true })
+    gs.input.sim_press("a"); local stepped = opts_menu:update(); gs.input.end_step()
+    check("cycle: A steps a value round instead of picking", stepped == nil and opts_menu:value() == "0")
+    gs.ui.style.open_time = 0.12
+    local undrawn = gs.ui.menu({ "ONE", "TWO" }, { roll = false })
+    gs.input.sim_press("a"); local got = undrawn:update(); gs.input.end_step()
+    undrawn:close()
+    check("roll = false: a menu never drawn takes buttons at once and shuts at once", got == 1 and undrawn:unfolded() == 0 and undrawn.closed)
+    gs.ui.style.open_time = 0
     check("a menu whose first row is disabled starts on the next", gs.ui.menu({ { "X", enabled = false }, "Y" }).cur == 2)
     gs.input.end_step()
     gs.ui.style.open_time = 0.12
 
     -- ---- tile collisions: a solid layer stops a body; oneway platforms only from above; kinds can be asked about
-    -- 0 and 3 are solid, 1 oneway, 2 spike (tilesets/ts_ground.json). Columns and rows are 16 pixels.
+    -- 0 is solid, 1 oneway, 2 spike, 3 ice, which solid_kinds makes stop things too (tilesets/ts_ground.json). Columns and rows are 16
+    -- pixels; the wall the body runs into on row 2 is ice.
     local ground = gs.add_layer({ name = "ground", tileset = "ts_ground", solid = true, data = {
       {  0, -1, -1, -1, -1, -1 },
       { -1, -1,  1, -1, -1,  0 },
-      { -1, -1, -1, -1, -1,  0 },
+      { -1, -1, -1, -1, -1,  3 },
       {  0,  0,  0,  2,  0,  0 },
     } })
     local body = gs.spawn("body", 8, 40)
@@ -332,7 +355,7 @@ function Tests:enter()
     hx, hy = body:slide(0, 5)
     check("standing still on the ground", hy == 1 and body.y == 48)
     hx = body:slide(200, 0)
-    check("a wall stops a body going right", hx == 1 and body.x == 76, body.x)
+    check("a wall of a kind in solid_kinds stops a body", hx == 1 and body.x == 76, body.x)
     hx = body:slide(-300, 0)
     check("going left stops at nothing on an open side", hx == 0 and body.x == -224, body.x)
     body.x, body.y = 40, 15
@@ -358,7 +381,7 @@ function Tests:enter()
     check("touching_tile gives the tile's corner", sx == 48 and sy == 48, tostring(sx) .. "," .. tostring(sy))
     check("an inset forgives grazing", body:touching_tile("spike", 5) == nil)
     check("tile kinds", gs.tile_kind(nil, 40, 20) == "oneway" and gs.tile_kind("ground", 52, 52) == "spike" and gs.tile_kind(nil, 4, 52) == "solid"
-      and gs.tile_kind(nil, 20, 4) == nil)
+      and gs.tile_kind(nil, 84, 40) == "ice" and gs.tile_kind(nil, 20, 4) == nil)
     body.x, body.y = 8, 30
     ground.solid = false
     hx, hy = body:slide(0, 100)
@@ -400,6 +423,8 @@ function Tests:enter()
     check("a bake needs a name first", raises(function() gs.draw.bake(4, 4, function() end) end, "name comes first"))
     gs.draw.panel(0, 0, 40, 20)
     gs.draw.panel(0, 0, 3, 3, { fill = "#ffffff", inner = false })
+    gs.draw.panel(0, 0, 40, 21, { border = "#000000", light = "#ffffff", shade = "#808080", fill = "#203058e0", fill2 = "#102040e0", round = 2 })
+    gs.draw.panel(0, 0, 5, 5, { light = "#ffffff", round = 2 })
     gs.draw.text("plain", 0, 0, "#ffffff", 1, "bold_small")
     check("a font's name instead of options", raises(function() gs.draw.text("x", 0, 0, "#fff", 1, "nope") end, "no built-in font"))
 

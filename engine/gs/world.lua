@@ -385,7 +385,8 @@ end
 -- A layer with solid = true is ground and walls: Entity:slide moves an entity's hitbox through it and stops at its tiles. Every tile of
 -- such a layer is "solid" unless its tileset gives it another kind (tilesets/<name>.json: "kinds": { "oneway": [8, 9], "spike": [20] }):
 -- "oneway" is a thin platform that only stops what comes down onto it from above, and any other name stops nothing but can be asked
--- about (self:touching_tile("spike"), gs.tile_kind). Nothing here runs unless a game calls it; games with physics of their own read
+-- about (self:touching_tile("spike"), gs.tile_kind), unless the tileset lists it in "solid_kinds" (ice and crates are walls you still
+-- want to tell apart). Nothing here runs unless a game calls it; games with physics of their own read
 -- gs.tile_at as before. Slopes are not handled: a game that wants them reads the tiles itself.
 local EPS = 1e-6
 local ceil = math.ceil
@@ -398,8 +399,9 @@ end
 W.kind_of = kind_of
 
 -- does a row (or column) of cells hold a tile that stops movement? oneway counts only for something coming down onto it
+local SOLID_ONLY = { solid = true }
 local function stops(l, k, down)
-  return k == "solid" or (down and k == "oneway")
+  return k ~= nil and ((l.ts.solid or SOLID_ONLY)[k] or (down and k == "oneway"))
 end
 
 -- how far a box (x0, y0)-(x1, y1) may go along one axis before a solid layer's tile stops it, and which way it was stopped (-1, 0, 1).

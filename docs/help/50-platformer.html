@@ -131,7 +131,8 @@ already moved when the hero looks at what it stands on, and can carry it in the 
 <h2>Tiles instead of blocks</h2>
 <p>A level made of blocks is easy to start with. A bigger one is a tile layer drawn in the layout editor: tick <strong>Solid</strong> on the ground layer,
 and the hero moves with <code>self:slide</code>, which stops at its tiles. In the tileset, the <strong>Kind</strong> tool marks tiles that are not plain ground:
-<code>oneway</code> platforms you jump up through and land on, and names of your own (<code>spike</code>) that stop nothing but can be asked about.</p>
+<code>oneway</code> platforms you jump up through and land on, and names of your own (<code>spike</code>) that stop nothing but can be asked about. Tick <strong>Stops like a wall</strong> for a kind
+that is still ground, like <code>ice</code> the hero slides on.</p>
 <pre class="lua"><code>function Hero:update(dt)
   self.dy = self.dy + self.gravity * dt
   local hx, hy = self:slide(gs.input.dir() * self.speed * dt, self.dy * dt)
