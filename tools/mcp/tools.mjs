@@ -131,12 +131,15 @@ const fit = (w, h, max = 640) => Math.max(1, Math.min(12, Math.floor(max / Math.
 
 // ---------- the runtime ----------
 function needRuntime() { if (!existsSync(GS)) throw new Error("build/gs is missing: run scripts/build.sh in the workspace first"); }
+function runtimeEnv(work) {
+  return { ...process.env, GS_SAVE_DIR: join(work, "saves"), GS_SOUNDFONT: join(ROOT, "assets/soundfonts/FluidR3Mono_GM.sf3") };
+}
 // Runs a game without a window; returns stderr lines, the stats line, and the last frame.
 function runGame(dir, { seconds = 3, keys, bot = false, env = {} } = {}) {
   needRuntime();
   const work = mkdtempSync(join(tmpdir(), "gs-mcp-"));
   const bmp = join(work, "frame.bmp");
-  const e = { ...process.env, SDL_VIDEODRIVER: "dummy", SDL_AUDIODRIVER: "dummy", GS_SAVE_DIR: join(work, "saves"), GS_MAX_FRAMES: String(Math.round(Math.min(120, Math.max(0.1, seconds)) * 60)), GS_DUMP_FRAME: bmp, GS_STATS: "1", GS_DEV: "1", GS_RAM: "1", ...env };
+  const e = { ...runtimeEnv(work), SDL_VIDEODRIVER: "dummy", SDL_AUDIODRIVER: "dummy", GS_MAX_FRAMES: String(Math.round(Math.min(120, Math.max(0.1, seconds)) * 60)), GS_DUMP_FRAME: bmp, GS_STATS: "1", GS_DEV: "1", GS_RAM: "1", ...env };
   if (keys) { e.GS_BOT_LUA = join(ROOT, "tests/keys-bot.lua"); e.GS_KEYS = keys; }
   else if (bot) e.GS_BOT_LUA = join(ROOT, "tests/random-bot.lua");
   const r = spawnSync(GS, [dir], { encoding: "utf8", env: e, timeout: 180000 });
@@ -152,7 +155,7 @@ function renderWav(desc, cwd) {
   needRuntime();
   const work = mkdtempSync(join(tmpdir(), "gs-mcp-a-")), d = join(work, "d.txt"), o = join(work, "o.wav");
   writeFileSync(d, desc);
-  const r = spawnSync(GS, ["render-audio", d, o], { encoding: "utf8", cwd: cwd || work, timeout: 120000 });
+  const r = spawnSync(GS, ["render-audio", d, o], { encoding: "utf8", cwd: cwd || work, env: runtimeEnv(work), timeout: 120000 });
   if (r.status !== 0 || !existsSync(o)) { rmSync(work, { recursive: true, force: true }); throw new Error(`could not render: ${(r.stderr || "").trim()}`); }
   const buf = readFileSync(o); rmSync(work, { recursive: true, force: true });
   let p = 12, data = null, ch = 2, rate = 44100;
