@@ -778,8 +778,16 @@ export function room_write({ game, name, size, layers = [], entities, texts, pic
 // ---------- the handheld ----------
 export function push({ game }) {
   const dir = gameDir(game);
-  if (!existsSync(join(ROOT, "scripts/device.env"))) return { text: "No scripts/device.env: sending needs the device settings (see scripts/device.env.example)." };
-  const r = spawnSync("sh", [join(ROOT, "scripts/push.sh"), relative(ROOT, dir)], { cwd: ROOT, encoding: "utf8", timeout: 600000 });
-  const out = `${r.stdout || ""}${r.stderr || ""}`.trim().split("\n").slice(-12).join("\n");
-  return { text: (r.status === 0 ? `sent ${game} to the handheld\n` : `sending failed\n`) + out };
+  const envFile = process.env.DEVICE_ENV ? resolve(process.env.DEVICE_ENV) : join(ROOT, "scripts/device.env");
+  if (!existsSync(envFile)) throw new Error("Sending needs a device settings file. Set DEVICE_ENV to its full path (see scripts/device.env.example).");
+  const work = mkdtempSync(join(tmpdir(), "gs-mcp-push-"));
+  try {
+    const r = spawnSync("sh", [join(ROOT, "scripts/push.sh"), dir], {
+      cwd: ROOT, encoding: "utf8", timeout: 600000,
+      env: { ...process.env, DEVICE_ENV: envFile, GS_BUILD_DIR: work },
+    });
+    const out = `${r.stdout || ""}${r.stderr || ""}`.trim().split("\n").slice(-12).join("\n");
+    if (r.error || r.status !== 0) throw new Error(`sending failed: ${r.error?.message || out}`);
+    return { text: `sent ${game} to the handheld\n${out}` };
+  } finally { rmSync(work, { recursive: true, force: true }); }
 }

@@ -3,7 +3,8 @@
 #   scripts/build-app.sh        -> studio/src-tauri/target/release/bundle/macos/GameStudio.app (and a .dmg beside it)
 # The app carries a read-only copy of the parts of this folder it uses (studio/src-tauri/bundled/gamestudio, made here, gitignored):
 # the desktop runtime, the Brick's runtime and libretro core, the SoundFont, the console specs and logos, the API notes the editor's
-# language server reads, push.sh for Send to device (it needs Node.js on this Mac) and the examples. Unsigned: for this Mac only.
+# language server reads, push.sh for Send to device and the examples, plus the stdio MCP server and its own Node.js.
+# Unsigned: for this Mac only.
 set -e
 cd "$(dirname "$0")/.."
 ./scripts/build.sh
@@ -18,6 +19,7 @@ cp assets/console-logos/*.png "$R/assets/console-logos/"
 cp -R engine/consoles engine/api "$R/engine/"
 cp scripts/push.sh scripts/setup-key.sh scripts/gamelist.mjs "$R/scripts/"
 cp LICENSE "$R/"
+node tools/mcp/bundle.mjs "$R"
 # the examples as they are in git: no notes the studio left in them (.gamestudio/), no stray files
 for c in breakout buttontest padsetup; do
   git ls-files "carts/$c" | grep -v '/\.gamestudio/' | while read -r f; do mkdir -p "$R/$(dirname "$f")"; cp "$f" "$R/$f"; done

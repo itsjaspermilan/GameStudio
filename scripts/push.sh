@@ -80,10 +80,12 @@ console_ext() {
   ' "$1" "$2"
 }
 
-# Always build: both are incremental (about a second when nothing changed), and a handheld left on an older engine than the studio
-# runs the game differently or not at all.
-./scripts/build.sh >/dev/null 2>&1 || { echo "the desktop build failed: run scripts/build.sh to see why" >&2; exit 1; }
-./scripts/build-aarch64.sh >/dev/null 2>&1 || { echo "the handheld build failed: run scripts/build-aarch64.sh to see why" >&2; exit 1; }
+# Rebuild in a checkout; an installed app carries matching prebuilt runtimes and no build scripts.
+if [ -f scripts/build.sh ]; then
+  ./scripts/build.sh >/dev/null 2>&1 || { echo "the desktop build failed: run scripts/build.sh to see why" >&2; exit 1; }
+  ./scripts/build-aarch64.sh >/dev/null 2>&1 || { echo "the handheld build failed: run scripts/build-aarch64.sh to see why" >&2; exit 1; }
+fi
+[ -x build/gs ] && [ -x build-aarch64/gs ] || { echo "the desktop or handheld runtime is missing; rebuild GameStudio" >&2; exit 1; }
 ./build/gs pack "$SRC" "$HOSTCART"
 # A game over its console's size budget (budgets.cart_kb, 16 MB for Glow43) still goes over, since the handheld has the room, but says so:
 # the budget is what the console promises, and the studio's Handheld tab shows the same number.

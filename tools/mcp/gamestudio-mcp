@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+# Resolve from the launcher, not the client's working directory or a developer's workspace.
+GS_WORKSPACE=$(CDPATH= cd -- "${0%/*}/../.." && pwd)
+export GS_WORKSPACE
+export GS_SOUNDFONT="$GS_WORKSPACE/assets/soundfonts/FluidR3Mono_GM.sf3"
+export PATH="$GS_WORKSPACE/tools/mcp:${PATH:-/usr/bin:/bin}"
+exec "$GS_WORKSPACE/tools/mcp/node" "$GS_WORKSPACE/tools/mcp/server.mjs" "$@"

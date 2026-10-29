@@ -4,6 +4,6 @@
   "license": "Zlib",
   "type": "module",
   "description": "GameStudio for agents: an MCP server over the engine, the runtime and the studio's own logic",
-  "scripts": { "start": "node server.mjs", "test": "node --test test/*.test.mjs" },
+  "scripts": { "start": "node server.mjs", "bundle": "node bundle.mjs", "test": "node --test test/*.test.mjs" },
   "dependencies": { "@modelcontextprotocol/sdk": "1.32.1", "zod": "4.1.12" }
 }

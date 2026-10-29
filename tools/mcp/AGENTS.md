@@ -4,6 +4,12 @@
 `.mcp.json` starts it for Claude Code (`node tools/mcp/server.mjs`); run `npm install` here once after cloning. `GS_WORKSPACE` points it at
 another workspace (default: this repository).
 
+`bundle.mjs` is called by `scripts/build-app.sh`: it copies the server, its installed dependencies, the shared JS modules and data,
+and an official Node binary with its licence into the app's tools folder. `gamestudio-mcp` is the bundled stdio launcher; it resolves
+the app's resources relative to itself and sets the runtime's SoundFont path and Node's PATH entry. No listener or running GUI is needed.
+`test/bundle.test.mjs` relocates that folder and exercises it read-only from another cwd, without Node on PATH.
+Build with an official macOS Node distribution (only system dylibs); `npm ci` here first. Never bundle device settings or credentials.
+
 It reuses, never copies: `studio/src/*-core.js` (lint, project scan, songs and sound effects, rooms, Help pages, Tidy), `studio/src/music-core.js`
 (reading a song with music theory), `scripts/lib/` (pixel canvas, song generator), `scripts/png.mjs`, and the real runtime `build/gs`
 (headless runs with `GS_DUMP_FRAME`, `GS_STATS`, `GS_INSPECT`, the key and random bots; `render-audio` for sound). Build `build/gs` first.

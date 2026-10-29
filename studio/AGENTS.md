@@ -17,7 +17,8 @@ npx vite build                # quick syntax/bundle check of the front end
   app's resources and `workspace()` returns it (the Settings workspace is only used in development). What the studio writes goes
   elsewhere: `scratch_dir` (the workspace's `build/` in development, the app's cache folder when built: packed copies for the device,
   `device.env` made from Settings, the language server's settings) and `consoles_dir` (custom consoles: the app's data folder when
-  built). Every runtime launch goes through `runtime_command`, which passes the SoundFont's path (`GS_SOUNDFONT`).
+  built). Every runtime launch goes through `runtime_command`, which passes the SoundFont's path (`GS_SOUNDFONT`). Send to device
+  puts the bundled `tools/mcp/node` first on PATH, before any system Node or version-manager shims.
   `game.lua`, `entities/ scenes/ rooms/ lib/` (Lua) and `sprites/ tilesets/ sfx/ music/ instruments/ sounds/`, plus `meta/info.json` (title, description, console, box art for the game list).
 - **`main.js` is the conductor.** It owns `state` (open game, file list, the scan, which editor shows which file), the tree, saving, rename/delete, run/pack/push, and creates every
   editor with a `hooks` object.

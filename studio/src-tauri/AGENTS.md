@@ -13,3 +13,7 @@ settings (`get_settings`, `save_settings`, `runtime_status`) · projects (`list_
 Rules: every path from the front end goes through `valid_name` / `safe_rel` (no `..`, no absolute paths, restricted characters). Anything that spawns a process pipes stdout/stderr as `log` events
 (`run_logged`). `new_cart` only makes the folder: the starter files come from `src/project-core.js` (`newGameFiles`). The project is its folder (no index file), so a new resource group
 is a `GROUPS` entry there, not a Rust change.
+
+`push_path` puts the bundled `tools/mcp/node` ahead of the inherited PATH so Send to device never selects an asdf shim in an installed app.
+In development it falls through to the inherited PATH and usual install locations. Keep the system tool directories for apps launched without a shell PATH.
+`cargo test --lib push_path_tests` covers precedence, a missing inherited PATH, and a shell command with a failing asdf-style shim.

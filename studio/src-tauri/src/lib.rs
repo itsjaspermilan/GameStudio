@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::{
+    ffi::{OsStr, OsString},
     fs,
     io::{BufRead, BufReader, Read, Write},
     net::{Shutdown, TcpListener, TcpStream},
@@ -953,13 +954,24 @@ fn cancel_push(state: State<'_, AppState>) -> bool {
     }
 }
 
+fn push_path(ws: &Path, inherited: &OsStr, home: &Path) -> Result<OsString, String> {
+    let mut paths = vec![ws.join("tools").join("mcp")];
+    paths.extend(std::env::split_paths(inherited).filter(|p| !p.as_os_str().is_empty()));
+    paths.extend([
+        PathBuf::from("/opt/homebrew/bin"), PathBuf::from("/usr/local/bin"),
+        PathBuf::from("/usr/bin"), PathBuf::from("/bin"), PathBuf::from("/usr/sbin"), PathBuf::from("/sbin"),
+        home.join(".asdf/shims"), home.join(".volta/bin"),
+    ]);
+    std::env::join_paths(paths).map_err(|e| format!("could not set the device tools' PATH: {e}"))
+}
+
 #[tauri::command]
 async fn push_cart(app: AppHandle, state: State<'_, AppState>, cart: String) -> Result<(), String> {
     // Sending is always scripts/push.sh, so the studio and the command line do exactly the same (on the Brick: the console as a NextUI
     // system run by its emulator, box art and title from "Game info"). The studio writes the device file from Settings (NextUI, the
     // Brick) into its own folder. Only when Settings has no address does a scripts/device.env in the workspace say where (the command
-    // line's file; in a checkout it may still be the old Knulli handheld, which is why Settings comes first). It needs node on the PATH;
-    // a desktop app does not always inherit the shell's PATH, so the usual places are added.
+    // line's file; in a checkout it may still be the old Knulli handheld, which is why Settings comes first). Prefer the app's bundled
+    // Node over shell version-manager shims; in a checkout, use the inherited PATH and the usual install locations.
     let ws = workspace(&app);
     let script = ws.join("scripts").join("push.sh");
     if !script.is_file() {
@@ -991,14 +1003,15 @@ async fn push_cart(app: AppHandle, state: State<'_, AppState>, cart: String) -> 
     }
     let dir = cart_dir(&app, &cart)?;
     emit_log(&app, "stdout", format!("Sending with scripts/push.sh (settings from {})", env_file.display()));
-    let home = std::env::var("HOME").unwrap_or_default();
-    let path = format!(
-        "{}:/opt/homebrew/bin:/usr/local/bin:{home}/.asdf/shims:{home}/.volta/bin",
-        std::env::var("PATH").unwrap_or_default()
-    );
+    let path = push_path(
+        &ws,
+        &std::env::var_os("PATH").unwrap_or_default(),
+        &PathBuf::from(std::env::var_os("HOME").unwrap_or_default()),
+    )?;
     if !std::env::split_paths(&path).any(|d| d.join("node").is_file()) {
         return Err("Sending needs Node.js (the 'node' program), which was not found. Install it from nodejs.org (or 'brew install node'), then send again.".into());
     }
+
     let code = run_logged_code(
         &app,
         Command::new("sh").arg(&script).arg(&dir).current_dir(&ws).env("PATH", path).env("DEVICE_ENV", &env_file).env("GS_BUILD_DIR", scratch.join("push")),
@@ -1107,4 +1120,57 @@ pub fn run() {
                 lsp::stop(&app.state::<lsp::LspState>());
             }
         });
+}
+
+#[cfg(test)]
+mod push_path_tests {
+    use super::*;
+
+    #[test]
+    fn bundled_node_precedes_version_manager_shims() {
+        let ws = Path::new("/Applications/Game Studio.app/Contents/Resources/gamestudio");
+        let path = push_path(ws, OsStr::new("/fake/asdf/shims:/usr/bin"), Path::new("/home/test")).unwrap();
+        let paths: Vec<_> = std::env::split_paths(&path).collect();
+        assert_eq!(paths[0], ws.join("tools/mcp"));
+        assert_eq!(paths[1], Path::new("/fake/asdf/shims"));
+        assert_eq!(paths[2], Path::new("/usr/bin"));
+    }
+
+    #[test]
+    fn empty_inherited_path_keeps_bundled_node_and_system_tools() {
+        let ws = Path::new("/Applications/GameStudio.app/Contents/Resources/gamestudio");
+        let path = push_path(ws, OsStr::new(""), Path::new("/home/test")).unwrap();
+        let paths: Vec<_> = std::env::split_paths(&path).collect();
+        assert_eq!(paths[0], ws.join("tools/mcp"));
+        assert!(paths.contains(&PathBuf::from("/usr/bin")));
+        assert!(paths.contains(&PathBuf::from("/bin")));
+        assert!(paths.iter().all(|p| !p.as_os_str().is_empty()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn device_command_uses_bundled_node_instead_of_a_broken_shim() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp = std::env::temp_dir().join(format!("gs-push-path-{}", std::process::id()));
+        fs::create_dir(&temp).unwrap();
+        let ws = temp.join("Game Studio");
+        let node_dir = ws.join("tools/mcp");
+        let shims = temp.join("asdf/shims");
+        fs::create_dir_all(&node_dir).unwrap();
+        fs::create_dir_all(&shims).unwrap();
+        for (dir, body) in [
+            (&node_dir, "#!/bin/sh\nprintf 'bundled-node\\n'\n"),
+            (&shims, "#!/bin/sh\nprintf 'No version is set for command node\\n' >&2\nexit 126\n"),
+        ] {
+            let file = dir.join("node");
+            fs::write(&file, body).unwrap();
+            fs::set_permissions(&file, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let path = push_path(&ws, shims.as_os_str(), &temp).unwrap();
+        let result = Command::new("/bin/sh").args(["-c", "node --version"]).current_dir(&ws).env("PATH", path).output().unwrap();
+        fs::remove_dir_all(&temp).unwrap();
+        assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+        assert_eq!(String::from_utf8_lossy(&result.stdout), "bundled-node\n");
+        assert!(result.stderr.is_empty());
+    }
 }

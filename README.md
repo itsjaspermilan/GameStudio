@@ -8,8 +8,8 @@ A cheap Linux handheld (an Anbernic RG35XX Pro) becomes a small console for 2D g
 ./scripts/build-app.sh   # -> studio/src-tauri/target/release/bundle/macos/GameStudio.app, with the runtimes, SoundFont and examples inside
 ```
 
-The app needs nothing from this folder afterwards. Send to device uses the handheld's address from the app's Settings and Node.js on
-the Mac. It is unsigned, so it is for this Mac (other Macs would need it signed and notarized).
+The app needs nothing from this folder afterwards. Send to device uses the handheld's address from the app's Settings and the app's
+bundled Node.js, not a system installation or version-manager shim. It is unsigned, so it is for this Mac (other Macs would need it signed and notarized).
 
 ## Quick start (desktop)
 
@@ -84,6 +84,28 @@ whether the melody sits on the chords, clashes, shrill or muddy registers, melod
 brightness). Levels (scene layouts) can be built as text maps and seen as pictures. The repository's `.mcp.json` starts it; run `npm install` in `tools/mcp`
 once. The craft for the kind of game being made (art, levels, music) is in three Help guides that people read in the studio and agents read
 through the server (`help`, and the prompts `draw-art`, `design-level`, `compose-music`); Claude Code's skills in `.claude/skills/` point to them. See `tools/mcp/AGENTS.md`.
+
+The built Mac app also carries the server, its dependencies and Node.js. In your MCP client's settings, add a **stdio** server with
+this command (no arguments; adjust the path if the app is installed elsewhere):
+
+```json
+{
+  "mcpServers": {
+    "gamestudio": {
+      "command": "/Applications/GameStudio.app/Contents/Resources/gamestudio/tools/mcp/gamestudio-mcp"
+    }
+  }
+}
+```
+
+The client starts the server; GameStudio does not need to be open. It works from any working directory without the source checkout or
+a system Node installation. Pass a game's full folder path as `game`; `games` also lists the examples and the studio's recent games.
+The launcher uses the app's read-only resources, with runs, saves and packing in temporary folders. It does not open a network port.
+For `push`, set the server's `DEVICE_ENV` environment variable to a separate device settings file's full path
+(use `scripts/device.env.example` inside the bundled tools folder as a template). Device credentials are never bundled.
+
+Building requires `npm ci` in `tools/mcp` and an official Node.js distribution with its `LICENSE`; the build rejects Node binaries
+linked to libraries outside macOS so the installed server does not depend on Homebrew or a developer's Node installation.
 
 ## Console limits
 
