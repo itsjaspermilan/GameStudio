@@ -13,6 +13,7 @@ import { BUTTONS } from "./buttons.js";
 import { History } from "./sprite-core.js";
 import { settleRenames } from "./rename-core.js";
 import { FONTS } from "./fonts.js";
+import { bindPinchZoom, zoomCanvasView } from "./canvas-zoom.js";
 
 const TOOLS = [
   ["select", "Select", "Click a thing to select it; drag to move it (Shift: in a straight line), drag a panel's handles to resize it. Arrow keys nudge, Delete removes. The other tools only place. (V, or Escape)", "v"],
@@ -153,6 +154,11 @@ export function createRoomEditor(root, hooks = {}) {
   const $ = (sel) => root.querySelector(sel);
   const canvas = $(".re-canvas"), ctx = canvas.getContext("2d"), wrap = $(".re-wrap");
   let room = null, name = "", kind = "room", dirty = false, tool = "select", zoom = 2;
+  bindPinchZoom(wrap, {
+    content: () => room && canvas, getScale: () => zoom, min: 0.25, max: 8,
+    setScale(next) { zoom = next; render(); },
+  });
+  for (const c of [$(".re-tilecanvas"), $(".re-blockcanvas")]) zoomCanvasView(c, c.parentElement);
   let layerIx = 0, tile = 0, entName = "", spriteName = "", sel = null, pathName = "", pointIx = -1;
   let hover = null; // { kind, i } under the pointer
   let side = "list", bigSize = false; // the left side's tab; "Bigger" chosen while the size still is one screen
@@ -910,8 +916,8 @@ export function createRoomEditor(root, hooks = {}) {
     render();
   }
   const acts = {
-    zoomin: () => { zoom = Math.min(8, zoom >= 1 ? zoom + 1 : zoom * 2); render(); },
-    zoomout: () => { zoom = Math.max(0.25, zoom > 1 ? zoom - 1 : zoom / 2); render(); },
+    zoomin: () => { zoom = Math.min(8, zoom >= 1 ? Math.floor(zoom) + 1 : zoom * 2); render(); },
+    zoomout: () => { zoom = Math.max(0.25, zoom > 1 ? Math.ceil(zoom) - 1 : zoom / 2); render(); },
     fit, undo, redo,
     text: () => hooks.editAsText && hooks.editAsText(),
     toscene: () => hooks.roomToLayout && hooks.roomToLayout(),

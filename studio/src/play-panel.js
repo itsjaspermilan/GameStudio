@@ -1,8 +1,9 @@
-// The Play panel: the running game inside the studio, on a screen the console's size enlarged by whole numbers. The game itself runs in the
+// The Play panel: the running game inside the studio, on a screen enlarged by whole numbers by default, or pinched to zoom. The game itself runs in the
 // runtime as usual (sound, live reload, the Handheld and Inspector tabs); this shows its frames and sends it the keys held while it has focus.
 // Under the screen: the game's RAM and what a frame would cost on the Brick (brick-core.js), and its save state buttons.
 import { decodeFrame, fitScale, keyBit } from "./play-core.js";
 import { playStatus } from "./brick-core.js";
+import { bindPinchZoom } from "./canvas-zoom.js";
 
 // hooks: { sendButtons(mask), saveState(), loadState(), popOut(), close() }
 export function createPlayPanel(root, hooks) {
@@ -28,14 +29,28 @@ export function createPlayPanel(root, hooks) {
   const canvas = q("canvas"), ctx = canvas.getContext("2d"), stage = q(".pp-stage"), cover = q(".pp-cover"), scaleSel = q(".pp-scale");
   q(".pp-keys").innerHTML = "Arrows move · <kbd>Z</kbd> A · <kbd>X</kbd> B · <kbd>A</kbd> X · <kbd>S</kbd> Y · <kbd>Q</kbd> <kbd>W</kbd> L R · <kbd>Enter</kbd> Start · <kbd>Right Shift</kbd> Select. A gamepad works too.";
   let screen = { width: 256, height: 192 }, image = null, running = false, mask = 0;
+  let pinchScale = null;
   try { scaleSel.value = localStorage.getItem("gs.playScale") || "fit"; } catch { /* the usual size */ }
 
   const layout = () => {
-    const k = scaleSel.value === "fit" ? fitScale(screen.width, screen.height, stage.clientWidth - 16, stage.clientHeight - 16) : Number(scaleSel.value);
+    const k = pinchScale ?? (scaleSel.value === "fit" ? fitScale(screen.width, screen.height, stage.clientWidth - 16, stage.clientHeight - 16) : Number(scaleSel.value));
     canvas.style.width = screen.width * k + "px"; canvas.style.height = screen.height * k + "px";
   };
   new ResizeObserver(layout).observe(stage);
-  scaleSel.onchange = () => { try { localStorage.setItem("gs.playScale", scaleSel.value); } catch { /* not remembered */ } layout(); canvas.focus(); };
+  scaleSel.onchange = () => { pinchScale = null; try { localStorage.setItem("gs.playScale", scaleSel.value); } catch { /* not remembered */ } layout(); canvas.focus(); };
+  bindPinchZoom(stage, {
+    content: () => canvas,
+    getScale: () => pinchScale ?? (canvas.getBoundingClientRect().width / screen.width),
+    min: 0.25, max: 8,
+    setScale(next) {
+      pinchScale = next;
+      let option = scaleSel.querySelector('option[value="pinch"]');
+      if (!option) { option = new Option("", "pinch"); option.disabled = true; scaleSel.appendChild(option); }
+      option.textContent = `${+next.toFixed(2)}×`;
+      scaleSel.value = "pinch";
+      layout();
+    },
+  });
 
   const showCover = () => {
     const focused = document.activeElement === canvas;

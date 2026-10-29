@@ -9,6 +9,7 @@
 import { acceptsInstrument, droppedInstrument, instrumentColor, CHANNEL_COLORS } from "./instrument-panel.js";
 import { color as themeColor, ink, tint } from "./theme.js";
 import * as A from "./audio-core.js";
+import { bindPinchZoom } from "./canvas-zoom.js";
 
 const ROW_H = 6;                            // pixels per row when every semitone is shown
 const KEY_ROW_H = 12;                       // with the key lock on only the notes that fit are shown, so they can be roomy and labelled
@@ -40,7 +41,8 @@ const el = (tag, cls, text) => {
 //   onTool(i, tool, arg)         a lane button: "surprise" (a new melody), "beat" (arg = a drum beat), "clear" }
 export function createLanes(root, config) {
   root.classList.add("lanes");
-  const cw = config.cw || 22;
+  const baseWidth = config.cw || 22;
+  let cw = baseWidth;
   let playhead = -1, drag = null, hover = null, move = null;   // drag: stretching a note; move: carrying one (move.target is where it would land)
   const lanes = [], collapsed = new Set();
   const unitOf = () => Math.max(1, (config.unit && config.unit()) || 1);
@@ -361,6 +363,15 @@ export function createLanes(root, config) {
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   }
 
+  bindPinchZoom(root, {
+    content: (event) => event.target.closest(".lane-canvas, .lane-gutter"),
+    getScale: () => cw, min: baseWidth / 4, max: baseWidth * 4,
+    setScale(next) {
+      cw = next;
+      lanes.forEach((l, i) => sizeCanvas(l, config.columns() * cw, heightOf(i)));
+      drawAll();
+    },
+  });
   build();
   return {
     rebuild: build,                          // the lanes, their instruments or their sizes changed

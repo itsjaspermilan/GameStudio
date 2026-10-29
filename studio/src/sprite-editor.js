@@ -2,6 +2,7 @@
 import { color as themeColor, ink, tint } from "./theme.js";
 import * as C from "./sprite-core.js";
 import * as P from "./palette-core.js";
+import { bindPinchZoom, zoomCanvasView } from "./canvas-zoom.js";
 
 // What Copy or Cut took, shared by every sprite and tileset editor so pixels can go from one picture to another: { x, y, w, h, data }
 let clipboard = null;
@@ -105,6 +106,12 @@ export function createSpriteEditor(root, hooks = {}) {
   const colorInput = $(".se-colorinput");
 
   let s = null, f = 0, tool = "pencil", zoom = 8, userZoom = false, dirty = false;
+  bindPinchZoom($(".se-canvaswrap"), {
+    content: () => s && canvas, getScale: () => zoom, min: 1, max: 32,
+    setScale(next) { userZoom = true; zoom = next; renderCanvas(); },
+  });
+  zoomCanvasView($(".se-preview"));
+  zoomCanvasView($(".se-screen"));
   let history = new C.History();
   let drag = null; // {kind, last:[x,y], start:[x,y], cur:[x,y], filled}
   // The Select tool's box { x, y, w, h }. buf holds the pixels while they float (lifted out to move, or pasted): they are drawn over the
@@ -446,11 +453,11 @@ export function createSpriteEditor(root, hooks = {}) {
     const pos = cursor && C.inBounds(s, cursor[0], cursor[1]) ? `${cursor[0]}, ${cursor[1]}` : "-";
     if (isTS()) {
       const ti = cursor ? C.tileIndexAt(s, cursor[0], cursor[1]) : -1;
-      $(".se-status").textContent = `${s.name}  |  ${s.w}\u00D7${s.h}px  |  ${C.tilesetCols(s)}\u00D7${C.tilesetRows(s)} tiles of ${s.tile[0]}\u00D7${s.tile[1]}  |  zoom ${zoom}x  |  pixel ${pos}  |  tile ${ti >= 0 ? ti : "-"}`;
+      $(".se-status").textContent = `${s.name}  |  ${s.w}\u00D7${s.h}px  |  ${C.tilesetCols(s)}\u00D7${C.tilesetRows(s)} tiles of ${s.tile[0]}\u00D7${s.tile[1]}  |  zoom ${+zoom.toFixed(2)}x  |  pixel ${pos}  |  tile ${ti >= 0 ? ti : "-"}`;
       return;
     }
     $(".se-status").textContent =
-      `${s.name}  |  ${s.w}×${s.h}  |  ${frameLabel()}  |  zoom ${zoom}x  |  pixel ${pos}` + (sel ? `  |  selected ${sel.w}×${sel.h}` : "");
+      `${s.name}  |  ${s.w}×${s.h}  |  ${frameLabel()}  |  zoom ${+zoom.toFixed(2)}x  |  pixel ${pos}` + (sel ? `  |  selected ${sel.w}×${sel.h}` : "");
   }
 
   function thumb(frame, w, h, cls) {
@@ -746,8 +753,8 @@ export function createSpriteEditor(root, hooks = {}) {
 
   const actions = {
     undo, redo,
-    zoomin: () => { userZoom = true; zoom = Math.min(32, zoom + 1); renderCanvas(); },
-    zoomout: () => { userZoom = true; zoom = Math.max(1, zoom - 1); renderCanvas(); },
+    zoomin: () => { userZoom = true; zoom = Math.min(32, Math.floor(zoom) + 1); renderCanvas(); },
+    zoomout: () => { userZoom = true; zoom = Math.max(1, Math.ceil(zoom) - 1); renderCanvas(); },
     fit: () => { userZoom = false; fitZoom(); renderCanvas(); },
     makeentity: () => hooks.makeEntity && hooks.makeEntity(),
     addanim: () => { settle(true); naming = true; nameError = ""; nameDraft = ""; renderFrames(); },

@@ -3,6 +3,7 @@
 import { color as themeColor, ink, tint } from "./theme.js";
 import * as A from "./audio-core.js";
 import { History } from "./sprite-core.js";
+import { zoomCanvasView } from "./canvas-zoom.js";
 
 const el = (tag, cls, text) => {
   const e = document.createElement(tag);
@@ -54,6 +55,8 @@ export function createInstrumentEditor(root, hooks = {}) {
     <div class="ins-status"></div>`;
   const $ = (sel) => root.querySelector(sel);
   const wave = $(".ins-wavecanvas"), wctx = wave.getContext("2d"), env = $(".ins-env"), ectx = env.getContext("2d");
+  zoomCanvasView(wave);
+  zoomCanvasView(env);
 
   let name = null, def = A.newInstrument(), dirty = false, history = new History(), octave = 4, audio = null, token = 0, drag = false;
 
