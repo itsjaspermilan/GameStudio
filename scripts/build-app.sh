@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 ./scripts/build.sh
 ./scripts/build-aarch64.sh
 R=studio/src-tauri/bundled/gamestudio
-rm -rf "$R"
+rm -rf studio/src-tauri/bundled/gamestudio
 mkdir -p "$R/build" "$R/build-aarch64" "$R/assets/soundfonts" "$R/assets/console-logos" "$R/assets/console-art" "$R/engine" "$R/scripts" "$R/carts"
 mkdir -p "$R/studio/src"
 cp build/gs "$R/build/"
@@ -23,7 +23,7 @@ cp scripts/push.sh scripts/device.sh scripts/adb.mjs scripts/gamelist.mjs "$R/sc
 cp studio/src/info-core.js "$R/studio/src/"
 cp studio/package.json "$R/studio/"
 cp LICENSE "$R/"
-node tools/mcp/bundle.mjs "$R"
+sh scripts/bundle-mcp.sh "$R"
 # the examples as they are in git: no notes the studio left in them (.gamestudio/), no stray files
 for c in breakout buttontest padsetup; do
   git ls-files "carts/$c" | grep -v '/\.gamestudio/' | while read -r f; do mkdir -p "$R/$(dirname "$f")"; cp "$f" "$R/$f"; done

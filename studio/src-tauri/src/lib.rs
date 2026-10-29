@@ -15,6 +15,7 @@ use std::{
 };
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 mod lsp;
+mod mcp;
 use tauri::{ipc::{Channel, InvokeResponseBody}, AppHandle, Emitter, Manager, State};
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -322,6 +323,7 @@ async fn new_project(app: AppHandle, name: String) -> Result<Option<String>, Str
         return Err(format!("there is already a '{name}' in {}", parent.display()));
     }
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    mcp::setup_project(&dir, &workspace(&app))?;
     Ok(Some(remember_project(&app, &dir)?))
 }
 
@@ -362,6 +364,7 @@ async fn copy_example(app: AppHandle, name: String) -> Result<Option<String>, St
             return Err(format!("there is already a '{name}' in {} that is not a game", parent.display()));
         }
         copy_tree(&from, &dir)?;
+        mcp::setup_project(&dir, &workspace(&app))?;
     }
     Ok(Some(remember_project(&app, &dir)?))
 }
@@ -610,7 +613,8 @@ fn new_cart(app: AppHandle, name: String) -> Result<(), String> {
     if dir.exists() {
         return Err(format!("'{name}' already exists"));
     }
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    mcp::setup_project(&dir, &workspace(&app))
 }
 
 #[tauri::command]

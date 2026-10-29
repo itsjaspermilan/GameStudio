@@ -101,6 +101,8 @@ this command (no arguments; adjust the path if the app is installed elsewhere):
 
 The client starts the server; GameStudio does not need to be open. It works from any working directory without the source checkout or
 a system Node installation. Pass a game's full folder path as `game`; `games` also lists the examples and the studio's recent games.
+New games and new copies of examples automatically get a `.mcp.json` pointing at this bundled launcher. Existing server entries are
+preserved. When using a source checkout as the tools folder, the generated config runs `server.mjs` with your development Node instead.
 The launcher uses the app's read-only resources, with runs, saves and packing in temporary folders. It does not open a network port.
 For `push`, set the server's `DEVICE_ENV` environment variable to a separate device settings file's full path
 (use `scripts/device.env.example` inside the bundled tools folder as a template). Device credentials are never bundled.
