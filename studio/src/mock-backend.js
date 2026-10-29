@@ -60,11 +60,13 @@ async function seed() {
 const HOME = "/Users/you/Documents/GameStudio";
 const projects = [];
 const projectState = {};
+let mockSettings = { workspace: "/mock/workspace", device_serial: "", adb_path: "", device_os: "nextui", device_dir: "", device_sdcard: "", device_platform: "", legacy_ssh: false };
 const remember = (path) => { const i = projects.indexOf(path); if (i >= 0) projects.splice(i, 1); projects.unshift(path); return path; };
 
 const handlers = {
-  get_settings: () => ({ workspace: "/mock/workspace", device_host: "", device_user: "root", device_dir: "" }),
-  save_settings: () => null,
+  get_settings: () => mockSettings,
+  list_devices: () => [{ serial: "demo-handheld", state: "device", model: "Demo handheld" }],
+  save_settings: ({ settings }) => { mockSettings = { ...settings, legacy_ssh: false }; return null; },
   runtime_status: () => ({ desktop: true, device: false }),
   list_carts: () => Object.keys(carts).sort(),
   list_games: () => Object.keys(carts).sort().map((name) => ({ name, kind: carts[name].files['game.lua'] ? 'game' : 'lua' })),
@@ -163,9 +165,8 @@ const handlers = {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) b.set([y * 5, 40, x * 4], 54 + (y * w + x) * 3);
     return btoa(String.fromCharCode(...b));
   },
-  // the mock's handheld cannot be logged in to yet, so sending shows the key dialog
-  push_cart: () => { throw "NEEDS_KEY root@192.168.2.78"; },
-  setup_device_key: () => null,
+  // A browser preview must never claim to have sent files to a physical device.
+  push_cart: () => { throw "Browser preview only: use the desktop app to send to a real ADB device."; },
 };
 
 await seed();

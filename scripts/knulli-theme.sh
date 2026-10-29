@@ -7,12 +7,10 @@
 # (UI settings > theme configuration) did work, and then stayed after restarts. Use the menu; this script is here for `off` and as a record of what the settings files look like.
 set -e
 cd "$(dirname "$0")/.."
-[ -f scripts/device.env ] || { echo "create scripts/device.env (see device.env.example)" >&2; exit 1; }
-. scripts/device.env
+. ./scripts/device.sh
 case "$1" in on|off) ;; *) echo "usage: $0 on|off" >&2; exit 2;; esac
-T="$DEVICE_USER@$DEVICE_HOST"
-SSH_OPTS="$SSH_OPTS -o BatchMode=yes -o ConnectTimeout=8"
-ssh $SSH_OPTS "$T" sh -s -- "$1" <<'REMOTE'
+device_shell sh -s -- "$1" <<'REMOTE'
+set -e
 cfg=/userdata/system/configs/emulationstation/themesettings/es-theme-art-book-next.cfg
 mkdir -p "$(dirname "$cfg")"; touch "$cfg"
 { grep -v -e '^subset.distribution=' -e '^subset.system-logos=' -e '^subset.system-view-artwork=' "$cfg" || true; } > "$cfg.tmp"

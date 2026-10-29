@@ -18,11 +18,17 @@ mod lsp;
 use tauri::{ipc::{Channel, InvokeResponseBody}, AppHandle, Emitter, Manager, State};
 
 #[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(default)]
 struct Settings {
     workspace: String,
-    device_host: String,
-    device_user: String,
+    device_serial: String,
+    adb_path: String,
+    device_os: String,
     device_dir: String,
+    device_sdcard: String,
+    device_platform: String,
+    #[serde(skip_deserializing)]
+    legacy_ssh: bool,
 }
 
 #[derive(Serialize)]
@@ -75,15 +81,23 @@ fn load_settings(app: &AppHandle) -> Settings {
     let mut s: Settings = settings_path(app)
         .ok()
         .and_then(|p| fs::read_to_string(p).ok())
-        .and_then(|t| serde_json::from_str(&t).ok())
+        .and_then(|t| parse_settings(&t).ok())
         .unwrap_or_default();
     if s.workspace.is_empty() {
         s.workspace = default_workspace();
     }
-    if s.device_user.is_empty() {
-        s.device_user = "root".into();
+    if s.device_os.is_empty() {
+        s.device_os = "nextui".into();
     }
     s
+}
+
+fn parse_settings(text: &str) -> Result<Settings, serde_json::Error> {
+    let raw: serde_json::Value = serde_json::from_str(text)?;
+    let mut s: Settings = serde_json::from_value(raw.clone())?;
+    s.legacy_ssh = ["device_host", "device_user"].iter()
+        .any(|k| raw.get(k).and_then(|v| v.as_str()).is_some_and(|v| !v.is_empty()));
+    Ok(s)
 }
 
 #[tauri::command]
@@ -93,6 +107,7 @@ fn get_settings(app: AppHandle) -> Settings {
 
 #[tauri::command]
 fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
+    device_env(&settings)?;
     let path = settings_path(&app)?;
     fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
     let text = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
@@ -924,7 +939,7 @@ fn valid_remote_part(s: &str, extra: &str) -> bool {
 }
 
 /// Like `run_logged`, but remembers the child's process id in `slot` while it runs (and starts it in its own process group, so cancelling
-/// reaches the ssh and scp that the script started).
+/// reaches the ADB clients that the script started).
 /// Returns the exit code (None when a signal stopped it).
 fn run_logged_code(app: &AppHandle, cmd: &mut Command, slot: &Mutex<Option<u32>>) -> Result<Option<i32>, String> {
     cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -944,7 +959,7 @@ fn run_logged_code(app: &AppHandle, cmd: &mut Command, slot: &Mutex<Option<u32>>
     Ok(status?.code())
 }
 
-/// Cancel a send that is running: stops `push.sh` and the ssh/scp under it. True if there was one.
+/// Cancel a send that is running: stops `push.sh` and its ADB clients. True if there was one.
 #[tauri::command]
 fn cancel_push(state: State<'_, AppState>) -> bool {
     let pid = *state.push_pid.lock().unwrap();
@@ -965,95 +980,150 @@ fn push_path(ws: &Path, inherited: &OsStr, home: &Path) -> Result<OsString, Stri
     std::env::join_paths(paths).map_err(|e| format!("could not set the device tools' PATH: {e}"))
 }
 
+fn tools_path(app: &AppHandle) -> Result<OsString, String> {
+    push_path(
+        &workspace(app),
+        &std::env::var_os("PATH").unwrap_or_default(),
+        &PathBuf::from(std::env::var_os("HOME").unwrap_or_default()),
+    )
+}
+
+fn adb_command(app: &AppHandle, settings: &Settings) -> Result<Command, String> {
+    let path = tools_path(app)?;
+    if !std::env::split_paths(&path).any(|d| d.join(if cfg!(windows) { "node.exe" } else { "node" }).is_file()) {
+        return Err("Device connections need Node.js. Install it from nodejs.org (or brew install node), then refresh.".into());
+    }
+    let mut cmd = Command::new("node");
+    cmd.arg(workspace(app).join("scripts").join("adb.mjs"))
+        .env("PATH", path).stdin(Stdio::null());
+    if !settings.adb_path.is_empty() { cmd.env("ADB", &settings.adb_path); }
+    Ok(cmd)
+}
+
+fn adb_output(cmd: &mut Command) -> Result<String, String> {
+    let out = cmd.output().map_err(|e| format!("Could not start ADB helper: {e}"))?;
+    if !out.status.success() { return Err(String::from_utf8_lossy(&out.stderr).trim().to_string()); }
+    String::from_utf8(out.stdout).map_err(|e| e.to_string())
+}
+
+#[derive(Serialize, Deserialize)]
+struct AdbDevice {
+    serial: String,
+    state: String,
+    model: String,
+}
+
+#[tauri::command]
+async fn list_devices(app: AppHandle, adb_path: String) -> Result<Vec<AdbDevice>, String> {
+    let mut s = load_settings(&app);
+    s.adb_path = adb_path;
+    let text = adb_output(adb_command(&app, &s)?.arg("list"))?;
+    serde_json::from_str(&text).map_err(|e| format!("Could not read the ADB device list: {e}"))
+}
+
+fn device_env(s: &Settings) -> Result<String, String> {
+    if s.legacy_ssh {
+        return Err("Old SSH settings cannot be used. Choose an ADB device and review the firmware and folders in Settings, then Save.".into());
+    }
+    if !s.device_serial.is_empty() && (!valid_remote_part(&s.device_serial, "._:-") || s.device_serial.len() > 200) {
+        return Err("Invalid ADB device serial. Refresh the device list in Settings.".into());
+    }
+    let (os, dir, roms, ports) = match s.device_os.as_str() {
+        "" | "nextui" => ("nextui", "/mnt/SDCARD/GameStudio", "", ""),
+        "knulli" => ("knulli", "/userdata/gs", "/userdata/roms", "/userdata/roms/ports"),
+        "muos" => ("muos", "/mnt/mmc/gs", "/mnt/mmc/ROMS", ""),
+        _ => return Err("Choose NextUI, Knulli or muOS in Settings.".into()),
+    };
+    for folder in [&s.device_dir, &s.device_sdcard] {
+        if !folder.is_empty() && (!folder.starts_with('/') || folder == &"/" || !valid_remote_part(&folder[1..], "/._- ") || folder.split('/').any(|p| p == "..")) {
+            return Err("Use an absolute device folder with letters, digits, spaces, / . _ - (no ..).".into());
+        }
+    }
+    if !s.device_platform.is_empty() && !valid_remote_part(&s.device_platform, "_-") {
+        return Err("The NextUI platform must use letters, digits, _ or -.".into());
+    }
+    Ok(format!(
+        "# written by GameStudio; ADB only\nDEVICE_OS={os}\nDEVICE_SERIAL='{}'\nDEVICE_DIR='{}'\nDEVICE_ROMS_DIR='{roms}'\nDEVICE_PORTS_DIR='{ports}'\nDEVICE_SDCARD='{}'\nDEVICE_PLATFORM='{}'\n",
+        s.device_serial, if s.device_dir.is_empty() { dir } else { &s.device_dir },
+        if s.device_sdcard.is_empty() { "/mnt/SDCARD" } else { &s.device_sdcard },
+        if s.device_platform.is_empty() { "tg5040" } else { &s.device_platform }
+    ))
+}
+
+#[cfg(test)]
+mod device_tests {
+    use super::*;
+
+    #[test]
+    fn legacy_settings_require_review_and_do_not_return_old_connection_fields() {
+        let s = parse_settings(r#"{"workspace":"tools","device_host":"private","device_user":"root","device_dir":"/mnt/SDCARD/GameStudio"}"#).unwrap();
+        assert!(s.legacy_ssh);
+        assert!(device_env(&s).unwrap_err().contains("Old SSH"));
+        let json = serde_json::to_string(&s).unwrap();
+        assert!(!json.contains("private"));
+        assert!(!json.contains("device_host"));
+        let reviewed: Settings = serde_json::from_str(&json).unwrap();
+        assert!(!reviewed.legacy_ssh);
+        assert!(device_env(&reviewed).unwrap().contains("DEVICE_OS=nextui"));
+    }
+
+    #[test]
+    fn device_profiles_keep_firmware_defaults_and_validate_shell_values() {
+        for (os, dir, roms) in [
+            ("nextui", "/mnt/SDCARD/GameStudio", ""),
+            ("knulli", "/userdata/gs", "/userdata/roms"),
+            ("muos", "/mnt/mmc/gs", "/mnt/mmc/ROMS"),
+        ] {
+            let s = Settings { device_os: os.into(), ..Settings::default() };
+            let text = device_env(&s).unwrap();
+            assert!(text.contains(&format!("DEVICE_DIR='{dir}'")));
+            assert!(text.contains(&format!("DEVICE_ROMS_DIR='{roms}'")));
+        }
+        let mut s = Settings::default();
+        s.device_serial = "usb:123.45-67_89".into();
+        s.device_dir = "/mnt/SD Card/GameStudio".into();
+        assert!(device_env(&s).is_ok());
+        for bad in ["/", "/mnt/../etc", "/mnt/'bad", "relative"] {
+            s.device_dir = bad.into();
+            assert!(device_env(&s).is_err());
+        }
+        s.device_dir.clear();
+        s.device_serial = "serial'; false".into();
+        assert!(device_env(&s).is_err());
+    }
+}
+
 #[tauri::command]
 async fn push_cart(app: AppHandle, state: State<'_, AppState>, cart: String) -> Result<(), String> {
-    // Sending is always scripts/push.sh, so the studio and the command line do exactly the same (on the Brick: the console as a NextUI
-    // system run by its emulator, box art and title from "Game info"). The studio writes the device file from Settings (NextUI, the
-    // Brick) into its own folder. Only when Settings has no address does a scripts/device.env in the workspace say where (the command
-    // line's file; in a checkout it may still be the old Knulli handheld, which is why Settings comes first). Prefer the app's bundled
-    // Node over shell version-manager shims; in a checkout, use the inherited PATH and the usual install locations.
+    // The Studio never falls back to a checkout's device.env: it may belong to a different handheld.
     let ws = workspace(&app);
     let script = ws.join("scripts").join("push.sh");
     if !script.is_file() {
         return Err(format!("scripts/push.sh not found in {}", ws.display()));
     }
     let scratch = scratch_dir(&app);
-    let mut env_file = ws.join("scripts").join("device.env");
     let s = load_settings(&app);
-    if !s.device_host.is_empty() || !env_file.is_file() {
-        if s.device_host.is_empty() || !valid_remote_part(&s.device_host, ".-_:") {
-            return Err("set the handheld's address (its IP) in Settings first".into());
-        }
-        if !valid_remote_part(&s.device_user, "._-") {
-            return Err("set a valid device user in Settings".into());
-        }
-        let dir = if s.device_dir.is_empty() { "/mnt/SDCARD/GameStudio".to_string() } else { s.device_dir.clone() };
-        if !dir.starts_with('/') || !valid_remote_part(&dir[1..], "/._-") || dir.contains("..") {
-            return Err("set an absolute device folder in Settings (letters, digits, / . _ -)".into());
-        }
-        // One shared SSH connection the person opens once in a terminal (push.sh prints the command when it is not open): the
-        // handheld's password is never typed into the studio.
-        let text = format!(
-            "# written by GameStudio from its Settings\nDEVICE_OS=nextui\nDEVICE_HOST={}\nDEVICE_USER={}\nDEVICE_DIR={}\nSSH_OPTS=\"-o ControlPath=$HOME/.ssh/gamestudio-%r@%h\"\n",
-            s.device_host, s.device_user, dir
-        );
-        fs::create_dir_all(&scratch).map_err(|e| e.to_string())?;
-        env_file = scratch.join("device.env");
-        fs::write(&env_file, text).map_err(|e| e.to_string())?;
-    }
+    let text = device_env(&s)?;
+    let serial = adb_output(adb_command(&app, &s)?.arg("select").arg(&s.device_serial))?;
+    fs::create_dir_all(&scratch).map_err(|e| e.to_string())?;
+    let env_file = scratch.join("device.env");
+    fs::write(&env_file, text).map_err(|e| e.to_string())?;
     let dir = cart_dir(&app, &cart)?;
     emit_log(&app, "stdout", format!("Sending with scripts/push.sh (settings from {})", env_file.display()));
-    let path = push_path(
-        &ws,
-        &std::env::var_os("PATH").unwrap_or_default(),
-        &PathBuf::from(std::env::var_os("HOME").unwrap_or_default()),
-    )?;
-    if !std::env::split_paths(&path).any(|d| d.join("node").is_file()) {
-        return Err("Sending needs Node.js (the 'node' program), which was not found. Install it from nodejs.org (or 'brew install node'), then send again.".into());
-    }
-
+    let mut cmd = Command::new("sh");
+    cmd.arg(&script).arg(&dir).current_dir(&ws).env("PATH", tools_path(&app)?)
+        .env("DEVICE_ENV", &env_file).env("GS_BUILD_DIR", scratch.join("push"))
+        .env("GS_ADB_SERIAL", serial.trim());
+    if !s.adb_path.is_empty() { cmd.env("ADB", &s.adb_path); }
     let code = run_logged_code(
         &app,
-        Command::new("sh").arg(&script).arg(&dir).current_dir(&ws).env("PATH", path).env("DEVICE_ENV", &env_file).env("GS_BUILD_DIR", scratch.join("push")),
+        &mut cmd,
         &state.push_pid,
     )?;
     match code {
         Some(0) => Ok(()),
-        // push.sh could reach the handheld but not log in without a password: the studio offers to set the key up (setup_device_key)
-        Some(3) => Err(format!("NEEDS_KEY {}@{}", s.device_user, s.device_host)),
         _ => Err("Sending stopped: the output above says why.".into()),
     }
-}
-
-/// Open Terminal on scripts/setup-key.sh for the handheld in Settings: it makes GameStudio's SSH key if needed and puts it on the
-/// handheld, asking for the handheld's password there (never in the studio). macOS only; elsewhere the error says what to run.
-#[tauri::command]
-fn setup_device_key(app: AppHandle) -> Result<(), String> {
-    let s = load_settings(&app);
-    if s.device_host.is_empty() || !valid_remote_part(&s.device_host, ".-_:") || !valid_remote_part(&s.device_user, "._-") {
-        return Err("set the handheld's address (its IP) and user in Settings first".into());
-    }
-    let script = workspace(&app).join("scripts").join("setup-key.sh");
-    if !script.is_file() {
-        return Err(format!("scripts/setup-key.sh not found in {}", workspace(&app).display()));
-    }
-    let target = format!("{}@{}", s.device_user, s.device_host);
-    if !cfg!(target_os = "macos") {
-        return Err(format!("open a terminal and run: sh \"{}\" {}", script.display(), target));
-    }
-    // a .command file opens in Terminal and runs; it holds no secret, only the script's path and the handheld's address
-    let scratch = scratch_dir(&app);
-    fs::create_dir_all(&scratch).map_err(|e| e.to_string())?;
-    let cmd_file = scratch.join("setup-key.command");
-    let quoted = script.display().to_string().replace('\'', "'\\''");
-    fs::write(&cmd_file, format!("#!/bin/sh\nclear\nsh '{quoted}' {target}\n")).map_err(|e| e.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&cmd_file, fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
-    }
-    Command::new("open").arg("-a").arg("Terminal").arg(&cmd_file).status().map_err(|e| e.to_string())?;
-    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -1073,7 +1143,7 @@ pub fn run() {
             lsp::lsp_send,
             lsp::lsp_stop,
             get_settings,
-            setup_device_key,
+            list_devices,
             save_settings,
             preview_buttons,
             preview_state,

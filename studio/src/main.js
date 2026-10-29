@@ -1572,24 +1572,8 @@ $("btn-push").onclick = () => run("push", async () => {
   await syncConsoleCopy();
   state.pushing = true; render();
   try { await invoke("push_cart", { cart: state.cart }); info("Sent to device."); }
-  catch (e) {
-    // it reached the handheld but could not log in: offer to set up the key instead of only printing the command
-    const m = /^NEEDS_KEY (\S+)$/.exec(String(e));
-    if (!m) throw e;
-    showKeyDialog(m[1]);
-  } finally { state.pushing = false; render(); }
+  finally { state.pushing = false; render(); }
 });
-function showKeyDialog(target) {
-  $("key-target").textContent = target;
-  $("key-cmd").textContent = `scripts/setup-key.sh ${target}`;
-  $("key-dialog").showModal();
-}
-async function setupKey() {
-  await invoke("setup_device_key");
-  info("Terminal is open: type the handheld's password there once. When it says Done, press Send to device again.");
-}
-$("key-close").onclick = () => $("key-dialog").close();
-$("key-terminal").onclick = () => { $("key-dialog").close(); run("set up the key", setupKey); };
 
 // Output, Handheld and Inspector share the bottom strip.
 function showLogTab(which) {
@@ -2115,22 +2099,54 @@ window.addEventListener("keydown", (e) => {
 });
 
 // ---------- settings ----------
-$("btn-settings").onclick = async () => {
+let deviceRefresh = 0;
+async function refreshDevices(serial = $("set-device").value) {
+  const generation = ++deviceRefresh;
+  $("set-refresh").disabled = true;
+  $("set-device-status").textContent = "Looking for ADB devices...";
+  try {
+    const devices = await invoke("list_devices", { adbPath: $("set-adb").value.trim() });
+    if (generation !== deviceRefresh) return;
+    const select = $("set-device");
+    select.replaceChildren(new Option("Use the only connected device", ""));
+    for (const d of devices) select.add(new Option(`${d.model ? d.model + " — " : ""}${d.serial} (${d.state === "device" ? "ready" : d.state})`, d.serial));
+    if (serial && !devices.some(d => d.serial === serial)) select.add(new Option(`${serial} (not connected)`, serial));
+    select.value = serial;
+    const selected = devices.find(d => d.serial === serial) || (!serial && devices.length === 1 ? devices[0] : null);
+    $("set-device-status").textContent = serial && !selected ? "The selected device is not connected. Reconnect it or choose another." :
+      !devices.length ? "No device found. Check the USB cable and enable ADB on the handheld." :
+      !selected ? "Several devices are connected. Choose one before sending." :
+      selected.state === "unauthorized" ? "Accept the USB debugging authorization on the handheld, then refresh." :
+      selected.state === "offline" ? "This device is offline. Wake it and reconnect the cable, then refresh." :
+      selected.state !== "device" ? "Check USB permissions and the firmware's ADB setup." : "Ready to send over ADB.";
+  } catch (e) {
+    if (generation === deviceRefresh) $("set-device-status").textContent = String(e);
+  } finally {
+    if (generation === deviceRefresh) $("set-refresh").disabled = false;
+  }
+}
+$("set-refresh").onclick = () => refreshDevices();
+$("set-device").onchange = () => refreshDevices();
+$("btn-settings").onclick = () => run("open settings", async () => {
   const s = await invoke("get_settings");
-  $("set-workspace").value = s.workspace; $("set-host").value = s.device_host;
+  $("set-workspace").value = s.workspace;
   $("set-theme").value = lookChoice();
   $("set-run-in").value = runInStudio() ? "studio" : "window";
-  $("set-user").value = s.device_user; $("set-dir").value = s.device_dir;
+  $("set-dir").value = s.device_dir;
+  $("set-adb").value = s.adb_path;
+  $("set-device-os").value = s.device_os || "nextui";
+  $("set-sdcard").value = s.device_sdcard;
+  $("set-platform").value = s.device_platform;
+  $("set-legacy").hidden = !s.legacy_ssh;
+  $("set-device").replaceChildren(new Option(s.device_serial || "Use the only connected device", s.device_serial));
   $("settings").showModal();
-};
-const settingsFromForm = () => ({
-  workspace: $("set-workspace").value.trim(), device_host: $("set-host").value.trim(),
-  device_user: $("set-user").value.trim(), device_dir: $("set-dir").value.trim() });
-// Set up the key for the address typed here: it is saved first, since Terminal uses the saved one.
-$("set-key").onclick = () => run("set up the key", async () => {
-  await invoke("save_settings", { settings: settingsFromForm() });
-  await setupKey();
+  await refreshDevices(s.device_serial);
 });
+const settingsFromForm = () => ({
+  workspace: $("set-workspace").value.trim(), device_serial: $("set-device").value,
+  adb_path: $("set-adb").value.trim(), device_os: $("set-device-os").value,
+  device_dir: $("set-dir").value.trim(), device_sdcard: $("set-sdcard").value.trim(),
+  device_platform: $("set-platform").value.trim() });
 $("settings").addEventListener("close", async () => {
   if ($("settings").returnValue !== "save") return;
   try { localStorage.setItem("gs.runIn", $("set-run-in").value); } catch { /* stays in the studio */ }

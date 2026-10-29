@@ -776,18 +776,22 @@ export function room_write({ game, name, size, layers = [], entities, texts, pic
 }
 
 // ---------- the handheld ----------
-export function push({ game }) {
+export function push({ game, serial, device }) {
   const dir = gameDir(game);
-  const envFile = process.env.DEVICE_ENV ? resolve(process.env.DEVICE_ENV) : join(ROOT, "scripts/device.env");
+  if (device && !/^[a-zA-Z0-9_-]+$/.test(device)) throw new Error("Device profile names use letters, digits, _ or -.");
+  const env = { ...process.env };
+  if (serial) env.GS_ADB_SERIAL = serial;
+  if (device) { env.GS_DEVICE = device; delete env.DEVICE_ENV; }
+  const envFile = env.DEVICE_ENV ? resolve(env.DEVICE_ENV) : join(ROOT, "scripts", `device${env.GS_DEVICE ? "-" + env.GS_DEVICE : ""}.env`);
   if (!existsSync(envFile)) throw new Error("Sending needs a device settings file. Set DEVICE_ENV to its full path (see scripts/device.env.example).");
   const work = mkdtempSync(join(tmpdir(), "gs-mcp-push-"));
   try {
     const r = spawnSync("sh", [join(ROOT, "scripts/push.sh"), dir], {
       cwd: ROOT, encoding: "utf8", timeout: 600000,
-      env: { ...process.env, DEVICE_ENV: envFile, GS_BUILD_DIR: work },
+      env: { ...env, DEVICE_ENV: envFile, GS_BUILD_DIR: work },
     });
     const out = `${r.stdout || ""}${r.stderr || ""}`.trim().split("\n").slice(-12).join("\n");
     if (r.error || r.status !== 0) throw new Error(`sending failed: ${r.error?.message || out}`);
-    return { text: `sent ${game} to the handheld\n${out}` };
+    return { text: `sent ${game} to the handheld over ADB\n${out}` };
   } finally { rmSync(work, { recursive: true, force: true }); }
 }

@@ -8,8 +8,9 @@ A cheap Linux handheld (an Anbernic RG35XX Pro) becomes a small console for 2D g
 ./scripts/build-app.sh   # -> studio/src-tauri/target/release/bundle/macos/GameStudio.app, with the runtimes, SoundFont and examples inside
 ```
 
-The app needs nothing from this folder afterwards. Send to device uses the handheld's address from the app's Settings and the app's
-bundled Node.js, not a system installation or version-manager shim. It is unsigned, so it is for this Mac (other Macs would need it signed and notarized).
+The app needs nothing from this folder afterwards. Send to device uses USB ADB and the app's bundled Node.js, not a system Node installation
+or version-manager shim. Install Android SDK Platform-Tools on the Mac and choose the connected handheld and its software in Settings.
+It is unsigned, so it is for this Mac (other Macs would need it signed and notarized).
 
 ## Quick start (desktop)
 
@@ -165,12 +166,39 @@ Saves go to the OS per-user data folder under `gs/<cart name>/` (override with t
 
 ## Device (aarch64 Linux)
 
+Device connections use **ADB only**, not SSH. Install Node.js and [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools)
+on the computer (`brew install node` and `brew install --cask android-platform-tools` on Mac). Connect a USB **data** cable, wake the
+handheld, and enable ADB / USB debugging in its firmware. Accept the handheld's authorization prompt if it shows one.
+The firmware must expose an ADB shell and file transfer; installing Platform-Tools on the computer does not add ADB to firmware that lacks it.
+GameStudio supports older Linux ADB shells as well as current ones; the device needs `sha256sum` to verify transfers.
+
+In the Studio, open **Settings > Device (USB ADB)**, press **Refresh devices**, choose the handheld, and check its software
+(NextUI, Knulli or muOS). An empty selection uses the only connected device; if several are attached, sending stops until one is selected.
+Offline, unauthorized and disconnected devices give an error instead of falling back to another device. Under **Device setup**, set a
+full path to `adb` if needed. The packaged Mac app searches Homebrew and the standard Android SDK folders
+(`~/Library/Android/sdk/platform-tools`, `~/Android/Sdk/platform-tools`, `ANDROID_HOME` and `ANDROID_SDK_ROOT`), not just an interactive
+shell's PATH. NextUI's SD mount and platform folder are configurable; verify them on your handheld rather than assuming every model uses the Brick's defaults.
+
 ```sh
+adb devices -l               # read-only connection / authorization check
 ./scripts/build-aarch64.sh     # -> build-aarch64/gs (zig cc; uses the handheld's own libSDL2, for its GPU and overlays)
-cp scripts/device.env.example scripts/device.env   # then edit host/user/dir
-./scripts/push.sh carts/breakout  # pack + scp the runtime and cartridge (any game folder works)
-./scripts/run.sh carts/breakout   # push, then launch over SSH
+cp scripts/device.env.example scripts/device.env   # Knulli; use device-nextui.env.example or device-muos.env.example for those systems
+# Edit DEVICE_SERIAL (from adb devices -l), DEVICE_OS and folders in that file.
+./scripts/push.sh carts/breakout  # pack + send the runtime, core and cartridge over ADB
+./scripts/run.sh carts/breakout   # push, then run the standalone runtime over ADB (not the frontend's emulator)
 ```
+
+Scripts accept `ADB=/full/path/to/adb`, `DEVICE_ENV=/path/to/profile.env` or `GS_DEVICE=<name>` for `scripts/device-<name>.env`.
+`DEVICE_SERIAL` in the profile selects the device; `GS_ADB_SERIAL` overrides it for one invocation (`ANDROID_SERIAL` is used if neither
+is set). The MCP `push` tool accepts `serial` and a `device` profile name too. The Studio always uses its own Settings, never a checkout's
+device profile. Settings saved by the old SSH version are **not migrated**: their addresses/users are ignored, sending is blocked until
+you review and save the ADB settings, and saving removes those old fields. Replace old shell profiles with the ADB templates; they fail
+explicitly if SSH fields remain. Existing SSH keys/services are not modified or needed.
+
+Transfers stage each file beside its destination, compare its SHA-256, then rename it into place. A failed transfer leaves the prior
+file intact; this is not a transaction across the whole deployment. A cancelled/disconnected send may leave a uniquely named
+`.gs-stage-*` file, which can be removed after reconnecting. Cartridge formats, launcher layouts and save folders are unchanged.
+Sending still updates the shared runtime/core and console launcher, as before; a new core can invalidate old Resume states.
 
 `build-aarch64.sh` needs zig, cmake and pkgconf, and downloads a small Debian header/library sysroot on first use (`scripts/fetch-sysroot.sh`, checksum-verified). The binary targets glibc 2.31; change it in `scripts/zig-cc-aarch64` if the firmware is older.
 
