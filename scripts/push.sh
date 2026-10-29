@@ -9,14 +9,13 @@ cd "$(dirname "$0")/.."
 [ -n "$1" ] || { echo "usage: $0 <cart-dir>" >&2; exit 2; }
 # DEVICE_ENV=<file> reads that device file instead (the studio app writes one from its Settings); GS_BUILD_DIR=<folder> is where the packed
 # game and the launcher are made before they are copied (default build/; the app's own copy of this folder cannot be written to).
-ENVFILE="${DEVICE_ENV:-scripts/device${GS_DEVICE:+-$GS_DEVICE}.env}"
-[ -f "$ENVFILE" ] || { echo "create $ENVFILE (see $ENVFILE.example, or scripts/device.env.example)" >&2; exit 1; }
-case "$ENVFILE" in /*) . "$ENVFILE" ;; *) . "./$ENVFILE" ;; esac
+. ./scripts/device.sh
 B="${GS_BUILD_DIR:-build}"
 mkdir -p "$B"
 DEVICE_OS="${DEVICE_OS:-knulli}"
 command -v node >/dev/null 2>&1 || { echo "Sending needs Node.js (the 'node' program) for the game list entry. Install it (nodejs.org, or 'brew install node'), then send again." >&2; exit 1; }
 SRC="${1%/}"; NAME="$(basename "$SRC")"
+case "$NAME" in ""|.|..|*[!A-Za-z0-9_.\ -]*) echo "The game's folder name must use letters, digits, spaces, . _ or -." >&2; exit 1 ;; esac
 HOSTCART="$B/$NAME.cart"
 
 # The cart's console (named in meta/info.json) as "id|Display name" ("glow43|Glow43", "glow169|Glow169", a custom one), or nothing for a plain Lua cart. Projects saved when
@@ -73,27 +72,20 @@ console_ext() {
 
 # Always build: both are incremental (about a second when nothing changed), and a handheld left on an older engine than the studio
 # runs the game differently or not at all.
-./scripts/build.sh >/dev/null 2>&1 || { echo "the desktop build failed: run scripts/build.sh to see why" >&2; exit 1; }
-./scripts/build-aarch64.sh >/dev/null 2>&1 || { echo "the handheld build failed: run scripts/build-aarch64.sh to see why" >&2; exit 1; }
-./build/gs pack "$SRC" "$HOSTCART"
-T="$DEVICE_USER@$DEVICE_HOST"
-# GameStudio's own key (scripts/setup-key.sh puts it on the handheld) logs in without a password; the first ssh then opens the shared
-# connection by itself and the copies after it reuse it. A shared connection someone opened by hand works too.
-KEY="$HOME/.ssh/gamestudio_ed25519"
-[ -f "$KEY" ] && SSH_OPTS="$SSH_OPTS -i $KEY"
-case "$SSH_OPTS" in *ControlPath=*) SSH_OPTS="$SSH_OPTS -o ControlMaster=auto -o ControlPersist=60" ;; esac
-# Never wait for a password (a studio window cannot answer one): when it cannot log in, stop at once with exit code 3 (the studio then offers
-# to set the key up in Terminal) and say how to fix it.
-SSH_OPTS="$SSH_OPTS -o BatchMode=yes -o ConnectTimeout=8"
-if ! ssh $SSH_OPTS "$T" true 2>/dev/null; then
-  if ! ssh -o BatchMode=yes -o ConnectTimeout=8 -o ControlPath=none -o PreferredAuthentications=none "$T" true 2>&1 | grep -qi "permission denied"; then
-    echo "Cannot reach $T: is the handheld on, awake, on the same Wi-Fi, with SSH on (NextUI: Tools > Native SSH)?" >&2
-    exit 1
-  fi
-  echo "Cannot log in to $T without a password. Set it up once (it asks the handheld's password one time), then send again:" >&2
-  echo "  scripts/setup-key.sh $T" >&2
-  exit 3
+if [ -f ./scripts/build.sh ]; then
+  ./scripts/build.sh >/dev/null 2>&1 || { echo "the desktop build failed: run scripts/build.sh to see why" >&2; exit 1; }
+  ./scripts/build-aarch64.sh >/dev/null 2>&1 || { echo "the handheld build failed: run scripts/build-aarch64.sh to see why" >&2; exit 1; }
 fi
+[ -f build/gs ] && [ -f build-aarch64/gs ] && [ -f build-aarch64/gs_libretro.so ] || { echo "The desktop or handheld runtime is missing. Build both runtimes (or reinstall the Studio app)." >&2; exit 1; }
+./build/gs pack "$SRC" "$HOSTCART"
+T="ADB $DEVICE_SERIAL"
+finish_push() {
+  echo "pushed $NAME to $T:$DEVICE_DIR"
+  if [ -n "$GS_RUN_AFTER_PUSH" ]; then
+    if [ -n "$DEVICE_STOP_FRONTEND" ]; then device_shell "$DEVICE_STOP_FRONTEND"; fi
+    node "$GS_ADB_HELPER" run "$DEVICE_SERIAL" "$DEVICE_DIR/gs" "$1"
+  fi
+}
 INFO="$(console_info "$SRC")"
 # NextUI: a game with a console is a "rom" in that console's folder, run by one launcher for the whole console, as NextUI's emulators are.
 # Everything else is the runtime's: the cart's path is the launcher's argument, not fixed in it.
@@ -101,10 +93,10 @@ NEXTUI_ROM=""; [ "$DEVICE_OS" = nextui ] && [ -n "$INFO" ] && NEXTUI_ROM=1
 # Knulli: a game with a console runs in Knulli's RetroArch with gs as its libretro core (RetroArch's menu, save states and hotkeys, the
 # controls Knulli set up). GS_KNULLI_PROGRAM=1 sends the old launcher that runs the gs program itself.
 KNULLI_CORE=""; [ "$DEVICE_OS" = knulli ] && [ -n "$INFO" ] && [ -z "$GS_KNULLI_PROGRAM" ] && KNULLI_CORE=1
-ssh $SSH_OPTS "$T" "mkdir -p '$DEVICE_DIR/carts'"
-scp -q $SSH_OPTS build-aarch64/gs "$T:$DEVICE_DIR/gs"
+device_shell "mkdir -p '$DEVICE_DIR/carts'"
+device_push build-aarch64/gs "$DEVICE_DIR/gs"
 # no SoundFont goes beside the runtime: a packed cart carries its own General MIDI instruments (gs pack, runtime/sfbank.c)
-[ -n "$NEXTUI_ROM" ] || scp -q $SSH_OPTS "$HOSTCART" "$T:$DEVICE_DIR/carts/$NAME.cart"
+[ -n "$NEXTUI_ROM" ] || device_push "$HOSTCART" "$DEVICE_DIR/carts/$NAME.cart"
 if [ -n "$DEVICE_PORTS_DIR" ] || [ "$DEVICE_OS" = muos ] || [ "$DEVICE_OS" = nextui ]; then
   # GS_DEBUG=1 scripts/push.sh ...  logs controller presses to <DEVICE_DIR>/last-run.log and leaves after 60 seconds (GS_DEBUG_SECONDS=N),
   # so a test on a device whose buttons are not mapped yet can never trap you in the game.
@@ -179,8 +171,6 @@ FLOOR
     fi
     echo "$RUN"
   } > "$B/$NAME.sh"
-  # ssh joins its arguments into one command for the remote shell, so each one is quoted ("Glow43 (G43)", "Then & Now")
-  q() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
   TITLE="$(node -e 'try { const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(d.title || "").replace(/[\r\n"\\\t]/g, " ").trim()); } catch {}' "$SRC/meta/info.json" 2>/dev/null)"
   if [ "$DEVICE_OS" = nextui ]; then
     # NextUI (a MinUI): a system is a folder Roms/<Name> (<TAG>) whose files are run by Emus/<platform>/<TAG>.pak/launch.sh with the file as
@@ -192,15 +182,25 @@ FLOOR
       case "$CID" in glow43) TAG=G43 ;; glow169) TAG=G169 ;; *) TAG="$(printf '%s' "$CID" | tr 'a-z' 'A-Z' | tr -cd 'A-Z0-9')" ;; esac
       FOLDER="$SD/Roms/$CNAME ($TAG)"; PAK="$SD/Emus/$PLAT/$TAG.pak"
       EXT="$(console_ext "$SRC" "$CID")"; ROM="$NAME.$EXT" # breakout.g43, as a GBA game is breakout.gba
-      ssh $SSH_OPTS "$T" "mkdir -p $(q "$FOLDER/.media") $(q "$PAK")"
-      scp -q $SSH_OPTS "$HOSTCART" "$T:$FOLDER/$ROM"
+      device_shell "mkdir -p $(q "$FOLDER/.media") $(q "$PAK")"
+      device_push "$HOSTCART" "$FOLDER/$ROM"
       # pushed before carts were named by console: the old breakout.cart goes, with its line in map.txt
-      [ "$EXT" != cart ] && ssh $SSH_OPTS "$T" "rm -f $(q "$FOLDER/$NAME.cart"); m=$(q "$FOLDER/map.txt"); [ -f \"\$m\" ] && { grep -v $(q "^$NAME.cart	") \"\$m\" > \"\$m.tmp\"; mv \"\$m.tmp\" \"\$m\"; }; true"
+      if [ "$EXT" != cart ]; then
+        device_shell "sh -s -- $(q "$FOLDER") $(q "$NAME.cart")" <<'REMOTE'
+set -e
+folder="$1"; file="$2"; map="$folder/map.txt"
+rm -f "$folder/$file"
+if [ -f "$map" ]; then
+  awk -F '\t' -v file="$file" '$1 != file' "$map" > "$map.tmp"
+  mv "$map.tmp" "$map"
+fi
+REMOTE
+      fi
       if [ -z "$GS_NEXTUI_PROGRAM" ]; then
         # The console runs in NextUI's own emulator (minarch) with gs as its libretro core, like any other system: its menu on MENU,
         # its button settings, sleep, saves under Saves/<TAG>. The core sits beside the SoundFont, where it looks for it.
         # GS_NEXTUI_PROGRAM=1 sends the plain program and its launcher instead (build/<cart>.sh, written above).
-        scp -q $SSH_OPTS build-aarch64/gs_libretro.so "$T:$DEVICE_DIR/gs_libretro.so"
+        device_push build-aarch64/gs_libretro.so "$DEVICE_DIR/gs_libretro.so"
         {
           echo '#!/bin/sh'
           echo '# written by GameStudio (scripts/push.sh): a Glow console run by NextUI'"'"'s minarch with the gs core'
@@ -215,28 +215,31 @@ FLOOR
           echo "minarch.elf \"$DEVICE_DIR/gs_libretro.so\" \"\$1\" &> \"\$LOGS_PATH/\$EMU_TAG.txt\""
         } > "$B/$NAME.sh"
       fi
-      scp -q $SSH_OPTS "$B/$NAME.sh" "$T:$PAK/launch.sh"
-      ssh $SSH_OPTS "$T" "chmod +x $(q "$PAK/launch.sh") '$DEVICE_DIR/gs'"
-      if [ -f "$SRC/meta/box_art.png" ]; then scp -q $SSH_OPTS "$SRC/meta/box_art.png" "$T:$FOLDER/.media/$NAME.png"
-      else ssh $SSH_OPTS "$T" "rm -f $(q "$FOLDER/.media/$NAME.png")"; fi
+      device_push "$B/$NAME.sh" "$PAK/launch.sh"
+      device_shell "chmod +x $(q "$PAK/launch.sh") '$DEVICE_DIR/gs'"
+      if [ -f "$SRC/meta/box_art.png" ]; then device_push "$SRC/meta/box_art.png" "$FOLDER/.media/$NAME.png"
+      else device_shell "rm -f $(q "$FOLDER/.media/$NAME.png")"; fi
       # the console's logo as the folder's picture in the list of systems
-      [ -f "assets/console-logos/$CID.png" ] && { ssh $SSH_OPTS "$T" "mkdir -p '$SD/Roms/.media'"; scp -q $SSH_OPTS "assets/console-logos/$CID.png" "$T:$SD/Roms/.media/$CNAME ($TAG).png"; }
+      [ -f "assets/console-logos/$CID.png" ] && { device_shell "mkdir -p '$SD/Roms/.media'"; device_push "assets/console-logos/$CID.png" "$SD/Roms/.media/$CNAME ($TAG).png"; }
       # map.txt: one "file<TAB>title" per line; this game's line is replaced (no python on the device, so grep does it)
-      ssh $SSH_OPTS "$T" "sh -s -- $(q "$FOLDER/map.txt") $(q "$ROM") $(q "${TITLE:-$NAME}")" <<'REMOTE'
+      device_shell "sh -s -- $(q "$FOLDER/map.txt") $(q "$ROM") $(q "${TITLE:-$NAME}")" <<'REMOTE'
+set -e
 map="$1"; file="$2"; title="$3"
 touch "$map"
-{ grep -v "^$file	" "$map" || true; printf '%s\t%s\n' "$file" "$title"; } > "$map.tmp" && mv "$map.tmp" "$map"
+awk -F '\t' -v file="$file" '$1 != file' "$map" > "$map.tmp"
+printf '%s\t%s\n' "$file" "$title" >> "$map.tmp"
+mv "$map.tmp" "$map"
 REMOTE
       echo "launcher: $PAK/launch.sh (one for every $CNAME game)"
       echo "game: $FOLDER/$ROM ($CNAME in the NextUI menu)"
     else
       PAK="$SD/Tools/$PLAT/${TITLE:-$NAME}.pak"
-      ssh $SSH_OPTS "$T" "mkdir -p $(q "$PAK")"
-      scp -q $SSH_OPTS "$B/$NAME.sh" "$T:$PAK/launch.sh"
-      ssh $SSH_OPTS "$T" "chmod +x $(q "$PAK/launch.sh") '$DEVICE_DIR/gs'"
+      device_shell "mkdir -p $(q "$PAK")"
+      device_push "$B/$NAME.sh" "$PAK/launch.sh"
+      device_shell "chmod +x $(q "$PAK/launch.sh") '$DEVICE_DIR/gs'"
       echo "launcher: $PAK (Tools in the NextUI menu)"
     fi
-    echo "pushed $NAME to $T:$DEVICE_DIR"
+    if [ -n "$NEXTUI_ROM" ]; then finish_push "$FOLDER/$ROM"; else finish_push "$DEVICE_DIR/carts/$NAME.cart"; fi
     exit 0
   fi
   if [ "$DEVICE_OS" = muos ]; then
@@ -250,7 +253,8 @@ REMOTE
     DEST="$DEVICE_ROMS_DIR/$FOLDER/$NAME.sh"
     node -e 'try { const d = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(String(d.description || "")); } catch {}' "$SRC/meta/info.json" > "$B/$NAME.txt"
     CAT="/mnt/mmc/MUOS/info/catalogue/External - Ports"
-    ssh $SSH_OPTS "$T" "sh -s -- $(q "$DEVICE_ROMS_DIR") $(q "$FOLDER") $(q "$NAME") $(q "${TITLE:-$NAME}") $(q "$CAT")" <<'REMOTE'
+    device_shell "sh -s -- $(q "$DEVICE_ROMS_DIR") $(q "$FOLDER") $(q "$NAME") $(q "${TITLE:-$NAME}") $(q "$CAT")" <<'REMOTE'
+set -e
 roms="$1"; folder="$2"; cart="$3"; title="$4"; cat="$5"
 mkdir -p "$roms/$folder" "$cat/box" "$cat/preview" "$cat/text"
 assign=/opt/muos/share/info/assign/assign.json
@@ -266,20 +270,20 @@ REMOTE
     # the console's logo is the folder's picture in the content list
     CID="${INFO%%|*}"
     if [ -n "$INFO" ] && [ -f "assets/console-logos/$CID.png" ]; then
-      ssh $SSH_OPTS "$T" "mkdir -p '/mnt/mmc/MUOS/info/catalogue/Folder/box'"
-      scp -q $SSH_OPTS "assets/console-logos/$CID.png" "$T:/mnt/mmc/MUOS/info/catalogue/Folder/box/$FOLDER.png"
+      device_shell "mkdir -p '/mnt/mmc/MUOS/info/catalogue/Folder/box'"
+      device_push "assets/console-logos/$CID.png" "/mnt/mmc/MUOS/info/catalogue/Folder/box/$FOLDER.png"
     fi
     for pic in box_art:box screenshot:preview; do
       f="${pic%%:*}"; d="${pic#*:}"
-      if [ -f "$SRC/meta/$f.png" ]; then scp -q $SSH_OPTS "$SRC/meta/$f.png" "$T:$CAT/$d/$NAME.png"; else ssh $SSH_OPTS "$T" "rm -f '$CAT/$d/$NAME.png'"; fi
+      if [ -f "$SRC/meta/$f.png" ]; then device_push "$SRC/meta/$f.png" "$CAT/$d/$NAME.png"; else device_shell "rm -f '$CAT/$d/$NAME.png'"; fi
     done
-    scp -q $SSH_OPTS "$B/$NAME.txt" "$T:$CAT/text/$NAME.txt"
-    scp -q $SSH_OPTS "$B/$NAME.sh" "$T:$DEST"
-    ssh $SSH_OPTS "$T" "chmod +x '$DEST' '$DEVICE_DIR/gs'"
+    device_push "$B/$NAME.txt" "$CAT/text/$NAME.txt"
+    device_push "$B/$NAME.sh" "$DEST"
+    device_shell "chmod +x '$DEST' '$DEVICE_DIR/gs'"
     # the first muOS version put each console in "GameStudio <name>": move this game out of there (and drop the folder once empty)
-    ssh $SSH_OPTS "$T" "rm -f $(q "$DEVICE_ROMS_DIR/GameStudio $CNAME/$NAME.sh"); rmdir $(q "$DEVICE_ROMS_DIR/GameStudio $CNAME") 2>/dev/null; true"
+    device_shell "rm -f $(q "$DEVICE_ROMS_DIR/GameStudio $CNAME/$NAME.sh"); rmdir $(q "$DEVICE_ROMS_DIR/GameStudio $CNAME") 2>/dev/null; true"
     echo "launcher: $DEST ($FOLDER in the muOS menu)"
-    echo "pushed $NAME to $T:$DEVICE_DIR"
+    finish_push "$DEVICE_DIR/carts/$NAME.cart"
     exit 0
   fi
   if [ -n "$INFO" ] && [ -n "$DEVICE_ROMS_DIR" ]; then
@@ -293,16 +297,17 @@ REMOTE
     LOGO="assets/console-logos/$CID-white.svg"; [ -f "$LOGO" ] || LOGO="assets/console-logos/$CID.svg"
     if [ -f "$LOGO" ]; then
       LOGODIR="${DEVICE_THEME_CUSTOM_DIR:-/userdata/theme-customizations/art-book-next}/logos"
-      ssh $SSH_OPTS "$T" "mkdir -p '$LOGODIR'"
-      scp -q $SSH_OPTS "$LOGO" "$T:$LOGODIR/$CID.svg"
+      device_shell "mkdir -p '$LOGODIR'"
+      device_push "$LOGO" "$LOGODIR/$CID.svg"
     fi
     # and its panel for the home carousel (used when the theme's "System view artwork" is Custom: scripts/knulli-theme.sh on)
     if [ -f "assets/console-art/$CID.png" ]; then
       ARTDIR="${DEVICE_THEME_CUSTOM_DIR:-/userdata/theme-customizations/art-book-next}/artwork"
-      ssh $SSH_OPTS "$T" "mkdir -p '$ARTDIR'"
-      scp -q $SSH_OPTS "assets/console-art/$CID.png" "$T:$ARTDIR/$CID.png"
+      device_shell "mkdir -p '$ARTDIR'"
+      device_push "assets/console-art/$CID.png" "$ARTDIR/$CID.png"
     fi
-    ssh $SSH_OPTS "$T" sh -s -- "$DEVICE_ROMS_DIR" "$CID" "$CNAME" "$DEVICE_PORTS_DIR" "$NAME" <<'REMOTE'
+    device_shell sh -s -- "$DEVICE_ROMS_DIR" "$CID" "$CNAME" "$DEVICE_PORTS_DIR" "$NAME" <<'REMOTE'
+set -e
 roms="$1"; id="$2"; name="$3"; ports="$4"; cart="$5"
 cfgdir=/userdata/system/configs/emulationstation
 cfg="$cfgdir/es_systems_gamestudio.cfg"
@@ -358,29 +363,29 @@ REMOTE
   else
     DEST="$DEVICE_PORTS_DIR/GS-$NAME.sh"
   fi
-  scp -q $SSH_OPTS "$B/$NAME.sh" "$T:$DEST"
-  ssh $SSH_OPTS "$T" "chmod +x '$DEST' '$DEVICE_DIR/gs'"
+  device_push "$B/$NAME.sh" "$DEST"
+  device_shell "chmod +x '$DEST' '$DEVICE_DIR/gs'"
   if [ -n "$KNULLI_CORE" ]; then
     # the core beside the SoundFont (where it looks for it), and this game's RetroArch settings over Knulli's. Knulli writes its file for
     # whichever libretro system ran last, so it can hold that system's bezel overlay, picture shape (a GBA game left a 3:2 custom viewport)
     # and shader: the console's own shape, named outright (a custom shape left by Knulli wins over "use the core's"), at a sharp
     # whole-number scale replaces them, saves go to the console's own folder, and Knulli's file is left as Knulli wrote it.
-    scp -q $SSH_OPTS build-aarch64/gs_libretro.so "$T:$DEVICE_DIR/gs_libretro.so"
+    device_push build-aarch64/gs_libretro.so "$DEVICE_DIR/gs_libretro.so"
     {
       printf 'savefile_directory = "/userdata/saves/%s"\nsavestate_directory = "/userdata/saves/%s"\n' "$CID" "$CID"
       printf 'input_overlay_enable = "false"\ninput_overlay = ""\nvideo_shader_enable = "false"\n'
       printf 'video_aspect_ratio_auto = "false"\naspect_ratio_index = "%s"\n' "$(console_aspect_index "$SRC" "$CID")"
       printf 'video_scale_integer = "true"\nvideo_smooth = "false"\nconfig_save_on_exit = "false"\n'
     } > "$B/retroarch-$NAME.cfg"
-    scp -q $SSH_OPTS "$B/retroarch-$NAME.cfg" "$T:$DEVICE_DIR/retroarch-$NAME.cfg"
-    ssh $SSH_OPTS "$T" "mkdir -p '/userdata/saves/$CID'; rm -f '$DEST.keys'"
+    device_push "$B/retroarch-$NAME.cfg" "$DEVICE_DIR/retroarch-$NAME.cfg"
+    device_shell "mkdir -p '/userdata/saves/$CID'; rm -f '$DEST.keys'"
   fi
   # HOTKEY + START leaves the game the way it leaves every other app: Knulli/Batocera's launcher starts its button watcher (evmapy) with a
   # <launcher>.keys file found beside the launcher. Stopping gs with TERM lets it save and close like a normal quit. The runtime watches
   # for HOTKEY + START itself too, for when the watcher is not running.
   if [ -z "$KNULLI_CORE" ]; then # RetroArch leaves on HOTKEY + START by itself
   printf '{\n  "actions_player1": [\n    { "trigger": ["hotkey", "start"], "type": "exec", "target": "killall -TERM gs" }\n  ]\n}\n' > "$B/$NAME.sh.keys"
-  scp -q $SSH_OPTS "$B/$NAME.sh.keys" "$T:$DEST.keys"
+  device_push "$B/$NAME.sh.keys" "$DEST.keys"
   fi
   echo "launcher: $DEST"
   # The game list entry: name, description, box art and details from the project's Game info (studio: "Game info..."), merged into the
@@ -393,12 +398,12 @@ REMOTE
   [ -f "$SRC/meta/screenshot.png" ] && IMG_SHOT="images/$NAME-screenshot.png"
   [ -f "$SRC/meta/logo.png" ] && IMG_LOGO="images/$NAME-logo.png"
   node scripts/gamelist.mjs "$SRC" "$LAUNCH" "$IMG_BOX" "$IMG_SHOT" "$IMG_LOGO" > "$B/$NAME.gamelist-entry.xml"
-  scp -q $SSH_OPTS "$B/$NAME.gamelist-entry.xml" "$T:/tmp/gs-$NAME.entry.xml"
-  ssh $SSH_OPTS "$T" "mkdir -p '$GLDIR/images'"
-  if [ -n "$IMG_BOX" ]; then scp -q $SSH_OPTS "$SRC/meta/box_art.png" "$T:$GLDIR/$IMG_BOX"; else ssh $SSH_OPTS "$T" "rm -f '$GLDIR/images/$NAME.png'"; fi
-  if [ -n "$IMG_SHOT" ]; then scp -q $SSH_OPTS "$SRC/meta/screenshot.png" "$T:$GLDIR/$IMG_SHOT"; else ssh $SSH_OPTS "$T" "rm -f '$GLDIR/images/$NAME-screenshot.png'"; fi
-  if [ -n "$IMG_LOGO" ]; then scp -q $SSH_OPTS "$SRC/meta/logo.png" "$T:$GLDIR/$IMG_LOGO"; else ssh $SSH_OPTS "$T" "rm -f '$GLDIR/images/$NAME-logo.png'"; fi
-  ssh $SSH_OPTS "$T" python3 - "$GLDIR/gamelist.xml" "/tmp/gs-$NAME.entry.xml" "$LAUNCH" <<'PY'
+  device_push "$B/$NAME.gamelist-entry.xml" "/tmp/gs-$NAME.entry.xml"
+  device_shell "mkdir -p '$GLDIR/images'"
+  if [ -n "$IMG_BOX" ]; then device_push "$SRC/meta/box_art.png" "$GLDIR/$IMG_BOX"; else device_shell "rm -f '$GLDIR/images/$NAME.png'"; fi
+  if [ -n "$IMG_SHOT" ]; then device_push "$SRC/meta/screenshot.png" "$GLDIR/$IMG_SHOT"; else device_shell "rm -f '$GLDIR/images/$NAME-screenshot.png'"; fi
+  if [ -n "$IMG_LOGO" ]; then device_push "$SRC/meta/logo.png" "$GLDIR/$IMG_LOGO"; else device_shell "rm -f '$GLDIR/images/$NAME-logo.png'"; fi
+  device_shell python3 - "$GLDIR/gamelist.xml" "/tmp/gs-$NAME.entry.xml" "$LAUNCH" <<'PY'
 import sys, xml.etree.ElementTree as ET
 gamelist, entry_file, launcher = sys.argv[1:4]
 entry = ET.fromstring(open(entry_file, encoding="utf-8").read())
@@ -416,9 +421,9 @@ root.append(entry)
 ET.indent(tree)
 tree.write(gamelist, encoding="utf-8", xml_declaration=True)
 PY
-  ssh $SSH_OPTS "$T" "rm -f '/tmp/gs-$NAME.entry.xml'; curl -s -m 3 http://127.0.0.1:1234/reloadgames >/dev/null 2>&1 || true"
+  device_shell "rm -f '/tmp/gs-$NAME.entry.xml'; curl -s -m 3 http://127.0.0.1:1234/reloadgames >/dev/null 2>&1 || true"
   echo "game list updated"
 else
-  ssh $SSH_OPTS "$T" "chmod +x '$DEVICE_DIR/gs'"
+  device_shell "chmod +x '$DEVICE_DIR/gs'"
 fi
-echo "pushed $NAME to $T:$DEVICE_DIR"
+finish_push "$DEVICE_DIR/carts/$NAME.cart"

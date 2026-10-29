@@ -741,10 +741,13 @@ export function room_write({ game, name, size, layers = [], entities, texts, pic
 }
 
 // ---------- the handheld ----------
-export function push({ game }) {
+export function push({ game, serial, device }) {
   const dir = gameDir(game);
-  if (!existsSync(join(ROOT, "scripts/device.env"))) return { text: "No scripts/device.env: sending needs the device settings (see scripts/device.env.example)." };
-  const r = spawnSync("sh", [join(ROOT, "scripts/push.sh"), relative(ROOT, dir)], { cwd: ROOT, encoding: "utf8", timeout: 600000 });
+  if (device && !/^[a-zA-Z0-9_-]+$/.test(device)) throw new Error("Device profile names use letters, digits, _ or -.");
+  const env = { ...process.env };
+  if (serial) env.GS_ADB_SERIAL = serial;
+  if (device) { env.GS_DEVICE = device; delete env.DEVICE_ENV; }
+  const r = spawnSync("sh", [join(ROOT, "scripts/push.sh"), relative(ROOT, dir)], { cwd: ROOT, env, encoding: "utf8", timeout: 600000 });
   const out = `${r.stdout || ""}${r.stderr || ""}`.trim().split("\n").slice(-12).join("\n");
-  return { text: (r.status === 0 ? `sent ${game} to the handheld\n` : `sending failed\n`) + out };
+  return { text: (r.status === 0 ? `sent ${game} to the handheld over ADB\n` : `sending failed\n`) + (r.error ? `${r.error.message}\n` : "") + out };
 }

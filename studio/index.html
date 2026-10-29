@@ -27,7 +27,7 @@
         </div>
         <div class="group">
           <button id="btn-pack" title="Make the game file to share or play: &lt;name&gt;.g43 for a Glow43 game, saved next to the game's folder">Pack</button>
-          <button id="btn-push" title="Pack the game and copy it to your handheld over the network (set it up in Settings)">Send to device</button>
+          <button id="btn-push" title="Pack the game and copy it to your handheld over USB ADB (choose the device in Settings)">Send to device</button>
         </div>
         <span id="status"></span>
         <div class="spacer"></div>
@@ -171,14 +171,6 @@
       <div class="actions"><button id="cc-cancel">Cancel</button><button id="cc-apply" class="primary">Apply</button></div>
     </dialog>
 
-    <dialog id="key-dialog">
-      <h2>Let the studio log in to your handheld</h2>
-      <p>The studio reached <strong id="key-target"></strong> but could not log in without a password. Set up GameStudio's key once: Terminal
-        opens, you type the handheld's password one time, and from then on Send to device just works (also after the handheld sleeps or restarts).</p>
-      <p class="hint">On NextUI the key stays until a firmware update resets the Brick; then set it up again. The same in a terminal: <code id="key-cmd"></code></p>
-      <div class="actions"><button id="key-close">Not now</button><button id="key-terminal" class="primary">Set up in Terminal</button></div>
-    </dialog>
-
     <dialog id="find-dialog" class="find-dialog">
       <div class="fd-head"><h2 id="fd-title">Find in game</h2><button id="fd-close" class="small">Close</button></div>
       <input id="fd-query" placeholder="Find" spellcheck="false" />
@@ -200,12 +192,22 @@
         </label>
         <label>Run games <select id="set-run-in" title="Where Run shows the game"><option value="studio">In the studio, beside the code</option><option value="window">In a window of their own</option></select></label>
         <label>Look <select id="set-theme"><option value="system">Match the system</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
-        <h3>Device (SSH)</h3>
-        <label>Host <input id="set-host" placeholder="192.168.1.50" spellcheck="false" /></label>
-        <label>User <input id="set-user" placeholder="root" spellcheck="false" /></label>
-        <label>Folder on device <input id="set-dir" placeholder="/mnt/sdcard/gs" spellcheck="false" /></label>
-        <p class="hint">Sending logs in with GameStudio's own SSH key, so it never asks for a password. Set it up once for each handheld
-          (it asks the handheld's password one time, in Terminal): <button type="button" id="set-key" class="small">Set up the key…</button></p>
+        <h3>Device (USB ADB)</h3>
+        <p id="set-legacy" class="hint" hidden>Old SSH addresses and users are no longer used. Choose an ADB device and check the firmware and folders below, then Save. No connection has been migrated.</p>
+        <label>Device <select id="set-device"></select></label>
+        <button type="button" id="set-refresh" class="small">Refresh devices</button>
+        <p id="set-device-status" class="hint" role="status"></p>
+        <p class="hint">Connect a USB data cable and enable ADB / USB debugging in your handheld's firmware. Accept its authorization prompt if shown. The firmware must provide ADB shell and file transfer; Android is not required.</p>
+        <label>Handheld software <select id="set-device-os"><option value="nextui">NextUI</option><option value="knulli">Knulli</option><option value="muos">muOS</option></select></label>
+        <label>Runtime folder <input id="set-dir" placeholder="Default for the handheld software" spellcheck="false" /></label>
+        <details>
+          <summary>Device setup</summary>
+          <label>ADB program <input id="set-adb" placeholder="Find automatically (or full path to adb)" spellcheck="false" /></label>
+          <p class="hint">Install Android SDK Platform-Tools. On Mac: <code>brew install --cask android-platform-tools</code>. The app also checks the standard Android SDK folders.</p>
+          <label>NextUI SD card <input id="set-sdcard" placeholder="/mnt/SDCARD" spellcheck="false" /></label>
+          <label>NextUI platform <input id="set-platform" placeholder="tg5040" spellcheck="false" /></label>
+          <p class="hint">Use the platform folder shown under Emus on your SD card. Defaults are for a TrimUI Brick; other handhelds may differ.</p>
+        </details>
         <div class="actions">
           <button value="cancel">Cancel</button>
           <button id="set-save" value="save" class="primary">Save</button>

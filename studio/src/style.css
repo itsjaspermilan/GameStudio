@@ -179,6 +179,8 @@ dialog label { display: block; margin: 8px 0; }
 dialog label input { display: block; width: 100%; margin-top: 3px; }
 dialog .hint { color: var(--muted); font-size: 12px; }
 dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+#settings { max-height: calc(100vh - 60px); overflow: auto; box-sizing: border-box; }
+#settings label select { display: block; width: 100%; margin-top: 3px; }
 code { background: var(--bg); padding: 1px 4px; border-radius: 3px; }
 
 /* ---------- sprite editor ---------- */

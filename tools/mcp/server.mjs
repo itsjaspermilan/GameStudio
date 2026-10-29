@@ -92,8 +92,8 @@ tool("room_write", "Build or change a level (a scene's layout)", "Creates or edi
     paths: z.record(z.string(), z.any()).optional(),
     texts: items, pictures: items, panels: items,
   }, T.room_write);
-tool("push", "Send to the handheld", "Packs a game and sends it to the handheld with scripts/push.sh (needs scripts/device.env and an open device connection).",
-  { game }, T.push);
+tool("push", "Send to the handheld", "Packs a game and sends it over USB ADB with scripts/push.sh. Needs a device.env profile and an authorized connected device; specify serial when several are attached. Uses the same verified transfers and launchers as the Studio.",
+  { game, serial: z.string().optional().describe("ADB serial from adb devices -l"), device: z.string().optional().describe("Device profile name: scripts/device-<name>.env; defaults to device.env or GS_DEVICE") }, T.push);
 
 // Prompts: a task to start from, with the matching guide included, for any MCP client (Claude Code's skills point to the same guides).
 function prompt(name, title, description, args, guides, task) {

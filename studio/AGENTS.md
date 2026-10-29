@@ -16,7 +16,7 @@ npx vite build                # quick syntax/bundle check of the front end
 - **The built app is self-contained** (`scripts/build-app.sh`): `bundled_root` finds its read-only copy of the GameStudio folder in the
   app's resources and `workspace()` returns it (the Settings workspace is only used in development). What the studio writes goes
   elsewhere: `scratch_dir` (the workspace's `build/` in development, the app's cache folder when built: packed copies for the device,
-  `device.env` made from Settings, the language server's settings) and `consoles_dir` (custom consoles: the app's data folder when
+  ADB `device.env` made from Settings, the language server's settings) and `consoles_dir` (custom consoles: the app's data folder when
   built). Every runtime launch goes through `runtime_command`, which passes the SoundFont's path (`GS_SOUNDFONT`).
   `game.lua`, `entities/ scenes/ rooms/ lib/` (Lua) and `sprites/ tilesets/ sfx/ music/ instruments/ sounds/`, plus `meta/info.json` (title, description, console, box art for the game list).
 - **`main.js` is the conductor.** It owns `state` (open game, file list, the scan, which editor shows which file), the tree, saving, rename/delete, run/pack/push, and creates every
