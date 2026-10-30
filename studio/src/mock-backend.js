@@ -52,6 +52,12 @@ async function seed() {
     "sprites/spr_demo.png": { b64: await encodeSpritePng(s) },
   } };
   carts.hello = { files: { "main.lua": { text: LUA } } };
+  const exampleText = import.meta.glob("../../carts/netplay-playground/**/*.{lua,json}", { eager: true, query: "?raw", import: "default" });
+  const exampleImages = import.meta.glob("../../carts/netplay-playground/**/*.png", { eager: true, query: "?inline", import: "default" });
+  const playground = { files: {} };
+  for (const [path, text] of Object.entries(exampleText)) playground.files[path.replace("../../carts/netplay-playground/", "")] = { text };
+  for (const [path, url] of Object.entries(exampleImages)) playground.files[path.replace("../../carts/netplay-playground/", "")] = { b64: url.split(",")[1] };
+  carts["netplay-playground"] = playground;
   // the folders you have open are paths, as in the app; "demo" is also offered as an example to copy
   carts[HOME + "/demo"] = carts.demo;
   carts[HOME + "/hello"] = carts.hello;
@@ -94,7 +100,7 @@ const handlers = {
     carts[path] = { files: {} };
     return remember(path);
   },
-  list_examples: () => ["demo"],
+  list_examples: () => ["demo", "netplay-playground"],
   copy_example: ({ name }) => {
     const path = `${HOME}/${name}-copy`;
     if (!carts[path]) carts[path] = { files: JSON.parse(JSON.stringify(carts[name].files)) };

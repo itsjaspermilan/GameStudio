@@ -274,6 +274,7 @@ static size_t state_size(void) {
 }
 
 static bool state_save(unsigned char *out, size_t size) {
+    if (gs_net_active()) { fprintf(stderr, "gs: leave Wi-Fi play before saving a state\n"); return false; }
     if (!g_core_L || !g_ram) return false;
     if (state_needed() > size) { fprintf(stderr, "gs: this game no longer fits in a save state of %zu bytes\n", size); return false; }
     memset(out, 0, size); /* the unused rest compresses to nothing (state files, rewind) */
@@ -359,6 +360,7 @@ static bool assets_remake(const unsigned char *a, size_t len) {
 }
 
 static bool state_load(const unsigned char *in, size_t size) {
+    if (gs_net_active()) { fprintf(stderr, "gs: leave Wi-Fi play before loading a state\n"); return false; }
     StateHeader h;
     if (!g_core_L || !g_ram || size < sizeof h) return false;
     memcpy(&h, in, sizeof h);

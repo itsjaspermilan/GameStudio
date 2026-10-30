@@ -56,6 +56,8 @@ test("renameInCode rewrites the plain ways code names a moved entity, scene, roo
   const s = renameInCode({ "game.lua": 'start = "scenes.title"', "lib/m.lua": 'gs.goto_scene("title")\ngs.load_room("title")' }, "scenes", "title", "menus/title");
   assert.equal(s.files["game.lua"], 'start = "scenes.menus.title"');
   assert.equal(s.files["lib/m.lua"], 'gs.goto_scene("menus.title")\ngs.load_room("title")', "a room with the same name is left alone");
+  const net = renameInCode({ "scenes/menu.lua": 'gs.net.start("scenes.title")' }, "scenes", "title", "menus/title");
+  assert.equal(net.files["scenes/menu.lua"], 'gs.net.start("scenes.menus.title")');
   const l = renameInCode({ "a.lua": 'local st = require("lib.state")' }, "lib", "state", "core/state");
   assert.equal(l.files["a.lua"], 'local st = require("lib.core.state")');
   assert.deepEqual(renameInCode({ "a.lua": '"spr"' }, "sprites", "spr", "x").files, {}, "art is not named by module");

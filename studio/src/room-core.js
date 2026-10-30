@@ -262,7 +262,7 @@ export function freshName(base, taken) {
 
 // ---------- names (a named thing is a field of the scene's code: self.<name>) ----------
 // Names every scene already has (engine/gs/world.lua TAKEN), so a layout may not use them.
-export const SCENE_NAMES = new Set(["enter", "leave", "update", "draw", "draw_ui", "after", "every", "go", "tween"]);
+export const SCENE_NAMES = new Set(["enter", "leave", "update", "draw", "draw_ui", "on_net_end", "after", "every", "go", "tween"]);
 
 // Everything with a name in a layout: [{ name, kind: "entity" | "text" | "picture", detail }], in the order they are built.
 export function layoutNames(room) {

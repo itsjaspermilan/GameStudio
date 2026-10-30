@@ -598,7 +598,7 @@ function W.Panel.draw(self)
 end
 
 -- names a layout may not use: what every scene already has
-local TAKEN = { enter = true, leave = true, update = true, draw = true, draw_ui = true, after = true, every = true, go = true, tween = true }
+local TAKEN = { enter = true, leave = true, update = true, draw = true, draw_ui = true, on_net_end = true, after = true, every = true, go = true, tween = true }
 
 local function build(data, where, scene)
   if data.background then W.bg = data.background end
@@ -919,6 +919,16 @@ function W.layout_file() return W.scene_name and file_of(scene_module(W.scene_na
 -- start the scene that is running again, with what it was given (live reload does this when its layout changes)
 function W.restart_scene()
   if W.scene_name then W.pending_scene = { name = W.scene_name, args = W.scene_args or {} }; W.fade_state = nil end
+end
+
+-- A session starts from an empty world, not the local menu's entity ids, clock or class traversal order.
+function W.reset_session()
+  if W.scene and W.scene.leave then W.scene.leave(W.scene) end
+  W.all, W.classes, W.by_class, W.tags, W.layers = {}, {}, {}, {}, {}
+  W.scene, W.pending_scene, W.fade_state = nil, nil, nil
+  W.alive, W.next_id, W.step_id, W.time, W.fade, W.flash_t = 0, 1, 0, 0, 0, 0
+  W.dirty, W.paused = false, false
+  timers.clear(); particles.clear(); camera:reset(); talk.active = nil
 end
 
 -- leave for another scene. opts.fade = seconds of fade out and in (default none); opts.look = how: "black" (the default), "white" or

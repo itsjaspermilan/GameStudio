@@ -59,6 +59,7 @@ export const SCENE_HOOKS = [
   { name: "draw", args: "", doc: "Draws after the world, in world space." },
   { name: "draw_ui", args: "", doc: "Draws on top of everything, in screen space (score, menus)." },
   { name: "leave", args: "", doc: "Called when another scene takes over." },
+  { name: "on_net_end", args: "reason", doc: "Called when Wi-Fi play ends. Return to your menu here." },
 ];
 
 // ---------------------------------------------------------------- the project
@@ -117,7 +118,7 @@ export const ASSET_CALLS = [
   { re: /\bgs\.spawn\s*\(\s*$/, kind: "entities" },
   { re: /\bgs\.sfx\s*\(\s*$/, kind: "sfx" },
   { re: /\bgs\.music\s*\(\s*$/, kind: "music" },
-  { re: /\bgs\.goto_scene\s*\(\s*$/, kind: "scenes", asModule: true },
+  { re: /\bgs\.(?:goto_scene|net\.start)\s*\(\s*$/, kind: "scenes", asModule: true },
   { re: /\bgs\.load_(?:layout|room)\s*\(\s*$/, kind: "layouts" },
   { re: /\bgs\.draw\.sprite\s*\(\s*$/, kind: "sprites" },
   { re: /\bgs\.assets\.sprite\s*\(\s*$/, kind: "sprites" },
@@ -317,7 +318,7 @@ function wordAt(line, col) {
 const ONE_OFF_CALL = /(?:gs\.(?:burst|goto_scene|spawn|tween|flash|say|ask|save\.set|save\.slot\(\d*\)\.set|load_layout|add_layer|music|sfx)|:(?:tween|after|every|go|follow|shake|follow_path|set_hitbox))\s*\((?:[^()]|\([^()]*\))*$/;
 
 // what every scene has, so self.<it> is never a typo
-const SCENE_MEMBERS = new Set(["enter", "leave", "update", "draw", "draw_ui", "after", "every", "go", "tween"]);
+const SCENE_MEMBERS = new Set(["enter", "leave", "update", "draw", "draw_ui", "on_net_end", "after", "every", "go", "tween"]);
 
 // ---------------------------------------------------------------- lint
 // Warnings for the file at `file`. Each: { from, to, severity: "error"|"warning"|"info", message } with offsets into `text`.
@@ -346,8 +347,16 @@ export function diagnose(text, file, index) {
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     const code = stripComment(line);
-    const hot = /^function\s+[\w.]+:(update|draw|draw_ui)\s*\(/.exec(line);
+    const hot = /^function\s+[\w.]+[.:](update|draw|draw_ui|on_collide_\w+)\s*\(/.exec(line);
     if (hot) inHot = hot[1]; else if (/^end\b/.test(line)) inHot = null;
+    if (inHot && (inHot === "update" || inHot.startsWith("on_collide_"))) {
+      const bare = code.replace(/(["'])(?:\\.|(?!\1).)*\1/g, value => " ".repeat(value.length));
+      for (const match of bare.matchAll(/\bgs\.net\.me\b/g)) {
+        const from = offset + match.index;
+        out.push({ from, to: from + match[0].length, severity: "warning",
+          message: "gs.net.me differs on each device. Use it only in draw or draw_ui; gameplay must update every player on every device." });
+      }
+    }
     const indent = line.search(/\S/);
     if (rareIndent >= 0 && indent >= 0 && indent <= rareIndent && /^\s*(end|else|elseif)\b/.test(line)) rareIndent = -1;
     if (rareIndent < 0 && inHot && /^\s*(if|elseif)\b.*\b(pressed|btnp|released|just_pressed)\b.*\bthen\s*$/.test(code)) rareIndent = indent;

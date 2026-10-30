@@ -3,6 +3,7 @@
 --   gs.save.set("best", 120)      gs.save.get("best", 0)      gs.save.slot(2).set("level", 3)      gs.save.delete("best")
 local M = {}
 local pending, waiting = {}, false -- full key -> text to write, or false to remove the save
+local session, host
 
 local function encode(v, depth)
   local t = type(v)
@@ -29,7 +30,9 @@ local function make(prefix)
   function api.get(key, default)
     local text = pending[prefix .. key]
     if text == false then return default end
-    if text == nil then text = gs.raw.loadsave(prefix .. key) end
+    if text == nil then
+      if session then text = session[prefix .. key] else text = gs.raw.loadsave(prefix .. key) end
+    end
     if text == nil then return default end
     local fn = load("return " .. text, "=save " .. key, "t", {})
     local ok, v = pcall(fn or function() end)
@@ -38,14 +41,21 @@ local function make(prefix)
   end
   function api.set(key, value)
     if type(key) ~= "string" or not key:match("^[%w_%-%.]+$") then error("a save key is letters, digits and _ - . only, not '" .. tostring(key) .. "'", 2) end
-    pending[prefix .. key], waiting = encode(value, 0), true
+    local full, text = prefix .. key, encode(value, 0)
+    if session then session[full] = text; if not host then return end end
+    pending[full], waiting = text, true
   end
   function api.has(key)
     local text = pending[prefix .. key]
     if text ~= nil then return text ~= false end
+    if session then return session[prefix .. key] ~= nil end
     return gs.raw.loadsave(prefix .. key) ~= nil
   end
-  function api.delete(key) pending[prefix .. key], waiting = false, true end
+  function api.delete(key)
+    local full = prefix .. key
+    if session then session[full] = nil; if not host then return end end
+    pending[full], waiting = false, true
+  end
   return api
 end
 
@@ -58,11 +68,20 @@ function M.delete(key) root.delete(key) end
 function M.flush()
   if not waiting then return end
   for k, text in pairs(pending) do
-    if text then gs.raw.save(k, text) else gs.raw.save(k, nil) end
+    local ok = gs.raw.save(k, text or nil)
+    if session and not ok and (text or gs.raw.loadsave(k) ~= nil) then error("could not write the host's save: " .. k, 0) end
   end
   pending, waiting = {}, false
 end
 function M.slot(n) return make("slot" .. tostring(math.floor(n)) .. "_") end
+function M.begin_session(data, is_host) M.flush(); session, host = data, is_host end
+function M.end_session() M.flush(); session, host = nil, nil end
 
 -- gs.save(key, text) is still the raw call older games make
-return setmetatable(M, { __call = function(_, key, text) return gs.raw.save(key, text) end })
+return setmetatable(M, { __call = function(_, key, text)
+  if session then
+    session[key] = text
+    if not host then return true end
+  end
+  return gs.raw.save(key, text)
+end })

@@ -70,11 +70,44 @@ Run a game from the studio (Run): it plays in the **Play panel** beside the code
 - The **full reference** is `engine/api/gs.d.lua` (typed notes the studio's editor, its Help window and the language server all read); the Help window turns it into the API page.
 - The **tutorials** are in `docs/help/` (Make a game step by step, which walks through the studio; Your first game, scenes and saving, collisions and tags, timers and tweens, a platformer, a survivors-style game, big levels and tile layers, sprites and sound, the handheld's limits,
   sprite sizes, best practices). Every tutorial game is played by a bot in the tests.
-- **Example:** `carts/breakout`, every screen a scene with a layout, colour banks, built-in fonts. The studio offers it under **Examples** and opens a copy.
+- **Examples:** `carts/breakout` (scenes with layouts, colour banks and built-in fonts) and `carts/netplay-playground` (turn-based board play and a live platform race for 2–4 players). The studio offers them under **Examples** and opens a copy.
 - **Games are folders anywhere.** The studio opens a folder like a code editor does (**Open folder…**, **New game** asks where; recent ones are on the start screen). It keeps its own notes about a game (open tabs, where you were) in a hidden `.gamestudio/` folder inside it, which is never packed. The studio's tools folder (Settings) holds `build/gs`, the examples and the SoundFont.
 - `engine/AGENTS.md` describes how the framework itself is built.
 
 Every game has a `game.lua`. (Plain `main.lua` games with `init`/`update`/`draw` are no longer run: move the code into a scene, which can still call the low-level functions below.)
+
+### Multiplayer status
+
+**Experimental local Wi-Fi play** is available to game code: set `players = 2` (up to 4) in `game.lua`, build a menu with
+`gs.net.host(name)`, `gs.net.find()` and `gs.net.join(id, name)`, then have the host call `gs.net.start("scenes.arena")`.
+Read each player's buttons with `gs.input.held("a", player)`, `pressed`, `released` and `dir(player)`; leaving out the player still
+means player 1. `gs.net.me` identifies this device for drawing a private view, never for deciding gameplay updates. The API reference
+in Studio documents every call; [docs/netplay-design.md](docs/netplay-design.md) separates what's built from what's still planned.
+
+The host shares its save at start (currently up to 64 KB); guests use that progress in memory without overwriting their own saves.
+Input has a fixed two-step delay (about 33 ms). Missing buttons pause the game, show who it is waiting for, and resume when they arrive;
+after 30 seconds B offers to leave. `gs.net.leave()` ends play; the scene's `on_net_end(reason)` runs, or the game returns to its menu.
+Save states/Resume/rewind are refused while discovery or a session has a socket open. Reloading a file ends a session rather than
+reloading different code on different devices. Sessions are for a trusted local network, not the internet.
+
+**Try it:** open **Netplay playground** under Studio's **Examples**, choose different player names, host on one device and join on
+the others. The host chooses **Three in a row** (turn-based) or **Star sprint** (a live platform race). Both support 2–4 players,
+rematches and switching games without reconnecting. **Practice here** offers a two-player pass-and-play board or a solo star run.
+See Help → **Playing together** for controls, setup and interruption checks.
+
+Netplay Playground has been **reported working between a TrimUI Brick on NextUI and an Anbernic RG35XX Pro on Knulli**.
+That is an initial two-handheld check, not verification of every firmware, four handhelds or interruption recovery. Independent-process
+tests additionally cover four players, packet loss and paused peers. Adaptive delay, full state drift
+diagnostics, cross-processor repeatability and Studio's multi-Play-panel UI remain unfinished.
+Start gameplay state afresh in the scene's `enter`; don't depend on menu globals or module-level random choices made before joining.
+Drawing must not change gameplay state; use fixed-step game time, not the clock, and give `gs.rng` an explicit seed for repeatable runs.
+Lua's string hashing is repeatable. `GS_SESSION_SEED=<integer>` also enables seeded runs without networking; sessions seed themselves.
+Drawing uses a separate random stream in seeded runs/sessions; ordinary single-player random sequences stay unchanged.
+
+For replay diagnostics, `GS_CHECKSUM=1` prints `@@gscheck {"step":60,"hash":"..."}` every 60 simulation steps. The hash covers scalar
+scene/entity fields, not every piece of state (nested tables, timers and random-generator internals are not included), so matching
+hashes are a useful check, not a guarantee of full synchronisation. During a session, a detected scalar-state mismatch ends play
+with a readable reason instead of carrying on out of step.
 
 ### Built-in game fonts
 
@@ -104,6 +137,20 @@ brightness). Levels (scene layouts) can be built as text maps and seen as pictur
 once. The craft for the kind of game being made (art, levels, music) is in three Help guides that people read in the studio and agents read
 through the server (`help`, and the prompts `draw-art`, `design-level`, `compose-music`); Claude Code's skills in `.claude/skills/` point to them. See `tools/mcp/AGENTS.md`.
 
+**AI-created games should stay editable.** The server's startup instructions and `create-game` prompt direct agents to
+`help("best-practices")` and `help("layouts")`: reusable `gs.entity` actors, `gs.scene` rules, and `scenes/<name>.layout.lua` for
+authored terrain, starting positions, paths and UI. Sprites, tiles, effects and songs remain resource files; named layout items connect
+to scene code. Dynamic spawning, procedural generation and custom rendering still belong in code when appropriate, not a second
+entity engine or one monolithic drawing script. `room_write` and `room_view` create and preview scene layouts; legacy `rooms/` is
+for older games only.
+
+**Multiplayer through MCP:** `help("multiplayer")` (also `help("netplay")`) explains setup and deterministic game design;
+`api("gs.net")` returns the complete networking group. `overview` reports declared players and editable layouts.
+`netplay({ game: "netplay-playground", scene: "sprint", players: 2, seconds: 3 })` connects independent runtimes over local UDP,
+starts a scene with temporary saves, compares scalar-state checkpoints and returns each peer's screenshot.
+An optional `bot_lua` supplies each device's local buttons. This bypasses the game's lobby and is not full-state or handheld
+verification; also test its menus and real Wi-Fi. `run` and `check` alone test only one instance.
+
 The built Mac app also carries the server, its dependencies and Node.js. In your MCP client's settings, add a **stdio** server with
 this command (no arguments; adjust the path if the app is installed elsewhere):
 
@@ -121,7 +168,8 @@ The client starts the server; GameStudio does not need to be open. It works from
 a system Node installation. Pass a game's full folder path as `game`; `games` also lists the examples and the studio's recent games.
 New games and new copies of examples automatically get a `.mcp.json` pointing at this bundled launcher. Existing server entries are
 preserved. When using a source checkout as the tools folder, the generated config runs `server.mjs` with your development Node instead.
-The launcher uses the app's read-only resources, with runs, saves and packing in temporary folders. It does not open a network port.
+The launcher uses the app's read-only resources, with runs, saves and packing in temporary folders. MCP communication uses stdio,
+not a listening web service. The `netplay` tool temporarily opens the runtime's UDP sockets for its local peer test.
 For `push`, set the server's `DEVICE_ENV` environment variable to a separate device settings file's full path
 (use `scripts/device.env.example` inside the bundled tools folder as a template). Device credentials are never bundled.
 

@@ -185,7 +185,18 @@ The games themselves
   dither, 63 levels; the core's own sound had no clicks, checked with `RETRO_WAV` in tests/retro-run). The crackle stayed: the panel
   runs at 59.033 Hz (fbset) and RetroArch, not told, ran the game 1.6% slow against a speaker it took for 60 Hz, past its 0.5%
   correction; `push.sh` now writes the measured video_refresh_rate. Both confirmed on the device.
-- [ ] Chess (`~/Developer/GlowGames/chess`) two-device mode once `gs.net` exists (docs/netplay-design.md, still unbuilt): decided
+- [x] Netplay determinism foundations (2026-10-30, `docs/netplay-design.md`): fixed Lua string hashing, opt-in `GS_SESSION_SEED`,
+  separate draw randomness and scalar-state fingerprints every 60 steps (`GS_CHECKSUM=1`), with cross-process replay and Resume tests.
+- [x] Initial netplay (`docs/netplay-design.md`): 1-4 declared players, indexed buttons, local UDP discovery and host/join,
+  host saves (64 KB initial limit), fixed-delay lockstep and relay, waiting/end handling, scalar drift checks, save-state guard
+  and API/lint support. Exercised on one Mac with separate processes, four players, packet loss/reordering and a paused peer.
+- [x] Built-in Netplay Playground: 2–4-player turn-based Three in a row and live platformer Star sprint, shared host/join menu,
+  local practice, rematches/mode changes and a Playing together Help guide. Real two/four-process game playthroughs cover both modes.
+- [x] Initial real-handheld netplay (2026-10-30): user-confirmed Brick/NextUI plus RG35XX Pro/Knulli play on local Wi-Fi.
+  MCP exposes the networking guide/API, concurrent local UDP checks and editable-game authoring guidance.
+- [ ] Netplay follow-through: adaptive input delay, complete state drift diagnostics, cross-machine determinism,
+  Studio multi-instance play/coordinated reload, four-handheld/long-session tests and real-device interruption recovery.
+- [ ] Chess (`~/Developer/GlowGames/chess`) two-device mode on the experimental `gs.net` API after hardware verification: decided
   2026-10-27 to ship single player, learn mode and settings first.
 
 - [ ] Our own General MIDI bank, generated with ChucK (MIT/GPL, Stanford CCRMA; a tool on the Mac only, never on the handheld): ChucK

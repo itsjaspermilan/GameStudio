@@ -24,9 +24,9 @@ cp studio/src/info-core.js "$R/studio/src/"
 cp studio/package.json "$R/studio/"
 cp LICENSE "$R/"
 sh scripts/bundle-mcp.sh "$R"
-# the examples as they are in git: no notes the studio left in them (.gamestudio/), no stray files
-for c in breakout buttontest padsetup; do
-  git ls-files "carts/$c" | grep -v '/\.gamestudio/' | while read -r f; do mkdir -p "$R/$(dirname "$f")"; cp "$f" "$R/$f"; done
+# Include new example files too, but never ignored files or the studio's notes.
+for c in breakout netplay-playground buttontest padsetup; do
+  git ls-files --cached --others --exclude-standard "carts/$c" | grep -v '/\.gamestudio/' | while read -r f; do mkdir -p "$R/$(dirname "$f")"; cp "$f" "$R/$f"; done
 done
 cd studio
 npm run tauri build -- --config src-tauri/tauri.bundle.json

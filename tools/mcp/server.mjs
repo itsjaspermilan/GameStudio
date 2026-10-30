@@ -12,6 +12,11 @@ const server = new McpServer({ name: "gamestudio", version: "1.0.0" }, {
   instructions: "GameStudio makes small 2D Lua games for a handheld (a game is a folder: an example in carts/ by name, or any game folder by its full path, see games; the engine API is gs.*). Prefer these tools over reading big files: " +
     "api and help for the engine, overview to see a game, check after editing Lua, run to see it (a screenshot), inspect to look inside, sprite_view/sprite_write for art, room_view/room_write for levels, " +
     "song_check/song_write and sound_check/sound_write for sound (the checks read the notes with music theory and measure the rendered audio), push to send a game to the handheld. " +
+    "When making a game, first read help('best-practices') and help('layouts'). Make it editable in the Studio: gs.entity classes in entities/ for actors, gs.scene code in scenes/ for rules, " +
+    "and scenes/<name>.layout.lua for authored terrain, starting positions, paths, labels, pictures and panels. Use room_write/room_view for layouts, named layout fields for UI, and resource files for sprites, tiles and sound; not one monolithic drawing/update script or a replacement entity engine. " +
+    "Dynamic spawning, procedural levels and custom rendering still belong in code when appropriate; new authored levels do not go in legacy rooms/. " +
+    "For requested multiplayer, read help('multiplayer') and api('gs.net'), declare players in game.lua, update every player on every peer using indexed input, initialise shared state in enter(), and use gs.net.me only for presentation. " +
+    "netplay tests 2-4 real local UDP peers; run/check alone are single-instance checks, not multiplayer verification. Also test the game's own lobby and real handhelds. " +
     "Before drawing, designing levels or composing, read the craft guide with help: help('art') (with help('sizes')), help('levels'), help('music').",
 });
 
@@ -29,16 +34,16 @@ function tool(name, title, description, shape, fn) {
 
 const game = z.string().describe("A game: a folder name in carts/, or the full path of a game's folder (see games)");
 
-tool("api", "Look up the gs API", "Find gs.* functions, Entity methods and fields by name or by words in their description (e.g. 'spawn', 'collide', 'camera', 'burst', 'follow_path'). Empty query lists the groups.",
+tool("api", "Look up the gs API", "Find gs.* functions, Entity methods and fields by name or description (e.g. 'spawn', 'collide', 'camera'). Use 'gs.net' or 'netplay' for the complete networking group and 'gs.input' for numbered player input. Empty query lists the groups.",
   { query: z.string().default("") }, T.api);
-tool("help", "Read a Help page", "The studio's Help pages (tutorials and guides). No topic lists them; a topic (like 'survivors', 'limits', 'sizes', 'rooms') returns that page as text with its example files.",
+tool("help", "Read a Help page", "The Studio's Help pages as text with example files. Start game creation with 'best-practices' and 'layouts'; use 'multiplayer' or 'netplay' for Wi-Fi setup, deterministic game rules and testing. No topic lists all pages.",
   { topic: z.string().default("") }, T.help);
 tool("games", "List the games", "Every game in the workspace with its title and console.", {}, T.games);
-tool("overview", "Overview of a game", "One compact page about a game: console, entities (sprite, tags, methods), scenes, rooms, code files, sprites with sizes and animations, sounds, songs with their instruments, Lua size. Read this before reading files.",
+tool("overview", "Overview of a game", "One compact page about a game: console, declared players, entities (sprite, tags, methods), scenes and editable layouts, older rooms, code, sprites, sounds, songs and Lua size. Read this before reading files.",
   { game }, T.overview);
 tool("check", "Check a game", "After editing: the editor's own warnings for every Lua file (unknown names with suggestions, missing returns, tables made every step), files whose indentation is off, then a headless run reporting errors, warnings and the numbers at the end.",
   { game, seconds: z.number().min(0.5).max(60).default(4).describe("How long to run it") }, T.check);
-tool("run", "Run a game and look", "Runs the game without a window for some seconds (optionally pressing buttons, or with a random bot) and returns what it printed, its stats and a screenshot of the last frame.",
+tool("run", "Run a game and look", "Runs one game instance without a window (optionally pressing buttons or using a bot) and returns printed output, stats and screenshots. This does not test a multiplayer session; use netplay for concurrent local UDP peers.",
   {
     game, seconds: z.number().min(0.1).max(120).default(3),
     keys: z.string().optional().describe("Button script, comma separated: 'a' (press), 'right*30' (hold 30 steps), 'right+a*20' (several at once), 'wait*60', 'quit' (stop the run). Buttons: up down left right a b x y l r l2 r2 start select"),
@@ -49,6 +54,13 @@ tool("run", "Run a game and look", "Runs the game without a window for some seco
     scale: z.number().int().min(1).max(4).optional().describe("Enlarge the screenshot"),
     env: z.record(z.string(), z.string()).optional().describe("The game's own GS_* switches, e.g. { GS_SEED: '3' } (read with os.getenv). Steps are exact: seconds x 60 steps"),
   }, T.run);
+tool("netplay", "Test a local multiplayer session", "Connects 2-4 independent headless runtimes over loopback UDP and starts a scene, using temporary saves. Reports failures, compares common scalar-state checkpoints (not a full-state guarantee) and returns one screenshot per peer. Bypasses the game's lobby; also test its actual menu and real Wi-Fi. Read help('multiplayer') first.",
+  {
+    game, scene: z.string().describe("Gameplay scene to start, e.g. 'play' or 'scenes/play'; game.lua must declare enough players"),
+    players: z.number().int().min(2).max(4).default(2),
+    seconds: z.number().min(0.1).max(30).default(3).describe("Simulation steps to complete, seconds x 60; startup has a separate bounded timeout"),
+    bot_lua: z.string().optional().describe("Optional Lua defining bot_step(), called on each peer after play starts. Use sim_hold(name, true/false) for that device's local buttons; gs.net.me can choose different test inputs, never which gameplay actors update."),
+  }, T.netplay);
 tool("inspect", "Look inside a running game", "Runs the game for some seconds and reports every kind of entity with its count and cost (update/draw/collision ms a step); a kind's entities with positions; one entity's values; and Lua watch expressions (e is the chosen entity).",
   { game, seconds: z.number().min(1).max(120).default(3), kind: z.string().optional().describe("e.g. 'entities.enemy'"), entity: z.number().int().optional(), watch: z.array(z.string()).default([]) }, T.inspect);
 tool("sprite_view", "See a sprite", "Shows a sprite (all frames) as a picture. as_text also returns it as rows of palette letters ('.' see-through) that sprite_write takes back exactly.",
@@ -115,5 +127,11 @@ prompt("design-level", "Design a level", "Design or improve a room, fitted to th
 prompt("compose-music", "Compose music", "Write a song or sound effects that fit a mood and stay pleasant to hear.",
   { game, what: z.string().describe("e.g. 'a calm first level song', 'the boss theme', 'jump and coin sounds'") },
   ["music"], (a) => `Write ${a.what} for the game ${a.game}. Call overview to hear what the game already has; write with song_write or sound_write and act on what the check reports.`);
+prompt("create-game", "Make an editable game", "Create or extend a game using Studio-editable entities, scene layouts and resource files, with multiplayer guidance when needed.",
+  { game, idea: z.string().describe("What to make, including multiplayer if wanted") },
+  ["best-practices", "layouts"], (a) => `Make ${a.idea} in the game folder ${a.game}. For an existing game, call overview first and preserve its structure. ` +
+    "Use gs.entity actors, gs.scene rules and editable scene layouts made with room_write; keep sprites, tiles and sound in their resource folders. " +
+    "Do not replace the engine with a monolithic custom simulation. Use code for genuinely dynamic or procedural content. " +
+    "For multiplayer, also read help('multiplayer') and api('gs.net'), then test with netplay as well as the actual lobby. Finish with check, room_view and run.");
 
 await server.connect(new StdioServerTransport());

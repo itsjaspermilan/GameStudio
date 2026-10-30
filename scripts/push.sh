@@ -413,6 +413,16 @@ REMOTE
         $((GW * K)) $((GH * K)) $(((SW - GW * K) / 2)) $(((SH - GH * K) / 2))
       [ -n "$HZ" ] && printf 'video_refresh_rate = "%s"\naudio_rate_control = "true"\n' "$HZ"
       printf 'video_smooth = "false"\nconfig_save_on_exit = "false"\n'
+      # The shell launcher supplies Knulli's SDL controller mapping, not RetroArch bindings. Use SDL's standard button IDs rather than
+      # whichever emulator last wrote retroarchcustom.cfg (which does not even exist on a fresh install).
+      printf 'input_joypad_driver = "sdl2"\n'
+      for bind in a:1 b:0 x:3 y:2 select:4 start:6 l:9 r:10 l3:7 r3:8 up:11 down:12 left:13 right:14; do
+        printf 'input_player1_%s_btn = "%s"\ninput_player1_%s_axis = "nul"\n' "${bind%:*}" "${bind#*:}" "${bind%:*}"
+      done
+      for bind in l2:+4 r2:+5 l_x_minus:-0 l_x_plus:+0 l_y_minus:-1 l_y_plus:+1 r_x_minus:-2 r_x_plus:+2 r_y_minus:-3 r_y_plus:+3; do
+        printf 'input_player1_%s_axis = "%s"\ninput_player1_%s_btn = "nul"\n' "${bind%:*}" "${bind#*:}" "${bind%:*}"
+      done
+      printf 'input_enable_hotkey_btn = "5"\ninput_exit_emulator_btn = "6"\ninput_menu_toggle_btn = "0"\n'
     } > "$B/retroarch-$NAME.cfg"
     device_push "$B/retroarch-$NAME.cfg" "$DEVICE_DIR/retroarch-$NAME.cfg"
     device_shell "mkdir -p '/userdata/saves/$CID'; rm -f '$DEST.keys'"

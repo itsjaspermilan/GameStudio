@@ -1,0 +1,11 @@
+{
+ "image": "sprites/ground.png",
+ "frames": 1,
+ "origin": [
+  0,
+  0
+ ],
+ "mask": null,
+ "fps": 0,
+ "bank": "clover"
+}

@@ -18,6 +18,8 @@ local sound = require("gs.sound")
 local world = require("gs.world")
 local reload = require("gs.reload")
 local inspect = require("gs.inspect")
+local determinism = require("gs.determinism")
+local net = require("gs.net")
 
 local loadfile = loadfile -- for GS_BOT_LUA, kept before the sandbox below
 
@@ -46,6 +48,13 @@ local DEV = os.getenv("GS_DEV") ~= nil
 local STATS = os.getenv("GS_STATS") ~= nil -- the studio's Handheld panel asks for a line of numbers every second
 local FF = math.max(1, tonumber(os.getenv("GS_FF") or "1") or 1)
 local STEP = 1 / 60
+local CHECKSUMS = os.getenv("GS_CHECKSUM") ~= nil
+local session_seed = os.getenv("GS_SESSION_SEED")
+if session_seed then
+  local seed = math.tointeger(tonumber(session_seed))
+  if not seed then error("GS_SESSION_SEED must be an integer", 0) end
+  determinism.seed(seed)
+end
 
 -- ---------------------------------------------------------------- the public API
 gs.entity, gs.scene = entity.entity, entity.scene
@@ -61,10 +70,11 @@ gs.remove_layer, gs.set_tileset, gs.tile_kind, gs.scene_name = world.remove_laye
 gs.world, gs.assets = world, assets
 gs.camera = setmetatable(camera, { __call = function(_, x, y) raw.camera(x, y) end }) -- gs.camera(x, y) is still the raw offset
 gs.input, gs.draw, gs.ui, gs.save = input, dr, ui, save
+gs.net = net
 gs.volume = sound.volume
 gs.background = function(color) dr.color(color); world.bg = color end -- the scene's background colour from code, as a layout's background sets it (checked here, not every frame)
 gs.now = function() return world.time end -- game time: counts steps, so it follows gs.time_scale, fast-forward and the studio's Pause
-gs.quit = function() save.flush(); raw.quit() end
+gs.quit = function() net.leave(); save.flush(); raw.quit() end
 gs.sfx, gs.music, gs.music_stop, gs.sfx_stop = sound.sfx, sound.music, sound.music_stop, sound.sfx_stop
 gs.after = function(seconds, fn) return timers.after(nil, seconds, fn) end
 gs.every = function(seconds, fn) return timers.every(nil, seconds, fn) end
@@ -149,7 +159,12 @@ local function guard(fn, ...)
   if not ok then
     fatal = err
     io.stderr:write("error: " .. tostring(err) .. "\n")
+    if net.active() then
+      local ended, end_error = pcall(net.abort, "a game stopped because of an error")
+      if not ended then io.stderr:write("Wi-Fi cleanup failed: " .. tostring(end_error) .. "\n") end
+    end
   end
+  if ok then return err end
 end
 
 -- start the game: run game.lua, set the screen, load sound and pictures, enter the first scene
@@ -159,6 +174,7 @@ local function boot()
   if not ok then error("game.lua: " .. tostring(err), 0) end
   if not spec then error("game.lua must call gs.game{ title = ..., console = \"dot\", start = \"scenes.title\" }", 0) end
   console = load_console(spec.console)
+  net.configure(spec, type(spec.console) == "string" and spec.console or console.name or "custom")
   if spec.buttons then dr.buttons(spec.buttons) end
   local screen = console.screen or { width = 256, height = 192 }
   raw.set_resolution(screen.width, screen.height)
@@ -229,17 +245,33 @@ local function stats_tick()
   stat.update, stat.draw, stat.steps, stat.frames, stat.since, stat.checks, stat.screens, stat.calls = 0, 0, 0, 0, now, 0, 0, 0
 end
 
+local function step()
+  world.step(STEP)
+  if net.playing() then net.after_step() end
+  if CHECKSUMS and world.step_id % 60 == 0 then
+    io.stderr:write(string.format('@@gscheck {"step":%d,"hash":"%s"}\n', world.step_id, determinism.checksum(world)))
+  end
+end
+
 function update(dt)
   input.begin_frame()
+  if net.active() then
+    local generation = net.generation()
+    guard(net.poll)
+    if generation ~= net.generation() then acc = 0; return end
+  end
   if DEV then
     reload_clock = reload_clock + dt
     if reload_clock >= 0.5 then
       reload_clock = 0
       local msg = reload.poll()
       if msg then
+        local ended = net.active()
+        if ended then net.abort("Wi-Fi play ended because a file was reloaded") end
         note, note_t = msg, 2.5
         io.stderr:write(msg .. "\n")
         if reload.last_error then io.stderr:write(reload.last_error .. "\n") else fatal = nil end
+        if ended then acc = 0; return end
       end
       if note_t > 0 then note_t = note_t - 0.5 end
     end
@@ -252,8 +284,11 @@ function update(dt)
       if inspect.pending_steps == 0 then input.end_step() end -- presses made while paused belong to no step
       while inspect.pending_steps > 0 and not fatal do
         inspect.pending_steps = inspect.pending_steps - 1
-        guard(world.step, STEP)
+        local generation = net.active() and net.generation()
+        if net.playing() and not guard(net.before_step) then break end
+        guard(step)
         input.end_step()
+        if generation and generation ~= net.generation() then inspect.pending_steps = 0; break end
       end
       acc = 0
       if STATS then stat.update = stat.update + (clock() - t0) end
@@ -261,22 +296,28 @@ function update(dt)
     end
     inspect.pending_steps = 0
   end
-  acc = acc + dt * FF * gs.time_scale * (inspect.enabled and inspect.speed or 1)
+  local network = net.playing()
+  local fast_forward = network and 1 or FF
+  acc = acc + dt * fast_forward * gs.time_scale * (inspect.enabled and inspect.speed or 1)
   local steps = 0
-  while acc >= STEP and steps < 4 * FF do
+  while acc >= STEP and steps < 4 * fast_forward do
     acc = acc - STEP
     steps = steps + 1
+    local generation = net.active() and net.generation()
     if rawget(_G, "bot_step") then bot_step() end
-    guard(world.step, STEP)
+    if generation and generation ~= net.generation() then acc = 0; break end
+    if net.playing() and not guard(net.before_step) then acc = 0; break end
+    guard(step)
     if STATS then
       stat.steps = stat.steps + 1
       if world.alive > stat.peak then stat.peak = world.alive end
       if world.checks > stat.checks then stat.checks = world.checks end
     end
     input.end_step()
+    if generation and generation ~= net.generation() then acc = 0; break end
     if fatal then break end
   end
-  if steps >= 4 * FF then acc = 0 end
+  if steps >= 4 * fast_forward then acc = 0 end
   save.flush()
   if STATS then stat.update = stat.update + (clock() - t0) end
 end
@@ -302,7 +343,18 @@ function draw()
     return
   end
   local t0 = STATS and clock()
+  determinism.drawing(true)
   guard(world.draw)
+  determinism.drawing(false)
+  if net.state == "waiting" then
+    raw.camera(0, 0); raw.zoom(1)
+    local lines = dr.wrap("Waiting for " .. (net.waiting_for or "a player") .. "...", world.view_w - 32)
+    local h = #lines * 12 + (net.end_hint() and 28 or 16)
+    local y = math.floor((world.view_h - h) / 2)
+    dr.rect(8, y, world.view_w - 16, h, { 0, 0, 0, 215 })
+    for i, line in ipairs(lines) do dr.text(line, 16, y + 8 + (i - 1) * 12, "#ffffff") end
+    if net.end_hint() then dr.text("Press B to leave", 16, y + h - 14, "#ffffff") end
+  end
   if STATS then
     stat.draw = stat.draw + (clock() - t0); stat.frames = stat.frames + 1
     local px, calls, screen = raw.stats() -- the frame before this one: the runtime counts pixels as they are drawn

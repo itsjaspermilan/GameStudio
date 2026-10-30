@@ -19,16 +19,24 @@ It reuses, never copies: `studio/src/*-core.js` (lint, project scan, songs and s
 | `api`, `help`, `games`, `overview` | Look things up: the gs API from `engine/api/gs.d.lua`, Help pages as text, the games, one compact page per game |
 | `check` | The editor's lint over every Lua file, untidy indentation, then a headless run's errors and numbers |
 | `run`, `inspect` | Run headless (buttons, the random bot or a `bot_lua` of the caller's, from a `scene`) and return screenshots (`shots`, evenly spaced); the inspector's kinds and costs, an entity's values, watch expressions |
+| `netplay` | Connect 2–4 concurrent runtimes over loopback UDP and start a scene, with isolated temporary saves and an optional per-device input bot. Compare common scalar-state checkpoints and return each peer's screenshot. Bypasses the game lobby; not full-state or handheld verification |
 | `sprite_view`, `sprite_write` | A sprite as a picture (and as palette letters); draw one from letter rows or shape ops with the console's palette, or in a game with colour banks with one bank's places 1-f (`bank`; a tileset takes `banks` and a `bank` per tile); `tileset: { cols }` writes a tileset instead |
 | `instruments`, `song_check`, `song_write`, `sound_check`, `sound_write` | Sound: the theory reading (key, chords, melody on the chords, clashes, registers, shape) plus render measurements (loudness, clipping, brightness in Hz) |
 | `room_view`, `room_write` | A room (`level1`: `rooms/level1.lua`) or a scene's layout (`scenes/title`: `scenes/title.layout.lua`) drawn at its real size (tiles, panels, pictures, things as their sprites, texts in the game's fonts, paths, one screen dashed) with counts; build or change one: size, layers written as text maps or painted, things, texts, pictures and panels added or removed, paths |
 | `push` | `scripts/push.sh` over USB ADB for a game; optional `serial` selects an attached device and `device` names a `scripts/device-<name>.env` profile. Never picks arbitrarily among several devices |
 
 The craft (art, levels, music by kind of game) lives once, in the Help pages `docs/help/93-art.html`, `94-levels.html`, `95-music.html`, so
-people read it in the studio and every agent reads it through `help`. The server's three prompts (`draw-art`, `design-level`,
+people read it in the studio and every agent reads it through `help`. The craft prompts (`draw-art`, `design-level`,
 `compose-music`) start a task with the matching guide attached, for any MCP client; Claude Code's skills in `.claude/skills/` are short
 pointers to the same guides (they only add automatic triggering). `test/skills.test.mjs` checks that the guides and skills name real tools,
 pages and instruments.
+
+The server's initialization instructions and `create-game` prompt point to `help("best-practices")` and `help("layouts")` before
+making a game: reusable entity actors, scene rules and editable scene layouts, with dynamic/procedural content left in code where
+appropriate. `overview` includes actual layout files and literal player declarations. `help("multiplayer")` / `help("netplay")`
+and `api("gs.net")` expose netplay to any client, not just agents reading this repository.
+`netplay` uses real wall-clock steps, not `run`'s fast-forwarded single-instance path. Its bots control local buttons; gameplay must
+still update every player on every peer. New tools or prompts must also work in the relocated read-only app bundle.
 
 Keep the tool count small and the answers short: every description costs the agent context. New tool: a function in `tools.mjs`, a `tool(...)`
 line in `server.mjs` (zod shape, one-paragraph description), and a call in `test/server.test.mjs` (`npm test`; the writing test works on a

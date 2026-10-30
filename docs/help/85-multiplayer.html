@@ -1,0 +1,120 @@
+<!--
+title: Playing together
+group: Guides
+order: 85
+summary: Play and build two-to-four-player Wi-Fi games: setup, indexed input, shared state, testing and troubleshooting.
+-->
+<h1>Playing together</h1>
+<p><a href="open:netplay-playground">Open Netplay Playground</a> from the Studio's Examples list. It makes a copy in a folder you choose,
+just like Breakout. This example has two games for two to four players on the same local Wi-Fi network. Each person uses their own
+handheld, running the same copy of the game and a runtime with multiplayer support. Internet matchmaking is not supported.</p>
+
+<h2>Start with practice</h2>
+<p>Run the game and choose <strong>Practice here</strong>. Left and right choose a game; A starts it.
+The board game passes one handheld between two people. The platformer is a solo run to collect five stars.
+Practice does not open a network connection, so you can learn the controls before connecting another device.</p>
+
+<h2>Connect two handhelds</h2>
+<ol>
+  <li>Send the same game to both handhelds and enable Wi-Fi in each handheld's system settings. Connect them to the same network.
+  Avoid a guest network that prevents devices from communicating.</li>
+  <li>In the game's menu, select <strong>Name</strong> and use left and right to pick different names. The game remembers a name after
+  you host or join.</li>
+  <li>On one handheld choose <strong>Host on Wi-Fi</strong>. On the others choose <strong>Join on Wi-Fi</strong>, select that host,
+  and press A. Player numbers and names appear in the lobby; the host is always Player 1.</li>
+  <li>The host uses left and right to choose a game, then A starts everyone together. At least two players must be in the lobby.
+  You cannot join a round already in progress.</li>
+</ol>
+<p>If no host appears, check Wi-Fi, that both copies have the same title and console, and that your network allows local UDP traffic.
+On one computer, testing uses <code>GS_NET_DISCOVERY=127.0.0.1</code> for local discovery; that switch is not for handheld play.</p>
+
+<h2>Three in a row: turn-based play</h2>
+<p>Players take turns on a five-by-five board. The D-pad moves the shared cursor; A places your piece.
+Make a line of three horizontally, vertically, or diagonally to win. Only the player whose turn it is can move or place a piece.
+Each player has a different colour <em>and shape</em>. An occupied square does not use up your turn, and a full board without a line is a draw.</p>
+
+<h2>Star sprint: live platform play</h2>
+<p>Everyone moves at once. Left and right run, A jumps, and Down drops through a raised platform.
+The first player to collect five stars wins. Players pass through each other; if two reach the same star in one step,
+the lower player number gets it. The course has no pits, so a missed jump is a chance to try again, not a lost life.</p>
+<p>At the end of either game, Player 1 presses A for another round or X for the other game, without making a new Wi-Fi lobby.
+In practice, the same buttons work on the one handheld. B leaves a game; during Wi-Fi play that ends the session for everyone.</p>
+
+<h2>Try interruptions too</h2>
+<p>Open the system menu on one handheld while playing. The other should stop and show who it is waiting for, then continue when
+the first handheld returns. A missing input pauses simulation instead of guessing where a player went. After a long wait,
+the waiting screen offers B to leave. Save states, Resume, and rewind are unavailable while a network connection is open.
+Saving a code change ends the session, so make changes between sessions and update every device.</p>
+<p>This is experimental networking. Netplay Playground has been reported working between a TrimUI Brick running NextUI and an
+Anbernic RG35XX Pro running Knulli. That confirms this pairing, not every firmware, four-handheld play, long sessions or interruption
+recovery. The automatic tests also cover two and four processes, mode changes and rematches.</p>
+
+<h2>Build your own multiplayer game</h2>
+<p>Keep the normal <a href="help:best-practices">editable project structure</a>: actors in <code>entities/</code>,
+rules in scene code, and authored terrain, starting positions and HUD elements in scene layouts.
+Networking sends numbered button presses, not entity positions. Every device loads the same resources and runs the same rules.</p>
+<ol>
+  <li>Set <code>players = 2</code>, <code>3</code> or <code>4</code> in <code>game.lua</code>. This is the maximum, not the current
+  player count. Leaving it out means a single-player game. Keep the title, console and player count in Game info consistent.</li>
+  <li>Make a local menu with <code>gs.net.host(name)</code>, <code>gs.net.find()</code> and <code>gs.net.join(id, name)</code>.
+  Discovery returns sessions with <code>id</code>, <code>name</code>, <code>players</code> and <code>max</code>.
+  Call <code>find()</code> from the discovery screen's update, not just once. Names are 1–32 bytes without control characters.</li>
+  <li>Show <code>gs.net.peers()</code> in the lobby. Watch <code>gs.net.state</code> and <code>gs.net.error</code> while joining.
+  Opening or joining can fail: show the reason rather than silently returning to the menu.
+  Copy the example menu's error handling if you need a starting point.</li>
+  <li>Once at least two players are present, the host calls <code>gs.net.start("scenes.play")</code>.
+  The engine shares the host's save and seed, resets the world and enters the same scene on every device.</li>
+  <li>In an actor, keep a <code>player</code> field and read <code>gs.input.dir(self.player)</code>,
+  <code>gs.input.pressed("a", self.player)</code>, <code>held</code> and <code>released</code>.
+  Every device updates every actor, not just the actor owned by that device.
+  With no player argument, input still means Player 1, not “this handheld.”</li>
+  <li>Handle <code>on_net_end(reason)</code> in the scene to show the reason and return to the menu.
+  <code>gs.net.leave()</code> ends the session for everyone; there is no replacement player or late joining.</li>
+</ol>
+<p>Initialise all shared round state in <code>enter()</code>, including any shared <code>lib/</code> tables.
+Do not carry menu counters, cached random values or local name choices into the simulation. The layout is built before
+<code>enter()</code>, so a layout actor's own initialisation must be deterministic too. Use the session's seeded
+<code>math.random</code>, or give <code>gs.rng(seed)</code> the same explicit seed on every device. Do not use the wall clock,
+device-dependent table iteration or drawing to change gameplay state.</p>
+<p><code>gs.net.me</code> is only for a private view: a “You” label, a local camera or a private hand of cards.
+A private camera must not affect gameplay, collision tests, spawn decisions or shared state.
+The host's save snapshot is currently limited to 64 KB; guests use it for the session without overwriting their own progress.</p>
+
+<h2>With an agent</h2>
+<p>The MCP server exposes this page as <code>help("multiplayer")</code> or <code>help("netplay")</code>, and the full networking
+reference as <code>api("gs.net")</code>. Use <code>overview</code> to see a game's layouts and declared player count.</p>
+<p><code>netplay</code> starts two to four independent runtime processes, connects them over local UDP and starts a scene.
+For example: <code>netplay({ game: "netplay-playground", scene: "sprint", players: 2, seconds: 3 })</code>.
+An optional <code>bot_lua</code> defines <code>bot_step()</code> for each device's own buttons; it runs after the session starts.
+Use <code>gs.input.sim_hold("right", true)</code> to hold a local button, and set it to false to release it.
+Use <code>gs.net.me</code> in the <em>test bot</em> to give each device different inputs, never to skip gameplay updates.</p>
+<p>The tool reports start/completion failures, compares common scalar-state checkpoints and returns a screenshot from each peer.
+Matching checkpoints do not prove full determinism: nested tables, timers and random-generator internals are not included.
+This tool bypasses your lobby, uses temporary saves, and does not send anything to a handheld.
+Also test the actual menus and both devices. A single <code>run</code> or <code>check</code> does not test a network session.</p>
+
+<h2>If something goes wrong</h2>
+<table>
+<tr><th>What happens</th><th>What to check</th></tr>
+<tr><td>No host appears</td><td>Both devices need Wi-Fi, the same local network, matching game files and runtime builds, and the same
+title and console. Avoid guest/client isolation, VPN routing and firewalls blocking local UDP port 45843. Discovery is not a content-version check.</td></tr>
+<tr><td>The menu ignores buttons on Knulli</td><td>Send the game again with an up-to-date Studio deployment.
+The launcher must use Knulli's controller mapping, including on a fresh install that has never run another emulator.</td></tr>
+<tr><td>The game says it is waiting</td><td>Return from the other handheld's system menu and check its Wi-Fi and battery.
+Do not use fast-forward or rewind. After 30 seconds, B can end the stalled session.</td></tr>
+<tr><td>The game says players are out of step</td><td>Update every device to the same build and restart the session.
+Check initial state, seeded random choices, drawing side effects and any use of <code>gs.net.me</code> in gameplay.</td></tr>
+</table>
+<p>There is no internet matchmaking, authentication, adaptive input delay or automatic full-state recovery.
+Input delay is fixed at two simulation steps (about 33 ms at 60 steps per second), plus any wait for missing packets.
+Use a trusted local network. Two hosts on one computer need different <code>GS_NET_PORT</code> values.</p>
+
+<h2>Read the example's code</h2>
+<p><code>scenes/menu.lua</code> is the local lobby. <code>scenes/board.lua</code> holds the board as a string, the active turn and the
+shared cursor. <code>scenes/sprint.lua</code> starts every runner and chooses the next star;
+<code>entities/runner.lua</code> reads that runner's numbered input. The platforms and star locations are in <code>lib/course.lua</code>,
+and <code>lib/playground.lua</code> shares the drawing and end-of-session behaviour.</p>
+<p>The important rule: <strong>every device updates every player</strong>. Use <code>gs.input.pressed("a", player)</code> and
+<code>gs.input.dir(player)</code>, not just the local player's buttons. <code>gs.net.me</code> is for drawing the “You: P2” label,
+never for deciding which runner to update. Initialise gameplay in <code>enter()</code>, so time spent in different local menus does
+not affect the round. The <a href="help:api">API reference</a> documents all the <code>gs.net</code> calls.</p>

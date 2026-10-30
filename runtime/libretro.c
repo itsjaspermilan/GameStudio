@@ -189,6 +189,7 @@ bool retro_load_game(const struct retro_game_info *game) {
 }
 
 void retro_unload_game(void) {
+    gs_net_close();
     mix_thread_stop();
     gpu_begin();
     if (g_core_L) { lua_close(g_core_L); g_core_L = NULL; }
@@ -242,7 +243,7 @@ void retro_run(void) {
 }
 
 /* Save states (and NextUI's Resume and rewind): the console's RAM and the runtime's state, see runtime/ram.c. One size for the whole run. */
-size_t retro_serialize_size(void) { return g_core_L ? state_size() : 0; }
+size_t retro_serialize_size(void) { return g_core_L && !gs_net_active() ? state_size() : 0; }
 bool retro_serialize(void *data, size_t size) { return state_save(data, size); }
 bool retro_unserialize(const void *data, size_t size) { gpu_begin(); const bool ok = state_load(data, size); gpu_end(); return ok; }
 void retro_cheat_reset(void) {}

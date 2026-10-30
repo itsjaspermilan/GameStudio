@@ -1,0 +1,11 @@
+{
+ "image": "sprites/star.png",
+ "frames": 1,
+ "origin": [
+  8,
+  8
+ ],
+ "mask": null,
+ "fps": 0,
+ "bank": "sunny"
+}

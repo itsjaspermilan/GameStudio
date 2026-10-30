@@ -2,7 +2,8 @@
 // { text, images? }: short text an agent can read without spending its context on whole files, and PNG pictures to look at.
 // It reuses the studio's own logic (studio/src/*-core.js), the shared generators (scripts/lib/) and the real runtime (build/gs).
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createSocket } from "node:dgram";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -199,7 +200,8 @@ function customInstruments(dir) {
 
 export function api({ query = "" }) {
   const { symbols } = theApi();
-  const q = String(query).toLowerCase().trim();
+  const search = String(query).toLowerCase().trim();
+  const q = /^(netplay|multiplayer|networking|wi-fi|wifi)$/.test(search) ? "gs.net" : search;
   const all = [...symbols.values()];
   const hits = q ? all.filter((s) => s.path.toLowerCase().includes(q)).concat(all.filter((s) => !s.path.toLowerCase().includes(q) && (s.doc || "").toLowerCase().includes(q))) : [];
   if (!q) {
@@ -207,17 +209,19 @@ export function api({ query = "" }) {
     return { text: `The gs API has ${all.length} names in ${owners.length} groups: ${owners.join(", ")}. Ask with a word (spawn, collide, camera, burst, path, sfx...) for the details.` };
   }
   if (!hits.length) return { text: `Nothing in the API matches '${query}'.` };
-  return { text: hits.slice(0, 12).map((s) => {
+  const limit = q === "gs.net" ? hits.length : 12;
+  return { text: hits.slice(0, limit).map((s) => {
     const params = (s.params || []).map((p) => `    ${p.name}${p.optional ? "?" : ""}: ${p.type}${p.desc ? "  " + p.desc : ""}`).join("\n");
     return `${s.sig || s.path}${s.type && s.kind === "field" ? ": " + s.type : ""}\n  ${s.doc || ""}${params ? "\n" + params : ""}${s.returns && s.returns.length ? "\n    returns " + s.returns.join(", ") : ""}`;
-  }).join("\n") + (hits.length > 12 ? `\n(${hits.length - 12} more; ask more precisely)` : "") };
+  }).join("\n") + (hits.length > limit ? `\n(${hits.length - limit} more; ask more precisely)` : "") };
 }
 
 export function help({ topic = "" }) {
   const dir = join(ROOT, "docs/help");
   const pages = readdirSync(dir).filter((f) => f.endsWith(".html")).map((f) => parsePage(read(join(dir, f)), f.replace(/^\d+-|\.html$/g, "")));
   if (!topic) return { text: "Help pages:\n" + pages.map((p) => `  ${p.id}: ${p.title} (${p.summary})`).join("\n") };
-  const page = pages.find((p) => p.id === topic) || pages.find((p) => p.title.toLowerCase().includes(String(topic).toLowerCase()));
+  const query = /^(netplay|wi-fi|wifi|networking)$/i.test(topic) ? "multiplayer" : String(topic).toLowerCase();
+  const page = pages.find((p) => p.id === query) || pages.find((p) => p.title.toLowerCase().includes(query));
   if (!page) return { text: `No help page '${topic}'. Pages: ${pages.map((p) => p.id).join(", ")}` };
   const text = page.body.replace(/<pre[^>]*data-path="([^"]+)"[^>]*><code>/g, "\n--- file $1\n").replace(/<\/code><\/pre>/g, "\n---\n").replace(/<h[12][^>]*>/g, "\n## ").replace(/<li>/g, "\n- ")
     .replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&times;/g, "x").replace(/\n{3,}/g, "\n\n");
@@ -245,6 +249,9 @@ export function games() {
 export function overview({ game }) {
   const dir = gameDir(game), files = filesOf(dir), scan = scanProject(files), con = consoleOf(dir), G = scan.groups;
   const L = [`${game}: console ${con.name} (${con.screen.width}x${con.screen.height}, ${palOf(con).length || "any"} colours, ${(con.limits || {}).instances_alive || "?"} entities at most)`];
+  const declaration = read(join(dir, "game.lua")).match(/\bplayers\s*=\s*(\d+)\b/);
+  L.push(declaration ? `declared players: ${declaration[1]}${+declaration[1] > 1 ? "; Wi-Fi guide: help('multiplayer'), API: api('gs.net'), test: netplay" : ""}`
+    : "players: no literal declaration found in game.lua (the runtime defaults to 1 if omitted)");
   const ent = G.entities.map((n) => {
     const t = read(join(dir, `entities/${n}.lua`));
     const sprite = (t.match(/\bsprite\s*=\s*["']([^"']+)["']/) || [])[1], tags = (t.match(/\btags\s*=\s*\{([^}]*)\}/) || [])[1];
@@ -253,6 +260,10 @@ export function overview({ game }) {
   });
   L.push(`entities (${G.entities.length}):`, ...ent);
   L.push(`scenes (${G.scenes.length}): ${G.scenes.join(", ")}`);
+  L.push(`layouts (${scan.layouts.length}): ${scan.layouts.map((n) => {
+    const r = parseRoom(read(join(dir, `scenes/${n}.layout.lua`)));
+    return r.room ? `${n} (${r.room.entities.length} things, ${r.room.layers.length} layers, ${r.room.texts.length} texts)` : `${n} (code)`;
+  }).join("; ") || "none; use room_write for authored content editable in the Studio"}`);
   if (G.rooms.length) L.push(`rooms: ${G.rooms.map((n) => { const r = parseRoom(read(join(dir, `rooms/${n}.lua`))); return r.room ? `${n} ${r.room.width}x${r.room.height} (${r.room.entities.length} things, ${r.room.layers.length} layers, ${Object.keys(r.room.paths).length} paths)` : `${n} (code)`; }).join("; ")}`);
   if (G.lib.length) L.push(`code: ${G.lib.join(", ")}`);
   const spr = G.sprites.map((n) => { try { const m = readJson(join(dir, `sprites/${n}.json`)); const b = readFileSync(join(dir, m.image || `sprites/${n}.png`)); const w = b.readUInt32BE(16), h = b.readUInt32BE(20), f = m.frames || 1; return `${n} ${w / f}x${h}${f > 1 ? `x${f}` : ""}${m.animations ? ` [${Object.keys(m.animations).join(",")}]` : ""}`; } catch { return n; } });
@@ -324,6 +335,116 @@ export function run({ game, seconds = 3, keys, bot = false, bot_lua, scene, shot
   const images = shown.map((f) => picture(f.width, f.height, f.data, scale || 1));
   if (!images.length) L.push("no frame was drawn (the game stopped first)");
   return { text: L.join("\n"), images };
+}
+
+// Real peers need wall-clock time and concurrent processes; fast-forwarding separate run calls cannot test a session.
+export async function netplay({ game, scene, players = 2, seconds = 3, bot_lua = "" }) {
+  needRuntime();
+  const dir = gameDir(game), start = `scenes.${resName(scene.replace(/^scenes[/.]/, "").replaceAll(".", "/")).replaceAll("/", ".")}`;
+  if (!Number.isInteger(players) || players < 2 || players > 4) throw new Error("netplay needs 2 to 4 players");
+  if (!Number.isFinite(seconds) || seconds < 0.1 || seconds > 30) throw new Error("netplay seconds must be 0.1 to 30");
+  const port = await new Promise((resolvePort, reject) => {
+    const socket = createSocket("udp4");
+    socket.once("error", reject);
+    socket.bind(0, "127.0.0.1", () => { const p = socket.address().port; socket.close(() => resolvePort(p)); });
+  });
+  const work = mkdtempSync(join(tmpdir(), "gs-mcp-net-")), children = [];
+  const frames = Math.round(seconds * 60), timeout = (seconds + 15) * 1000;
+  const script = `${bot_lua}
+local test_step = bot_step
+local role = tonumber(os.getenv("GS_MCP_PLAYER"))
+local opened, joined, starting, announced, finished = false, false, false, false, false
+function bot_step()
+  if finished then return end
+  if not opened then
+    opened = true
+    if role == 1 then gs.net.host("Test 1") end
+  end
+  if role ~= 1 and not joined then
+    local sessions = gs.net.find()
+    if #sessions > 0 then gs.net.join(sessions[1].id, "Test " .. role); joined = true end
+  end
+  if role == 1 and not starting and gs.net.state == "lobby" and gs.net.count == ${players} then
+    starting = true
+    gs.net.start(${JSON.stringify(start)})
+  end
+  if gs.net.error then error(gs.net.error) end
+  if gs.net.state == "playing" or gs.net.state == "waiting" then
+    if not announced then
+      announced = true
+      print("@@gsnet playing " .. gs.net.me .. " " .. gs.net.count)
+    end
+    if gs.world.step_id >= ${frames} then
+      finished = true
+      print("@@gsnet done")
+      gs.raw.quit()
+      return
+    end
+    if test_step then test_step() end
+  elseif announced then error("netplay session ended before the requested steps completed") end
+end
+`;
+  try {
+    for (let i = 0; i < players; i++) {
+      const peer = join(work, `peer${i + 1}`), bot = join(peer, "bot.lua"), frame = join(peer, "frame.bmp");
+      mkdirSync(peer);
+      writeFileSync(bot, script);
+      const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GS_")));
+      const child = spawn(GS, [dir], { cwd: dir, timeout, env: {
+        ...clean, SDL_VIDEODRIVER: "dummy", SDL_AUDIODRIVER: "dummy",
+        GS_SAVE_DIR: join(peer, "saves"), GS_SOUNDFONT: join(ROOT, "assets/soundfonts/FluidR3Mono_GM.sf3"),
+        GS_RAM: "1", GS_CHECKSUM: "1", GS_MAX_FRAMES: String(Math.ceil(timeout / 1000 * 60)),
+        GS_NET_PORT: String(port), GS_NET_DISCOVERY: "127.0.0.1", GS_MCP_PLAYER: String(i + 1),
+        GS_BOT_LUA: bot, GS_DUMP_FRAME: frame,
+      } });
+      const forceKill = setTimeout(() => child.kill("SIGKILL"), timeout + 1000);
+      child.once("close", () => clearTimeout(forceKill));
+      let output = "", error = null;
+      const collect = (data) => {
+        if (error) return;
+        output += data;
+        if (output.length > 131072) { error = new Error("peer output exceeded 128 KB"); child.kill("SIGTERM"); }
+      };
+      child.stdout.on("data", collect);
+      child.stderr.on("data", collect);
+      const done = new Promise((resolvePeer) => {
+        child.on("error", (e) => { error = e; });
+        child.on("close", (code, signal) => resolvePeer({ code, signal, error, output, frame }));
+      });
+      children.push({ child, done });
+    }
+    const results = await Promise.all(children.map((p) => p.done));
+    const checks = [], lines = [`netplay: ${players} local UDP peers, ${frames} simulation steps each; scene ${start}`], images = [];
+    for (const [i, result] of results.entries()) {
+      const log = result.output.split("\n").filter(Boolean), problems = problemsOf(log);
+      if (result.code !== 0 || result.error || problems.length || !log.includes("@@gsnet done")) {
+        throw new Error(`netplay peer ${i + 1} failed${result.signal ? ` (${result.signal}; session may have stalled)` : ""}: ${result.error?.message || ""}\n${log.slice(-15).join("\n")}`);
+      }
+      const entered = result.output.indexOf("@@gsnet playing ");
+      if (entered < 0) throw new Error(`netplay peer ${i + 1} never entered the session`);
+      checks.push([...result.output.slice(entered).matchAll(/^@@gscheck (.+)$/gm)].map((m) => JSON.parse(m[1])));
+      const player = log.find((s) => s.startsWith("@@gsnet playing ")).split(" ")[2];
+      lines.push(`peer ${i + 1}: Player ${player}, completed ${frames} steps`);
+      const printed = log.filter((s) => !s.startsWith("@@"));
+      if (printed.length) lines.push(printed.slice(-6).join("\n"));
+      if (existsSync(result.frame)) {
+        const f = decodeBmp(readFileSync(result.frame));
+        images.push(picture(f.width, f.height, f.data));
+      }
+    }
+    const common = Math.min(...checks.map((c) => c.length));
+    for (const peer of checks.slice(1)) for (let i = 0; i < common; i++) {
+      if (peer[i].step !== checks[0][i].step || peer[i].hash !== checks[0][i].hash) throw new Error(`netplay scalar-state mismatch at checkpoint ${i + 1}`);
+    }
+    lines.push(common ? `${common} common scalar-state checkpoints match (not a full-state determinism guarantee).`
+      : "No common scalar-state checkpoints; run for longer to compare them.");
+    lines.push("PASS: local session completed. This bypasses the game's lobby; also test its menus and real handheld Wi-Fi.");
+    return { text: lines.join("\n"), images };
+  } finally {
+    for (const { child } of children) if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
+    await Promise.allSettled(children.map((p) => p.done));
+    rmSync(work, { recursive: true, force: true });
+  }
 }
 
 export function inspect({ game, seconds = 3, kind, entity, watch = [] }) {

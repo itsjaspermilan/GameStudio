@@ -107,7 +107,7 @@ export function highlightLua(code) {
 
 // The API reference page, made from the annotations the editor reads (parseApi in lua-intel-core.js), so the help and the hover text never disagree.
 const API_GROUPS = [
-  ["gs", "The game, entities and scenes"], ["gs.camera", "The camera"], ["gs.input", "Buttons"], ["gs.draw", "Drawing"], ["gs.ui", "Interface"],
+  ["gs", "The game, entities and scenes"], ["gs.camera", "The camera"], ["gs.input", "Buttons"], ["gs.net", "Wi-Fi play"], ["gs.draw", "Drawing"], ["gs.ui", "Interface"],
   ["gs.save", "Saving"], ["gs.assets", "Assets"], ["gs.world", "The world"], ["Entity", "Every entity (methods and values)"], ["Scene", "Scenes"],
 ];
 export function apiPageHtml(api) {

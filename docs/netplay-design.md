@@ -1,7 +1,44 @@
 # Netplay: two to four Bricks playing one game
 
-Status: **planned, nothing built**. Decided with Jasper on 2026-10-25 (an interview, answers below), for games he makes to play with
+Status: **experimental local lockstep built; initial NextUI/Knulli handheld pairing reported working; broader verification and Studio multiplayer UI still ahead**. Decided with Jasper on 2026-10-25 (an interview, answers below), for games he makes to play with
 Arya, each on a TrimUI Brick, in the same room. Build order is in section 9.
+
+The first milestone (2026-10-30) fixes Lua's string-hash seed and adds opt-in seeded runs with separate gameplay and drawing random
+streams, including cached `math.random` / `math.randomseed` references. Ordinary single-player runs keep their existing random behaviour.
+`GS_SESSION_SEED=<integer>` seeds before loading the game; `GS_CHECKSUM=1` prints a scalar-state fingerprint every 60 simulation steps.
+The internal `gs.determinism` module supplies seeding and fingerprints for the session layer; game code uses the public `gs.net` API.
+`node --test tests/determinism.test.mjs` compares separate processes with recorded buttons, different draw frequencies, and libretro
+save/load and cross-process Resume. It also checks that changing the seed or buttons changes the fingerprints.
+
+These are **diagnostic fingerprints, not a complete drift detector**: they cover the step, time, next entity id, pause flag, scene name,
+the scene's scalar fields, and each live entity's class and scalar fields (including id, position and velocity). Nested tables, closures,
+timers, particles and RNG internals are not hashed; camera and profiling state are deliberately excluded. Equal fingerprints do not
+prove that all game state matches. Only string-keyed table hashing is stabilised: iterating tables keyed by objects/functions still
+depends on addresses. Clock-dependent game logic and unseeded `gs.rng()` are still unsuitable for lockstep.
+
+The implemented session layer adds `players = 1..4`, player-indexed input, discovery/host/join/peers/start/leave, remembered names, host-save sharing,
+and two-to-four-player lockstep over nonblocking IPv4 UDP in both the program and libretro core. Lobby and start packets are retried;
+save data is chunked and acknowledged. Each device resends its last eight button samples, the host relays them, and a missing sample
+stops the simulation without stopping drawing or socket polling. Waiting has a named overlay and, after 30 seconds, B to leave.
+Scalar-state hash disagreement ends the session; so does leaving or a game error. Save states are refused while the socket is open.
+The editor documents/completes the API and warns about `gs.net.me` in update/collision hooks.
+
+**Current limits:** two fixed delay steps (adaptive delay is not built), up to 64 KB for the initial save snapshot, no late joining,
+and one host per UDP port on a machine. `GS_NET_PORT` overrides the default 45843; `GS_NET_DISCOVERY=127.0.0.1` uses loopback instead
+of the default local broadcast (255.255.255.255), for automated tests. These are development switches, not game settings. Game titles
+plus console ids identify discovery groups, not a content hash or authentication; use matching game files on a trusted local network.
+Menus and gameplay are separate: initialise shared gameplay state in the starting scene's `enter`, not from a device's earlier menu
+state or cached module-level random values. Reloading ends a session with a clear reason, rather than attempting unsynchronised reloads.
+The built-in `carts/netplay-playground` example now has a game-authored lobby, turn-based Three in a row and live platformer
+Star sprint, local practice, rematches and switching modes without reconnecting. Help's Playing together guide explains setup,
+controls and interruption checks. `tests/playground.test.mjs` drives the real menus and completes both games with two/four processes.
+Studio's multi-panel play and coordinated reload, adaptive delay, cross-machine maths and complete state-difference reports
+remain ahead. `tests/netplay.test.mjs` exercises real loopback UDP between independent processes, including
+four players, packet loss/reordering, pausing a peer, multi-packet saves, leaving, scalar drift, malformed packets, game filtering and
+the libretro save-state guard. On 2026-10-30, the user confirmed Netplay Playground works between a TrimUI Brick on NextUI and an
+Anbernic RG35XX Pro on Knulli over local Wi-Fi. Four-handheld play, long sessions, interruptions and broader firmware/maths coverage
+remain unverified. MCP's `netplay` tool connects two to four local runtime processes and compares common scalar-state checkpoints;
+it bypasses the game's own lobby and does not replace these hardware checks.
 
 ## The idea in one paragraph
 
@@ -24,7 +61,7 @@ knows there are several players; there is no sync layer in the game and nothing 
 | Saves in a session | The host's save is the game's progress; each Brick keeps its own saves for playing alone |
 | Joining | Fixed at the start: who plays is settled before the game starts; nobody drops in mid-game |
 | Testing | Two Play panels on the Mac, and the Mac's Play panel together with a Brick over Wi-Fi |
-| First game | A small versus arena for two to four players, shipped as the second example |
+| First game | Netplay Playground: turn-based board and live platform race for two to four players, shipped as the second example |
 | When | This plan first; building starts after Jasper has tried the step-by-step tutorial |
 
 ## 2. How a step works
@@ -138,16 +175,19 @@ camera; update code must not branch on it (that would be two different games). T
 
 ## 9. Build order
 
-1. **Determinism**, testable on one Mac: fixed string-hash seed, session seed for `math.random`, a draw-time generator of its own, the state
-   hash. A test runs a game twice in separate processes with the same recorded buttons and compares the hashes every 60 steps.
-2. **Players:** `players =` in `game.lua`, `gs.input.*(name, player)`, `gs.net.me` and `gs.net.count`, the lint rule.
-3. **Transport and `gs.net`:** `runtime/net.c`, discovery, host/join/peers/start/leave, the input delay, the relay for four.
-4. **Waiting and ending:** the waiting box, the 30-second offer, `on_net_end`, save states refused in a session.
+1. **Determinism foundations implemented**, testable on one Mac: fixed string-hash seed, session seed for `math.random`, a draw-time
+   generator of its own, and diagnostic scalar-state hashes. Tests run a game twice in separate processes with the same recorded
+   buttons and compare hashes every 60 steps. Full drift detection and cross-machine verification remain to be built.
+2. **Players implemented:** `players =` in `game.lua`, `gs.input.*(name, player)`, `gs.net.me` and `gs.net.count`, the lint rule.
+3. **Initial transport and `gs.net` implemented:** `runtime/net.c`, discovery, host/join/peers/start/leave, fixed two-step delay,
+   host saves and relay for four. Adaptive delay is still open.
+4. **Waiting and ending implemented:** the waiting box, the 30-second offer, `on_net_end`, save states refused with an open socket.
 5. **The studio:** Play with two (and four), Mac with a Brick, live reload across instances.
-6. **The example:** a versus arena for two to four players (short rounds, one screen, each player a colour), with a Help page that builds a
+6. **The example (built):** Netplay Playground for two to four players (turn-based board and live platform race, one screen, numbered colours and shapes).
+   Help's Playing together guide covers setup and both modes. A future step-by-step tutorial can build a
    smaller one step by step. Then the cross-machine maths (section 3, item 6) when Mac-with-Brick testing needs it.
-7. **On two Bricks:** discovery on the home Wi-Fi, the delay that feels right, the NextUI menu pause, a Wi-Fi drop, a long session with
-   the drift detector quiet.
+7. **Handheld follow-through:** initial Brick/NextUI plus RG35XX Pro/Knulli play is user-confirmed. Still check four handhelds,
+   the delay that feels right, the NextUI menu pause, a Wi-Fi drop, a long session with the drift detector quiet, and more device pairings.
 
 ## 10. Open questions
 

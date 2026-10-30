@@ -88,7 +88,7 @@ test("highlighting keeps the text and escapes it", () => {
 test("the API page documents every function with its signature", () => {
   const api = parseApi(readFileSync(join(root, "engine/api/gs.d.lua"), "utf8"));
   const html = apiPageHtml(api);
-  for (const want of ["gs.spawn(name, x, y, props)", "gs.draw.rect(x, y, w, h, color)", "Entity:play(name, restart)", "gs.camera:follow(target, opts)", "gs.input.pressed(name)"]) assert.ok(html.includes(escapeHtml(want)), want);
+  for (const want of ["gs.spawn(name, x, y, props)", "gs.draw.rect(x, y, w, h, color)", "Entity:play(name, restart)", "gs.camera:follow(target, opts)", "gs.input.pressed(name, player)", "gs.net.host(name)", "gs.net.start(scene)"]) assert.ok(html.includes(escapeHtml(want)), want);
   assert.ok(!html.includes("<script"));
 });
 

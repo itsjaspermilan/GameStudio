@@ -16,6 +16,8 @@ Design and rationale: `docs/lua-engine-design.md`. Every cart has a `game.lua` a
 | `camera.lua`, `input.lua`, `draw.lua`, `ui.lua`, `save.lua`, `sound.lua`, `assets.lua`, `json.lua` | what the names say |
 | `reload.lua` | live reload (GS_DEV=1): polls file mtimes, re-requires changed files into the same class tables, rolls back on error |
 | `inspect.lua` | the studio's Inspector (GS_INSPECT=<file>): reads pause / step / speed / what to look at from the file, answers with `@@gsi {json}` (kinds with update/draw/collision time, a kind's entities, one entity's values, watch expressions); `world.profile` turns the timing on only while it is open |
+| `determinism.lua` | internal netplay foundations: `GS_SESSION_SEED` seeds gameplay before game.lua and isolates draw-time random/randomseed (including cached references); `GS_CHECKSUM=1` emits scalar-state hashes every 60 steps. Not a complete state hash or a public networking API; see `docs/netplay-design.md` |
+| `net.lua` | experimental local Wi-Fi sessions: discovery, lobby/start retries, chunked host saves, fixed two-step lockstep inputs and relay for four, scalar drift checks, waiting/end handling. `gs.net` is the game API (`players` in game.lua); `gs.transport` is private native UDP. No socket until a game asks for one. See `docs/netplay-design.md` for current limits |
 | `particles.lua` | `gs.burst`: particles as plain arrays (not entities), capped by the console's `particles` limit, drawn at a depth |
 
 Colour banks: `assets.lua` reads `palette.json` (`all_banks`, `bank`) and makes palette swaps (`swapped`, through the runtime's `gs.recolor`) for an

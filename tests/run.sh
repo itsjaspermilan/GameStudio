@@ -4,6 +4,8 @@ cd "$(dirname "$0")/.."
 run() { GS_SAVE_DIR="${TMPDIR:-/tmp}/gs-test-saves" SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy GS_MAX_FRAMES="${FRAMES:-600}" "$@" 2>&1; }
 status=0
 
+node --test tests/determinism.test.mjs tests/netplay.test.mjs tests/playground.test.mjs || status=1
+
 # The Lua framework (engine/gs): entities, inheritance, collisions, timers, tweens, animation clips, camera, saves, sound errors, limits,
 # live reload and scenes. The fixture checks itself and prints FRAMEWORK TEST PASS. GS_DEV=1 switches live reload on.
 out="$(GS_DEV=1 GS_TEST_HOST=1 FRAMES=1500 run ./build/gs tests/framework)"; echo "$out"
@@ -28,7 +30,7 @@ echo "$out" | grep -qi 'error' && { echo "FAIL: band test reported an error"; st
 out="$(run ./build/gs tests/band-bad)"; echo "$out" | grep -q 'unknown instrument: nopiano' || { echo "FAIL: unknown track instrument not reported"; status=1; }
 
 # The sample games must load and run without errors or warnings (GS_SAVE_DIR keeps the test away from real saves).
-for game in carts/breakout carts/buttontest carts/padsetup; do
+for game in carts/breakout carts/netplay-playground carts/buttontest carts/padsetup; do
   out="$(run ./build/gs "$game")"
   echo "$out" | grep -qiE 'error|^warning:' && { echo "$out"; echo "FAIL: $game printed an error or warning"; status=1; }
 done

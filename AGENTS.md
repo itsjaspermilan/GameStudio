@@ -78,6 +78,24 @@ The old card engine was dropped because making things easy had piled layers of c
   GBA ROM). Don't hard-code a limit in an editor if a console field already says it.
 - Prefer targeted reads. Big files and what to grep for are listed in each folder guide; never read `third_party/` or `*.lock`.
 
+## Making games with an agent
+
+Make games that a beginner can keep editing in the Studio, not a single script that draws and simulates everything.
+Read Help's `best-practices` and `layouts` guides first (also available through MCP `help`).
+
+- Put reusable actors in `entities/<name>.lua` with `gs.entity`: players, enemies, pickups, doors and bullets. Use the engine's
+  movement, collisions, animations, timers and camera instead of building another entity system inside a scene.
+- Put screens and game rules in `scenes/<name>.lua` with `gs.scene`. Put authored starting positions, terrain, paths, labels,
+  pictures and panels in `scenes/<name>.layout.lua`. Named layout items are scene fields; change those fields instead of redrawing the UI.
+  MCP `room_write` creates these layouts; `room_view` previews them. Do not create legacy `rooms/` for new games.
+- Keep art, tiles, effects and songs in their resource folders so their Studio editors work. Keep `game.lua` and `meta/info.json`
+  consistent. Use `lib/` for genuinely shared helpers, not a parallel game engine.
+- Code still belongs where it helps: dynamic spawns, procedural levels, custom rendering and runtime tile changes remain supported.
+  Prefer editable layouts for authored content; do not force a layout onto something genuinely generated during play.
+- For requested multiplayer, read `help("multiplayer")` and `api("gs.net")`: every peer updates every player, indexed input drives
+  gameplay, and `gs.net.me` is presentation-only. Initialise shared state in `enter()`. Use MCP `netplay` to exercise real local UDP
+  peers, then test the game's own lobby and real handhelds; a single `run` is not a multiplayer test.
+
 ## Context-saving map of the biggest files
 
 `studio/src/main.js` (~1000 lines, section markers `// ---------- name ----------`), `studio/src/audio-core.js` (~870, same markers),

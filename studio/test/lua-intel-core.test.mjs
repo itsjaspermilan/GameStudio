@@ -45,6 +45,35 @@ test("every Entity method the engine defines is documented", () => {
   assert.deepEqual(methods.filter((n) => !doc.has(n)), []);
 });
 
+test("Wi-Fi API completion and player input parameters are documented", () => {
+  for (const name of ["host", "find", "join", "peers", "start", "leave", "name", "me", "count", "state", "error"]) {
+    assert.ok(labels(api.members.get("gs.net")).includes(name), name);
+  }
+  assert.equal(api.symbols.get("gs.input.held").params[1].name, "player");
+  assert.ok(labels(complete(contextAt("function Title:"), api, index, "", "scenes/title.lua", 0)).includes("on_net_end"));
+});
+
+test("private player views warn in update/collision hooks, not drawing, strings or comments", () => {
+  const text = [
+    "local P = gs.entity{}",
+    "function P:update()",
+    "  self.x = gs.net.me",
+    '  local hint = "gs.net.me"',
+    "  -- gs.net.me",
+    "end",
+    "function P:on_collide_enemy(other)",
+    "  if gs.net.me == 1 then other:destroy() end",
+    "end",
+    "function P:draw()",
+    "  gs.draw.text(tostring(gs.net.me), 0, 0)",
+    "end",
+    "return P",
+  ].join("\n");
+  const warnings = diagnose(text, "entities/player.lua", index).filter(d => /differs on each device/.test(d.message));
+  assert.equal(warnings.length, 2);
+  for (const warning of warnings) assert.equal(text.slice(warning.from, warning.to), "gs.net.me");
+});
+
 test("context: strings that name things, members, and method definitions", () => {
   assert.deepEqual(pick(contextAt('  gs.spawn("pl')), { type: "asset", kind: "entities", prefix: "pl" });
   assert.deepEqual(pick(contextAt("  gs.sfx('")), { type: "asset", kind: "sfx", prefix: "" });
@@ -67,6 +96,7 @@ test("completion: API members, asset names, tags, hooks", () => {
   assert.ok(labels(at("gs.camera:")).includes("follow"));
   assert.deepEqual(labels(at('gs.spawn("')), ["enemies.grub", "player"]);
   assert.deepEqual(labels(at('gs.goto_scene("')), ["scenes.play", "scenes.title"]);
+  assert.deepEqual(labels(at('gs.net.start("')), ["scenes.play", "scenes.title"]);
   assert.deepEqual(labels(at('gs.sfx("z')), ["zap"]);
   assert.deepEqual(labels(at('gs.load_layout("')), ["lvl1", "play", "title"], "a scene's layout or an older room");
   assert.deepEqual(labels(at('gs.load_room("')), ["lvl1", "play", "title"]);

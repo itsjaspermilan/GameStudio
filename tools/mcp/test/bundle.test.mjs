@@ -19,7 +19,7 @@ test("the bundled stdio command works after relocation without system Node or th
   const client = new Client({ name: "bundle-test", version: "1" });
   const dirs = [];
   try {
-    for (const file of ["build/gs", "engine/api", "engine/consoles", "assets/soundfonts", "carts/breakout"]) {
+    for (const file of ["build/gs", "engine/api", "engine/consoles", "assets/soundfonts", "carts/breakout", "carts/netplay-playground"]) {
       mkdirSync(dirname(join(staged, file)), { recursive: true });
       cpSync(join(root, file), join(staged, file), { recursive: true });
     }
@@ -38,8 +38,9 @@ test("the bundled stdio command works after relocation without system Node or th
       command: join(ws, "tools/mcp/gamestudio-mcp"), cwd,
       env: { ...process.env, PATH: "/usr/bin:/bin", GS_WORKSPACE: join(temp, "not-a-checkout"), GS_SOUNDFONT: "/missing.sf3", GS_STUDIO_CONFIG: cwd, DEVICE_ENV: join(temp, "missing-device.env") },
     }));
-    assert.equal((await client.listTools()).tools.length, 17);
-    assert.equal((await client.listPrompts()).prompts.length, 3);
+    assert.equal((await client.listTools()).tools.length, 18);
+    assert.equal((await client.listPrompts()).prompts.length, 4);
+    assert.match(client.getInstructions(), /editable in the Studio/);
     const call = async (name, args) => {
       const r = await client.callTool({ name, arguments: args });
       assert.ok(!r.isError, `${name}: ${JSON.stringify(r.content)}`);
@@ -47,6 +48,10 @@ test("the bundled stdio command works after relocation without system Node or th
     };
     assert.match((await call("api", { query: "spawn" })).content[0].text, /gs\.spawn/);
     assert.match((await call("help", { topic: "art" })).content[0].text, /sprite/i);
+    assert.match((await call("help", { topic: "netplay" })).content[0].text, /gs\.net\.start/);
+    assert.match((await call("api", { query: "gs.net" })).content[0].text, /gs\.net\.leave/);
+    const create = await client.getPrompt({ name: "create-game", arguments: { game, idea: "a small game" } });
+    assert.match(create.messages[0].content.text, /editable scene layouts/);
     assert.match((await call("games", {})).content[0].text, /breakout/);
     assert.match((await call("overview", { game })).content[0].text, /entities \(\d+\)/);
     for (const play of [{ keys: "right*10" }, { bot: true }]) {
@@ -54,6 +59,9 @@ test("the bundled stdio command works after relocation without system Node or th
       assert.equal(run.content[1].type, "image");
     }
     assert.match((await call("check", { game, seconds: 0.5 })).content[0].text, /ran 0.5 s with no errors or warnings/);
+    const network = await call("netplay", { game: join(ws, "carts/netplay-playground"), scene: "sprint", players: 2, seconds: 1 });
+    assert.match(network.content[0].text, /common scalar-state checkpoints match/);
+    assert.equal(network.content.filter((c) => c.type === "image").length, 2);
     assert.match((await call("song_check", { game, name: "title" })).content[0].text, /loudness/);
     assert.equal((await call("room_view", { game, name: "title" })).content[1].type, "image");
     assert.equal((await call("sprite_write", {

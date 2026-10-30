@@ -180,6 +180,7 @@ function Entity:touching_tile(kind, inset) end
 ---@field draw fun(self: Scene) Draws after the world (layers and entities), in world space.
 ---@field draw_ui fun(self: Scene) Draws on top of everything, in screen space (score, menus).
 ---@field leave fun(self: Scene) Called when another scene takes over. enter, update, draw, draw_ui and leave are the engine's: a method of your own with one of these names (a leave() that goes back to the board) runs at those times.
+---@field on_net_end fun(self: Scene, reason: string) Wi-Fi play ended. Without this hook the game returns to the scene that opened the session.
 Scene = {}
 ---Call fn once, after a delay in seconds. It belongs to the scene: leaving the scene cancels it.
 ---@param seconds number
@@ -210,6 +211,7 @@ function Scene:tween(props, seconds, easing, on_done) end
 ---@field start string The first scene, e.g. "scenes.title".
 ---@field preload? boolean Load every sprite and tileset at start (default true).
 ---@field buttons? ButtonStyle How {a}, {start} and the other button icons in texts look (default "gba").
+---@field players? integer Maximum Wi-Fi players, 1 to 4 (default 1).
 
 ---@alias ButtonStyle "gba"|"snes"|"nes"|"mono"
 ---@alias ButtonIcon "a"|"b"|"x"|"y"|"l"|"r"|"start"|"select"|"up"|"down"|"left"|"right"|"dpad"
@@ -525,19 +527,61 @@ function gs.camera:to_world(sx, sy) end
 gs.input = {}
 ---Is the button down right now?
 ---@param name Button
+---@param player? integer Player 1 to 4 (default 1). During Wi-Fi play, every device reads the same buttons for each player.
 ---@return boolean
-function gs.input.held(name) end
+function gs.input.held(name, player) end
 ---Did the button go down since the last step? True for exactly one step.
 ---@param name Button
+---@param player? integer Player 1 to 4 (default 1).
 ---@return boolean
-function gs.input.pressed(name) end
+function gs.input.pressed(name, player) end
 ---Did the button come up since the last step?
 ---@param name Button
+---@param player? integer Player 1 to 4 (default 1).
 ---@return boolean
-function gs.input.released(name) end
+function gs.input.released(name, player) end
 ---The D-pad as two numbers, each -1, 0 or 1: dx, dy.
+---@param player? integer Player 1 to 4 (default 1).
 ---@return integer dx, integer dy
-function gs.input.dir() end
+function gs.input.dir(player) end
+
+-- ------------------------------------------------------------------ local Wi-Fi play
+gs.net = {}
+---@type string "off", "hosting", "joining", "lobby", "playing" or "waiting".
+gs.net.state = "off"
+---@type integer This device's player number. Use only in draw/draw_ui, never to choose gameplay updates.
+gs.net.me = 1
+---@type integer Number of players in the session (1 outside a session).
+gs.net.count = 1
+---@type integer Input delay in steps (currently 2, about 33 ms).
+gs.net.delay = 2
+---@type string|nil The last session error or reason it ended. Show this in your menu.
+gs.net.error = nil
+---@type string|nil The player whose buttons the session is waiting for.
+gs.net.waiting_for = nil
+---The player name this game remembered on this device (empty the first time).
+---@return string
+function gs.net.name() end
+---Host on this Wi-Fi network. Ask for the player's name in your game's menu first.
+---@param name string 1 to 32 bytes, without control characters.
+function gs.net.host(name) end
+---Find sessions of this game on the local Wi-Fi. Call again to refresh; results arrive in following frames.
+---@return table[] Sessions with id, name, players and max. Internet play is not supported.
+function gs.net.find() end
+---Ask to join a session from gs.net.find(). Watch state and error for the result.
+---@param id string The session's id from gs.net.find().
+---@param name string This player's name.
+function gs.net.join(id, name) end
+---Players in the lobby/session, each with player (number) and name.
+---@return table[]
+function gs.net.peers() end
+---The host starts every device in this scene, with the same random seed and the host's save.
+---Use a full module name such as "scenes.arena". Start gameplay state afresh in enter().
+---This first implementation shares up to 64 KB of saves and uses a fixed two-step delay.
+---@param scene string
+function gs.net.start(scene) end
+---Leave discovery or Wi-Fi play. During play on_net_end(reason) runs, or the game returns to its menu.
+function gs.net.leave() end
 
 -- ------------------------------------------------------------------ drawing (use these in draw or draw_ui)
 gs.draw = {}

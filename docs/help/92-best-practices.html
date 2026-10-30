@@ -8,13 +8,36 @@ summary: Layout, naming, state, reuse with inheritance, and habits that keep a g
 <p>Small habits that make a game still easy to change after a month.</p>
 
 <h2>Layout</h2>
+<p><strong>Build a game you can keep editing in the Studio.</strong> The same rule applies whether you write it yourself or ask an AI.
+Use <a href="help:layouts">scene layouts</a> for authored content, reusable entities for things that act, and scene code for the rules.
+A single large script that draws the level, moves every actor and redraws every label loses the benefit of the Studio's editors.</p>
 <ul>
 <li><strong>One kind of thing, one file.</strong> <code>entities/grub.lua</code> holds everything about grubs. When something is wrong with grubs you know where to look.</li>
 <li><strong>Scenes decide, entities act.</strong> A scene spawns, counts and ends things. An entity moves itself and reacts to what it touches. Rules that belong to nobody (score, waves, win and lose) go in the scene.</li>
 <li><strong>Shared state in <code>lib/</code>.</strong> A small table in <code>lib/state.lua</code>, not global variables. A <code>require</code> at the top of a file shows what the file depends on.</li>
 <li><strong>Folders for families.</strong> <code>entities/enemies/grub.lua</code> is spawned as <code>gs.spawn("enemies.grub")</code>.</li>
-<li><strong>Data that designers change is data.</strong> Numbers at the top of the entity table (<code>hp = 3, speed = 40</code>), not buried in the middle of a function. Rooms, wave lists and item tables are plain Lua tables in their own file.</li>
+<li><strong>Place authored content in layouts.</strong> Starting positions, terrain, paths, labels, pictures and panels belong in
+<code>scenes/play.layout.lua</code>, not long lists of coordinates in <code>enter()</code> or repeated drawing calls.
+Give items names and update <code>self.score.text</code> or <code>self.door</code> from scene code.
+New levels use scene layouts; <code>rooms/</code> is for older games.</li>
+<li><strong>Use the engine's actors.</strong> Players, enemies, pickups, doors and bullets are <code>gs.entity</code> classes.
+Reuse their movement, collision, sprite animation, timers and camera support; do not build a second entity system in a scene.</li>
+<li><strong>Data that designers change is data.</strong> Numbers at the top of the entity table (<code>hp = 3, speed = 40</code>), not buried in the middle of a function.
+Sprites, tilesets, sound effects and songs stay in their resource folders, ready for their Studio editors.</li>
 </ul>
+<p>Code is still useful for things created during play: bullets, waves, procedural terrain, custom drawing and changing tiles.
+Use <code>lib/</code> for shared helpers. Do not replace these engine abilities or require a layout for a genuinely procedural scene.</p>
+
+<h2>With an agent</h2>
+<p>Ask for a game made with <strong>entities, scenes and editable layouts</strong>. A useful starting request is:
+“Make a platformer in GameStudio. Put the player and enemies in entities, the level and HUD in a scene layout, and the win rules in
+scene code. Keep the sprites and sound effects editable in the Studio.”</p>
+<p>With the MCP server, start with <code>help("best-practices")</code>, <code>help("layouts")</code> and <code>overview</code>.
+Create actors with ordinary file tools, build layouts with <code>room_write</code>, and inspect them with <code>room_view</code>.
+Then use <code>check</code>, <code>run</code> and <code>inspect</code>. The <code>create-game</code> prompt includes this guidance.
+<a href="open:breakout">Breakout</a> shows the pattern in a finished example.</p>
+<p>For multiplayer, also read <a href="help:multiplayer">Playing together</a>. Share the same entity and layout structure on every
+device; do not replace it with a separate network-only simulation.</p>
 
 <h2>Name things for what they are</h2>
 <p>Tags are nouns (<code>enemy</code>, <code>pickup</code>), methods are verbs (<code>hurt</code>, <code>collect</code>), and booleans read as questions (<code>grounded</code>, <code>invulnerable</code>).

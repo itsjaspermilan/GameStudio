@@ -1,0 +1,31 @@
+{
+ "image": "sprites/runner.png",
+ "frames": 7,
+ "origin": [
+  12,
+  32
+ ],
+ "mask": null,
+ "fps": 0,
+ "bank": "clover",
+ "animations": {
+  "idle": {
+   "from": 0,
+   "to": 1,
+   "fps": 3,
+   "loop": true
+  },
+  "walk": {
+   "from": 2,
+   "to": 5,
+   "fps": 10,
+   "loop": true
+  },
+  "jump": {
+   "from": 6,
+   "to": 6,
+   "fps": 0,
+   "loop": false
+  }
+ }
+}

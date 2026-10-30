@@ -102,6 +102,7 @@ test("a scene layout keeps texts, pictures, names and the code it runs", () => {
   assert.deepEqual(again, room, "written and read back unchanged");
   assert.deepEqual(layoutNames(room).map((n) => n.name), ["hero", "logo", "prompt"]);
   assert.match(nameProblem("update", room), /every scene/);
+  assert.match(nameProblem("on_net_end", room), /every scene/);
   assert.match(nameProblem("logo", room), /already/);
   assert.equal(nameProblem("logo", room, "logo"), null, "a thing keeps its own name");
   assert.match(nameProblem("2fast", room), /letters/);

@@ -14,6 +14,7 @@
 #include <stdbool.h>
 #include "synth.h"
 #include "sfbank.h"
+#include "net.h"
 #include "fonts.h"
 #include <lua.h>
 #include <lauxlib.h>
@@ -974,6 +975,31 @@ static int l_loadsave(lua_State *L) { /* gs.loadsave(key) -> string or nil */
     unsigned char *b = read_all(path, &n);
     if (!b) { lua_pushnil(L); return 1; }
     lua_pushlstring(L, (char *)b, n); free(b); return 1;
+}
+static int l_session_saves(lua_State *L) {
+    lua_newtable(L);
+    DIR *dir = opendir(g_savedir);
+    if (!dir) return luaL_error(L, "Wi-Fi: could not read this game's saves");
+    struct dirent *entry; size_t total = 0;
+    while ((entry = readdir(dir))) {
+        if (!valid_key(entry->d_name)) continue;
+        char path[1200]; struct stat st; size_t n;
+        snprintf(path, sizeof path, "%s/%s", g_savedir, entry->d_name);
+        if (stat(path, &st) || !S_ISREG(st.st_mode)) continue;
+        if (st.st_size > 65536 || total + (size_t)st.st_size > 65536) {
+            closedir(dir); return luaL_error(L, "Wi-Fi: this game's saves are larger than the current 64 KB session limit");
+        }
+        unsigned char *data = read_all(path, &n);
+        if (!data) { closedir(dir); return luaL_error(L, "Wi-Fi: could not read save %s", entry->d_name); }
+        total += n;
+        lua_pushlstring(L, (char *)data, n); lua_setfield(L, -2, entry->d_name); free(data);
+    }
+    closedir(dir); return 1;
+}
+static int session_transport(lua_State *L) {
+    luaopen_gs_transport(L);
+    lua_pushcfunction(L, l_session_saves); lua_setfield(L, -2, "saves");
+    return 1;
 }
 static void init_savedir(const char *cartpath) {
     const char *env = getenv("GS_SAVE_DIR");
@@ -2408,6 +2434,11 @@ static lua_State *game_start(void) {
     if (!L) { fprintf(stderr, "no memory for Lua\n"); return NULL; }
     if (g_lua_alloc) lua_atpanic(L, g_lua_panic);
     luaL_openlibs(L);
+    /* A second Lua RNG, with the same integer/range semantics and save-state support as math.random. */
+    lua_getglobal(L, "package"); lua_getfield(L, -1, "preload");
+    lua_pushcfunction(L, luaopen_math); lua_setfield(L, -2, "gs.random_source");
+    lua_pushcfunction(L, session_transport); lua_setfield(L, -2, "gs.transport");
+    lua_pop(L, 2);
     luaL_newlib(L, gs_lib); if (g_perf_on) time_gs_api(L); lua_setglobal(L, "gs");
     if (getenv("GS_PROF")) lua_sethook(L, prof_hook, LUA_MASKCOUNT, 1000);
     /* require finds modules in the cart and nowhere else: Lua's own searchers would look in the current folder and the system's Lua
@@ -2756,6 +2787,7 @@ int main(int argc, char **argv) {
     if (g_perf_on) perf_log("sound commands carried out: %ld\n", g_sound_ran);
     perf_flush();
     prof_report();
+    gs_net_close();
     lua_close(L);
     SDL_Quit();
     return 0;

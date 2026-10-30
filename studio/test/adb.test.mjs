@@ -258,6 +258,16 @@ test("Knulli deployment retains console system, libretro configuration and game-
   const list = readFileSync(join(f.ws, "remote/roms/glow43/gamelist.xml"), "utf8");
   assert.match(list, /<favorite>true<\/favorite>/);
   assert.match(list, /other\.sh/);
-  assert.match(readFileSync(join(f.runtime, "retroarch-game.cfg"), "utf8"), /aspect_ratio_index/);
+  const config = readFileSync(join(f.runtime, "retroarch-game.cfg"), "utf8");
+  assert.match(config, /aspect_ratio_index/);
+  assert.match(config, /input_joypad_driver = "sdl2"/);
+  for (const [button, id] of Object.entries({ a: 1, b: 0, x: 3, y: 2, up: 11, down: 12, left: 13, right: 14, start: 6, select: 4 })) {
+    assert.ok(config.includes(`input_player1_${button}_btn = "${id}"`), button);
+    assert.ok(config.includes(`input_player1_${button}_axis = "nul"`), button);
+  }
+  assert.match(config, /input_player1_l2_axis = "\+4"/);
+  assert.match(config, /input_player1_r2_axis = "\+5"/);
+  assert.match(config, /input_enable_hotkey_btn = "5"/);
+  assert.match(config, /input_exit_emulator_btn = "6"/);
   assert.match(readFileSync(join(f.ws, "remote/roms/glow43/game.sh"), "utf8"), /retroarch -L/);
 });

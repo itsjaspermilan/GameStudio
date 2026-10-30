@@ -23,6 +23,13 @@ detection: `game.lua` boots the embedded `gs` framework (`require('gs.boot')`); 
 - **Collision grids** (`l_grid_build` / `l_grid_query`, before `gs_lib`): the broad phase of `engine/gs/world.lua`. Lua passes each tag's boxes once a step; C buckets them by centre (counting sort, so slots stay in order inside a cell) and answers queries with the touching slots sorted. Keep the order: handlers run in the order things were made.
 - **Games are sandboxed** (`engine/gs/boot.lua`, checked in `tests/framework`): no `os.execute`/`io.open`/`loadfile`/`debug.*`, `load` takes text only, `os.getenv` sees only `GS_*`, and `require` finds only the cart's files (`game_start` keeps Lua's preload searcher and `cart_searcher`). Framework modules that need a host call take it before boot strips it (`inspect.lua`'s `io_open`). `GS_TEST_HOST=1` (tests only) hands the framework test `gs.test_host`.
 - Every cart has a `game.lua` (a plain `main.lua` is refused with a message); it takes its screen size from its console (`boot.lua` calls `gs.set_resolution`).
+- Lua is compiled with `lua-seed.h` force-included (both program and core), fixing its string-hash seed for cross-process replay.
+  `game_start` preloads `gs.random_source` with `luaopen_math`, giving the framework a second native Lua RNG; both streams live in Lua's
+  RAM and survive save/load and Resume without extra external state.
+- `net.c` / `net.h`: private `gs.transport` module, one nonblocking IPv4 UDP socket, bounded 1200-byte datagrams and local broadcast.
+  The Lua framework owns protocol/session rules; `session_transport` adds the host's bounded save snapshot. No socket until requested.
+  Program exit and core unload close it. `ram.c` refuses save/load and libretro reports zero serialize size while it is open (including
+  discovery/lobbies), because native sockets cannot be restored by a Lua RAM snapshot. Real handheld/LAN play is not verified yet.
 
 ## Sound calls from the game: a queue, not the audio lock
 
