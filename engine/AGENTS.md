@@ -40,6 +40,8 @@ Public names are documented at the top of each module. The runtime's own low-lev
 - `instruments.json`: ready-made instruments for the synth (type `gm` uses the SoundFont).
 - `fonts/round-*.txt`, `fonts/square-*.txt`: the built-in letters, drawn as text. They reach `gs` through `runtime/fonts.h`, which
   `scripts/make-fonts.mjs` writes (with the bold style made from round), not through CMake: run it, then `build.sh`.
+  `fonts/sans.txt`, `serif.txt`, `mono.txt` contain 16-row anti-aliased coverage drawings; the same generator embeds them.
+  To redraw those from pinned open-licensed sources, run `scripts/rasterize-fonts.py` with Python 3 and Pillow 11.3.0 first.
 - `gs/buttons.lua` draws the button icons in texts (`{a}`); their art, `gs/buttons_art.lua`, is written by `scripts/make-buttons.mjs` (do
   not edit it by hand): run it, then `build.sh`.
 - `consoles/*.json`: console specs (screen, palette, limits, budgets, audio). See `consoles/README.md`. A cart names its console in `game.lua`.

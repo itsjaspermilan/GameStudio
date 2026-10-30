@@ -11,9 +11,10 @@
 --   gs.draw.blend("add") ... gs.draw.blend()   how what is drawn next mixes in: "normal", "add" (light, glow) or "darken" (shadow, tint)
 -- An entity, a tile layer, a picture or text in a layout, gs.draw.sprite and gs.burst take `blend = "add"` (or "darken") as well, and
 -- their alpha is the strength, like the GBA's blending of layers and sprites.
--- The built-in fonts come in three styles, round, square and bold, each small (8 pixels high, for scores and labels) and tall
+-- The pixel fonts come in three styles, round, square and bold, each small (8 pixels high, for scores and labels) and tall
 -- (12 high, for talking and menus): "round_small" (the one used when no font is named), "round_tall", "square_small", "square_tall",
--- "bold_small", "bold_tall". Letters are as wide as they need to be, so measure text with gs.draw.text_width. They know " " to "~";
+-- "bold_small", "bold_tall". For softer edges, "sans", "serif" and "mono" are anti-aliased, 16 pixels high (19 between lines).
+-- Mono has equal-width letters; the others are proportional. Measure text with gs.draw.text_width. They know " " to "~";
 -- any other character is drawn as a box. A shadow (true for one made from the text's colour, or a colour) sits right of and under
 -- every pixel, the way GBA games drew their words.
 -- Any text can show button icons: "Press {a} to jump" (see gs.buttons for the names and the styles; gs.draw.buttons("snes") changes
@@ -115,7 +116,7 @@ end
 -- font's name (gs.draw.text("HP", 4, 4, "#fff", 1, "bold_small")); a table of options is best made once, outside update and draw:
 --   local LABEL = { font = "round_tall", shadow = true }        -- at the top of the file
 --   gs.draw.text("SCORE", 8, 8, "#ffffff", 1, LABEL)            -- no new table every frame
-local NOFONT = "there is no built-in font called '%s' (round_small, round_tall, square_small, square_tall, bold_small, bold_tall); for a sprite font use gs.draw.font_text"
+local NOFONT = "there is no built-in font called '%s' (round_small, round_tall, square_small, square_tall, bold_small, bold_tall, sans, serif, mono); for a sprite font use gs.draw.font_text"
 local function print_text(str, x, y, color, scale, fname, alpha, shadow)
   local parts = buttons.split(str)
   local font, h = 0, 8

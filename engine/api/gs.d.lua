@@ -565,12 +565,12 @@ function gs.draw.line(x1, y1, x2, y2, color) end
 ---A filled circle.
 ---@param color Color
 function gs.draw.circle(x, y, radius, color) end
----@alias BuiltinFont "round_small"|"round_tall"|"square_small"|"square_tall"|"bold_small"|"bold_tall"
+---@alias BuiltinFont "round_small"|"round_tall"|"square_small"|"square_tall"|"bold_small"|"bold_tall"|"sans"|"serif"|"mono"
 ---@class TextOptions
----@field font? BuiltinFont Small fonts are 8 pixels high (scores, labels), tall ones 12 (talking, menus). round_small when left out
+---@field font? BuiltinFont Pixel fonts: small 8 pixels high, tall 12. Smooth fonts: sans, serif, mono, all 16 high. round_small when left out
 ---@field shadow? boolean|Color A drop shadow right of and under the letters: true makes one from the text's colour
 ---@field alpha? number 0 to 1
----Text in a built-in font: round, square or bold letters, small or tall, each letter as wide as it needs to be. A button's name in
+---Text in a built-in font: pixel round, square or bold (small or tall), or smooth sans, serif or mono. A button's name in
 ---braces shows its icon: {a} {b} {x} {y} {l} {r} {start} {select} {up} {down} {left} {right} {dpad}.
 ---  gs.draw.text("Hello!", 8, 8, "#404040", 1, { font = "round_tall", shadow = true })
 ---  gs.draw.text("Press {a} to jump", 8, 20, "#ffffff")

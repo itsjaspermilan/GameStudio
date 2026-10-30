@@ -76,6 +76,24 @@ Run a game from the studio (Run): it plays in the **Play panel** beside the code
 
 Every game has a `game.lua`. (Plain `main.lua` games with `init`/`update`/`draw` are no longer run: move the code into a scene, which can still call the low-level functions below.)
 
+### Built-in game fonts
+
+Choose a font in the layout editor's text settings, or name it in code:
+
+```lua
+local BODY = { font = "sans" }
+function Scene:draw()
+  gs.draw.text("Hello, world!", 8, 8, "#ffffff", 1, BODY)
+end
+```
+
+`sans` (clean), `serif` (book-like) and `mono` (equal-width letters) have anti-aliased edges, are 16 pixels high and use 19 pixels
+between lines. They are pre-rendered from Arimo, Tinos and Cousine, so no font files or font library are needed when a game runs.
+They still draw on the console's pixel grid; use size 1 for the finest detail rather than enlarging a tiny font.
+The existing pixel fonts remain available and unchanged: `round_small`, `square_small`, `bold_small` (8 pixels high) and
+`round_tall`, `square_tall`, `bold_tall` (12 pixels high). The default is still `round_small`. Use `gs.draw.text_width` to measure
+any of them. All built-ins support ASCII, with common pasted accents and punctuation shown as ASCII look-alikes.
+
 ## For AI agents (MCP)
 
 `tools/mcp/` is an MCP server, so an agent such as Claude Code can work on GameStudio games with short answers instead of reading whole files:
@@ -295,13 +313,15 @@ top of `render_audio` in `runtime/main.c`; samples resolve relative to the curre
 
 ## Licences
 
-- GameStudio's own code and art (the runtime, the libretro core, the framework, the studio, the tools, the built-in fonts, the console
+- GameStudio's own code and art (the runtime, the libretro core, the framework, the studio, the tools, the original pixel fonts, the console
   logos and artwork) are under the **zlib licence** (`LICENSE`): use it for anything, commercial products included, change it and share
   it; a game or player built with it does not have to mention it. Keep the notice in copies of the source.
 - **Your games are yours.** A cart (`.g43`, `.g169`, `.cart`) holds the game's own files (its code, art, sound and data) and, when it
   uses General MIDI instruments, the cut-down FluidR3 bank, whose MIT notice travels inside it. The engine lives in the runtime, not in the
   cart, so these licences put no conditions on the games you make; choose your own licence for them.
-- Lua is MIT, SDL2 is zlib, TLSF (`third_party/tlsf`, Matthew Conte) is BSD-3-Clause, `third_party/libretro/libretro.h` is MIT, the built-in fonts (`engine/fonts/`, drawn for GameStudio) are the project's own, and TinySoundFont (`third_party/tsf/tsf.h`) is MIT. The studio's optional Lua language server (LuaLS, downloaded by `scripts/fetch-luals.sh`, never part of a game) is MIT.
+- Lua is MIT, SDL2 is zlib, TLSF (`third_party/tlsf`, Matthew Conte) is BSD-3-Clause, `third_party/libretro/libretro.h` is MIT, the original pixel fonts (`engine/fonts/round-*.txt`, `square-*.txt`) are the project's own, and TinySoundFont (`third_party/tsf/tsf.h`) is MIT. The studio's optional Lua language server (LuaLS, downloaded by `scripts/fetch-luals.sh`, never part of a game) is MIT.
+- The smooth fonts are rendered from **Arimo, Tinos and Cousine**, under the **SIL Open Font License 1.1** (`engine/fonts/sans-OFL.txt`,
+  `serif-OFL.txt`, `mono-OFL.txt`). Their notices are embedded in both runtime binaries; `gs font-license` prints them.
 - **`assets/soundfonts/FluidR3Mono_GM.sf3` is MIT** (Frank Wen 2000-2002, 2008; mono version Michael Cowgill 2014-16; the licence and
   credits are `assets/soundfonts/FluidR3Mono_GM-LICENSE.md`). A packed game that uses General MIDI instruments carries a cut-down copy,
   with the copyright and the MIT notice inside it, so sharing the game meets the licence. `third_party/stb/stb_vorbis.c` (reading the

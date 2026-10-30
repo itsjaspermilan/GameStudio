@@ -458,6 +458,10 @@ static int l_line(lua_State *L) { /* x1,y1,x2,y2,r,g,b[,a] */
  * in another colour. Each glyph has a blank pixel around it so an enlarged glyph never picks up its neighbour's edge. */
 static SDL_Texture *g_font_tex[GS_FONTS];
 static int g_font_x[GS_FONTS][GS_FONT_GLYPHS];
+static unsigned char font_coverage(const GsFont *ft, const unsigned short *rows, const unsigned char *alpha, int w, int x, int y) {
+    if (x < 0 || x >= w || y < 0 || y >= ft->h) return 0;
+    return alpha ? alpha[y * w + x] : (rows[y] >> x & 1) * 255;
+}
 static bool font_texture(int f) {
     if (g_font_tex[f]) return true;
     const GsFont *ft = &gs_fonts[f];
@@ -466,14 +470,22 @@ static bool font_texture(int f) {
     const int ch = ft->h + 2, h = ch * 2;
     Uint32 *px = calloc((size_t)w * h, 4);
     if (!px) return false;
+    const unsigned char *alpha = ft->alpha;
     for (int g = 0; g < GS_FONT_GLYPHS; g++) {
-        const unsigned short *rows = ft->rows + g * ft->h;
+        const unsigned short *rows = ft->rows ? ft->rows + g * ft->h : NULL;
         for (int y = 0; y <= ft->h; y++) for (int x = 0; x <= ft->w[g]; x++) {
-            const bool ink = y < ft->h && (rows[y] >> x & 1);
-            const bool near = (y < ft->h && x > 0 && (rows[y] >> (x - 1) & 1)) || (y > 0 && (rows[y - 1] >> x & 1)) || (y > 0 && x > 0 && (rows[y - 1] >> (x - 1) & 1));
-            if (ink) px[(1 + y) * w + g_font_x[f][g] + x] = 0xffffffff;
-            else if (near) px[(ch + 1 + y) * w + g_font_x[f][g] + x] = 0xffffffff;
+            const int ink = font_coverage(ft, rows, alpha, ft->w[g], x, y);
+            int near = font_coverage(ft, rows, alpha, ft->w[g], x - 1, y);
+            const int under = font_coverage(ft, rows, alpha, ft->w[g], x, y - 1);
+            const int diagonal = font_coverage(ft, rows, alpha, ft->w[g], x - 1, y - 1);
+            if (under > near) near = under;
+            if (diagonal > near) near = diagonal;
+            Uint8 *p = (Uint8 *)&px[(1 + y) * w + g_font_x[f][g] + x];
+            p[0] = p[1] = p[2] = 255; p[3] = (Uint8)ink;
+            p = (Uint8 *)&px[(ch + 1 + y) * w + g_font_x[f][g] + x];
+            p[0] = p[1] = p[2] = 255; p[3] = (Uint8)(near > ink ? near - ink : 0);
         }
+        if (alpha) alpha += ft->w[g] * ft->h;
     }
     g_font_tex[f] = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
     if (g_font_tex[f]) { SDL_UpdateTexture(g_font_tex[f], NULL, px, w * 4); SDL_SetTextureBlendMode(g_font_tex[f], SDL_BLENDMODE_BLEND); SDL_SetTextureScaleMode(g_font_tex[f], SDL_ScaleModeNearest); }
@@ -524,7 +536,7 @@ static int l_print(lua_State *L) { /* text,x,y[,r,g,b,a,scale,font,sr,sg,sb,sa] 
     const char *s = luaL_checkstring(L, 1);
     const float sc = (float)luaL_optnumber(L, 8, 1) * g_zoom, x = ZX(luaL_checknumber(L,2)), y = ZY(luaL_checknumber(L,3));
     const int f = font_arg(L, 9);
-    if (!font_texture(f)) return 0;
+    if (!font_texture(f)) return luaL_error(L, "could not create built-in font '%s': %s", gs_fonts[f].name, SDL_GetError());
     const GsFont *ft = &gs_fonts[f];
     SDL_Texture *tex = g_font_tex[f];
     /* the shadow first, for the whole text, so it never covers the letter beside it */
@@ -2473,6 +2485,7 @@ static void dump_frame(const char *path) {
 }
 
 int main(int argc, char **argv) {
+    if (argc == 2 && !strcmp(argv[1], "font-license")) { puts(gs_font_license); return 0; }
 #ifdef __APPLE__
     /* the studio's Brick estimate is this computer's update time x 10.6: at the default QoS macOS moved a light game between slow and fast
      * cores and clocks, and the same Lua timed up to three times apart (the chess game's search) */

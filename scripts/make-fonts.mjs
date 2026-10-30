@@ -1,7 +1,7 @@
 // Writes the built-in fonts for the runtime (runtime/fonts.h) and the studio (studio/src/fonts.js) from the letters drawn in
-// engine/fonts/*.txt. Every style comes in a small size (8 rows, for scores and labels) and a tall one (12 rows, for talking and
-// menus). Round and square are drawn by hand (round-*.txt, square-*.txt); bold is made from round the way GBA games often made their
-// variants, each stroke thickened by a pixel to the right.
+// engine/fonts/*.txt. The pixel styles have a small size (8 rows, for scores and labels) and a tall one (12 rows, for talking and
+// menus). Round and square are drawn by hand; bold thickens round. Sans, serif and mono are pre-rendered with soft edges
+// by rasterize-fonts.py (16 rows, coverage in hex). Normal builds need only the checked-in drawings, not Pillow or font files.
 // Run it after editing the letters: node scripts/make-fonts.mjs (then scripts/build.sh). studio/test/fonts.test.mjs checks it was run.
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -10,19 +10,20 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FIRST = 32, LAST = 126;
 // the space between two letters, and how far apart lines of text sit (talk boxes, menus, wrapped text)
-const GAP = 1, LINE = { 8: 10, 12: 14 };
+const GAP = 1, LINE = { 8: 10, 12: 14, 16: 19 };
 
-// A drawing is { h, glyphs: [{ w, rows }] }: a row is a number, bit 0 the leftmost pixel. Glyphs run from " " to "~", then the
+// A drawing is { h, glyphs: [{ w, rows, alpha? }] }: a row is a number, bit 0 the leftmost pixel. Glyphs run from " " to "~", then the
 // "unknown" box drawn for any other character.
 export function parseFont(text, file = "font") {
-  let h = 0, cur = null;
+  let h = 0, cur = null, coverage = false;
   const byName = new Map();
   for (const [n, raw] of text.split("\n").entries()) {
     const line = raw.trimEnd();
     if (!line || line.startsWith("#") && !/^[.#]+$/.test(line)) continue;
     if (line.startsWith("height ")) { h = Number(line.slice(7)); continue; }
+    if (line === "coverage") { coverage = true; continue; }
     if (line.startsWith("= ")) { cur = { name: line.slice(2), lines: [], at: n + 1 }; byName.set(cur.name, cur); continue; }
-    if (!/^[.#]+$/.test(line) || !cur) throw new Error(`${file}:${n + 1}: a row is only . and #`);
+    if (!(coverage ? /^[0-9a-f]+$/ : /^[.#]+$/).test(line) || !cur) throw new Error(`${file}:${n + 1}: invalid glyph row`);
     cur.lines.push(line);
   }
   const glyphs = [];
@@ -35,10 +36,11 @@ export function parseFont(text, file = "font") {
     const w = g.lines[0].length;
     if (g.lines.some((l) => l.length !== w)) throw new Error(`${file}:${g.at}: the rows of "${name}" are not all as wide`);
     if (g.lines.length > h) throw new Error(`${file}:${g.at}: "${name}" is taller than ${h} rows`);
-    const rows = Array.from({ length: h }, (_, y) => { const l = g.lines[y] || ""; let v = 0; for (let x = 0; x < l.length; x++) if (l[x] === "#") v |= 1 << x; return v; });
-    glyphs.push({ w, rows });
+    const rows = Array.from({ length: h }, (_, y) => { const l = g.lines[y] || ""; let v = 0; for (let x = 0; x < l.length; x++) if (coverage ? l[x] !== "0" : l[x] === "#") v |= 1 << x; return v; });
+    const alpha = coverage ? Array.from({ length: h }, (_, y) => [...(g.lines[y] || "0".repeat(w))].map((v) => parseInt(v, 16) * 17)).flat() : null;
+    glyphs.push(alpha ? { w, rows, alpha } : { w, rows });
   }
-  return { h, glyphs };
+  return { h, glyphs, ...(coverage ? { coverage: true } : {}) };
 }
 
 const on = (g, x, y) => x >= 0 && x < g.w && y >= 0 && y < g.rows.length && (g.rows[y] >> x & 1) === 1;
@@ -63,24 +65,32 @@ export function buildFonts() {
   }
   // the order the runtime numbers them in: round_small (0) is what text is drawn in when no font is named
   const order = ["round_small", "round_tall", "square_small", "square_tall", "bold_small", "bold_tall"];
-  return order.map((name) => ({ name, h: fonts[name].h, line: LINE[fonts[name].h], glyphs: fonts[name].glyphs }));
+  for (const name of ["sans", "serif", "mono"]) {
+    fonts[name] = parseFont(readFileSync(join(root, `engine/fonts/${name}.txt`), "utf8"), `${name}.txt`);
+    order.push(name);
+  }
+  return order.map((name) => ({ name, ...fonts[name], line: LINE[fonts[name].h] }));
 }
 
 export function headerText(fonts) {
+  const license = ["sans", "serif", "mono"].map((name) => `${name}:\n${readFileSync(join(root, `engine/fonts/${name}-OFL.txt`), "utf8")}`).join("\n");
   const out = [`/* The built-in fonts gs.print draws with (written by scripts/make-fonts.mjs from the letters in engine/fonts; do not edit).
  * ${fonts.length} fonts of ${fonts[0].glyphs.length} glyphs each: " " to "~", then the box for any other character. A glyph is its width, then
- * one number a row, bit 0 the leftmost pixel. Letters are ${GAP} pixel apart. */
+ * one number a row, bit 0 the leftmost pixel, or coverage bytes in row order (0..255). Letters are ${GAP} pixel apart. */
 #ifndef GS_FONTS_H
 #define GS_FONTS_H
 #define GS_FONT_FIRST ${FIRST}
 #define GS_FONT_GLYPHS ${fonts[0].glyphs.length}
 #define GS_FONT_GAP ${GAP}
-typedef struct { const char *name; int h, line; const unsigned char *w; const unsigned short *rows; } GsFont;`];
+typedef struct { const char *name; int h, line; const unsigned char *w; const unsigned short *rows; const unsigned char *alpha; } GsFont;
+/* External linkage keeps the redistribution notices in both the player and the libretro core. */
+const char gs_font_license[] = ${JSON.stringify(license)};`];
   for (const f of fonts) {
     out.push(`static const unsigned char gs_font_${f.name}_w[] = { ${f.glyphs.map((g) => g.w).join(", ")} };`);
-    out.push(`static const unsigned short gs_font_${f.name}_rows[] = {\n${f.glyphs.map((g) => "    " + g.rows.join(", ") + ",").join("\n")}\n};`);
+    if (f.coverage) out.push(`static const unsigned char gs_font_${f.name}_alpha[] = {\n${f.glyphs.map((g) => "    " + g.alpha.join(", ") + ",").join("\n")}\n};`);
+    else out.push(`static const unsigned short gs_font_${f.name}_rows[] = {\n${f.glyphs.map((g) => "    " + g.rows.join(", ") + ",").join("\n")}\n};`);
   }
-  out.push(`static const GsFont gs_fonts[] = {\n${fonts.map((f) => `    { "${f.name}", ${f.h}, ${f.line}, gs_font_${f.name}_w, gs_font_${f.name}_rows },`).join("\n")}\n};`);
+  out.push(`static const GsFont gs_fonts[] = {\n${fonts.map((f) => `    { "${f.name}", ${f.h}, ${f.line}, gs_font_${f.name}_w, ${f.coverage ? `NULL, gs_font_${f.name}_alpha` : `gs_font_${f.name}_rows, NULL`} },`).join("\n")}\n};`);
   out.push(`#define GS_FONTS ${fonts.length}\n#endif\n`);
   return out.join("\n");
 }
@@ -88,11 +98,12 @@ typedef struct { const char *name; int h, line; const unsigned char *w; const un
 export function studioText(fonts) {
   return `// The runtime's built-in fonts, so the layout editor shows text in the game's own letters (written by scripts/make-fonts.mjs from
 // engine/fonts/*.txt; do not edit). A glyph is [width, row, row, ...], bit 0 of a row the leftmost pixel, from " " (FONT_FIRST) to "~",
-// then the box drawn for any other character. Letters are FONT_GAP pixel apart.
+// then the box drawn for any other character. Coverage fonts store [width, alpha, alpha, ...] in row order (0..255).
+// Letters are FONT_GAP pixel apart.
 export const FONT_FIRST = ${FIRST};
 export const FONT_GAP = ${GAP};
 export const FONTS = {
-${fonts.map((f) => `  ${f.name}: { h: ${f.h}, line: ${f.line}, glyphs: ${JSON.stringify(f.glyphs.map((g) => [g.w, ...g.rows]))} },`).join("\n")}
+${fonts.map((f) => `  ${f.name}: { h: ${f.h}, line: ${f.line}, ${f.coverage ? "coverage: true, " : ""}glyphs: ${JSON.stringify(f.glyphs.map((g) => [g.w, ...(g.alpha || g.rows)]))} },`).join("\n")}
 };
 `;
 }

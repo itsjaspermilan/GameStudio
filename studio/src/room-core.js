@@ -335,6 +335,14 @@ export function entityPose(look, props) {
 // The built-in fonts (the runtime's, see fonts.js): their names, a letter's glyph ([width, row, ...]) and how wide text is at size 1.
 export const BUILTIN_FONTS = Object.keys(FONTS);
 export const isBuiltinFont = (name) => !name || name in FONTS;
+export function glyphAlpha(font, glyph, x, y) {
+  if (x < 0 || x >= glyph[0] || y < 0 || y >= font.h) return 0;
+  return font.coverage ? glyph[1 + y * glyph[0] + x] : (glyph[1 + y] >> x & 1) * 255;
+}
+export function glyphShadow(font, glyph, x, y) {
+  const near = Math.max(glyphAlpha(font, glyph, x - 1, y), glyphAlpha(font, glyph, x, y - 1), glyphAlpha(font, glyph, x - 1, y - 1));
+  return Math.max(0, near - glyphAlpha(font, glyph, x, y));
+}
 // Text pasted from a word processor: curly quotes, dashes and accented letters are drawn as their ASCII look-alikes (runtime/main.c
 // ascii_like); anything else outside ASCII is the unknown box.
 const LATIN1_BASE = "AAAAAAACEEEEIIIIDNOOOOOxOUUUUYTsaaaaaaaceeeeiiiidnooooo/ouuuuyty";

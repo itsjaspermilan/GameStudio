@@ -80,10 +80,10 @@ export function createRoomEditor(root, hooks = {}) {
         <div class="re-sel-text">
           <label class="se-field">Text <input class="re-text" spellcheck="false"></label>
           <div class="se-row se-fields">
-            <label title="How many times bigger: the small built-in fonts are 8 pixels high at size 1, the tall ones 12">Size <select class="re-size"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+            <label title="How many times bigger: pixel fonts are 8 or 12 pixels high at size 1; smooth sans, serif and mono are 16">Size <select class="re-size"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
             <label title="Where the text sits against its point">Align <select class="re-align"><option value="left">left</option><option value="center">centre</option><option value="right">right</option></select></label>
           </div>
-          <label class="se-field" title="Built in: round, square or bold letters, small (8 pixels high, for scores and labels) or tall (12 high, for talking and menus), in any colour of the palette. A sprite: its frames are the letters, from the space on in ASCII order (! &quot; # ... 0-9 ... A-Z), in the sprite's own colours.">Font <select class="re-font"></select></label>
+          <label class="se-field" title="Smooth: sans (clean), serif (book-like) and mono (equal-width), 16 pixels high with soft edges. Pixel: round, square or bold, small (8 high) or tall (12 high). A sprite: its frames are the letters, from the space on in ASCII order (! &quot; # ... 0-9 ... A-Z), in the sprite's own colours.">Font <select class="re-font"></select></label>
           <label class="se-field re-shadow-row" title="A darker (or, for dark letters, paler) copy of the letters one pixel right and down, as GBA games drew their words"><input type="checkbox" class="re-shadow"> Shadow</label>
           <div class="re-colors re-text-colors" title="The text's colour, from the console's palette (the built-in font only)"></div>
         </div>
@@ -241,13 +241,15 @@ export function createRoomEditor(root, hooks = {}) {
     const key = name + colour;
     let c = fontStrips.get(key);
     if (c) return c;
-    const f = FONTS[name], cw = Math.max(...f.glyphs.map((g) => g[0])) + 1, ink = (g, x, y) => x >= 0 && y >= 0 && y < f.h && (g[1 + y] >> x & 1) === 1;
+    const f = FONTS[name], cw = Math.max(...f.glyphs.map((g) => g[0])) + 1;
     c = document.createElement("canvas"); c.width = f.glyphs.length * cw; c.height = (f.h + 1) * 2; c.cw = cw;
     const g2 = c.getContext("2d"); g2.fillStyle = colour;
     f.glyphs.forEach((g, i) => {
       for (let y = 0; y <= f.h; y++) for (let x = 0; x <= g[0]; x++) {
-        if (ink(g, x, y)) g2.fillRect(i * cw + x, y, 1, 1);
-        else if (ink(g, x - 1, y) || ink(g, x, y - 1) || ink(g, x - 1, y - 1)) g2.fillRect(i * cw + x, f.h + 1 + y, 1, 1);
+        g2.globalAlpha = R.glyphAlpha(f, g, x, y) / 255;
+        g2.fillRect(i * cw + x, y, 1, 1);
+        g2.globalAlpha = R.glyphShadow(f, g, x, y) / 255;
+        g2.fillRect(i * cw + x, f.h + 1 + y, 1, 1);
       }
     });
     fontStrips.set(key, c);
@@ -575,7 +577,7 @@ export function createRoomEditor(root, hooks = {}) {
       keep($(".re-text"), item.text ?? "");
       $(".re-size").value = String(item.size || 1); $(".re-align").value = item.align || "left";
       const fonts = [...R.BUILTIN_FONTS, ...(hooks.getSprites ? hooks.getSprites() : [])], fsel = $(".re-font");
-      const label = (n) => R.isBuiltinFont(n) ? n.replace(/^(\w)(\w*)_(\w+)$/, (_, a, b, c) => a.toUpperCase() + b + ", " + c) : "Sprite: " + n;
+      const label = (n) => R.isBuiltinFont(n) ? ({ sans: "Sans (smooth)", serif: "Serif (smooth)", mono: "Monospace (smooth)" }[n] || n.replace(/^(\w)(\w*)_(\w+)$/, (_, a, b, c) => a.toUpperCase() + b + ", " + c)) : "Sprite: " + n;
       if ([...fsel.options].map((o) => o.value).join("|") !== fonts.join("|")) fsel.replaceChildren(...fonts.map((n) => new Option(label(n), n)));
       fsel.value = item.font || "round_small";
       const sprite = !R.isBuiltinFont(item.font);
