@@ -32,6 +32,14 @@ rectangles (`tests/same-frames.mjs`, 2 levels of rounding allowed).
 Added while porting Void Swarm (the old stress-test sample, now only in git history): `gs.pause()` (freeze the world, only the scene updates: pause menus, level-up choices), `gs.defaults(name)` (an entity's starting values without making one),
 `collide_every = { tag = n }` in an entity spec (check that handler every nth step, staggered), `gs.goto_scene(name, nil, args...)` (nil options), and a faster collision candidate merge (no sorting).
 After it: `gs.in_radius` / `gs.in_rect` take an optional list to refill (no garbage), `Entity:hit_radius()` (a round hitbox's radius with scale), and `"#rrggbbaa"` colors.
+Live queries (`nearest`, `in_radius`, `in_rect`, `touching`, `touching_all`) scan current entities in native code, not the collision grid's
+step snapshot: direct position/scale/hitbox edits and spawns/destroys must be visible to the next query. They remain O(tag size) per query.
+`gs.in_radius_batch(points, radius, tag, out)` is the explicit snapshot alternative: capture positions once, sort targets along x, then
+range-search each point and restore creation order in each result. Ordinary live queries are unchanged. Reuses output lists; temporary
+snapshot storage lives in Lua RAM, with no external pointers to repair on Resume. Apply movement after collecting the batch.
+Drawing pools buckets for active depths and releases drawable references after each draw; particles likewise pool only simultaneous depths.
+Tile edits maintain occupancy and patch the changed cell rectangle of an existing layer picture; a new layer still needs a full composition,
+even when it reuses another scene's picture slot. Composed recipes stay current for same-run state loads and cross-process Resume.
 Entities are classes keyed by module name; reloading a file fills the same table, so living instances keep their state and get the new methods.
 Public names are documented at the top of each module. The runtime's own low-level calls stay in `gs.raw`.
 

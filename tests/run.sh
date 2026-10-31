@@ -4,7 +4,9 @@ cd "$(dirname "$0")/.."
 run() { GS_SAVE_DIR="${TMPDIR:-/tmp}/gs-test-saves" SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy GS_MAX_FRAMES="${FRAMES:-600}" "$@" 2>&1; }
 status=0
 
-node --test tests/determinism.test.mjs tests/netplay.test.mjs tests/playground.test.mjs || status=1
+node --test tests/determinism.test.mjs tests/netplay.test.mjs tests/playground.test.mjs tests/performance.test.mjs || status=1
+build/synth-state assets/soundfonts/FluidR3Mono_GM.sf3 || status=1
+build/gpu-readback || status=1
 
 # The Lua framework (engine/gs): entities, inheritance, collisions, timers, tweens, animation clips, camera, saves, sound errors, limits,
 # live reload and scenes. The fixture checks itself and prints FRAMEWORK TEST PASS. GS_DEV=1 switches live reload on.

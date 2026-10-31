@@ -274,6 +274,15 @@ function gs.nearest(x, y, tag, max_distance) end
 ---@param out? Entity[] A list to empty and fill instead of making a new one (keep it in a field to make no garbage every step).
 ---@return Entity[]
 function gs.in_radius(x, y, radius, tag, out) end
+---Answer many nearby-entity searches together. Captures positions once, then returns one list per point, in point order.
+---Each result preserves entity creation order. Move entities after obtaining the results; later moves do not update this snapshot.
+---Use ordinary in_radius when edits between searches must be visible. Reuses out and its result lists when supplied.
+---@param points {x: number, y: number}[] Entities or points with finite x and y.
+---@param radius number Finite, nonnegative search radius.
+---@param tag string
+---@param out? Entity[][] A separate list of separate result lists.
+---@return Entity[][]
+function gs.in_radius_batch(points, radius, tag, out) end
 ---Every entity with a tag inside a rectangle.
 ---@param x number
 ---@param y number

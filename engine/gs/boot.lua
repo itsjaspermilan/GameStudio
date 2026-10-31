@@ -60,6 +60,7 @@ end
 gs.entity, gs.scene = entity.entity, entity.scene
 gs.spawn, gs.each, gs.all, gs.first, gs.count = world.spawn, world.each, world.all_of, world.first, world.count
 gs.nearest, gs.in_radius, gs.in_rect, gs.send = world.nearest, world.in_radius, world.in_rect, world.send
+gs.in_radius_batch = world.in_radius_batch
 local particles = require("gs.particles")
 gs.burst, gs.particle_count = particles.burst, particles.count
 gs.path = world.path

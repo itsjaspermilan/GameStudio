@@ -1,7 +1,7 @@
 /* The libretro core's GPU drawing (included by runtime/libretro.c before main.c).
  *
  * The emulator owns the window and gives a core no GPU, so the core makes a GPU context of its own (EGL, an off-screen surface), draws the
- * frame there with OpenGL ES 2 and reads it back for the emulator. Measured on the Brick (tests/heavy) this is 5 to 8 times faster than
+ * frame there with OpenGL ES and reads it back for the emulator. Measured on the Brick (tests/heavy) this is 5 to 8 times faster than
  * SDL's software renderer for big blended and turning sprites, read back included.
  *
  * main.c draws through about twenty SDL renderer calls. Each has a stand-in here with the same arguments, and the names are swapped in at
@@ -16,6 +16,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,6 +28,8 @@ static bool g_gpu; /* drawing on the GPU; false: everything goes to SDL */
 
 /* ---------- the few EGL and GL ES 2 names used, loaded at run time (the core links neither library) ---------- */
 typedef unsigned int GLenum, GLuint, GLbitfield; typedef int GLint, GLsizei; typedef float GLfloat; typedef unsigned char GLboolean, GLubyte; typedef char GLchar;
+typedef ptrdiff_t GLsizeiptr;
+typedef void *GLsync;
 enum {
     GL_TEXTURE_2D = 0x0DE1, GL_RGBA = 0x1908, GL_UNSIGNED_BYTE = 0x1401, GL_FLOAT = 0x1406, GL_TRIANGLES = 0x0004, GL_LINES = 0x0001,
     GL_TEXTURE_MIN_FILTER = 0x2801, GL_TEXTURE_MAG_FILTER = 0x2800, GL_NEAREST = 0x2600, GL_TEXTURE_WRAP_S = 0x2802, GL_TEXTURE_WRAP_T = 0x2803,
@@ -34,12 +37,18 @@ enum {
     GL_ZERO = 0, GL_ONE = 1, GL_SRC_COLOR = 0x0300, GL_SRC_ALPHA = 0x0302, GL_ONE_MINUS_SRC_ALPHA = 0x0303, GL_DST_COLOR = 0x0306,
     GL_COLOR_BUFFER_BIT = 0x4000, GL_VERTEX_SHADER = 0x8B31, GL_FRAGMENT_SHADER = 0x8B30, GL_COMPILE_STATUS = 0x8B81, GL_LINK_STATUS = 0x8B82,
     GL_UNPACK_ALIGNMENT = 0x0CF5, GL_PACK_ALIGNMENT = 0x0D05, GL_TEXTURE0 = 0x84C0, GL_SCISSOR_TEST = 0x0C11, GL_DITHER = 0x0BD0,
+    GL_RENDERER = 0x1F01,
+    GL_PIXEL_PACK_BUFFER = 0x88EB, GL_STREAM_READ = 0x88E1, GL_MAP_READ_BIT = 1,
+    GL_SYNC_GPU_COMMANDS_COMPLETE = 0x9117, GL_SYNC_FLUSH_COMMANDS_BIT = 1, GL_ALREADY_SIGNALED = 0x911A,
+    GL_CONDITION_SATISFIED = 0x911C, GL_TIMEOUT_EXPIRED = 0x911B,
 };
 typedef void *EGLDisplay, *EGLConfig, *EGLSurface, *EGLContext; typedef int32_t EGLint; typedef unsigned EGLBoolean;
 enum { EGL_SURFACE_TYPE = 0x3033, EGL_PBUFFER_BIT = 1, EGL_RENDERABLE_TYPE = 0x3040, EGL_OPENGL_ES2_BIT = 4, EGL_RED_SIZE = 0x3024,
        EGL_GREEN_SIZE = 0x3023, EGL_BLUE_SIZE = 0x3022, EGL_ALPHA_SIZE = 0x3021, EGL_NONE = 0x3038, EGL_WIDTH = 0x3057, EGL_HEIGHT = 0x3056,
        EGL_CONTEXT_CLIENT_VERSION = 0x3098, EGL_DRAW = 0x3059, EGL_READ = 0x305A };
 #define GL_FUNCS(X) \
+    X(void, glGenBuffers, (GLsizei, GLuint *)) X(void, glBindBuffer, (GLenum, GLuint)) X(void, glBufferData, (GLenum, GLsizeiptr, const void *, GLenum)) \
+    X(const GLubyte *, glGetString, (GLenum)) X(GLenum, glGetError, (void)) \
     X(void, glGenTextures, (GLsizei, GLuint *)) X(void, glDeleteTextures, (GLsizei, const GLuint *)) X(void, glBindTexture, (GLenum, GLuint)) \
     X(void, glTexImage2D, (GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum, const void *)) \
     X(void, glTexSubImage2D, (GLenum, GLint, GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, const void *)) \
@@ -65,10 +74,19 @@ enum { EGL_SURFACE_TYPE = 0x3033, EGL_PBUFFER_BIT = 1, EGL_RENDERABLE_TYPE = 0x3
 #define DECLARE(ret, name, args) static ret (*p_##name) args;
 GL_FUNCS(DECLARE) EGL_FUNCS(DECLARE)
 #undef DECLARE
+static void *(*p_glMapBufferRange)(GLenum, GLsizeiptr, GLsizeiptr, GLbitfield);
+static GLboolean (*p_glUnmapBuffer)(GLenum);
+static GLsync (*p_glFenceSync)(GLenum, GLbitfield);
+static GLenum (*p_glClientWaitSync)(GLsync, GLbitfield, uint64_t);
+static void (*p_glDeleteSync)(GLsync);
 
 static EGLDisplay g_egl_dpy; static EGLSurface g_egl_surf; static EGLContext g_egl_ctx;
 static EGLDisplay g_prev_dpy; static EGLSurface g_prev_draw, g_prev_read; static EGLContext g_prev_ctx; static int g_gpu_depth;
 static GLuint g_prog, g_white; static GLint g_u_size, g_u_tex;
+static bool g_gpu_profile, g_gpu_pack;
+static GLuint g_pack_buffer;
+static size_t g_pack_capacity;
+static struct { double submit, wait, convert, transfer, copy, map, cpu_copy, unmap; } g_gpu_read_ms;
 
 /* A texture: pixels on the GPU, and SDL's per-texture settings, used when it is copied. A target has a framebuffer to draw into. */
 typedef struct { GLuint id, fbo; int w, h, access; Uint32 format; SDL_BlendMode blend; Uint8 r, g, b, a; } GpuTex;
@@ -114,6 +132,11 @@ static bool gpu_open(void) {
     GL_FUNCS(LOAD_GL) EGL_FUNCS(LOAD_EGL)
 #undef LOAD_GL
 #undef LOAD_EGL
+    p_glMapBufferRange = (void *(*)(GLenum, GLsizeiptr, GLsizeiptr, GLbitfield))dlsym(gl, "glMapBufferRange");
+    p_glUnmapBuffer = (GLboolean (*)(GLenum))dlsym(gl, "glUnmapBuffer");
+    p_glFenceSync = (GLsync (*)(GLenum, GLbitfield))dlsym(gl, "glFenceSync");
+    p_glClientWaitSync = (GLenum (*)(GLsync, GLbitfield, uint64_t))dlsym(gl, "glClientWaitSync");
+    p_glDeleteSync = (void (*)(GLsync))dlsym(gl, "glDeleteSync");
     g_egl_dpy = p_eglGetDisplay(NULL);
     EGLint ma, mi;
     if (!g_egl_dpy || !p_eglInitialize(g_egl_dpy, &ma, &mi)) return false;
@@ -121,12 +144,20 @@ static bool gpu_open(void) {
                             EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_NONE };
     EGLConfig cfg; EGLint n = 0;
     if (!p_eglChooseConfig(g_egl_dpy, attr, &cfg, 1, &n) || n < 1) return false;
-    const EGLint pb[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE }, ca[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
+    const EGLint pb[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE }, ca3[] = { EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE },
+        ca2[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
     g_egl_surf = p_eglCreatePbufferSurface(g_egl_dpy, cfg, pb);
-    g_egl_ctx = g_egl_surf ? p_eglCreateContext(g_egl_dpy, cfg, NULL, ca) : NULL;
+    const bool buffered = getenv("GS_CORE_BUFFERED_READBACK") && !strcmp(getenv("GS_CORE_BUFFERED_READBACK"), "1");
+    g_gpu_pack = buffered && p_glMapBufferRange && p_glUnmapBuffer && p_glFenceSync && p_glClientWaitSync && p_glDeleteSync;
+    g_egl_ctx = g_egl_surf && g_gpu_pack ? p_eglCreateContext(g_egl_dpy, cfg, NULL, ca3) : NULL;
+    if (!g_egl_ctx) { g_gpu_pack = false; g_egl_ctx = g_egl_surf ? p_eglCreateContext(g_egl_dpy, cfg, NULL, ca2) : NULL; }
     if (!g_egl_ctx) return false;
+    if (buffered && !g_gpu_pack) fprintf(stderr, "gs gpu: buffered readback needs OpenGL ES 3; using direct readback\n");
     g_gpu = true;
+    g_gpu_profile = getenv("GS_PERF") != NULL;
+    g_pack_buffer = 0; g_pack_capacity = 0;
     gpu_begin();
+    if (g_gpu_profile) fprintf(stderr, "gs gpu: %s\n", p_glGetString(GL_RENDERER));
     const char *vs = "attribute vec2 a_pos; attribute vec2 a_uv; attribute vec4 a_col; uniform vec2 u_size; varying vec2 v_uv; varying vec4 v_col;\n"
                      "void main() { v_uv = a_uv; v_col = a_col; gl_Position = vec4(a_pos / u_size * 2.0 - 1.0, 0.0, 1.0); }\n";
     /* high precision where the GPU has it: in 16-bit floats a texture coordinate that falls on the edge between two pixels (the mosaic
@@ -155,7 +186,7 @@ static bool gpu_open(void) {
     p_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); p_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     G.r = G.g = G.b = G.a = 255; G.draw_blend = SDL_BLENDMODE_NONE; G.batch_blend = (SDL_BlendMode)-1;
     gpu_end();
-    fprintf(stderr, "gs: drawing on the GPU (EGL %d.%d)\n", ma, mi);
+    fprintf(stderr, "gs: drawing on the GPU (EGL %d.%d%s)\n", ma, mi, g_gpu_pack ? ", buffered readback" : "");
     return true;
 #else
     return false;
@@ -166,6 +197,7 @@ static void gpu_close(void) {
     if (g_egl_ctx) p_eglDestroyContext(g_egl_dpy, g_egl_ctx);
     if (g_egl_surf) p_eglDestroySurface(g_egl_dpy, g_egl_surf);
     g_egl_ctx = NULL; g_egl_surf = NULL; g_gpu = false;
+    g_gpu_pack = false; g_pack_buffer = 0; g_pack_capacity = 0;
 }
 
 /* SDL's blend modes as GL blend functions (SDL2's own definitions of each). */
@@ -345,18 +377,67 @@ static int gpu_RenderCopy(SDL_Renderer *r, SDL_Texture *tex, const SDL_Rect *src
 /* Reads the target back. ARGB8888 is B, G, R, A in memory (what libretro's XRGB8888 wants); ABGR8888 is R, G, B, A as GL gives it. */
 static int gpu_RenderReadPixels(SDL_Renderer *r, const SDL_Rect *rect, Uint32 format, void *pixels, int pitch) {
     if (!g_gpu) return SDL_RenderReadPixels(r, rect, format, pixels, pitch);
+    const Uint64 begin = g_gpu_profile ? SDL_GetPerformanceCounter() : 0;
     gpu_flush();
+    const Uint64 submitted = g_gpu_profile ? SDL_GetPerformanceCounter() : 0;
     const SDL_Rect a = rect ? *rect : (SDL_Rect){ 0, 0, G.tw, G.th };
     /* one read for the whole rectangle: every read waits for the GPU to finish, so reading row by row waited 192 times a frame */
     static Uint8 *buf; static size_t cap;
     const size_t need = (size_t)a.w * a.h * 4;
     Uint8 *dst = pitch == a.w * 4 ? pixels : NULL;
     if (!dst) { if (need > cap) { free(buf); buf = malloc(need); cap = buf ? need : 0; } if (!buf) return -1; dst = buf; }
-    p_glReadPixels(a.x, a.y, a.w, a.h, GL_RGBA, GL_UNSIGNED_BYTE, dst);
+    if (g_gpu_pack) {
+        GLenum error = p_glGetError();
+        if (error) return SDL_SetError("GPU error before readback (0x%x)", error);
+        if (!g_pack_buffer) p_glGenBuffers(1, &g_pack_buffer);
+        p_glBindBuffer(GL_PIXEL_PACK_BUFFER, g_pack_buffer);
+        if (need > g_pack_capacity) {
+            p_glBufferData(GL_PIXEL_PACK_BUFFER, (GLsizeiptr)need, NULL, GL_STREAM_READ);
+            error = p_glGetError();
+            if (error) { p_glBindBuffer(GL_PIXEL_PACK_BUFFER, 0); return SDL_SetError("GPU readback allocation failed (0x%x)", error); }
+            g_pack_capacity = need;
+        }
+        p_glReadPixels(a.x, a.y, a.w, a.h, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+        error = p_glGetError();
+        if (error) { p_glBindBuffer(GL_PIXEL_PACK_BUFFER, 0); return SDL_SetError("GPU readback failed (0x%x)", error); }
+        GLsync fence = p_glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        if (!fence) { p_glBindBuffer(GL_PIXEL_PACK_BUFFER, 0); return SDL_SetError("GPU readback fence failed"); }
+        GLenum status;
+        const Uint32 start = SDL_GetTicks();
+        /* Poll instead of entering the driver's blocking wait, which can stall for 100 ms. Still deliver this frame, not the previous one. */
+        while ((status = p_glClientWaitSync(fence, GL_SYNC_FLUSH_COMMANDS_BIT, 0)) == GL_TIMEOUT_EXPIRED &&
+               SDL_GetTicks() - start < 1000) SDL_Delay(0);
+        p_glDeleteSync(fence);
+        if (status != GL_ALREADY_SIGNALED && status != GL_CONDITION_SATISFIED) {
+            p_glBindBuffer(GL_PIXEL_PACK_BUFFER, 0); return SDL_SetError("GPU readback did not complete");
+        }
+        const Uint64 completed = g_gpu_profile ? SDL_GetPerformanceCounter() : 0;
+        const void *mapped = p_glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, (GLsizeiptr)need, GL_MAP_READ_BIT);
+        if (!mapped) { p_glBindBuffer(GL_PIXEL_PACK_BUFFER, 0); return SDL_SetError("GPU readback mapping failed"); }
+        const Uint64 mapped_at = g_gpu_profile ? SDL_GetPerformanceCounter() : 0;
+        memcpy(dst, mapped, need);
+        const Uint64 copied_at = g_gpu_profile ? SDL_GetPerformanceCounter() : 0;
+        const bool ok = p_glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+        p_glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+        if (!ok) return SDL_SetError("GPU readback buffer became invalid");
+        if (g_gpu_profile) {
+            const double ms = 1000.0 / SDL_GetPerformanceFrequency();
+            g_gpu_read_ms.transfer = (completed - submitted) * ms;
+            g_gpu_read_ms.copy = (SDL_GetPerformanceCounter() - completed) * ms;
+            g_gpu_read_ms.map = (mapped_at - completed) * ms; g_gpu_read_ms.cpu_copy = (copied_at - mapped_at) * ms;
+            g_gpu_read_ms.unmap = (SDL_GetPerformanceCounter() - copied_at) * ms;
+        }
+    } else p_glReadPixels(a.x, a.y, a.w, a.h, GL_RGBA, GL_UNSIGNED_BYTE, dst);
+    const Uint64 received = g_gpu_profile ? SDL_GetPerformanceCounter() : 0;
     for (int row = 0; row < a.h; row++) {
         Uint8 *out = (Uint8 *)pixels + (size_t)row * pitch;
         if (dst != pixels) memcpy(out, dst + (size_t)row * a.w * 4, (size_t)a.w * 4);
         if (format == SDL_PIXELFORMAT_ARGB8888) for (int i = 0; i < a.w; i++) { const Uint8 k = out[i * 4]; out[i * 4] = out[i * 4 + 2]; out[i * 4 + 2] = k; }
+    }
+    if (g_gpu_profile) {
+        const double ms = 1000.0 / SDL_GetPerformanceFrequency();
+        g_gpu_read_ms.submit = (submitted - begin) * ms; g_gpu_read_ms.wait = (received - submitted) * ms;
+        g_gpu_read_ms.convert = (SDL_GetPerformanceCounter() - received) * ms;
     }
     return 0;
 }

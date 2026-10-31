@@ -359,6 +359,30 @@ static bool assets_remake(const unsigned char *a, size_t len) {
     return true;
 }
 
+static bool composed_restore(const unsigned char *a, size_t len) {
+    rd_p = a; rd_end = a + len;
+    int32_t count;
+    if (!rd(&count, sizeof count) || count < 0 || count > g_nimages) return false;
+    for (int i = 0; i < count; i++) {
+        uint32_t seq, size;
+        if (!rd(&seq, sizeof seq) || !rd(&size, sizeof size) || rd_p + size > rd_end) return false;
+        const unsigned char *recipe = rd_p; rd_p += size;
+        if (size < 1 + sizeof(ComposeArgs) || recipe[0] != 'C') continue;
+        if (size == g_images[i].recipe_len && !memcmp(recipe, g_images[i].recipe, size)) continue;
+        ComposeArgs ca; memcpy(&ca, recipe + 1, sizeof ca);
+        const size_t bytes = (size_t)ca.gc * ca.gr * sizeof(int);
+        if (size != 1 + sizeof ca + bytes) return false;
+        int *cells = malloc(bytes);
+        if (!cells) return false;
+        memcpy(cells, recipe + 1 + sizeof ca, bytes);
+        const char *err = compose_into(i, &ca, cells);
+        free(cells);
+        if (err) { fprintf(stderr, "gs: load state: picture %d: %s\n", i, err); return false; }
+        g_images[i].seq = seq;
+    }
+    return true;
+}
+
 static bool state_load(const unsigned char *in, size_t size) {
     if (gs_net_active()) { fprintf(stderr, "gs: leave Wi-Fi play before loading a state\n"); return false; }
     StateHeader h;
@@ -375,6 +399,7 @@ static bool state_load(const unsigned char *in, size_t size) {
     const unsigned char *synth = p; p += h.synth_len;
     const unsigned char *assets = p; p += h.assets_len;
     if (!same_run && !assets_remake(assets, h.assets_len)) return false;
+    if (same_run && !composed_restore(assets, h.assets_len)) return false;
     synth_lock();
     const bool synth_ok = synth_state_load(synth, h.synth_len, !same_run);
     synth_unlock();

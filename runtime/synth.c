@@ -192,6 +192,7 @@ static void voice_envelope(Voice *v, const SynthInstrument *in) {
 }
 
 static const int ARP_SHAPES[8][3] = { {0, 4, 7}, {0, 3, 7}, {0, 12, 0}, {0, 5, 7}, {0, 7, 12}, {0, 4, 11}, {0, 3, 10}, {0, 12, 24} };
+static const float TRACK_GAIN[7] = { 0.512f, 0.64f, 0.8f, 1.0f, 1.25f, 1.5625f, 1.953125f };
 
 /* One sample from a voice, advancing it. Returns the sample; the pan is in v->pan. */
 static float voice_sample(Voice *v) {
@@ -313,7 +314,7 @@ static float voice_sample(Voice *v) {
 
     voice_envelope(v, in);
     /* about 1 ms of smoothing on the gain avoids clicks at note edges */
-    float target = base * vmul * v->env * in->volume * (in->type == INST_GM ? 0.35f : 0.22f) * powf(1.25f, (float)v->trk_step);
+    float target = base * vmul * v->env * in->volume * (in->type == INST_GM ? 0.35f : 0.22f) * TRACK_GAIN[v->trk_step + 3];
     v->gain += (target - v->gain) * 0.02f;
     v->nsamp += 1.0;
 
@@ -357,7 +358,11 @@ static void sfx_start_on(int c, int h, float volume) {
     const SynthSfx *s = &g_sfx[h];
     Voice *v = &g_v[c];
     int fresh = !v->active;
-    if (fresh) memset(v, 0, sizeof *v);
+    if (fresh) {
+        tsf *sf = v->sf;
+        memset(v, 0, sizeof *v);
+        v->sf = sf;
+    }
     if (s->steps[0].inst >= g_ninst) return;
     voice_note_on(v, s->steps[0].inst, s->steps[0].pitch + 12.0, 1.0f, 0);
     v->seq = h; v->step = 0; v->pos = 0; v->prev_pitch = s->steps[0].pitch; v->seq_vol = volume; v->trk_step = s->vol_step;

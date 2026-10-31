@@ -77,7 +77,8 @@ end
 
 -- draws the particles of one depth (the world draws them in its depth order, with the camera already set)
 local rect, sprite_draw = gs.raw.rect, assets.draw
-local function draw_depth(depth)
+local function draw_depth(item)
+  local depth = item.depth
   for i = 1, n do
     if pdepth[i] == depth then
       if pblend[i] ~= draw.mode then draw.blend(pblend[i]) end
@@ -95,16 +96,22 @@ local function draw_depth(depth)
 end
 
 -- one drawable per depth in use, handed to the world's depth buckets
-local drawers = {}
+local drawers, drawer_pool = {}, {}
 function M.drawables(out)
+  for i = 1, #out do drawers[out[i].depth] = nil end
   local seen = 0
   for i = 1, n do
     local d = pdepth[i]
     local dr = drawers[d]
-    if not dr then dr = { depth = d, draw = function() draw_depth(d) end, mark = 0 }; drawers[d] = dr end
-    if dr.mark ~= -1 then dr.mark = -1; seen = seen + 1; out[seen] = dr end
+    if not dr then
+      seen = seen + 1
+      dr = drawer_pool[seen]
+      if not dr then dr = { draw = draw_depth }; drawer_pool[seen] = dr end
+      dr.depth = d
+      drawers[d], out[seen] = dr, dr
+    end
   end
-  for k = 1, seen do out[k].mark = 0 end
+  for i = #out, seen + 1, -1 do out[i] = nil end
   return seen
 end
 

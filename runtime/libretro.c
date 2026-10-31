@@ -73,6 +73,24 @@ static Uint32 g_frame[CORE_MAX_W * CORE_MAX_H]; /* the frame read back from the 
 
 #include "ram.c" /* the console's RAM and save states */
 
+static struct {
+    Uint64 since;
+    long n, slow;
+    double total, worst, update, draw, readback, audio, transfer, copy, map, cpu_copy, unmap;
+} g_core_perf;
+
+static void core_perf_report(void) {
+    if (!g_core_perf.n) return;
+    const double n = g_core_perf.n;
+    perf_log("core perf: %ld frames frame %.2f/%.2f update %.2f draw %.2f readback+video %.2f audio-wait+submit %.2f ms; over 16.67ms: %ld; lua %d KB\n",
+        g_core_perf.n, g_core_perf.total / n, g_core_perf.worst, g_core_perf.update / n, g_core_perf.draw / n,
+        g_core_perf.readback / n, g_core_perf.audio / n, g_core_perf.slow, lua_gc(g_core_L, LUA_GCCOUNT, 0));
+    if (g_gpu && g_gpu_pack) perf_log("  buffered readback: GPU transfer %.2f map+copy %.2f ms\n", g_core_perf.transfer / n, g_core_perf.copy / n);
+    if (g_gpu && g_gpu_pack) perf_log("  CPU readback: map %.2f copy %.2f unmap %.2f ms\n", g_core_perf.map / n, g_core_perf.cpu_copy / n, g_core_perf.unmap / n);
+    api_report();
+    memset(&g_core_perf, 0, sizeof g_core_perf);
+}
+
 void retro_set_environment(retro_environment_t cb) {
     env_cb = cb;
     bool no_game = false; cb(RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME, &no_game);
@@ -150,6 +168,11 @@ bool retro_load_game(const struct retro_game_info *game) {
 
     g_debug_input = getenv("GS_DEBUG_INPUT") != NULL;
     g_perf_on = getenv("GS_PERF") != NULL;
+    memset(&g_core_perf, 0, sizeof g_core_perf);
+    g_perf_len = 0;
+    memset(g_api_sum, 0, sizeof g_api_sum); memset(g_api_max, 0, sizeof g_api_max); memset(g_api_n, 0, sizeof g_api_n);
+    memset(g_prof, 0, sizeof g_prof); g_prof_total = 0;
+    g_px_frame = g_px_last = 0; g_calls_frame = g_calls_last = 0;
     alias_load();
     /* saves: the emulator's save folder, one folder per cart (GS_SAVE_DIR still wins, as for the program) */
     const char *dir = NULL;
@@ -191,8 +214,14 @@ bool retro_load_game(const struct retro_game_info *game) {
 void retro_unload_game(void) {
     gs_net_close();
     mix_thread_stop();
+    if (g_core_L) {
+        core_perf_report();
+        perf_flush();
+        prof_report();
+    }
     gpu_begin();
     if (g_core_L) { lua_close(g_core_L); g_core_L = NULL; }
+    free(g_query_cache); g_query_cache = NULL; g_query_cap = 0;
     ram_close();
     for (int i = 0; i < g_nimages; i++) if (g_images[i].tex) { SDL_DestroyTexture(g_images[i].tex); g_images[i].tex = NULL; }
     for (int f = 0; f < GS_FONTS; f++) if (g_font_tex[f]) { SDL_DestroyTexture(g_font_tex[f]); g_font_tex[f] = NULL; }
@@ -207,6 +236,7 @@ void retro_reset(void) {} /* a game restarts itself (gs.scene); a reset from the
 
 void retro_run(void) {
     if (!g_core_L) return;
+    const Uint64 begin = g_perf_on ? ticks_ns() : 0;
     input_poll_cb();
     Uint16 held = 0;
     for (int i = 0; i < B_COUNT; i++) if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, core_pad[i])) held |= (Uint16)(1u << i);
@@ -221,6 +251,7 @@ void retro_run(void) {
 
     gpu_begin();
     game_frame(g_core_L, 1.0 / CORE_FPS);
+    const Uint64 drawn = g_perf_on ? ticks_ns() : 0;
     if (g_quit) { env_cb(RETRO_ENVIRONMENT_SHUTDOWN, NULL); g_quit = false; } /* gs.quit(): back to the emulator's menu */
 
     if (g_screen_w != g_core_w || g_screen_h != g_core_h) { /* gs.set_resolution while running */
@@ -228,17 +259,54 @@ void retro_run(void) {
         struct retro_game_geometry geo = { (unsigned)g_core_w, (unsigned)g_core_h, CORE_MAX_W, CORE_MAX_H, (float)g_core_w / (float)g_core_h };
         env_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &geo);
     }
+    Uint64 read_done = drawn, context_done = drawn;
     if (g_gpu) {
-        SDL_RenderReadPixels(g_ren, &(SDL_Rect){ 0, 0, g_core_w, g_core_h }, SDL_PIXELFORMAT_ARGB8888, g_frame, g_core_w * 4);
+        if (SDL_RenderReadPixels(g_ren, &(SDL_Rect){ 0, 0, g_core_w, g_core_h }, SDL_PIXELFORMAT_ARGB8888, g_frame, g_core_w * 4) != 0) {
+            fprintf(stderr, "gs: frame readback failed: %s\n", SDL_GetError());
+            gpu_end();
+            if (g_mix_thread) SDL_SemWait(g_mix_done);
+            env_cb(RETRO_ENVIRONMENT_SHUTDOWN, NULL);
+            return;
+        }
+        if (g_perf_on) read_done = ticks_ns();
         gpu_end();
+        if (g_perf_on) context_done = ticks_ns();
         video_cb(g_frame, (unsigned)g_core_w, (unsigned)g_core_h, (size_t)g_core_w * 4);
     } else video_cb(g_embed_surf->pixels, (unsigned)g_core_w, (unsigned)g_core_h, (size_t)g_embed_surf->pitch);
 
-    if (g_mix_thread) { SDL_SemWait(g_mix_done); audio_batch_cb(g_mix16, (size_t)g_mix_n); return; }
-    while (frames > 0) {
+    const Uint64 presented = g_perf_on ? ticks_ns() : 0;
+    if (g_mix_thread) { SDL_SemWait(g_mix_done); audio_batch_cb(g_mix16, (size_t)g_mix_n); }
+    else while (frames > 0) {
         const int n = SDL_min(frames, 2048);
         core_mix(n, true);
         frames -= n;
+    }
+    if (g_perf_on) {
+        const Uint64 end = ticks_ns();
+        const double ms = (end - begin) * 1e-6;
+        if (!g_core_perf.since) g_core_perf.since = begin;
+        g_core_perf.n++; g_core_perf.total += ms;
+        if (ms > g_core_perf.worst) g_core_perf.worst = ms;
+        if (ms > 1000.0 / CORE_FPS) {
+            g_core_perf.slow++;
+        }
+        if (ms > 2000.0 / CORE_FPS) {
+            perf_log("core slow: frame %.2f update %.2f draw %.2f readback+video %.2f audio-wait+submit %.2f ms\n",
+                ms, (g_t_updated - begin) * 1e-6, (drawn - g_t_updated) * 1e-6, (presented - drawn) * 1e-6, (end - presented) * 1e-6);
+            if (g_gpu) perf_log("  gpu: read %.2f context-restore %.2f video-callback %.2f ms\n",
+                (read_done - drawn) * 1e-6, (context_done - read_done) * 1e-6, (presented - context_done) * 1e-6);
+            if (g_gpu) perf_log("  read: submit %.2f wait %.2f convert %.2f ms\n", g_gpu_read_ms.submit, g_gpu_read_ms.wait, g_gpu_read_ms.convert);
+            if (g_gpu && g_gpu_pack) perf_log("  buffered: transfer %.2f map+copy %.2f ms\n", g_gpu_read_ms.transfer, g_gpu_read_ms.copy);
+        }
+        g_core_perf.update += (g_t_updated - begin) * 1e-6;
+        g_core_perf.draw += (drawn - g_t_updated) * 1e-6;
+        g_core_perf.readback += (presented - drawn) * 1e-6;
+        g_core_perf.audio += (end - presented) * 1e-6;
+        if (g_gpu && g_gpu_pack) {
+            g_core_perf.transfer += g_gpu_read_ms.transfer; g_core_perf.copy += g_gpu_read_ms.copy;
+            g_core_perf.map += g_gpu_read_ms.map; g_core_perf.cpu_copy += g_gpu_read_ms.cpu_copy; g_core_perf.unmap += g_gpu_read_ms.unmap;
+        }
+        if (end - g_core_perf.since >= 1000000000ULL) core_perf_report();
     }
 }
 

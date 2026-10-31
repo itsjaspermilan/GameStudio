@@ -19,6 +19,8 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+#include "lstate.h"
+#include "ltable.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -586,7 +588,7 @@ static int l_circle(lua_State *L) { /* cx,cy,radius,r,g,b[,a] filled */
 
 /* images: gs.image("a.png") -> {id=, w=, h=}; textures are cached by name and live until exit */
 #define MAX_IMAGES 256
-static struct { char *name; SDL_Texture *tex; unsigned char *px; int w, h; unsigned seq; unsigned char *recipe; size_t recipe_len; } g_images[MAX_IMAGES]; static int g_nimages;
+static struct { char *name; SDL_Texture *tex; unsigned char *px; int w, h; unsigned seq; unsigned char *recipe; size_t recipe_len, transparent; } g_images[MAX_IMAGES]; static int g_nimages;
 /* How each picture was made, so a game resumed in a new run (a libretro save state, runtime/libretro.c) can make it again in the same slot:
  * 'F' + file name, 'P' + w, h and the pixels, 'R' + a recolour (source slot and colours), 'C' + a composed tile grid (source slot, sizes, cells).
  * seq orders them: a picture is always made after the pictures it is made from, even when it reuses an older slot. */
@@ -654,7 +656,7 @@ static int l_image(lua_State *L) {
  * is a picture this call made before: its slot is reused, so entering a room again does not use up image slots. */
 /* The composed picture's pixels (see gs.compose above): cells[r * gc + c] is the tile number of each cell, -1 for none. NULL when out of memory. */
 typedef struct { int sid, tw, th, sheet_cols, count, cw, ch, gc, gr; } ComposeArgs;
-static unsigned char *compose_px(const ComposeArgs *a, const int *cells, bool *opaque) {
+static unsigned char *compose_px(const ComposeArgs *a, const int *cells, size_t *transparent) {
     const int W = a->gc * a->cw, H = a->gr * a->ch, sw = g_images[a->sid].w, sh = g_images[a->sid].h, tw = a->tw, th = a->th;
     unsigned char *out = calloc((size_t)W * H, 4);
     if (!out) return NULL;
@@ -670,19 +672,20 @@ static unsigned char *compose_px(const ComposeArgs *a, const int *cells, bool *o
         }
     /* A picture with no see-through pixel at all (a background wall of panels) is copied instead of blended: the software renderer on the
      * handhelds blends every pixel of a blended picture, which made a full-screen background cost several milliseconds a frame. */
-    *opaque = true;
-    for (size_t p = 3; p < (size_t)W * H * 4 && *opaque; p += 4) if (out[p] != 255) *opaque = false;
+    *transparent = 0;
+    for (size_t p = 3; p < (size_t)W * H * 4; p += 4) if (out[p] != 255) (*transparent)++;
     return out;
 }
 /* Makes (or remakes, in the same slot) a composed picture and records its recipe. NULL, or what went wrong. */
 static const char *compose_into(int id, const ComposeArgs *a, const int *cells) {
-    bool opaque; unsigned char *out = compose_px(a, cells, &opaque);
+    size_t transparent; unsigned char *out = compose_px(a, cells, &transparent);
     if (!out) return "compose: out of memory";
-    SDL_Texture *t = image_texture(out, a->gc * a->cw, a->gr * a->ch, opaque); free(out);
+    SDL_Texture *t = image_texture(out, a->gc * a->cw, a->gr * a->ch, transparent == 0); free(out);
     if (!t) return "compose: no texture";
     if (id < g_nimages && g_images[id].tex) { SDL_DestroyTexture(g_images[id].tex); free(g_images[id].px); }
     if (!g_images[id].name || strcmp(g_images[id].name, "(composed)")) { free(g_images[id].name); g_images[id].name = strdup("(composed)"); }
     g_images[id].tex = t; g_images[id].px = NULL; g_images[id].w = a->gc * a->cw; g_images[id].h = a->gr * a->ch;
+    g_images[id].transparent = transparent;
     image_recipe(id, 'C', a, sizeof *a, cells, (size_t)a->gc * a->gr * sizeof(int));
     return NULL;
 }
@@ -695,6 +698,50 @@ static int l_compose(lua_State *L) {
     a.cw = (int)luaL_checkinteger(L, 6); a.ch = (int)luaL_checkinteger(L, 7); a.gc = (int)luaL_checkinteger(L, 8); a.gr = (int)luaL_checkinteger(L, 9);
     luaL_checktype(L, 10, LUA_TTABLE);
     if (a.tw != a.cw || a.th != a.ch || a.tw < 1 || a.th < 1 || a.sheet_cols < 1 || a.gc < 1 || a.gr < 1 || (long)a.gc * a.cw > 4096 || (long)a.gr * a.ch > 4096) return luaL_error(L, "compose: bad sizes");
+    int id = -1;
+    if (lua_istable(L, 11)) {
+        lua_getfield(L, 11, "id"); const int oid = (int)luaL_optinteger(L, -1, -1); lua_pop(L, 1);
+        if (oid >= 0 && oid < g_nimages && !g_images[oid].px && g_images[oid].tex) id = oid;
+    }
+    if (id >= 0 && !lua_isnoneornil(L, 12) && g_images[id].recipe_len == 1 + sizeof a + (size_t)a.gc * a.gr * sizeof(int)
+        && g_images[id].recipe[0] == 'C' && !memcmp(g_images[id].recipe + 1, &a, sizeof a)) {
+        const int c0 = (int)luaL_checkinteger(L, 12), r0 = (int)luaL_checkinteger(L, 13);
+        const int c1 = (int)luaL_checkinteger(L, 14), r1 = (int)luaL_checkinteger(L, 15);
+        if (c0 < 0 || r0 < 0 || c1 < c0 || r1 < r0 || c1 >= a.gc || r1 >= a.gr) return luaL_error(L, "compose: bad changed cells");
+        ComposeArgs part = a; part.gc = c1 - c0 + 1; part.gr = r1 - r0 + 1;
+        const size_t bytes = (size_t)part.gc * part.gr * sizeof(int);
+        int *cells = malloc(bytes), *old = malloc(bytes);
+        if (!cells || !old) { free(cells); free(old); return luaL_error(L, "compose: out of memory"); }
+        for (int r = r0; r <= r1; r++) {
+            lua_rawgeti(L, 10, r + 1);
+            const bool row = lua_istable(L, -1);
+            for (int c = c0; c <= c1; c++) {
+                const int at = (r - r0) * part.gc + c - c0;
+                int f = -1;
+                if (row) { lua_rawgeti(L, -1, c + 1); if (lua_isnumber(L, -1)) f = (int)lua_tointeger(L, -1); lua_pop(L, 1); }
+                cells[at] = f;
+                memcpy(&old[at], g_images[id].recipe + 1 + sizeof a + ((size_t)r * a.gc + c) * sizeof(int), sizeof(int));
+            }
+            lua_pop(L, 1);
+        }
+        size_t before, after;
+        unsigned char *previous = compose_px(&part, old, &before), *pixels = compose_px(&part, cells, &after);
+        free(old);
+        const bool previous_ok = previous != NULL; free(previous);
+        if (!previous_ok || !pixels) { free(cells); free(pixels); return luaL_error(L, "compose: out of memory"); }
+        const SDL_Rect rect = { c0 * a.cw, r0 * a.ch, part.gc * a.cw, part.gr * a.ch };
+        const int result = SDL_UpdateTexture(g_images[id].tex, &rect, pixels, rect.w * 4);
+        free(pixels);
+        if (result != 0) { free(cells); return luaL_error(L, "compose: texture update failed (%s)", SDL_GetError()); }
+        g_images[id].transparent = g_images[id].transparent - before + after;
+        SDL_SetTextureBlendMode(g_images[id].tex, g_images[id].transparent ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
+        for (int r = r0; r <= r1; r++)
+            memcpy(g_images[id].recipe + 1 + sizeof a + ((size_t)r * a.gc + c0) * sizeof(int),
+                   cells + (r - r0) * part.gc, (size_t)part.gc * sizeof(int));
+        free(cells);
+        g_images[id].seq = ++g_image_seq;
+        push_image(L, id); return 1;
+    }
     int *cells = malloc((size_t)a.gc * a.gr * sizeof(int));
     if (!cells) return luaL_error(L, "compose: out of memory");
     for (int r = 0; r < a.gr; r++) {
@@ -706,11 +753,6 @@ static int l_compose(lua_State *L) {
             cells[r * a.gc + c] = f;
         }
         lua_pop(L, 1);
-    }
-    int id = -1;
-    if (lua_istable(L, 11)) { /* reuse the slot of an earlier picture from this function */
-        lua_getfield(L, 11, "id"); const int oid = (int)luaL_optinteger(L, -1, -1); lua_pop(L, 1);
-        if (oid >= 0 && oid < g_nimages && !g_images[oid].px && g_images[oid].tex) id = oid;
     }
     if (id < 0 && g_nimages >= MAX_IMAGES) { free(cells); return luaL_error(L, "too many images"); }
     const char *err = compose_into(id >= 0 ? id : g_nimages, &a, cells);
@@ -1507,6 +1549,262 @@ static int l_mtime(lua_State *L) {
     return 1;
 }
 
+static double entity_number(lua_State *L, int index, const char *name) {
+    lua_getfield(L, index, name);
+    const double n = luaL_checknumber(L, -1); lua_pop(L, 1);
+    return n;
+}
+typedef struct { Table *entity; Node *nodes; int x, y, dead; } QueryCache;
+static QueryCache *g_query_cache;
+static size_t g_query_cap;
+/* Table rehashes and RAM rewinds can reuse addresses: validate the keys, not just the cached node pointer. */
+static bool query_key(Table *t, int at, TString *key) {
+    if (at < 0 || at >= sizenode(t)) return false;
+    const Node *n = &t->node[at];
+    return keytt(n) == LUA_VSHRSTR && n->u.key_val.gc == (GCObject *)key;
+}
+static bool query_fields(Table *t, QueryCache *cache, TString *x, TString *y, TString *dead) {
+    if (cache->entity == t && cache->nodes == t->node &&
+        query_key(t, cache->x, x) && query_key(t, cache->y, y) && query_key(t, cache->dead, dead)) return true;
+    const TValue *vx = luaH_getshortstr(t, x), *vy = luaH_getshortstr(t, y), *vd = luaH_getshortstr(t, dead);
+    if (!ttisnumber(vx) || !ttisnumber(vy) || ttisnil(vd)) return false;
+    cache->entity = t; cache->nodes = t->node;
+    cache->x = (int)((const Node *)vx - t->node); cache->y = (int)((const Node *)vy - t->node); cache->dead = (int)((const Node *)vd - t->node);
+    return true;
+}
+static double query_value(const TValue *v) { return ttisinteger(v) ? (double)ivalue(v) : fltvalue(v); }
+typedef struct { double x, y; lua_Integer index; } QueryPoint;
+static int query_point_order(const void *a, const void *b) {
+    const QueryPoint *x = a, *y = b;
+    if (x->x != y->x) return x->x < y->x ? -1 : 1;
+    return x->index < y->index ? -1 : x->index > y->index;
+}
+static int query_index_order(const void *a, const void *b) {
+    const lua_Integer x = *(const lua_Integer *)a, y = *(const lua_Integer *)b;
+    return x < y ? -1 : x > y;
+}
+static QueryPoint query_point(lua_State *L, int index, lua_Integer slot) {
+    index = lua_absindex(L, index);
+    luaL_checktype(L, index, LUA_TTABLE);
+    QueryPoint p = { entity_number(L, index, "x"), entity_number(L, index, "y"), slot };
+    if (!isfinite(p.x) || !isfinite(p.y)) luaL_error(L, "in_radius_batch: points need finite x and y");
+    return p;
+}
+/* A batch owns its snapshot in Lua RAM, so errors, nested calls and save states cannot leave native pointers behind. */
+static int l_entity_radius_batch(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TTABLE); luaL_checktype(L, 2, LUA_TTABLE); luaL_checktype(L, 4, LUA_TTABLE);
+    const double radius = luaL_checknumber(L, 3), r2 = radius * radius;
+    if (radius < 0 || !isfinite(r2)) return luaL_error(L, "in_radius_batch: radius must be finite and nonnegative");
+    if (lua_rawequal(L, 4, 1) || lua_rawequal(L, 4, 2)) return luaL_error(L, "in_radius_batch: output must be a separate list");
+    const size_t n = lua_rawlen(L, 1), q = lua_rawlen(L, 2), old = lua_rawlen(L, 4);
+    const size_t unit = sizeof(QueryPoint) + sizeof(lua_Integer);
+    if (n > SIZE_MAX / unit || q > (SIZE_MAX - n * unit) / sizeof(QueryPoint))
+        return luaL_error(L, "in_radius_batch: too many points");
+    lua_settop(L, 4);
+    QueryPoint *targets = lua_newuserdatauv(L, n * unit + q * sizeof(QueryPoint), 0);
+    QueryPoint *points = targets + n;
+    lua_Integer *hits = (lua_Integer *)(points + q);
+    lua_createtable(L, (int)SDL_min(n, INT_MAX), 0);
+    const int entities = lua_gettop(L);
+    size_t count = 0;
+    for (size_t i = 0; i < n; i++) {
+        lua_rawgeti(L, 1, (lua_Integer)i + 1);
+        luaL_checktype(L, -1, LUA_TTABLE);
+        lua_getfield(L, -1, "_dead"); const bool dead = lua_toboolean(L, -1); lua_pop(L, 1);
+        if (!dead) {
+            targets[count] = query_point(L, -1, (lua_Integer)count + 1);
+            lua_pushvalue(L, -1); lua_rawseti(L, entities, (lua_Integer)++count);
+        }
+        lua_pop(L, 1);
+    }
+    for (size_t i = 0; i < q; i++) {
+        lua_rawgeti(L, 2, (lua_Integer)i + 1);
+        points[i] = query_point(L, -1, 0); lua_pop(L, 1);
+    }
+    qsort(targets, count, sizeof *targets, query_point_order);
+    lua_newtable(L);
+    const int results = lua_gettop(L);
+    for (size_t i = 0; i < q; i++) {
+        const double left = nextafter(points[i].x - radius, -INFINITY), right = nextafter(points[i].x + radius, INFINITY);
+        size_t lo = 0, hi = count, found = 0;
+        while (lo < hi) {
+            const size_t mid = lo + (hi - lo) / 2;
+            if (targets[mid].x < left) lo = mid + 1; else hi = mid;
+        }
+        for (size_t j = lo; j < count && targets[j].x <= right; j++) {
+            const double dx = targets[j].x - points[i].x, dy = targets[j].y - points[i].y;
+            if (dx * dx + dy * dy <= r2) hits[found++] = targets[j].index;
+        }
+        if (found > 1) qsort(hits, found, sizeof *hits, query_index_order);
+        lua_rawgeti(L, 4, (lua_Integer)i + 1);
+        if (lua_isnil(L, -1)) { lua_pop(L, 1); lua_createtable(L, (int)SDL_min(found, INT_MAX), 0); }
+        else luaL_checktype(L, -1, LUA_TTABLE);
+        if (lua_rawequal(L, -1, 1) || lua_rawequal(L, -1, 2) || lua_rawequal(L, -1, 4))
+            return luaL_error(L, "in_radius_batch: result lists must be separate from inputs and output");
+        lua_pushvalue(L, -1); lua_rawget(L, results);
+        if (!lua_isnil(L, -1)) return luaL_error(L, "in_radius_batch: result lists must be distinct");
+        lua_pop(L, 1); lua_pushvalue(L, -1); lua_pushboolean(L, true); lua_rawset(L, results);
+        const lua_Integer previous = (lua_Integer)lua_rawlen(L, -1);
+        for (size_t j = 0; j < found; j++) { lua_rawgeti(L, entities, hits[j]); lua_rawseti(L, -2, (lua_Integer)j + 1); }
+        for (lua_Integer j = (lua_Integer)found + 1; j <= previous; j++) { lua_pushnil(L); lua_rawseti(L, -2, j); }
+        lua_rawseti(L, 4, (lua_Integer)i + 1);
+    }
+    for (size_t i = q; i < old; i++) { lua_pushnil(L); lua_rawseti(L, 4, (lua_Integer)i + 1); }
+    lua_pushvalue(L, 4); return 1;
+}
+typedef struct { double x0, y0, x1, y1, r; bool round; } QueryBox;
+typedef struct { TString *x, *y, *sx, *sy, *hb, *hbn, *sprite, *radius; } QueryKeys;
+static TString *query_string(lua_State *L, const char *name) {
+    lua_pushstring(L, name); return tsvalue(s2v(L->top.p - 1));
+}
+static bool query_box(lua_State *L, int index, QueryBox *b, const QueryKeys *keys) {
+    index = lua_absindex(L, index);
+    Table *entity = (Table *)lua_topointer(L, index);
+    const TValue *cached = luaH_getshortstr(entity, keys->hb);
+    const TValue *name = luaH_getshortstr(entity, keys->sprite), *previous = luaH_getshortstr(entity, keys->hbn);
+    const bool inherited = ttisnil(name) && entity->metatable && !ttisnil(luaH_getshortstr(entity->metatable, keys->sprite));
+    const bool current = !inherited && ((ttisnil(name) && ttisnil(previous)) ||
+        (ttisshrstring(name) && ttisshrstring(previous) && tsvalue(name) == tsvalue(previous)));
+    if (current && ttistable(cached)) {
+        Table *box = hvalue(cached);
+        const TValue *vx = luaH_getshortstr(entity, keys->x), *vy = luaH_getshortstr(entity, keys->y);
+        const TValue *vsx = luaH_getshortstr(entity, keys->sx), *vsy = luaH_getshortstr(entity, keys->sy);
+        if (box->alimit >= 4 && ttisnumber(vx) && ttisnumber(vy) && ttisnumber(vsx) && ttisnumber(vsy) &&
+            ttisnumber(&box->array[0]) && ttisnumber(&box->array[1]) && ttisnumber(&box->array[2]) && ttisnumber(&box->array[3])) {
+            const double x = query_value(vx), y = query_value(vy), sx = query_value(vsx), sy = query_value(vsy);
+            const double hx = query_value(&box->array[0]), hy = query_value(&box->array[1]);
+            const double w = query_value(&box->array[2]), h = query_value(&box->array[3]);
+            b->x0 = x + hx * sx; b->y0 = y + hy * sy;
+            b->x1 = sx == 1 && sy == 1 ? b->x0 + w : x + (hx + w) * sx;
+            b->y1 = sx == 1 && sy == 1 ? b->y0 + h : y + (hy + h) * sy;
+            if (sx != 1 || sy != 1) {
+                if (b->x0 > b->x1) { const double n = b->x0; b->x0 = b->x1; b->x1 = n; }
+                if (b->y0 > b->y1) { const double n = b->y0; b->y0 = b->y1; b->y1 = n; }
+            }
+            const TValue *r = luaH_getshortstr(box, keys->radius);
+            if (ttisnil(r) || ttisnumber(r)) {
+                b->round = !ttisnil(r); b->r = b->round ? query_value(r) * fmax(sx, sy) : 0;
+                return true;
+            }
+        }
+    }
+    lua_getfield(L, index, "_hb");
+    lua_getfield(L, index, "_hbn"); lua_getfield(L, index, "sprite");
+    const bool ready = !lua_isnil(L, -3) && lua_rawequal(L, -2, -1); lua_pop(L, 2);
+    if (!ready) {
+        lua_pop(L, 1);
+        lua_pushvalue(L, 8); lua_pushvalue(L, index); lua_call(L, 1, 0);
+        lua_getfield(L, index, "_hb");
+    }
+    if (!lua_istable(L, -1)) { lua_pop(L, 1); return false; }
+    const double x = entity_number(L, index, "x"), y = entity_number(L, index, "y");
+    const double sx = entity_number(L, index, "sx"), sy = entity_number(L, index, "sy");
+    double hb[4];
+    for (int i = 0; i < 4; i++) { lua_rawgeti(L, -1, i + 1); hb[i] = luaL_checknumber(L, -1); lua_pop(L, 1); }
+    lua_getfield(L, -1, "r"); b->round = lua_toboolean(L, -1); b->r = lua_tonumber(L, -1) * fmax(sx, sy); lua_pop(L, 2);
+    b->x0 = x + hb[0] * sx; b->x1 = sx == 1 && sy == 1 ? b->x0 + hb[2] : x + (hb[0] + hb[2]) * sx;
+    b->y0 = y + hb[1] * sy; b->y1 = sx == 1 && sy == 1 ? b->y0 + hb[3] : y + (hb[1] + hb[3]) * sy;
+    if (sx != 1 || sy != 1) {
+        if (b->x0 > b->x1) { const double n = b->x0; b->x0 = b->x1; b->x1 = n; }
+        if (b->y0 > b->y1) { const double n = b->y0; b->y0 = b->y1; b->y1 = n; }
+    }
+    return true;
+}
+/* Live queries deliberately read the entities, not the collision pass's snapshot: games can assign x/y between two queries. */
+static int l_entity_query(lua_State *L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
+    const int mode = (int)luaL_checkinteger(L, 2); /* nearest, radius, rectangle, touching, touching_all */
+    if (mode < 0 || mode > 4) return luaL_error(L, "entity_query: bad query");
+    const double x = mode < 3 ? luaL_checknumber(L, 3) : 0, y = mode < 3 ? luaL_checknumber(L, 4) : 0;
+    const double size = mode < 3 ? luaL_checknumber(L, 5) : 0, h = mode == 2 ? luaL_checknumber(L, 6) : 0;
+    lua_settop(L, 9);
+    lua_pushliteral(L, "x"); TString *xkey = tsvalue(s2v(L->top.p - 1));
+    lua_pushliteral(L, "y"); TString *ykey = tsvalue(s2v(L->top.p - 1));
+    lua_pushliteral(L, "_dead"); TString *deadkey = tsvalue(s2v(L->top.p - 1));
+    QueryKeys keys = { .x = xkey, .y = ykey };
+    if (mode >= 2) {
+        keys.sx = query_string(L, "sx"); keys.sy = query_string(L, "sy"); keys.hb = query_string(L, "_hb");
+        keys.hbn = query_string(L, "_hbn"); keys.sprite = query_string(L, "sprite"); keys.radius = query_string(L, "r");
+    }
+    double distance = size * size;
+    QueryBox self;
+    if (mode >= 3) luaL_checktype(L, 9, LUA_TTABLE);
+    const bool touching = mode >= 3, has_box = !touching || query_box(L, 9, &self, &keys);
+    const bool list_result = mode == 1 || mode == 2 || mode == 4;
+    if (list_result) { luaL_checktype(L, 7, LUA_TTABLE); }
+    const lua_Integer old = list_result ? (lua_Integer)lua_rawlen(L, 7) : 0;
+    lua_Integer found = 0, best = 0, count = (lua_Integer)lua_rawlen(L, 1);
+    if (mode <= 1) {
+        if ((size_t)count > g_query_cap) {
+            QueryCache *next = realloc(g_query_cache, (size_t)count * sizeof *next);
+            if (!next) return luaL_error(L, "entity_query: out of memory");
+            memset(next + g_query_cap, 0, ((size_t)count - g_query_cap) * sizeof *next);
+            g_query_cache = next; g_query_cap = (size_t)count;
+        }
+        Table *list = (Table *)lua_topointer(L, 1);
+        for (lua_Integer i = 1; i <= count; i++) {
+            const TValue *item = i <= list->alimit ? &list->array[i - 1] : luaH_getint(list, i);
+            if (!ttistable(item)) return luaL_error(L, "entity_query: expected an entity");
+            Table *e = hvalue(item);
+            QueryCache *cache = &g_query_cache[i - 1];
+            bool dead;
+            double ex, ey;
+            if (query_fields(e, cache, xkey, ykey, deadkey) &&
+                ttisnumber(gval(&e->node[cache->x])) && ttisnumber(gval(&e->node[cache->y])) &&
+                !ttisnil(gval(&e->node[cache->dead]))) {
+                dead = !l_isfalse(gval(&e->node[cache->dead]));
+                if (dead) continue;
+                ex = query_value(gval(&e->node[cache->x])); ey = query_value(gval(&e->node[cache->y]));
+            } else {
+                lua_rawgeti(L, 1, i);
+                lua_getfield(L, -1, "_dead"); dead = lua_toboolean(L, -1); lua_pop(L, 1);
+                if (dead) { lua_pop(L, 1); continue; }
+                ex = entity_number(L, -1, "x"); ey = entity_number(L, -1, "y"); lua_pop(L, 1);
+            }
+            const double dx = ex - x, dy = ey - y, d = dx * dx + dy * dy;
+            if (mode == 0) { if (d < distance) { best = i; distance = d; } }
+            else if (d <= distance) { lua_rawgeti(L, 1, i); lua_rawseti(L, 7, ++found); }
+        }
+        goto query_result;
+    }
+    for (lua_Integer i = 1; has_box && i <= count; i++) {
+        lua_rawgeti(L, 1, i);
+        const int e = lua_gettop(L);
+        luaL_checktype(L, e, LUA_TTABLE);
+        Table *entity = hvalue(s2v(L->top.p - 1));
+        const TValue *dead_value = luaH_getshortstr(entity, deadkey);
+        bool dead;
+        if (!ttisnil(dead_value)) dead = !l_isfalse(dead_value);
+        else { lua_getfield(L, e, "_dead"); dead = lua_toboolean(L, -1); lua_pop(L, 1); }
+        bool hit = false;
+        if (!dead && !(touching && lua_rawequal(L, e, 9))) {
+            QueryBox b;
+            if (query_box(L, e, &b, &keys)) {
+                if (mode == 2) hit = b.x0 < x + size && b.x1 > x && b.y0 < y + h && b.y1 > y;
+                else {
+                    hit = self.x0 < b.x1 && b.x0 < self.x1 && self.y0 < b.y1 && b.y0 < self.y1;
+                    if (hit && self.round && b.round) {
+                        const double dx = self.x0 + self.x1 - b.x0 - b.x1, dy = self.y0 + self.y1 - b.y0 - b.y1, r = self.r + b.r;
+                        hit = dx * dx + dy * dy <= 4 * r * r;
+                    }
+                }
+            }
+        }
+        if (hit) {
+            if (!list_result) return 1;
+            lua_pushvalue(L, e); lua_rawseti(L, 7, ++found);
+        }
+        lua_pop(L, 1);
+    }
+query_result:
+    if (list_result) {
+        for (lua_Integer i = found + 1; i <= old; i++) { lua_pushnil(L); lua_rawseti(L, 7, i); }
+        lua_pushvalue(L, 7);
+    } else if (best) lua_rawgeti(L, 1, best);
+    else lua_pushnil(L);
+    return 1;
+}
+
 /* ---------------------------------------------------------------- collision grids
  * The broad phase of engine/gs/world.lua: one grid a step for each tag something collides with. Lua works out every entity's box (it
  * owns the entities) and hands them over as one flat list; C sorts them into cells by their centre and answers "which boxes touch this
@@ -1629,6 +1927,8 @@ static const luaL_Reg gs_lib[] = {
     {"camera", l_camera}, {"compose", l_compose}, {"recolor", l_recolor}, {"pixels", l_pixels}, {"bake", l_bake}, {"mosaic", l_mosaic}, {"blend", l_blend}, {"stats", l_stats}, {"ram", l_ram}, {"mark", l_mark}, {"set_resolution", l_set_resolution}, {"screen", l_screen}, {"circle", l_circle}, {"image", l_image}, {"sprite", l_sprite}, {"tile", l_tile},
     {"btn", l_btn}, {"btnp", l_btnp}, {"time", l_time}, {"clock", l_clock}, {"quit", l_quit}, {"zoom", l_zoom}, {"load", l_load}, {"list", l_list}, {"mtime", l_mtime},
     {"grid_build", l_grid_build}, {"grid_query", l_grid_query}, {"volume", l_volume},
+    {"entity_query", l_entity_query},
+    {"entity_radius_batch", l_entity_radius_batch},
     {"pad_last", l_pad_last}, {"pad_set", l_pad_set}, {"pad_reset", l_pad_reset}, {NULL, NULL}};
 
 /* The SoundFont a packed cart carries: the game's sounds are loaded the way gs.boot loads them (engine/gs/sound.lua, into the synth,
@@ -2475,6 +2775,7 @@ static void game_frame(lua_State *L, double dt) {
     call_global(L, "draw", 0, 0);
     if (g_blend != SDL_BLENDMODE_BLEND) { g_blend = SDL_BLENDMODE_BLEND; SDL_SetRenderDrawBlendMode(g_ren, g_blend); } /* a draw left it set */
     if (g_mosaic > 1) apply_mosaic();
+    g_px_last = g_px_frame; g_calls_last = g_calls_frame; g_px_frame = 0; g_calls_frame = 0;
 }
 
 #if !defined(GS_LIBRETRO) && !defined(_WIN32)
@@ -2697,7 +2998,6 @@ int main(int argc, char **argv) {
             dump_frame(name);
         }
         const Uint64 t_upd = g_t_updated, t_draw = ticks_ns();
-        g_px_last = g_px_frame; g_calls_last = g_calls_frame; g_px_frame = 0; g_calls_frame = 0;
         if (g_win) present_window(); else SDL_RenderPresent(g_ren);
         const Uint64 t_pres = ticks_ns();
         Uint64 t_fb = t_pres;
@@ -2789,6 +3089,7 @@ int main(int argc, char **argv) {
     prof_report();
     gs_net_close();
     lua_close(L);
+    free(g_query_cache); g_query_cache = NULL; g_query_cap = 0;
     SDL_Quit();
     return 0;
 }

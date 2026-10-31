@@ -153,5 +153,17 @@ return Main</code></pre>
 <tr><td><code>self:distance_to(other)</code>, <code>self:angle_to(other)</code></td><td>For chasing and aiming. <code>self:move_toward(other, 60)</code> sets the speed toward it.</td></tr>
 </table>
 <p>Try: make a turret entity that shoots the nearest rock. Every second it does <code>local rock = gs.nearest(self.x, self.y, "rock", 150)</code>, and if there is one, spawns a bullet and calls <code>bullet:set_velocity(self:angle_to(rock), 220)</code>.</p>
+<h3>Many nearby searches at once</h3>
+<p>For a crowd that looks for neighbours every step, <code>gs.in_radius_batch(points, radius, tag, out)</code> captures positions once and
+answers all the searches together. Points can be entities or tables with <code>x</code> and <code>y</code>. It returns one list per point;
+each list keeps entity creation order and includes the point itself if it has the tag. Supplying <code>out</code> reuses the result lists.</p>
+<pre class="lua"><code>local rocks = gs.all("rock")
+local nearby = gs.in_radius_batch(rocks, 24, "rock")
+for i, rock in ipairs(rocks) do
+  rock.nearby_count = #nearby[i] - 1
+end</code></pre>
+<p>Get the batch before moving the crowd. Its membership is a snapshot: moving, spawning or destroying entities afterwards does not
+change those lists. The entities inside are still the real entities, not copies. Keep using ordinary <code>gs.in_radius</code> if a move
+between two searches must affect the second answer.</p>
 <div class="note"><strong>Why tags and not names?</strong> The code in the ship does not need to know about every kind of rock you add later. Give a new <code>BigRock</code> the tag <code>"rock"</code> and everything already works.</div>
 <p>Next: <a href="help:timers">Timers, tweens and coroutines</a>.</p>

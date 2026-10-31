@@ -274,6 +274,10 @@ On handhelds with no KMS/DRM (Knulli on the RG35XX Pro has only `/dev/fb0`) `gs`
 
 **NextUI (TrimUI Brick).** The target handheld. With `DEVICE_OS=nextui` in `scripts/device-<name>.env` (template `device-nextui.env.example`), `GS_DEVICE=<name> scripts/push.sh` makes each console a NextUI system run by NextUI's own emulator with gs built as a libretro core (`gs_libretro.so`): the console gets NextUI's in-game menu, button settings, sleep, save states, Resume and rewind. Save states are a copy of the console's 8 MB Lua RAM plus the sound chip's state; a state works only with the core that saved it, so pushing a new core makes old Resume points start fresh (the games' own saves are not affected). Confirmed on one Brick: Breakout from the Glow43 system, buttons, sound, MENU, sleep, save and load state, Resume.
 
+For occasional graphics-driver hitches on the Brick Pro, launching the emulator with `GS_CORE_BUFFERED_READBACK=1` opts into buffered
+GPU readback. It delivers the current frame with no extra frame delay, but adds about 2 ms per Glow43 frame; leave it unset for the faster
+default. It needs OpenGL ES 3 and reports a fallback to ordinary readback when unavailable.
+
 **Knulli.** With `DEVICE_ROMS_DIR` set in `scripts/device.env`, `push.sh` makes each console (Glow43, Glow169, custom ones) its own EmulationStation system with its own launcher folder, and writes a `gamelist.xml` entry from the game's `meta/info.json` (title, description, developer, genre, players, box art). The studio's "Send to device" runs the same script. EmulationStation reads new systems at start-up, so restart it after the first push of a console. Confirmed by testing on one RG35XX Pro: framebuffer drawing, the d-pad and shoulder buttons, Breakout running from the Glow43 system. Not yet confirmed there: box art and descriptions in the list, and Glow169.
 
 ## Sound (GBA style)

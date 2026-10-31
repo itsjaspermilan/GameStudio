@@ -183,9 +183,11 @@ local function picture(l, cols, rows)
   if l.picture and not l.dirty then return l.picture end
   local ts, cw, ch = l.ts, l.cell[1], l.cell[2]
   if ts.tw ~= cw or ts.th ~= ch then return nil end
-  local pic = gs.compose(ts.img, ts.tw, ts.th, ts.cols, ts.count, cw, ch, cols, rows, l.data, pictures[l.key])
+  local changed = l.picture and l.changed
+  local pic = gs.compose(ts.img, ts.tw, ts.th, ts.cols, ts.count, cw, ch, cols, rows, l.data, pictures[l.key],
+    changed and changed[1], changed and changed[2], changed and changed[3], changed and changed[4])
   pictures[l.key] = pic
-  l.picture, l.dirty = pic, false
+  l.picture, l.dirty, l.changed = pic, false, nil
   return pic
 end
 
@@ -203,10 +205,10 @@ function M.draw_layer(l, cam_x, cam_y, view_w, view_h)
   local a = (l.alpha or 1) * 255 -- see-through layers (the world sets the layer's blend mode around this)
   -- A layer that is mostly empty (the light of a few lamps, walls only round the edges) is drawn tile by tile: one picture of the whole
   -- room would make the software renderer go over every pixel of the screen, empty or not, which cost a few milliseconds a layer.
-  if l.recount ~= false then -- counted again only after a tile changes
+  if l.recount ~= false or l.cells ~= rows * cols then
     local n = 0
     for _, row in ipairs(l.data) do for _, v in ipairs(row) do if v >= 0 then n = n + 1 end end end
-    l.filled, l.recount = n / (rows * cols), false
+    l.filled, l.nonempty, l.cells, l.recount = n / (rows * cols), n, rows * cols, false
   end
   local pic = use_pictures and l.filled >= 0.35 and picture(l, cols, rows)
   if pic then
@@ -248,7 +250,20 @@ function M.tile_at(l, x, y)
 end
 function M.set_tile(l, x, y, v)
   local r, c = floor((y - l.y) / l.cell[2]) + 1, floor((x - l.x) / l.cell[1]) + 1
-  if l.data[r] and l.data[r][c] ~= nil then l.data[r][c] = v; l.dirty = true; l.recount = true end
+  local row = l.data[r]
+  if row and row[c] ~= nil and row[c] ~= v then
+    local old = row[c]
+    row[c], l.dirty = v, true
+    if l.recount == false then
+      l.nonempty = l.nonempty + (v >= 0 and 1 or 0) - (old >= 0 and 1 or 0)
+      l.filled = l.nonempty / l.cells
+    end
+    local changed = l.changed
+    if changed then
+      changed[1], changed[2] = math.min(changed[1], c - 1), math.min(changed[2], r - 1)
+      changed[3], changed[4] = math.max(changed[3], c - 1), math.max(changed[4], r - 1)
+    else l.changed = { c - 1, r - 1, c - 1, r - 1 } end
+  end
 end
 
 return M

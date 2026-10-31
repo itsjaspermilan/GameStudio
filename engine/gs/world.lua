@@ -23,6 +23,8 @@ local W = { all = {}, classes = {}, by_class = {}, tags = {}, layers = {}, scene
 
 local floor, sqrt, abs, atan2, rad, deg, cos, sin = math.floor, math.sqrt, math.abs, math.atan, math.rad, math.deg, math.cos, math.sin
 local sprite_of = assets.sprite
+local entity_query = gs.entity_query
+local entity_radius_batch = gs.entity_radius_batch
 
 local warned = {}
 local function warn_once(key, text)
@@ -170,21 +172,13 @@ function Entity.touching(self, tag)
   local list = W.tags[tag]
   if not list then return nil end
   W.checks = W.checks + #list
-  for i = 1, #list do
-    local o = list[i]
-    if o ~= self and not o._dead and overlap(self, o) then return o end
-  end
-  return nil
+  return entity_query(list, 3, nil, nil, nil, nil, nil, bounds, self)
 end
 function Entity.touching_all(self, tag)
   local out, list = {}, W.tags[tag]
   if not list then return out end
   W.checks = W.checks + #list
-  for i = 1, #list do
-    local o = list[i]
-    if o ~= self and not o._dead and overlap(self, o) then out[#out + 1] = o end
-  end
-  return out
+  return entity_query(list, 4, nil, nil, nil, nil, out, bounds, self)
 end
 
 function Entity.after(self, seconds, fn) return timers.after(self, seconds, fn) end
@@ -301,45 +295,24 @@ end
 function W.nearest(x, y, tag, max_distance)
   local list = W.tags[tag]
   if not list then return nil end
-  local best, bd = nil, (max_distance or math.huge) ^ 2
-  for i = 1, #list do
-    local e = list[i]
-    if not e._dead then
-      local dx, dy = e.x - x, e.y - y
-      local d = dx * dx + dy * dy
-      if d < bd then best, bd = e, d end
-    end
-  end
-  return best
+  return entity_query(list, 0, x, y, max_distance or math.huge)
 end
 -- Both queries can refill a list the caller keeps (out), so a crowd asking every step makes no garbage.
-local function trim(out, n) for i = #out, n + 1, -1 do out[i] = nil end return out end
+local empty_query = {}
 function W.in_radius(x, y, radius, tag, out)
-  local list, r2, n = W.tags[tag], radius * radius, 0
+  local list = W.tags[tag]
   out = out or {}
-  if not list then return trim(out, 0) end
-  for i = 1, #list do
-    local e = list[i]
-    if not e._dead then
-      local dx, dy = e.x - x, e.y - y
-      if dx * dx + dy * dy <= r2 then n = n + 1; out[n] = e end
-    end
-  end
-  return trim(out, n)
+  return entity_query(list or empty_query, 1, x, y, radius, nil, out)
+end
+-- Positions are captured once for the whole batch; applying its results does not change the remaining answers.
+function W.in_radius_batch(points, radius, tag, out)
+  return entity_radius_batch(W.tags[tag] or empty_query, points, radius, out or {})
 end
 -- everything with a tag whose box touches a rectangle
 function W.in_rect(x, y, w, h, tag, out)
-  local list, n = W.tags[tag], 0
+  local list = W.tags[tag]
   out = out or {}
-  if not list then return trim(out, 0) end
-  for i = 1, #list do
-    local e = list[i]
-    if not e._dead then
-      local x0, y0, x1, y1 = bounds(e)
-      if x0 and x0 < x + w and x1 > x and y0 < y + h and y1 > y then n = n + 1; out[n] = e end
-    end
-  end
-  return trim(out, n)
+  return entity_query(list or empty_query, 2, x, y, w, h, out, bounds)
 end
 -- send a message: calls target:on_<message>(...) if it has such a method
 function W.send(target, message, ...)
@@ -1001,16 +974,17 @@ function W.step(dt)
 end
 
 -- ---------------------------------------------------------------- drawing
-local buckets, bucket_keys, bucket_count = {}, {}, 0
+local buckets, bucket_keys, bucket_pool, bucket_count = {}, {}, {}, 0
+local function depth_order(x, y) return x > y end
 
 local function bucket(depth)
   local b = buckets[depth]
   if not b then
-    b = { n = 0 }
-    buckets[depth] = b
     bucket_count = bucket_count + 1
+    b = bucket_pool[bucket_count]
+    if not b then b = { n = 0 }; bucket_pool[bucket_count] = b end
+    buckets[depth] = b
     bucket_keys[bucket_count] = depth
-    table.sort(bucket_keys, function(x, y) return x > y end)
   end
   return b
 end
@@ -1034,7 +1008,13 @@ function W.draw()
   local zoom = camera.zoom
   local vw, vh = camera:view() -- the part of the world on screen (and a clear error for a bad zoom)
   local cx, cy = camera:offset()
-  for _, b in pairs(buckets) do b.n = 0 end
+  for i = 1, bucket_count do
+    local b = buckets[bucket_keys[i]]
+    for j = 1, b.n do b[j] = nil end
+    b.n = 0
+    buckets[bucket_keys[i]], bucket_keys[i] = nil, nil
+  end
+  bucket_count = 0
   for i = 1, #W.layers do
     local l = W.layers[i]
     if l.visible then local b = bucket(l.depth); b.n = b.n + 1; b[b.n] = l end
@@ -1063,6 +1043,7 @@ function W.draw()
   local pd = W.particle_drawables or {}
   W.particle_drawables = pd
   for i = 1, particles.drawables(pd) do local item = pd[i]; local b = bucket(item.depth); b.n = b.n + 1; b[b.n] = item end
+  if bucket_count > 1 then table.sort(bucket_keys, depth_order) end
   gs.raw.zoom(zoom)
   for k = 1, bucket_count do
     local b = buckets[bucket_keys[k]]
@@ -1084,7 +1065,9 @@ function W.draw()
           draw_item(item)
         end
       end
+      b[i] = nil
     end
+    b.n = 0
   end
   gs.raw.camera(cx, cy)
   local scene = W.scene

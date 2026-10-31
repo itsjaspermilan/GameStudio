@@ -80,7 +80,10 @@ an off-screen surface; `libEGL`/`libGLESv2` loaded at run time), draws the frame
 calls `main.c` makes, swapped in by name, keeping SDL's meaning (texture blend/colour/alpha, draw colour, SDL's blend formulas); copies
 with the same texture and blend mode are batched. Rows are drawn top row first at GL row 0, so readback and targets used as textures need
 no flipping. The fragment shader asks for high precision. Without EGL (a Mac, the tests, `GS_CORE_GPU=0`) every stand-in passes to SDL's
-software renderer into a 640x480 XRGB8888 surface. Measured on the Brick (`tests/heavy`): GPU 3.9/4.9/6.8 ms for 100/200/400 stars
+software renderer into a 640x480 XRGB8888 surface. `GS_CORE_BUFFERED_READBACK=1` opts into an ES 3 pixel-pack buffer and a polled fence,
+with direct ES 2 fallback if unavailable. It reads the current frame (no extra frame of latency), avoiding the Brick Pro driver's intermittent
+~100 ms blocking waits, but adds about 2 ms per Glow43 frame copying mapped GPU memory. Direct readback remains the faster default.
+Failures are reported and request frontend shutdown instead of showing stale pixels. Measured on the Brick (`tests/heavy`): GPU 3.9/4.9/6.8 ms for 100/200/400 stars
 against 21/34/60 on the CPU; frames match the CPU's (Breakout, blend, banks, mosaic exactly; turning sprites differ only at edges). Any
 new SDL renderer call in `main.c` needs a stand-in in `gpu.c`, or it reaches SDL with a GPU texture. `mix_cb` is called once a frame for
 735 samples at 44.1 kHz, on a thread of its own (`mix_thread_main`) while the game's frame runs, handed over at the end of `retro_run`
@@ -124,8 +127,9 @@ skips the extra wait after the flip). Opaque composed pictures are copied withou
 
 | Variable | Does |
 | --- | --- |
-| `GS_PERF=1` | One line a second (frames, average/worst ms for update, draw, render flush, copy + vsync, slow frames, audio lock wait, audio callback, Lua memory, the three costliest `gs.*` calls) and a line per slow frame. Kept in memory and written when the game ends: writing to an SD card while measuring made frames slow |
-| `GS_PROF=1` | Sampling profiler for Lua (every 1000 instructions), the 25 busiest lines at exit |
+| `GS_PERF=1` | One line a second, plus the costliest `gs.*` calls. The program logs slow frames; the core counts frames over 16.67 ms and logs individual frames over 33.33 ms. The program separates update, draw, render flush, copy + vsync, and audio waits; the core separates update, draw, readback + frontend video callback, and audio wait + frontend submission. Severe GPU frames split submission, readback wait, conversion, context restoration and the video callback; buffered summaries split GPU transfer, mapping, copying and unmapping. Core timings exclude presentation work outside those callbacks. Kept in memory and written at exit/core unload: writing to an SD card while measuring made frames slow |
+| `GS_CORE_BUFFERED_READBACK=1` | Opt-in core readback with fewer driver hitches but higher typical frame cost; requires ES 3 and preserves current-frame delivery. Direct readback is the default |
+| `GS_PROF=1` | Sampling profiler for Lua (every 1000 instructions), busiest lines/functions at exit or core unload |
 | `GS_DEBUG_INPUT=1` | Prints joysticks, raw evdev key codes and presses (flushed with `fsync`) |
 | `GS_MAX_SECONDS=N`, `GS_MAX_FRAMES=N` | Leave after N seconds / frames |
 | `GS_DUMP_FRAME=file.bmp` | Saves the last frame (tests compare drawing paths with it) |
